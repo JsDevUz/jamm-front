@@ -1,0 +1,68 @@
+/* Global Theme Styles */
+:root {
+  --primary-color: #5865f2;
+  --background-color: #36393f;
+  --secondary-color: #2f3136;
+  --tertiary-color: #202225;
+  --text-color: #dcddde;
+  --text-secondary-color: #b9bbbe;
+  --text-muted-color: #72767d;
+  --border-color: #40444b;
+  --hover-color: rgba(255, 255, 255, 0.1);
+  --active-color: rgba(88, 101, 242, 0.1);
+  --success-color: #43b581;
+  --warning-color: #faa61a;
+  --danger-color: #f04747;
+  --input-color: #40444b;
+  --placeholder-color: #72767d;
+}
+
+/* Light Theme */
+[data-theme="light"] {
+  --primary-color: #5865f2;
+  --background-color: #ffffff;
+  --secondary-color: #f2f3f5;
+  --tertiary-color: #e3e5e8;
+  --text-color: #2e3338;
+  --text-secondary-color: #4f5660;
+  --text-muted-color: #747f8d;
+  --border-color: #e3e5e8;
+  --hover-color: rgba(0, 0, 0, 0.05);
+  --active-color: rgba(88, 101, 242, 0.1);
+  --success-color: #3ba55c;
+  --warning-color: #faa61a;
+  --danger-color: #ed4245;
+  --input-color: #ebedef;
+  --placeholder-color: #747f8d;
+}
+
+/* Dark Theme (Default) */
+[data-theme="dark"] {
+  --primary-color: #5865f2;
+  --background-color: #36393f;
+  --secondary-color: #2f3136;
+  --tertiary-color: #202225;
+  --text-color: #dcddde;
+  --text-secondary-color: #b9bbbe;
+  --text-muted-color: #72767d;
+  --border-color: #40444b;
+  --hover-color: rgba(255, 255, 255, 0.1);
+  --active-color: rgba(88, 101, 242, 0.1);
+  --success-color: #43b581;
+  --warning-color: #faa61a;
+  --danger-color: #f04747;
+  --input-color: #40444b;
+  --placeholder-color: #72767d;
+}
+
+/* Base styles that use CSS variables */
+body {
+  background-color: var(--background-color);
+  color: var(--text-color);
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Theme transition for smooth switching */
+* {
+  transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+}

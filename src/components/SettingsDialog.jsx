@@ -1,0 +1,943 @@
+import React, { useState, useEffect, useRef } from "react";
+import styled from "styled-components";
+import {
+  X,
+  User,
+  Bell,
+  Shield,
+  Palette,
+  Globe,
+  Mic,
+  HelpCircle,
+  LogOut,
+  Camera,
+  Check,
+  AlertCircle,
+  Loader,
+} from "lucide-react";
+import { useTheme } from "../contexts/ThemeContext";
+
+const SettingsOverlay = styled.div`
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(10px);
+  z-index: 10003;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+`;
+
+const SettingsDialogComponent = styled.div`
+  background-color: var(--secondary-color);
+  border-radius: 8px;
+  width: 740px;
+  height: 600px;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.24);
+`;
+
+const SettingsHeader = styled.div`
+  padding: 16px;
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+`;
+
+const SettingsTitle = styled.div`
+  color: var(--text-color);
+  font-size: 20px;
+  font-weight: 600;
+`;
+
+const CloseButton = styled.button`
+  background: none;
+  border: none;
+  color: var(--text-secondary-color);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+
+  &:hover {
+    background-color: var(--hover-color);
+    color: var(--text-color);
+  }
+`;
+
+const SettingsContent = styled.div`
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+`;
+
+const Sidebar = styled.div`
+  width: 240px;
+  background-color: #202225;
+  padding: 8px 0;
+`;
+
+const SidebarItem = styled.div`
+  padding: 8px 16px;
+  color: ${(props) => (props.active ? "#fff" : "#b9bbbe")};
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 16px;
+  font-weight: 500;
+
+  &:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+    color: #fff;
+  }
+
+  ${(props) =>
+    props.active &&
+    `
+    background-color: #5865f2;
+    color: #fff;
+    border-radius: 4px;
+  `}
+`;
+
+const MainContent = styled.div`
+  flex: 1;
+  padding: 24px;
+  overflow-y: auto;
+`;
+
+const SectionTitle = styled.div`
+  color: #fff;
+  font-size: 20px;
+  font-weight: 600;
+  margin-bottom: 16px;
+`;
+
+const SectionDescription = styled.div`
+  color: #b9bbbe;
+  font-size: 14px;
+  margin-bottom: 24px;
+  line-height: 1.4;
+`;
+
+const SettingGroup = styled.div`
+  margin-bottom: 32px;
+`;
+
+const SettingItem = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 0;
+  border-bottom: 1px solid #40444b;
+`;
+
+const SettingLabel = styled.div`
+  color: #dcddde;
+  font-size: 16px;
+  font-weight: 500;
+`;
+
+const SettingDescription = styled.div`
+  color: #b9bbbe;
+  font-size: 14px;
+  margin-top: 4px;
+`;
+
+const Toggle = styled.label`
+  position: relative;
+  width: 44px;
+  height: 24px;
+  background-color: ${(props) => (props.checked ? "#5865f2" : "#72767d")};
+  border-radius: 12px;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+`;
+
+const ToggleSlider = styled.div`
+  position: absolute;
+  top: 2px;
+  left: ${(props) => (props.checked ? "22px" : "2px")};
+  width: 20px;
+  height: 20px;
+  background-color: #fff;
+  border-radius: 50%;
+  transition: left 0.2s ease;
+`;
+
+const Select = styled.select`
+  background-color: #40444b;
+  color: #dcddde;
+  border: 1px solid #202225;
+  border-radius: 4px;
+  padding: 8px 12px;
+  font-size: 14px;
+  cursor: pointer;
+
+  &:focus {
+    outline: none;
+    border-color: #5865f2;
+  }
+`;
+
+const Input = styled.input`
+  background-color: #40444b;
+  color: #dcddde;
+  border: 1px solid #202225;
+  border-radius: 4px;
+  padding: 8px 12px;
+  font-size: 14px;
+
+  &:focus {
+    outline: none;
+    border-color: #5865f2;
+  }
+`;
+
+const Button = styled.button`
+  background-color: #5865f2;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  padding: 10px 16px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+
+  &:hover {
+    background-color: #4752c4;
+  }
+`;
+
+const DangerButton = styled.button`
+  background-color: #dc3545;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  padding: 10px 16px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+
+  &:hover {
+    background-color: #c82333;
+  }
+`;
+
+// ─── Extra styled for My Account ──────────────────────────────────────────────
+
+const AvatarWrap = styled.div`
+  position: relative;
+  width: 80px;
+  height: 80px;
+  margin-bottom: 20px;
+  cursor: pointer;
+  &:hover div {
+    opacity: 1;
+  }
+`;
+
+const AvatarImg = styled.div`
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #7289da, #5865f2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 32px;
+  font-weight: 700;
+  color: #fff;
+  overflow: hidden;
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+`;
+
+const AvatarOverlay = styled.div`
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.2s;
+  color: #fff;
+`;
+
+const FormField = styled.div`
+  margin-bottom: 20px;
+`;
+
+const FieldLabel = styled.div`
+  color: #b9bbbe;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 6px;
+`;
+
+const FieldInput = styled.input`
+  width: 100%;
+  box-sizing: border-box;
+  background: #40444b;
+  color: #dcddde;
+  border: 1px solid #202225;
+  border-radius: 6px;
+  padding: 10px 14px;
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.2s;
+  &:focus {
+    border-color: #5865f2;
+  }
+  &:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+`;
+
+const SaveBar = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 24px;
+`;
+
+const SaveBtn = styled.button`
+  padding: 10px 20px;
+  border-radius: 6px;
+  border: none;
+  background: #5865f2;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s;
+  &:hover {
+    background: #4752c4;
+  }
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+`;
+
+const StatusMsg = styled.div`
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: ${(p) => (p.$error ? "#f04747" : "#43b581")};
+`;
+
+const SettingsDialog = ({ isOpen, onClose }) => {
+  const { theme, toggleTheme } = useTheme();
+  const [activeSection, setActiveSection] = useState("my-account");
+  const [settings, setSettings] = useState({
+    inputDevice: "default",
+    outputDevice: "default",
+    autoInputSensitivity: true,
+    noiseSuppression: true,
+    desktopNotifications: true,
+    soundNotifications: true,
+    theme,
+    messageDisplay: "compact",
+    twoFactorAuth: false,
+    privacyMode: "friends",
+    language: "en-US",
+    region: "US",
+  });
+
+  // ── My Account state ──────────────────────────────────────────────────────
+  const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
+  const [profile, setProfile] = useState({
+    nickname: "",
+    username: "",
+    phone: "",
+    avatar: "",
+  });
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState(null); // null | 'ok' | 'error'
+  const avatarInputRef = useRef(null);
+
+  useEffect(() => {
+    if (isOpen && activeSection === "my-account") loadProfile();
+  }, [isOpen, activeSection]);
+
+  const getHeaders = () => ({
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${localStorage.getItem("token")}`,
+  });
+
+  const loadProfile = async () => {
+    setProfileLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/users/me`, { headers: getHeaders() });
+      if (res.ok) {
+        const data = await res.json();
+        setProfile({
+          nickname: data.nickname || "",
+          username: data.username || "",
+          phone: data.phone || "",
+          avatar: data.avatar || "",
+        });
+      }
+    } catch {}
+    setProfileLoading(false);
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    setSaveStatus(null);
+    try {
+      const res = await fetch(`${API_URL}/users/me`, {
+        method: "PATCH",
+        headers: getHeaders(),
+        body: JSON.stringify(profile),
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        // Update localStorage so the rest of the app sees the new profile
+        const stored = JSON.parse(localStorage.getItem("user") || "{}");
+        localStorage.setItem("user", JSON.stringify({ ...stored, ...updated }));
+        setSaveStatus("ok");
+      } else {
+        setSaveStatus("error");
+      }
+    } catch {
+      setSaveStatus("error");
+    }
+    setSaving(false);
+    setTimeout(() => setSaveStatus(null), 3000);
+  };
+
+  const handleAvatarUrl = () => {
+    const url = window.prompt("Avatar URL kiriting:", profile.avatar);
+    if (url !== null) setProfile((p) => ({ ...p, avatar: url }));
+  };
+  // ─────────────────────────────────────────────────────────────────────────
+
+  const sections = [
+    { id: "my-account", label: "My Account", icon: User },
+    { id: "voice-video", label: "Voice & Video", icon: Mic },
+    { id: "notifications", label: "Notifications", icon: Bell },
+    { id: "appearance", label: "Appearance", icon: Palette },
+    { id: "privacy", label: "Privacy & Security", icon: Shield },
+    { id: "language", label: "Language & Region", icon: Globe },
+    { id: "keybinds", label: "Keybinds", icon: HelpCircle },
+  ];
+
+  const handleToggle = (key) => {
+    setSettings((prev) => ({
+      ...prev,
+      [key]: !prev[key],
+    }));
+  };
+
+  const handleChange = (key, value) => {
+    setSettings((prev) => ({
+      ...prev,
+      [key]: value,
+    }));
+
+    // If theme changed, update global theme
+    if (key === "theme") {
+      toggleTheme(value);
+    }
+  };
+
+  const renderMyAccount = () => {
+    if (profileLoading)
+      return (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            color: "#b9bbbe",
+            paddingTop: 40,
+          }}
+        >
+          <Loader size={18} style={{ animation: "spin 1s linear infinite" }} />
+          <span>Yuklanmoqda…</span>
+        </div>
+      );
+    return (
+      <>
+        <SectionTitle>My Account</SectionTitle>
+
+        {/* Avatar */}
+        <AvatarWrap onClick={handleAvatarUrl} title="Avatar URL o'zgartirish">
+          <AvatarImg>
+            {profile.avatar ? (
+              <img src={profile.avatar} alt="avatar" />
+            ) : (
+              (profile.nickname || profile.username || "?")
+                .charAt(0)
+                .toUpperCase()
+            )}
+          </AvatarImg>
+          <AvatarOverlay>
+            <Camera size={22} />
+          </AvatarOverlay>
+        </AvatarWrap>
+
+        <FormField>
+          <FieldLabel>Nickname</FieldLabel>
+          <FieldInput
+            value={profile.nickname}
+            onChange={(e) =>
+              setProfile((p) => ({ ...p, nickname: e.target.value }))
+            }
+            placeholder="Nickname"
+          />
+        </FormField>
+
+        <FormField>
+          <FieldLabel>Username</FieldLabel>
+          <FieldInput
+            value={profile.username}
+            onChange={(e) =>
+              setProfile((p) => ({ ...p, username: e.target.value }))
+            }
+            placeholder="username"
+          />
+        </FormField>
+
+        <FormField>
+          <FieldLabel>Telefon raqam</FieldLabel>
+          <FieldInput
+            value={profile.phone}
+            onChange={(e) =>
+              setProfile((p) => ({ ...p, phone: e.target.value }))
+            }
+            placeholder="+998 90 000 00 00"
+          />
+        </FormField>
+
+        <FormField>
+          <FieldLabel>Avatar URL</FieldLabel>
+          <FieldInput
+            value={profile.avatar}
+            onChange={(e) =>
+              setProfile((p) => ({ ...p, avatar: e.target.value }))
+            }
+            placeholder="https://..."
+          />
+        </FormField>
+
+        <SaveBar>
+          <SaveBtn onClick={handleSave} disabled={saving}>
+            {saving ? <Loader size={14} /> : <Check size={14} />}
+            {saving ? "Saqlanmoqda…" : "Saqlash"}
+          </SaveBtn>
+          {saveStatus === "ok" && (
+            <StatusMsg>
+              <Check size={13} />
+              Muvaffaqiyatli saqlandi!
+            </StatusMsg>
+          )}
+          {saveStatus === "error" && (
+            <StatusMsg $error>
+              <AlertCircle size={13} />
+              Xatolik yuz berdi
+            </StatusMsg>
+          )}
+        </SaveBar>
+      </>
+    );
+  };
+
+  const renderVoiceVideo = () => (
+    <>
+      <SectionTitle>Voice & Video</SectionTitle>
+      <SectionDescription>
+        Configure your input and output devices for voice and video.
+      </SectionDescription>
+
+      <SettingGroup>
+        <SettingItem>
+          <div>
+            <SettingLabel>INPUT DEVICE</SettingLabel>
+            <SettingDescription>Choose your microphone</SettingDescription>
+          </div>
+          <Select
+            value={settings.inputDevice}
+            onChange={(e) => handleChange("inputDevice", e.target.value)}
+          >
+            <option value="default">Default Microphone</option>
+            <option value="mic1">Built-in Microphone</option>
+            <option value="mic2">USB Microphone</option>
+          </Select>
+        </SettingItem>
+
+        <SettingItem>
+          <div>
+            <SettingLabel>OUTPUT DEVICE</SettingLabel>
+            <SettingDescription>Choose your speakers</SettingDescription>
+          </div>
+          <Select
+            value={settings.outputDevice}
+            onChange={(e) => handleChange("outputDevice", e.target.value)}
+          >
+            <option value="default">Default Speakers</option>
+            <option value="speakers1">Built-in Speakers</option>
+            <option value="speakers2">USB Headphones</option>
+          </Select>
+        </SettingItem>
+
+        <SettingItem>
+          <div>
+            <SettingLabel>VIDEO DEVICE</SettingLabel>
+            <SettingDescription>Choose your camera</SettingDescription>
+          </div>
+          <Select
+            value={settings.videoDevice}
+            onChange={(e) => handleChange("videoDevice", e.target.value)}
+          >
+            <option value="default">Default Camera</option>
+            <option value="camera1">Built-in Camera</option>
+            <option value="camera2">USB Camera</option>
+          </Select>
+        </SettingItem>
+
+        <SettingItem>
+          <div>
+            <SettingLabel>AUTOMATIC INPUT SENSITIVITY</SettingLabel>
+            <SettingDescription>
+              Automatically adjust input volume
+            </SettingDescription>
+          </div>
+          <Toggle checked={settings.autoInputSensitivity}>
+            <input
+              type="checkbox"
+              checked={settings.autoInputSensitivity}
+              onChange={() => handleToggle("autoInputSensitivity")}
+            />
+            <ToggleSlider checked={settings.autoInputSensitivity} />
+          </Toggle>
+        </SettingItem>
+
+        <SettingItem>
+          <div>
+            <SettingLabel>NOISE SUPPRESSION</SettingLabel>
+            <SettingDescription>
+              Remove background noise from your voice
+            </SettingDescription>
+          </div>
+          <Toggle checked={settings.noiseSuppression}>
+            <input
+              type="checkbox"
+              checked={settings.noiseSuppression}
+              onChange={() => handleToggle("noiseSuppression")}
+            />
+            <ToggleSlider checked={settings.noiseSuppression} />
+          </Toggle>
+        </SettingItem>
+      </SettingGroup>
+    </>
+  );
+
+  const renderNotifications = () => (
+    <>
+      <SectionTitle>Notifications</SectionTitle>
+      <SectionDescription>
+        Manage how you receive notifications.
+      </SectionDescription>
+
+      <SettingGroup>
+        <SettingItem>
+          <div>
+            <SettingLabel>DESKTOP NOTIFICATIONS</SettingLabel>
+            <SettingDescription>
+              Show notifications on your desktop
+            </SettingDescription>
+          </div>
+          <Toggle checked={settings.desktopNotifications}>
+            <input
+              type="checkbox"
+              checked={settings.desktopNotifications}
+              onChange={() => handleToggle("desktopNotifications")}
+            />
+            <ToggleSlider checked={settings.desktopNotifications} />
+          </Toggle>
+        </SettingItem>
+
+        <SettingItem>
+          <div>
+            <SettingLabel>SOUND NOTIFICATIONS</SettingLabel>
+            <SettingDescription>
+              Play sound when you receive a message
+            </SettingDescription>
+          </div>
+          <Toggle checked={settings.soundNotifications}>
+            <input
+              type="checkbox"
+              checked={settings.soundNotifications}
+              onChange={() => handleToggle("soundNotifications")}
+            />
+            <ToggleSlider checked={settings.soundNotifications} />
+          </Toggle>
+        </SettingItem>
+      </SettingGroup>
+    </>
+  );
+
+  const renderAppearance = () => (
+    <>
+      <SectionTitle>Appearance</SectionTitle>
+      <SectionDescription>
+        Customize how Jamm looks on your device.
+      </SectionDescription>
+
+      <SettingGroup>
+        <SettingItem>
+          <div>
+            <SettingLabel>THEME</SettingLabel>
+            <SettingDescription>
+              Choose your preferred color theme
+            </SettingDescription>
+          </div>
+          <Select
+            value={settings.theme}
+            onChange={(e) => handleChange("theme", e.target.value)}
+          >
+            <option value="dark">Dark</option>
+            <option value="light">Light</option>
+            <option value="auto">Auto</option>
+          </Select>
+        </SettingItem>
+
+        <SettingItem>
+          <div>
+            <SettingLabel>MESSAGE DISPLAY</SettingLabel>
+            <SettingDescription>
+              Choose how messages are displayed
+            </SettingDescription>
+          </div>
+          <Select
+            value={settings.messageDisplay}
+            onChange={(e) => handleChange("messageDisplay", e.target.value)}
+          >
+            <option value="compact">Compact</option>
+            <option value="cozy">Cozy</option>
+            <option value="roomy">Roomy</option>
+          </Select>
+        </SettingItem>
+      </SettingGroup>
+    </>
+  );
+
+  const renderPrivacy = () => (
+    <>
+      <SectionTitle>Privacy & Security</SectionTitle>
+      <SectionDescription>
+        Manage your privacy and security settings.
+      </SectionDescription>
+
+      <SettingGroup>
+        <SettingItem>
+          <div>
+            <SettingLabel>TWO-FACTOR AUTHENTICATION</SettingLabel>
+            <SettingDescription>
+              Add an extra layer of security to your account
+            </SettingDescription>
+          </div>
+          <Toggle checked={settings.twoFactorAuth}>
+            <input
+              type="checkbox"
+              checked={settings.twoFactorAuth}
+              onChange={() => handleToggle("twoFactorAuth")}
+            />
+            <ToggleSlider checked={settings.twoFactorAuth} />
+          </Toggle>
+        </SettingItem>
+
+        <SettingItem>
+          <div>
+            <SettingLabel>PRIVACY MODE</SettingLabel>
+            <SettingDescription>Control who can contact you</SettingDescription>
+          </div>
+          <Select
+            value={settings.privacyMode}
+            onChange={(e) => handleChange("privacyMode", e.target.value)}
+          >
+            <option value="everyone">Everyone</option>
+            <option value="friends">Friends of Friends</option>
+            <option value="friends">Friends Only</option>
+          </Select>
+        </SettingItem>
+      </SettingGroup>
+
+      <SettingGroup>
+        <DangerButton onClick={() => alert("Log out functionality")}>
+          <LogOut size={16} style={{ marginRight: "8px" }} />
+          Log Out
+        </DangerButton>
+      </SettingGroup>
+    </>
+  );
+
+  const renderLanguage = () => (
+    <>
+      <SectionTitle>Language & Region</SectionTitle>
+      <SectionDescription>
+        Set your language and region preferences.
+      </SectionDescription>
+
+      <SettingGroup>
+        <SettingItem>
+          <div>
+            <SettingLabel>LANGUAGE</SettingLabel>
+            <SettingDescription>
+              Choose your preferred language
+            </SettingDescription>
+          </div>
+          <Select
+            value={settings.language}
+            onChange={(e) => handleChange("language", e.target.value)}
+          >
+            <option value="en-US">English (US)</option>
+            <option value="es-ES">Español</option>
+            <option value="fr-FR">Français</option>
+            <option value="de-DE">Deutsch</option>
+            <option value="ja-JP">日本語</option>
+            <option value="zh-CN">中文</option>
+            <option value="ru-RU">Русский</option>
+            <option value="uz-UZ">O'zbekcha</option>
+          </Select>
+        </SettingItem>
+
+        <SettingItem>
+          <div>
+            <SettingLabel>REGION</SettingLabel>
+            <SettingDescription>Choose your server region</SettingDescription>
+          </div>
+          <Select
+            value={settings.region}
+            onChange={(e) => handleChange("region", e.target.value)}
+          >
+            <option value="US">United States</option>
+            <option value="EU">Europe</option>
+            <option value="Asia">Asia</option>
+            <option value="RU">Russia</option>
+          </Select>
+        </SettingItem>
+      </SettingGroup>
+    </>
+  );
+
+  const renderKeybinds = () => (
+    <>
+      <SectionTitle>Keybinds</SectionTitle>
+      <SectionDescription>
+        Customize your keyboard shortcuts.
+      </SectionDescription>
+
+      <SettingGroup>
+        <SettingItem>
+          <div>
+            <SettingLabel>PUSH TO MUTE</SettingLabel>
+            <SettingDescription>
+              Hold to temporarily mute your microphone
+            </SettingDescription>
+          </div>
+          <Input type="text" value="Ctrl + M" readOnly />
+        </SettingItem>
+
+        <SettingItem>
+          <div>
+            <SettingLabel>PUSH TO TALK</SettingLabel>
+            <SettingDescription>Hold to speak</SettingDescription>
+          </div>
+          <Input type="text" value="Ctrl + T" readOnly />
+        </SettingItem>
+
+        <SettingItem>
+          <div>
+            <SettingLabel>TOGGLE MUTE</SettingLabel>
+            <SettingDescription>Toggle microphone on/off</SettingDescription>
+          </div>
+          <Input type="text" value="Ctrl + Shift + M" readOnly />
+        </SettingItem>
+      </SettingGroup>
+    </>
+  );
+
+  const renderContent = () => {
+    switch (activeSection) {
+      case "my-account":
+        return renderMyAccount();
+      case "voice-video":
+        return renderVoiceVideo();
+      case "notifications":
+        return renderNotifications();
+      case "appearance":
+        return renderAppearance();
+      case "privacy":
+        return renderPrivacy();
+      case "language":
+        return renderLanguage();
+      case "keybinds":
+        return renderKeybinds();
+      default:
+        return renderMyAccount();
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <SettingsOverlay onClick={onClose}>
+      <SettingsDialogComponent onClick={(e) => e.stopPropagation()}>
+        <SettingsHeader>
+          <SettingsTitle>User Settings</SettingsTitle>
+          <CloseButton onClick={onClose}>
+            <X size={20} />
+          </CloseButton>
+        </SettingsHeader>
+
+        <SettingsContent>
+          <Sidebar>
+            {sections.map((section) => {
+              const Icon = section.icon;
+              return (
+                <SidebarItem
+                  key={section.id}
+                  active={activeSection === section.id}
+                  onClick={() => setActiveSection(section.id)}
+                >
+                  <Icon size={18} />
+                  {section.label}
+                </SidebarItem>
+              );
+            })}
+          </Sidebar>
+
+          <MainContent>{renderContent()}</MainContent>
+        </SettingsContent>
+      </SettingsDialogComponent>
+    </SettingsOverlay>
+  );
+};
+
+export default SettingsDialog;
