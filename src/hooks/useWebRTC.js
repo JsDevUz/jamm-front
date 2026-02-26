@@ -37,6 +37,7 @@ export function useWebRTC({
   enabled,
   isCreator = false,
   isPrivate = false,
+  chatTitle = "",
 }) {
   const socketRef = useRef(null);
   const localStreamRef = useRef(null);
@@ -44,11 +45,18 @@ export function useWebRTC({
 
   const [localStream, setLocalStream] = useState(null);
   const [remoteStreams, setRemoteStreams] = useState([]);
-  const [knockRequests, setKnockRequests] = useState([]); // for creator
+  const [screenStream, setScreenStream] = useState(null); // local screen share
+  const [remoteScreenStreams, setRemoteScreenStreams] = useState([]); // remote screen shares
+  const [isScreenSharing, setIsScreenSharing] = useState(false);
+  const [knockRequests, setKnockRequests] = useState([]);
   const [isMicOn, setIsMicOn] = useState(true);
   const [isCamOn, setIsCamOn] = useState(true);
-  const [joinStatus, setJoinStatus] = useState("idle"); // idle|connecting|waiting|rejected|joined
+  const [joinStatus, setJoinStatus] = useState("idle");
   const [error, setError] = useState(null);
+  const [roomTitle, setRoomTitle] = useState(chatTitle || "");
+  const screenStreamRef = useRef(null);
+  const screenSendersRef = useRef({}); // peerId -> RTCRtpSender
+  const knownStreamsRef = useRef({}); // peerId -> first camera streamId
 
   // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -63,6 +71,8 @@ export function useWebRTC({
 
   const removeRemoteStream = useCallback((peerId) => {
     setRemoteStreams((prev) => prev.filter((r) => r.peerId !== peerId));
+    setRemoteScreenStreams((prev) => prev.filter((r) => r.peerId !== peerId));
+    delete knownStreamsRef.current[peerId];
     if (peerConnectionsRef.current[peerId]) {
       peerConnectionsRef.current[peerId].close();
       delete peerConnectionsRef.current[peerId];
@@ -81,9 +91,40 @@ export function useWebRTC({
           .forEach((t) => pc.addTrack(t, localStreamRef.current));
       }
 
+      // Also add screen tracks if we're currently sharing
+      if (screenStreamRef.current) {
+        screenStreamRef.current
+          .getTracks()
+          .forEach((t) => pc.addTrack(t, screenStreamRef.current));
+      }
+
       pc.ontrack = (e) => {
         const [s] = e.streams;
-        addRemoteStream(peerId, s, peerDisplayName);
+        if (!s) return;
+
+        const known = knownStreamsRef.current[peerId];
+
+        if (!known) {
+          // First stream from this peer = camera
+          knownStreamsRef.current[peerId] = s.id;
+          addRemoteStream(peerId, s, peerDisplayName);
+        } else if (known === s.id) {
+          // Same camera stream (renegotiation update)
+          addRemoteStream(peerId, s, peerDisplayName);
+        } else {
+          // New different stream = screen share
+          setRemoteScreenStreams((prev) => {
+            if (prev.find((r) => r.peerId === peerId)) {
+              return prev.map((r) =>
+                r.peerId === peerId ? { ...r, stream: s } : r,
+              );
+            }
+            return [
+              ...prev,
+              { peerId, stream: s, displayName: peerDisplayName },
+            ];
+          });
+        }
       };
 
       pc.onicecandidate = (e) => {
@@ -141,8 +182,11 @@ export function useWebRTC({
         socket.emit("offer", { targetId: peerId, sdp: offer });
       });
 
-      socket.on("existing-peers", () => {
-        // Existing peers will send us offers via their "peer-joined" listener
+      socket.on("existing-peers", ({ peers }) => {
+        // Server confirmed we're in the room
+        setJoinStatus("joined");
+        // Don't create offers here — existing peers will send us
+        // offers via their "peer-joined" handler to avoid glare
       });
 
       socket.on("peer-left", ({ peerId }) => {
@@ -208,15 +252,37 @@ export function useWebRTC({
           });
         }
 
+        // 5b. Listen for room-info (title, isPrivate) from server
+        socket.on("room-info", ({ title }) => {
+          if (title) setRoomTitle(title);
+        });
+
+        // 5c. Screen share signals from peers
+        socket.on("screen-share-stopped", ({ peerId: sharerPeerId }) => {
+          // Remove screen stream entry and reset known stream tracking
+          // so re-shared streams are detected correctly
+          setRemoteScreenStreams((prev) =>
+            prev.filter((r) => r.peerId !== sharerPeerId),
+          );
+          // Reset known streams so only camera remains tracked
+          delete knownStreamsRef.current[sharerPeerId];
+        });
+
         // 6. Join or create room
         if (isCreator) {
-          socket.emit("create-room", { roomId, displayName, isPrivate });
+          socket.emit("create-room", {
+            roomId,
+            displayName,
+            isPrivate,
+            title: chatTitle,
+          });
           socket.once("room-created", () => {
             setJoinStatus("joined");
           });
         } else {
           socket.emit("join-room", { roomId, displayName });
-          if (!isPrivate) setJoinStatus("joined"); // open room: immediate
+          // Don't set joined here — wait for server to confirm via
+          // "existing-peers" (open) or "knock-approved" (private)
         }
       } catch (err) {
         console.error("[useWebRTC]", err);
@@ -303,13 +369,95 @@ export function useWebRTC({
     peerConnectionsRef.current = {};
     localStreamRef.current?.getTracks().forEach((t) => t.stop());
     localStreamRef.current = null;
+    screenStreamRef.current?.getTracks().forEach((t) => t.stop());
+    screenStreamRef.current = null;
     setLocalStream(null);
+    setScreenStream(null);
+    setIsScreenSharing(false);
     setRemoteStreams([]);
+    setRemoteScreenStreams([]);
   }, [roomId]);
+
+  // ─── Screen Share ─────────────────────────────────────────────────────────────
+
+  const toggleScreenShare = useCallback(async () => {
+    if (isScreenSharing) {
+      // Stop screen share
+      screenStreamRef.current?.getTracks().forEach((t) => t.stop());
+      // Remove screen track from all peer connections
+      Object.entries(screenSendersRef.current).forEach(([peerId, sender]) => {
+        const pc = peerConnectionsRef.current[peerId];
+        if (pc && sender) {
+          try {
+            pc.removeTrack(sender);
+          } catch {}
+        }
+      });
+      screenSendersRef.current = {};
+      screenStreamRef.current = null;
+      setScreenStream(null);
+      setIsScreenSharing(false);
+      // Notify peers
+      if (socketRef.current) {
+        socketRef.current.emit("screen-share-stopped", { roomId });
+      }
+      // Renegotiate with all peers
+      for (const [peerId, pc] of Object.entries(peerConnectionsRef.current)) {
+        try {
+          const offer = await pc.createOffer();
+          await pc.setLocalDescription(offer);
+          socketRef.current?.emit("offer", { targetId: peerId, sdp: offer });
+        } catch {}
+      }
+      return;
+    }
+
+    // Start screen share
+    try {
+      const screen = await navigator.mediaDevices.getDisplayMedia({
+        video: true,
+        audio: false,
+      });
+      screenStreamRef.current = screen;
+      setScreenStream(screen);
+      setIsScreenSharing(true);
+
+      // When user stops via browser UI
+      screen.getVideoTracks()[0].onended = () => {
+        toggleScreenShare(); // recursion: will hit the stop branch
+      };
+
+      // Add screen track to all existing peer connections
+      for (const [peerId, pc] of Object.entries(peerConnectionsRef.current)) {
+        const sender = pc.addTrack(screen.getVideoTracks()[0], screen);
+        screenSendersRef.current[peerId] = sender;
+      }
+
+      // Notify peers
+      if (socketRef.current) {
+        socketRef.current.emit("screen-share-started", { roomId });
+      }
+
+      // Renegotiate with all peers
+      for (const [peerId, pc] of Object.entries(peerConnectionsRef.current)) {
+        try {
+          const offer = await pc.createOffer();
+          await pc.setLocalDescription(offer);
+          socketRef.current?.emit("offer", { targetId: peerId, sdp: offer });
+        } catch {}
+      }
+    } catch (err) {
+      console.error("Screen share error:", err);
+    }
+  }, [isScreenSharing, roomId]);
 
   return {
     localStream,
     remoteStreams,
+    screenStream,
+    remoteScreenStreams,
+    isScreenSharing,
+    toggleScreenShare,
     knockRequests,
     approveKnock,
     rejectKnock,
@@ -320,5 +468,6 @@ export function useWebRTC({
     toggleCam,
     leaveCall,
     error,
+    roomTitle,
   };
 }

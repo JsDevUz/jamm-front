@@ -14,6 +14,8 @@ import {
   CheckCircle,
   XCircle,
   Clock,
+  Monitor,
+  MonitorOff,
 } from "lucide-react";
 import { useWebRTC } from "../hooks/useWebRTC";
 
@@ -265,6 +267,89 @@ const EmptyWaiting = styled.div`
   gap: 8px;
 `;
 
+const MemberRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  transition: background 0.12s;
+  &:hover {
+    background: rgba(255, 255, 255, 0.04);
+  }
+`;
+
+const MemberAvatar = styled.div`
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: linear-gradient(135deg, #7289da, #5e73bc);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 700;
+  color: #fff;
+`;
+
+const MemberInfo = styled.div`
+  flex: 1;
+  min-width: 0;
+  color: #dcddde;
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+`;
+
+const MemberIcons = styled.div`
+  display: flex;
+  gap: 4px;
+  color: #4f545c;
+  flex-shrink: 0;
+`;
+
+const SectionLabel = styled.div`
+  color: #72767d;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 12px 14px 4px;
+`;
+
+const NotifBadge = styled.span`
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #f04747;
+  color: #fff;
+  font-size: 9px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+`;
+
+const DrawerClose = styled.button`
+  background: none;
+  border: none;
+  color: #72767d;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  transition: color 0.15s;
+  &:hover {
+    color: #fff;
+  }
+`;
+
 // ─── Controls ─────────────────────────────────────────────────────────────────
 
 const ControlBar = styled.div`
@@ -354,7 +439,7 @@ const GroupVideoCall = ({
   isPrivate = false,
 }) => {
   const [copied, setCopied] = useState(false);
-  const [showWaiting, setShowWaiting] = useState(true);
+  const [showDrawer, setShowDrawer] = useState(false);
 
   const currentUser = (() => {
     try {
@@ -370,6 +455,10 @@ const GroupVideoCall = ({
   const {
     localStream,
     remoteStreams,
+    screenStream,
+    remoteScreenStreams,
+    isScreenSharing,
+    toggleScreenShare,
     knockRequests,
     approveKnock,
     rejectKnock,
@@ -380,12 +469,14 @@ const GroupVideoCall = ({
     toggleCam,
     leaveCall,
     error,
+    roomTitle,
   } = useWebRTC({
     roomId,
     displayName,
     enabled: isOpen && !!roomId,
     isCreator,
     isPrivate,
+    chatTitle,
   });
 
   const handleLeave = () => {
@@ -401,14 +492,18 @@ const GroupVideoCall = ({
 
   if (!isOpen || !roomId) return null;
 
-  const totalTiles = 1 + remoteStreams.length;
+  const totalTiles =
+    1 +
+    remoteStreams.length +
+    (screenStream ? 1 : 0) +
+    remoteScreenStreams.length;
 
   return (
     <Overlay>
       <TopBar>
         <CallInfo>
           <CallTitle>
-            {chatTitle || "Guruh Call"}
+            {roomTitle || chatTitle || "Meet"}
             {isPrivate && (
               <span style={{ fontSize: 11, color: "#faa61a", marginLeft: 8 }}>
                 🔒 Private
@@ -422,16 +517,15 @@ const GroupVideoCall = ({
             {copied ? <Check size={13} /> : <Copy size={13} />}
             {copied ? "Nusxalandi!" : "Link"}
           </TinyBtn>
-          {isCreator && isPrivate && (
-            <TinyBtn onClick={() => setShowWaiting((p) => !p)}>
-              <Clock size={13} />
-              Kutayotganlar{" "}
-              {knockRequests.length > 0 && `(${knockRequests.length})`}
-            </TinyBtn>
-          )}
-          <TinyBtn>
+          <TinyBtn
+            onClick={() => setShowDrawer((p) => !p)}
+            style={{ position: "relative" }}
+          >
             <Users size={13} />
             {totalTiles}
+            {isCreator && knockRequests.length > 0 && (
+              <NotifBadge>{knockRequests.length}</NotifBadge>
+            )}
           </TinyBtn>
         </TopActions>
       </TopBar>
@@ -448,6 +542,24 @@ const GroupVideoCall = ({
             <Spin size={38} color="#7289da" />
             <span>Ulanmoqda…</span>
           </CenterBox>
+        ) : joinStatus === "waiting" ? (
+          <CenterBox>
+            <Clock size={48} color="#faa61a" />
+            <span style={{ fontSize: 18, fontWeight: 700, color: "#fff" }}>
+              Ruxsat kutilmoqda…
+            </span>
+            <span>Call yaratuvchisi sizga ruxsat berishini kuting</span>
+            <TinyBtn onClick={handleLeave}>Bekor qilish</TinyBtn>
+          </CenterBox>
+        ) : joinStatus === "rejected" ? (
+          <CenterBox>
+            <XCircle size={48} color="#f04747" />
+            <span style={{ fontSize: 18, fontWeight: 700, color: "#fff" }}>
+              Rad etildi
+            </span>
+            <span>Call yaratuvchisi so'rovingizni rad etdi</span>
+            <TinyBtn onClick={onClose}>Yopish</TinyBtn>
+          </CenterBox>
         ) : (
           <VideoGrid $count={totalTiles}>
             <VideoEl
@@ -457,40 +569,114 @@ const GroupVideoCall = ({
               label={displayName}
               isCamOn={isCamOn}
             />
+            {/* Local screen share tile */}
+            {screenStream && (
+              <VideoEl
+                stream={screenStream}
+                muted
+                label={`🖥️ ${displayName} (Ekran)`}
+                isCamOn
+              />
+            )}
             {remoteStreams.map(({ peerId, stream, displayName: n }) => (
               <VideoEl key={peerId} stream={stream} label={n} isCamOn />
+            ))}
+            {/* Remote screen share tiles */}
+            {remoteScreenStreams.map(({ peerId, stream, displayName: n }) => (
+              <VideoEl
+                key={`screen-${peerId}`}
+                stream={stream}
+                label={`🖥️ ${n} (Ekran)`}
+                isCamOn
+              />
             ))}
           </VideoGrid>
         )}
 
-        {/* Waiting room panel — creator + private only */}
-        {isCreator && isPrivate && showWaiting && (
+        {/* Members Drawer */}
+        {showDrawer && (
           <WaitingPanel>
             <PanelHead>
-              <Clock size={15} color="#faa61a" />
-              Kutayotganlar
+              <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <Users size={15} color="#7289da" />
+                A'zolar ({totalTiles})
+              </span>
+              <DrawerClose onClick={() => setShowDrawer(false)}>
+                <XCircle size={16} />
+              </DrawerClose>
             </PanelHead>
             <PanelBody>
-              {knockRequests.length === 0 ? (
-                <EmptyWaiting>
-                  <Users size={28} />
-                  <span>Hech kim kutmayapti</span>
-                </EmptyWaiting>
-              ) : (
-                knockRequests.map(({ peerId, displayName: n }) => (
-                  <KnockCard key={peerId}>
-                    <KnockName>👤 {n}</KnockName>
-                    <KnockActions>
-                      <KnockBtn $approve onClick={() => approveKnock(peerId)}>
-                        <CheckCircle size={12} /> Qabul
-                      </KnockBtn>
-                      <KnockBtn onClick={() => rejectKnock(peerId)}>
-                        <XCircle size={12} /> Rad
-                      </KnockBtn>
-                    </KnockActions>
-                  </KnockCard>
-                ))
+              {/* Waiting section — only creator of private room */}
+              {isCreator && isPrivate && (
+                <>
+                  <SectionLabel>
+                    ⏳ Kutayotganlar ({knockRequests.length})
+                  </SectionLabel>
+                  {knockRequests.length === 0 ? (
+                    <div
+                      style={{
+                        padding: "8px 14px",
+                        color: "#4f545c",
+                        fontSize: 12,
+                      }}
+                    >
+                      Hech kim kutmayapti
+                    </div>
+                  ) : (
+                    knockRequests.map(({ peerId, displayName: n }) => (
+                      <KnockCard key={peerId}>
+                        <KnockName>👤 {n}</KnockName>
+                        <KnockActions>
+                          <KnockBtn
+                            $approve
+                            onClick={() => approveKnock(peerId)}
+                          >
+                            <CheckCircle size={12} /> Qabul
+                          </KnockBtn>
+                          <KnockBtn onClick={() => rejectKnock(peerId)}>
+                            <XCircle size={12} /> Rad
+                          </KnockBtn>
+                        </KnockActions>
+                      </KnockCard>
+                    ))
+                  )}
+                </>
               )}
+
+              {/* Joined members */}
+              <SectionLabel>✅ Qo'shilganlar ({totalTiles})</SectionLabel>
+              {/* Local user */}
+              <MemberRow>
+                <MemberAvatar>
+                  {displayName?.charAt(0)?.toUpperCase() || "?"}
+                </MemberAvatar>
+                <MemberInfo>{displayName} (Sen)</MemberInfo>
+                <MemberIcons>
+                  {isMicOn ? (
+                    <Mic size={13} color="#43b581" />
+                  ) : (
+                    <MicOff size={13} color="#f04747" />
+                  )}
+                  {isCamOn ? (
+                    <Video size={13} color="#43b581" />
+                  ) : (
+                    <VideoOff size={13} color="#f04747" />
+                  )}
+                </MemberIcons>
+              </MemberRow>
+              {/* Remote peers */}
+              {remoteStreams.map(({ peerId, displayName: n }) => (
+                <MemberRow key={peerId}>
+                  <MemberAvatar>
+                    {n?.charAt(0)?.toUpperCase() || "?"}
+                  </MemberAvatar>
+                  <MemberInfo>{n}</MemberInfo>
+                  <MemberIcons>
+                    <Mic size={13} color="#43b581" />
+                    <Video size={13} color="#43b581" />
+                  </MemberIcons>
+                </MemberRow>
+              ))}
             </PanelBody>
           </WaitingPanel>
         )}
@@ -502,6 +688,9 @@ const GroupVideoCall = ({
         </CtrlBtn>
         <CtrlBtn $active={isCamOn} onClick={toggleCam}>
           {isCamOn ? <Video size={21} /> : <VideoOff size={21} />}
+        </CtrlBtn>
+        <CtrlBtn $active={isScreenSharing} onClick={toggleScreenShare}>
+          {isScreenSharing ? <MonitorOff size={21} /> : <Monitor size={21} />}
         </CtrlBtn>
         <CtrlBtn $danger onClick={handleLeave}>
           <PhoneOff size={21} />

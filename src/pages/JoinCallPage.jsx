@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from "react";
-import styled, { keyframes, css } from "styled-components";
+import styled, { keyframes } from "styled-components";
 import { useParams } from "react-router-dom";
 import GroupVideoCall from "../components/GroupVideoCall";
-import { useWebRTC } from "../hooks/useWebRTC";
 import { getMeetById, saveMeet } from "../utils/meetStore";
-import { Clock, XCircle, Loader } from "lucide-react";
+import { Loader } from "lucide-react";
 
 const fadeIn = keyframes`
   from { opacity: 0; transform: translateY(16px); }
@@ -18,6 +17,7 @@ const pulse = keyframes`
 
 const Page = styled.div`
   min-height: 100vh;
+  width: 100%;
   background: #0b0d0f;
   display: flex;
   align-items: center;
@@ -107,110 +107,9 @@ const Err = styled.p`
   margin: 8px 0 0;
 `;
 
-const SmallBtn = styled.button`
-  padding: 10px 22px;
-  background: rgba(255, 255, 255, 0.07);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
-  color: #b9bbbe;
-  font-size: 13px;
-  cursor: pointer;
-  &:hover {
-    background: rgba(255, 255, 255, 0.12);
-    color: #fff;
-  }
-`;
-
-const StatusIcon = styled.div`
-  font-size: 48px;
-  margin-bottom: 12px;
-`;
-const StatusTitle = styled.div`
-  color: #fff;
-  font-size: 18px;
-  font-weight: 700;
-  margin-bottom: 8px;
-`;
-const StatusSub = styled.div`
-  color: #8e9297;
-  font-size: 13px;
-  margin-bottom: 20px;
-`;
-
 const SpinLoader = styled(Loader)`
   animation: ${pulse} 1.2s linear infinite;
 `;
-
-// ─── Guest sub-component (handles waiting/rejected/joined states) ────────────
-
-const GuestCall = ({ roomId, guestName, meet }) => {
-  const { joinStatus, error, leaveCall } = useWebRTC({
-    roomId,
-    displayName: guestName,
-    enabled: true,
-    isCreator: false,
-    isPrivate: meet?.isPrivate || false,
-  });
-
-  if (joinStatus === "connecting") {
-    return (
-      <Page>
-        <Card>
-          <StatusIcon>
-            <SpinLoader size={40} color="#7289da" />
-          </StatusIcon>
-          <StatusTitle>Ulanmoqda…</StatusTitle>
-        </Card>
-      </Page>
-    );
-  }
-
-  if (joinStatus === "waiting") {
-    return (
-      <Page>
-        <Card>
-          <StatusIcon>
-            <Clock size={48} color="#faa61a" />
-          </StatusIcon>
-          <StatusTitle>Ruxsat kutilmoqda…</StatusTitle>
-          <StatusSub>Call yaratuvchisi sizga ruxsat berishini kuting</StatusSub>
-          <SmallBtn onClick={leaveCall}>Bekor qilish</SmallBtn>
-        </Card>
-      </Page>
-    );
-  }
-
-  if (joinStatus === "rejected" || error) {
-    return (
-      <Page>
-        <Card>
-          <StatusIcon>
-            <XCircle size={48} color="#f04747" />
-          </StatusIcon>
-          <StatusTitle>Rad etildi</StatusTitle>
-          <StatusSub>
-            {error || "Call yaratuvchisi so'rovingizni rad etdi"}
-          </StatusSub>
-          <SmallBtn onClick={() => (window.location.href = "/")}>
-            Bosh sahifaga
-          </SmallBtn>
-        </Card>
-      </Page>
-    );
-  }
-
-  // joined — render the call
-  return (
-    <GroupVideoCall
-      isOpen
-      onClose={() => window.history.back()}
-      roomId={roomId}
-      chatTitle={meet?.title || "Guruh Call"}
-      isCreator={false}
-      isPrivate={meet?.isPrivate || false}
-    />
-  );
-};
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 
@@ -225,26 +124,20 @@ const JoinCallPage = () => {
     const stored = getMeetById(roomId);
     setMeet(stored);
 
+    const user = (() => {
+      try {
+        return JSON.parse(localStorage.getItem("user") || "null");
+      } catch {
+        return null;
+      }
+    })();
+
     if (stored?.isCreator) {
       // Creator — auto-join, skip the name form
-      const user = (() => {
-        try {
-          return JSON.parse(localStorage.getItem("user") || "null");
-        } catch {
-          return null;
-        }
-      })();
       setName(user?.nickname || user?.username || "Host");
       setStage("call");
     } else {
       // Guest — pre-fill name if logged in, then show form
-      const user = (() => {
-        try {
-          return JSON.parse(localStorage.getItem("user") || "null");
-        } catch {
-          return null;
-        }
-      })();
       setName(user?.nickname || user?.username || "");
       setStage("form");
     }
@@ -255,10 +148,9 @@ const JoinCallPage = () => {
       setError("Iltimos ismingizni kiriting");
       return;
     }
-    // Save guest meet to history
     saveMeet({
       roomId,
-      title: meet?.title || "Guruh Call",
+      title: meet?.title || "Meet",
       isPrivate: meet?.isPrivate || false,
       isCreator: false,
     });
@@ -269,30 +161,27 @@ const JoinCallPage = () => {
     return (
       <Page>
         <Card>
-          <Loader size={32} color="#7289da" />
+          <SpinLoader size={32} color="#7289da" />
         </Card>
       </Page>
     );
   }
 
+  // Both creator and guest — render GroupVideoCall directly (single useWebRTC instance)
   if (stage === "call") {
-    if (meet?.isCreator) {
-      // Creator — render call directly (no GuestCall state machine needed)
-      return (
-        <GroupVideoCall
-          isOpen
-          onClose={() => window.history.back()}
-          roomId={roomId}
-          chatTitle={meet?.title || "Guruh Call"}
-          isCreator
-          isPrivate={meet?.isPrivate || false}
-        />
-      );
-    }
-    return <GuestCall roomId={roomId} guestName={name} meet={meet} />;
+    return (
+      <GroupVideoCall
+        isOpen
+        onClose={() => window.history.back()}
+        roomId={roomId}
+        chatTitle={meet?.title || "Meet"}
+        isCreator={meet?.isCreator || false}
+        isPrivate={meet?.isPrivate || false}
+      />
+    );
   }
 
-  // stage === "form"
+  // stage === "form" — guest name entry
   return (
     <Page>
       <Card>

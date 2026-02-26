@@ -74,7 +74,7 @@ const JammLayout = ({ initialNav = "home", initialChannel = 0 }) => {
     if (joinRoomId) {
       setGroupCallInfo({
         roomId: joinRoomId,
-        title: "Guruh Call",
+        title: "Meet",
         isCreator: false,
       });
       setIsGroupVideoCallOpen(true);
@@ -326,7 +326,7 @@ const JammLayout = ({ initialNav = "home", initialChannel = 0 }) => {
         isOpen={isGroupVideoCallOpen}
         onClose={handleCloseGroupCall}
         roomId={groupCallInfo.roomId}
-        chatTitle={groupCallInfo.title || "Guruh Call"}
+        chatTitle={groupCallInfo.title || "Meet"}
         isCreator={groupCallInfo.isCreator !== false}
       />
     </AppContainer>
