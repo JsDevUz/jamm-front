@@ -284,9 +284,14 @@ export const ChatsProvider = ({ children }) => {
       },
       body: JSON.stringify(dto),
     });
-    const newChat = await res.json();
+
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.message || "Xatolik yuz berdi");
+    }
+
     fetchChats();
-    return String(newChat.jammId || newChat._id);
+    return String(data.jammId || data._id);
   };
 
   const editChat = async (chatId, dto) => {

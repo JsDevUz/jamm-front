@@ -9,6 +9,7 @@ import { useChats } from "../contexts/ChatsContext";
 import CourseSidebar from "./CourseSidebar";
 import CoursePlayer from "./CoursePlayer";
 import CoursesDashboard from "./CoursesDashboard";
+import SettingsDialog from "./SettingsDialog";
 
 const AppContainer = styled.div`
   display: flex;
@@ -56,6 +57,8 @@ const JammLayout = ({ initialNav = "home", initialChannel = 0 }) => {
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
   const [isCreateGroupOpen, setIsCreateGroupOpen] = useState(false);
   const [selectedCourse, setSelectedCourse] = useState(null);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isPremiumOpen, setIsPremiumOpen] = useState(false);
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth <= 768);
@@ -93,12 +96,22 @@ const JammLayout = ({ initialNav = "home", initialChannel = 0 }) => {
       }
     } catch (error) {
       console.error("Failed to create group", error);
+      if (error.message.includes("Premium")) {
+        setIsPremiumOpen(true);
+      } else {
+        alert(error.message);
+      }
     }
   };
 
   return (
     <AppContainer>
-      <ServerSidebar selectedNav={selectedNav} onSelectNav={handleSelectNav} />
+      <ServerSidebar
+        selectedNav={selectedNav}
+        onSelectNav={handleSelectNav}
+        onOpenSettings={() => setIsSettingsOpen(true)}
+        onOpenPremium={() => setIsPremiumOpen(true)}
+      />
       <MainContent>
         {selectedNav === "courses" ? (
           <>
@@ -170,6 +183,17 @@ const JammLayout = ({ initialNav = "home", initialChannel = 0 }) => {
             };
           })
           .filter((u) => u.id)}
+      />
+
+      <SettingsDialog
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+      />
+
+      <SettingsDialog
+        isOpen={isPremiumOpen}
+        onClose={() => setIsPremiumOpen(false)}
+        initialSection="premium"
       />
     </AppContainer>
   );

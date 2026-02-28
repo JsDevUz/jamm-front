@@ -7,6 +7,7 @@ import {
   Settings,
   Video,
   User,
+  Star,
 } from "lucide-react";
 import SettingsDialog from "./SettingsDialog";
 import { useChats } from "../contexts/ChatsContext";
@@ -90,9 +91,8 @@ const navItems = [
   { id: "courses", icon: GraduationCap, label: "Kurslar" },
 ];
 
-const ServerSidebar = ({ onSelectNav }) => {
+const ServerSidebar = ({ onSelectNav, onOpenSettings, onOpenPremium }) => {
   const { selectedNav, setSelectedNav } = useChats();
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   // Use either the passed onSelectNav or the context-based setSelectedNav
   const handleNav = (id) => {
@@ -119,15 +119,14 @@ const ServerSidebar = ({ onSelectNav }) => {
 
         <Divider />
 
-        <NavButton title="Sozlamalar" onClick={() => setIsSettingsOpen(true)}>
+        <NavButton title="Premium" onClick={onOpenPremium}>
+          <Star size={20} color="#ffaa00" fill="#ffaa00" />
+        </NavButton>
+
+        <NavButton title="Sozlamalar" onClick={onOpenSettings}>
           <Settings size={20} />
         </NavButton>
       </SidebarContainer>
-
-      <SettingsDialog
-        isOpen={isSettingsOpen}
-        onClose={() => setIsSettingsOpen(false)}
-      />
     </>
   );
 };

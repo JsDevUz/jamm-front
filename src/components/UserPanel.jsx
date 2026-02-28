@@ -1,6 +1,6 @@
-import React, { useState } from 'react'
-import styled from 'styled-components'
-import { Mic, Headphones, Settings, Volume2, X } from 'lucide-react'
+import React, { useState } from "react";
+import styled from "styled-components";
+import { Mic, Headphones, Settings, Volume2, X, Star } from "lucide-react";
 
 const PanelContainer = styled.div`
   width: 60px;
@@ -11,7 +11,7 @@ const PanelContainer = styled.div`
   padding: 16px 0;
   flex-shrink: 0;
   position: relative;
-  
+
   /* Mobile responsive */
   @media (max-width: 768px) {
     width: 100%;
@@ -20,12 +20,12 @@ const PanelContainer = styled.div`
     padding: 8px 16px;
     justify-content: space-between;
   }
-  
+
   @media (max-width: 480px) {
     padding: 6px 12px;
     height: 50px;
   }
-`
+`;
 
 const UserAvatar = styled.div`
   width: 40px;
@@ -44,7 +44,14 @@ const UserAvatar = styled.div`
   &:hover {
     background-color: #5a6caf;
   }
-`
+
+  ${(props) =>
+    props.isPremium &&
+    `
+    border: 2px solid #ffaa00;
+    box-shadow: 0 0 10px rgba(255, 170, 0, 0.3);
+  `}
+`;
 
 const StatusIndicator = styled.div`
   position: absolute;
@@ -55,7 +62,7 @@ const StatusIndicator = styled.div`
   border-radius: 50%;
   background-color: #3ba55d;
   border: 3px solid #292b2f;
-`
+`;
 
 const UserControls = styled.div`
   display: flex;
@@ -63,18 +70,18 @@ const UserControls = styled.div`
   align-items: center;
   gap: 16px;
   margin-top: auto;
-  
+
   /* Mobile responsive */
   @media (max-width: 768px) {
     margin-top: 0;
     flex-direction: row;
     gap: 12px;
   }
-  
+
   @media (max-width: 480px) {
     gap: 8px;
   }
-`
+`;
 
 const ControlButton = styled.button`
   width: 40px;
@@ -93,15 +100,21 @@ const ControlButton = styled.button`
     background-color: #2d7d46;
   }
 
-  ${props => props.deafen && `
+  ${(props) =>
+    props.deafen &&
+    `
     background-color: #3ba55d;
   `}
 
-  ${props => props.muted && `
+  ${(props) =>
+    props.muted &&
+    `
     background-color: #ed4245;
   `}
 
-  ${props => props.settings && `
+  ${(props) =>
+    props.settings &&
+    `
     background-color: #4a4d52;
     color: #b9bbbe;
 
@@ -116,63 +129,84 @@ const ControlButton = styled.button`
     width: 36px;
     height: 36px;
   }
-  
+
   @media (max-width: 480px) {
     width: 32px;
     height: 32px;
   }
-`
+`;
 
 const UserPanel = () => {
-  const [isDeafened, setIsDeafened] = useState(false)
-  const [isMuted, setIsMuted] = useState(false)
+  const [isDeafened, setIsDeafened] = useState(false);
+  const [isMuted, setIsMuted] = useState(false);
 
   const toggleDeafen = () => {
-    setIsDeafened(!isDeafened)
+    setIsDeafened(!isDeafened);
     if (!isDeafened) {
-      setIsMuted(true)
+      setIsMuted(true);
     }
-  }
+  };
 
   const toggleMute = () => {
     if (!isDeafened) {
-      setIsMuted(!isMuted)
+      setIsMuted(!isMuted);
     }
-  }
+  };
+
+  const user = JSON.parse(localStorage.getItem("user") || "{}");
+  const isPremium = user?.premiumStatus === "active";
+  const nameInitial = (user?.nickname || user?.username || "JD")
+    .substring(0, 2)
+    .toUpperCase();
 
   return (
     <PanelContainer>
-      <UserAvatar>
-        JD
+      <UserAvatar
+        isPremium={isPremium}
+        title={isPremium ? "Premium User" : "Normal User"}
+      >
+        {nameInitial}
+        {isPremium && (
+          <div
+            style={{
+              position: "absolute",
+              top: -5,
+              right: -5,
+              backgroundColor: "#ffaa00",
+              borderRadius: "50%",
+              padding: 2,
+              border: "2px solid #292b2f",
+            }}
+          >
+            <Star size={10} color="#fff" fill="#fff" />
+          </div>
+        )}
         <StatusIndicator />
       </UserAvatar>
 
       <UserControls>
-        <ControlButton 
+        <ControlButton
           muted={isMuted}
           onClick={toggleMute}
-          title={isMuted ? 'Unmute' : 'Mute'}
+          title={isMuted ? "Unmute" : "Mute"}
         >
           {isMuted ? <X size={20} /> : <Mic size={20} />}
         </ControlButton>
 
-        <ControlButton 
+        <ControlButton
           deafen={isDeafened}
           onClick={toggleDeafen}
-          title={isDeafened ? 'Undeafen' : 'Deafen'}
+          title={isDeafened ? "Undeafen" : "Deafen"}
         >
           {isDeafened ? <Headphones size={20} /> : <Volume2 size={20} />}
         </ControlButton>
 
-        <ControlButton 
-          settings
-          title="User Settings"
-        >
+        <ControlButton settings title="User Settings">
           <Settings size={20} />
         </ControlButton>
       </UserControls>
     </PanelContainer>
-  )
-}
+  );
+};
 
-export default UserPanel
+export default UserPanel;

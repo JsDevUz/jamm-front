@@ -14,6 +14,8 @@ import {
   Check,
   AlertCircle,
   Loader,
+  Star,
+  Zap,
 } from "lucide-react";
 import { useTheme } from "../contexts/ThemeContext";
 
@@ -348,9 +350,187 @@ const StatusMsg = styled.div`
   color: ${(p) => (p.$error ? "#f04747" : "#43b581")};
 `;
 
-const SettingsDialog = ({ isOpen, onClose }) => {
+const PremiumSection = ({ profile, API_URL, getHeaders, loadProfile }) => {
+  const [promoCode, setPromoCode] = useState("");
+  const [redeeming, setRedeeming] = useState(false);
+  const [plans, setPlans] = useState([]);
+  const [loadingPlans, setLoadingPlans] = useState(false);
+  const [status, setStatus] = useState(null);
+
+  useEffect(() => {
+    loadPlans();
+  }, []);
+
+  const loadPlans = async () => {
+    setLoadingPlans(true);
+    try {
+      const res = await fetch(`${API_URL}/premium/plans`, {
+        headers: getHeaders(),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setPlans(data);
+      }
+    } catch (err) {
+      console.error("Failed to load plans", err);
+    }
+    setLoadingPlans(false);
+  };
+
+  const handleRedeem = async () => {
+    if (!promoCode.trim()) return;
+    setRedeeming(true);
+    setStatus(null);
+    try {
+      const res = await fetch(`${API_URL}/premium/redeem`, {
+        method: "POST",
+        headers: getHeaders(),
+        body: JSON.stringify({ code: promoCode }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setStatus({ text: "Premium faollashtirildi!", error: false });
+        loadProfile();
+        setPromoCode("");
+      } else {
+        setStatus({ text: data.message || "Promo-kod yaroqsiz", error: true });
+      }
+    } catch {
+      setStatus({ text: "Tarmoq xatosi", error: true });
+    }
+    setRedeeming(false);
+    setTimeout(() => setStatus(null), 3000);
+  };
+
+  return (
+    <>
+      <SectionTitle style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <Star color="#ffaa00" fill="#ffaa00" /> Jamm Premium
+      </SectionTitle>
+      <SectionDescription>
+        Premium obuna orqali qo'shimcha imkoniyatlarga ega bo'ling: katta
+        hajmdagi fayllar, 10 tagacha guruh ochish va maxsus belgilar.
+      </SectionDescription>
+
+      <div
+        style={{
+          background: "linear-gradient(135deg, #2c2f33 0%, #23272a 100%)",
+          padding: 20,
+          borderRadius: 8,
+          marginBottom: 32,
+          border:
+            profile.premiumStatus === "active"
+              ? "1px solid #ffaa00"
+              : "1px solid #40444b",
+        }}
+      >
+        <div
+          style={{
+            fontSize: 18,
+            fontWeight: 600,
+            color: "#fff",
+            marginBottom: 8,
+          }}
+        >
+          Sizning holatingiz:{" "}
+          {profile.premiumStatus === "active" ? (
+            <span style={{ color: "#ffaa00" }}>Aktiv Premium</span>
+          ) : (
+            <span style={{ color: "#b9bbbe" }}>Oddiy</span>
+          )}
+        </div>
+        {profile.premiumStatus === "active" && (
+          <div style={{ color: "#b9bbbe", fontSize: 14 }}>
+            Amal qilish muddati:{" "}
+            {new Date(profile.premiumExpiresAt).toLocaleDateString()} gacha
+          </div>
+        )}
+      </div>
+
+      <SettingGroup>
+        <FieldLabel>Promo-kod orqali faollashtirish</FieldLabel>
+        <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
+          <FieldInput
+            placeholder="Promo-kodni kiriting"
+            value={promoCode}
+            onChange={(e) => setPromoCode(e.target.value)}
+            style={{ flex: 1 }}
+          />
+          <Button onClick={handleRedeem} disabled={redeeming || !promoCode}>
+            {redeeming ? (
+              <Loader
+                size={14}
+                style={{ animation: "spin 1s linear infinite" }}
+              />
+            ) : (
+              <Zap size={14} />
+            )}
+            {redeeming ? "..." : "Faollashtirish"}
+          </Button>
+        </div>
+        {status && (
+          <StatusMsg style={{ marginTop: 10 }} $error={status.error}>
+            {status.text}
+          </StatusMsg>
+        )}
+      </SettingGroup>
+
+      <SectionTitle style={{ fontSize: 18, marginTop: 40 }}>
+        Obuna rejalari
+      </SectionTitle>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1fr 1fr",
+          gap: 16,
+          marginTop: 16,
+        }}
+      >
+        {plans.map((plan) => (
+          <div
+            key={plan._id}
+            style={{
+              background: "#2f3136",
+              padding: 16,
+              borderRadius: 8,
+              border: "1px solid #40444b",
+              display: "flex",
+              flexDirection: "column",
+              gap: 8,
+            }}
+          >
+            <div style={{ color: "#fff", fontWeight: 600 }}>{plan.name}</div>
+            <div style={{ color: "#ffaa00", fontSize: 20, fontWeight: 700 }}>
+              ${plan.price}
+            </div>
+            <div style={{ color: "#8e9297", fontSize: 12 }}>
+              {plan.durationInDays} kun davomida aktiv
+            </div>
+            <Button
+              style={{ marginTop: 8, backgroundColor: "#40444b" }}
+              disabled
+            >
+              Hozirda faqat promo-kod
+            </Button>
+          </div>
+        ))}
+        {loadingPlans && (
+          <Loader size={20} style={{ animation: "spin 1s linear infinite" }} />
+        )}
+      </div>
+    </>
+  );
+};
+
+const SettingsDialog = ({ isOpen, onClose, initialSection = "my-account" }) => {
   const { theme, toggleTheme } = useTheme();
-  const [activeSection, setActiveSection] = useState("my-account");
+  const [activeSection, setActiveSection] = useState(initialSection);
+
+  useEffect(() => {
+    if (isOpen) {
+      setActiveSection(initialSection);
+    }
+  }, [isOpen, initialSection]);
   const [settings, setSettings] = useState({
     inputDevice: "default",
     outputDevice: "default",
@@ -400,7 +580,12 @@ const SettingsDialog = ({ isOpen, onClose }) => {
           username: data.username || "",
           phone: data.phone || "",
           avatar: data.avatar || "",
+          premiumStatus: data.premiumStatus || "none",
+          premiumExpiresAt: data.premiumExpiresAt,
         });
+        // Sync to localStorage
+        const stored = JSON.parse(localStorage.getItem("user") || "{}");
+        localStorage.setItem("user", JSON.stringify({ ...stored, ...data }));
       }
     } catch {}
     setProfileLoading(false);
@@ -497,6 +682,7 @@ const SettingsDialog = ({ isOpen, onClose }) => {
     { id: "privacy", label: "Privacy & Security", icon: Shield },
     { id: "language", label: "Language & Region", icon: Globe },
     { id: "keybinds", label: "Keybinds", icon: HelpCircle },
+    { id: "premium", label: "Jamm Premium", icon: Star, color: "#ffaa00" },
   ];
 
   const handleToggle = (key) => {
@@ -567,7 +753,12 @@ const SettingsDialog = ({ isOpen, onClose }) => {
         </AvatarWrap>
 
         <FormField>
-          <FieldLabel>Nickname</FieldLabel>
+          <FieldLabel style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            Nickname{" "}
+            {profile.premiumStatus === "active" && (
+              <Star size={14} color="#ffaa00" fill="#ffaa00" />
+            )}
+          </FieldLabel>
           <FieldInput
             value={profile.nickname}
             onChange={(e) =>
@@ -953,6 +1144,15 @@ const SettingsDialog = ({ isOpen, onClose }) => {
         return renderLanguage();
       case "keybinds":
         return renderKeybinds();
+      case "premium":
+        return (
+          <PremiumSection
+            profile={profile}
+            API_URL={API_URL}
+            getHeaders={getHeaders}
+            loadProfile={loadProfile}
+          />
+        );
       default:
         return renderMyAccount();
     }
