@@ -1,6 +1,8 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import styled from "styled-components";
-import { X, Upload, Check, Search } from "lucide-react";
+import { X, Upload, Check, Search, Loader } from "lucide-react";
+
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
 
 const Overlay = styled.div`
   position: fixed;
@@ -228,6 +230,8 @@ const CreateGroupDialog = ({ isOpen, onClose, onCreate, users = [] }) => {
   const [imageUrl, setImageUrl] = useState("");
   const [selectedUsers, setSelectedUsers] = useState([]);
   const [searchUser, setSearchUser] = useState("");
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const fileInputRef = useRef(null);
 
   if (!isOpen) return null;
 
@@ -260,8 +264,44 @@ const CreateGroupDialog = ({ isOpen, onClose, onCreate, users = [] }) => {
   const filteredUsers = users.filter(
     (user) =>
       user.name.toLowerCase().includes(searchUser.toLowerCase()) &&
-      user.type === "user", // Ensure we only list users, not groups
+      user.type === "user" && // Ensure we only list users, not groups
+      !user.isSavedMessages &&
+      searchUser.trim() !== "",
   );
+
+  const handleFileChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 2 * 1024 * 1024) {
+      alert("Fayl hajmi juda katta (maksimum 2MB)");
+      return;
+    }
+
+    setUploadingAvatar(true);
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      const res = await fetch(`${API_URL}/chats/upload-avatar`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
+        },
+        body: formData,
+      });
+      if (res.ok) {
+        const url = await res.text();
+        setImageUrl(url);
+      } else {
+        alert("Rasm yuklashda xatolik yuz berdi");
+      }
+    } catch {
+      alert("Tarmoq xatosi");
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
 
   return (
     <Overlay onClick={onClose}>
@@ -276,13 +316,24 @@ const CreateGroupDialog = ({ isOpen, onClose, onCreate, users = [] }) => {
 
         <Content>
           <ImageUpload>
+            <input
+              type="file"
+              ref={fileInputRef}
+              style={{ display: "none" }}
+              accept="image/*"
+              onChange={handleFileChange}
+            />
             <UploadCircle
               onClick={() => {
-                const url = prompt("Rasm URL manzilini kiriting:");
-                if (url) setImageUrl(url);
+                if (fileInputRef.current) fileInputRef.current.click();
               }}
             >
-              {imageUrl ? (
+              {uploadingAvatar ? (
+                <Loader
+                  size={24}
+                  style={{ animation: "spin 1s linear infinite" }}
+                />
+              ) : imageUrl ? (
                 <img src={imageUrl} alt="Group" />
               ) : (
                 <>
@@ -331,23 +382,38 @@ const CreateGroupDialog = ({ isOpen, onClose, onCreate, users = [] }) => {
                 }}
               />
             </UserSearch>
-            <UserList>
-              {filteredUsers.map((user) => (
-                <UserItem
-                  key={user.id}
-                  selected={selectedUsers.includes(user.id)}
-                  onClick={() => toggleUser(user.id)}
-                >
-                  <UserInfo>
-                    <Avatar>{user.avatar || user.name.charAt(0)}</Avatar>
-                    <UserName>{user.name}</UserName>
-                  </UserInfo>
-                  {selectedUsers.includes(user.id) && (
-                    <Check size={16} color="var(--primary-color)" />
-                  )}
-                </UserItem>
-              ))}
-            </UserList>
+            {searchUser.trim() !== "" && (
+              <UserList>
+                {filteredUsers.length === 0 ? (
+                  <div
+                    style={{
+                      padding: 12,
+                      color: "#b9bbbe",
+                      fontSize: 13,
+                      textAlign: "center",
+                    }}
+                  >
+                    Hech kim topilmadi
+                  </div>
+                ) : (
+                  filteredUsers.map((user) => (
+                    <UserItem
+                      key={user.id}
+                      selected={selectedUsers.includes(user.id)}
+                      onClick={() => toggleUser(user.id)}
+                    >
+                      <UserInfo>
+                        <Avatar>{user.avatar || user.name.charAt(0)}</Avatar>
+                        <UserName>{user.name}</UserName>
+                      </UserInfo>
+                      {selectedUsers.includes(user.id) && (
+                        <Check size={16} color="var(--primary-color)" />
+                      )}
+                    </UserItem>
+                  ))
+                )}
+              </UserList>
+            )}
           </UserSelection>
         </Content>
 

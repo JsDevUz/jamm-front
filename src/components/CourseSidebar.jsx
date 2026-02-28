@@ -22,6 +22,7 @@ const HeaderSection = styled.div`
   padding: 16px;
   border-bottom: 1px solid var(--border-color);
   display: flex;
+  height: 56ppx;
   align-items: center;
   justify-content: space-between;
 `;
@@ -33,31 +34,25 @@ const HeaderTitle = styled.h2`
 `;
 
 const CreateButton = styled.button`
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
+  background: none;
   border: none;
-  background: var(--primary-color);
-  color: white;
+  color: var(--text-muted-color);
   cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.2s ease;
-  box-shadow: 0 2px 8px rgba(88, 101, 242, 0.3);
+  transition: all 0.2s;
 
   &:hover {
-    transform: scale(1.1);
-    box-shadow: 0 4px 14px rgba(88, 101, 242, 0.5);
-  }
-
-  &:active {
-    transform: scale(0.95);
+    color: var(--text-color);
+    background-color: var(--hover-color);
   }
 `;
 
 const SearchContainer = styled.div`
-  padding: 8px 16px 12px;
+  padding: 12px 16px;
 `;
 
 const SearchInput = styled.input`
@@ -277,23 +272,20 @@ const CourseSidebar = ({ selectedCourse, onSelectCourse }) => {
     <>
       <SidebarContainer>
         <HeaderSection>
-          <HeaderTitle>Kurslar</HeaderTitle>
-          <CreateButton
-            onClick={() => setIsCreateOpen(true)}
-            title="Yangi kurs yaratish"
-          >
-            <Plus size={20} />
-          </CreateButton>
-        </HeaderSection>
-
-        <SearchContainer>
           <SearchInput
             type="text"
             placeholder="Kurslarni qidirish..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
+            style={{ flex: 1, marginRight: "12px" }}
           />
-        </SearchContainer>
+          <CreateButton
+            onClick={() => setIsCreateOpen(true)}
+            title="Yangi kurs yaratish"
+          >
+            <Plus size={18} />
+          </CreateButton>
+        </HeaderSection>
 
         <CourseList>
           {filteredCourses.length === 0 ? (

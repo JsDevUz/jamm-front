@@ -3,7 +3,7 @@ import styled, { keyframes } from "styled-components";
 import { useParams } from "react-router-dom";
 import GroupVideoCall from "../components/GroupVideoCall";
 import { getMeetById, saveMeet } from "../utils/meetStore";
-import { Loader } from "lucide-react";
+import { Loader, Mic, MicOff, Video, VideoOff } from "lucide-react";
 
 const fadeIn = keyframes`
   from { opacity: 0; transform: translateY(16px); }
@@ -111,14 +111,51 @@ const SpinLoader = styled(Loader)`
   animation: ${pulse} 1.2s linear infinite;
 `;
 
+const MediaControls = styled.div`
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: 18px;
+`;
+
+const MediaBtn = styled.button`
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.18s ease;
+  background: ${(p) =>
+    p.$active ? "rgba(255,255,255,0.09)" : "rgba(240,71,71,0.15)"};
+  color: ${(p) => (p.$active ? "#fff" : "#f04747")};
+  border: 1px solid
+    ${(p) => (p.$active ? "rgba(255,255,255,0.1)" : "rgba(240,71,71,0.3)")};
+  &:hover {
+    background: ${(p) =>
+      p.$active ? "rgba(255,255,255,0.15)" : "rgba(240,71,71,0.25)"};
+  }
+`;
+
+const MediaLabel = styled.span`
+  display: block;
+  font-size: 10px;
+  margin-top: 4px;
+  color: ${(p) => (p.$active ? "#b9bbbe" : "#f04747")};
+`;
+
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 const JoinCallPage = () => {
   const { roomId } = useParams();
-  const [stage, setStage] = useState("checking"); // checking | form | call
+  const [stage, setStage] = useState("checking");
   const [meet, setMeet] = useState(null);
   const [name, setName] = useState("");
   const [error, setError] = useState("");
+  const [initialMic, setInitialMic] = useState(false);
+  const [initialCam, setInitialCam] = useState(false);
 
   useEffect(() => {
     const stored = getMeetById(roomId);
@@ -133,11 +170,9 @@ const JoinCallPage = () => {
     })();
 
     if (stored?.isCreator) {
-      // Creator — auto-join, skip the name form
       setName(user?.nickname || user?.username || "Host");
       setStage("call");
     } else {
-      // Guest — pre-fill name if logged in, then show form
       setName(user?.nickname || user?.username || "");
       setStage("form");
     }
@@ -167,7 +202,6 @@ const JoinCallPage = () => {
     );
   }
 
-  // Both creator and guest — render GroupVideoCall directly (single useWebRTC instance)
   if (stage === "call") {
     return (
       <GroupVideoCall
@@ -177,11 +211,13 @@ const JoinCallPage = () => {
         chatTitle={meet?.title || "Meet"}
         isCreator={meet?.isCreator || false}
         isPrivate={meet?.isPrivate || false}
+        initialMicOn={initialMic}
+        initialCamOn={initialCam}
       />
     );
   }
 
-  // stage === "form" — guest name entry
+  // stage === "form"
   return (
     <Page>
       <Card>
@@ -196,6 +232,30 @@ const JoinCallPage = () => {
           placeholder="Ismingizni kiriting"
           onKeyDown={(e) => e.key === "Enter" && handleJoin()}
         />
+        <MediaControls>
+          <div style={{ textAlign: "center" }}>
+            <MediaBtn
+              $active={initialMic}
+              onClick={() => setInitialMic((p) => !p)}
+            >
+              {initialMic ? <Mic size={22} /> : <MicOff size={22} />}
+            </MediaBtn>
+            <MediaLabel $active={initialMic}>
+              {initialMic ? "Yoniq" : "O'chiq"}
+            </MediaLabel>
+          </div>
+          <div style={{ textAlign: "center" }}>
+            <MediaBtn
+              $active={initialCam}
+              onClick={() => setInitialCam((p) => !p)}
+            >
+              {initialCam ? <Video size={22} /> : <VideoOff size={22} />}
+            </MediaBtn>
+            <MediaLabel $active={initialCam}>
+              {initialCam ? "Yoniq" : "O'chiq"}
+            </MediaLabel>
+          </div>
+        </MediaControls>
         {error && <Err>{error}</Err>}
         <JoinBtn onClick={handleJoin}>🎥 Callga kirish</JoinBtn>
       </Card>

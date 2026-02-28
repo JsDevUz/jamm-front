@@ -4,25 +4,19 @@ import styled from "styled-components";
 import ServerSidebar from "./ServerSidebar";
 import ChannelSidebar from "./ChannelSidebar";
 import ChatArea from "./ChatArea";
-import UniversalDialog from "./UniversalDialog";
-import GroupVideoCall from "./GroupVideoCall";
+import CreateGroupDialog from "./CreateGroupDialog";
+import { useChats } from "../contexts/ChatsContext";
 import CourseSidebar from "./CourseSidebar";
 import CoursePlayer from "./CoursePlayer";
 import CoursesDashboard from "./CoursesDashboard";
-import CreateGroupDialog from "./CreateGroupDialog";
-import { useTheme } from "../contexts/ThemeContext";
-import { CoursesProvider } from "../contexts/CoursesContext";
-import { useChats } from "../contexts/ChatsContext";
-import { saveMeet } from "../utils/meetStore";
 
 const AppContainer = styled.div`
   display: flex;
   width: 100%;
   height: 100vh;
-  background-color: ${(props) =>
-    props.currentTheme?.colors?.background || "#36393f"};
+  background-color: #36393f;
+  overflow: hidden;
 
-  /* Mobile responsive */
   @media (max-width: 768px) {
     flex-direction: row;
   }
@@ -32,8 +26,8 @@ const MainContent = styled.div`
   display: flex;
   flex: 1;
   height: 100%;
+  overflow: hidden;
 
-  /* Mobile responsive */
   @media (max-width: 768px) {
     flex-direction: column;
     width: 100%;
@@ -45,44 +39,44 @@ const ChatContainer = styled.div`
   display: flex;
   flex: 1;
   flex-direction: column;
-
-  /* Mobile responsive */
-  @media (max-width: 768px) {
-    flex: 1;
-  }
+  height: 100%;
+  overflow: hidden;
 `;
 
 const JammLayout = ({ initialNav = "home", initialChannel = 0 }) => {
-  const { currentTheme } = useTheme();
-  const { chats, createChat } = useChats();
-  const [selectedNav, setSelectedNav] = useState(initialNav);
-  const [selectedChannel, setSelectedChannel] = useState(initialChannel);
+  const {
+    chats,
+    createChat,
+    selectedNav,
+    setSelectedNav,
+    selectedChannel,
+    setSelectedChannel,
+  } = useChats();
   const navigate = useNavigate();
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
-  const [isUserNavigation, setIsUserNavigation] = useState(false);
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isCreateGroupOpen, setIsCreateGroupOpen] = useState(false);
-  const [groupCallInfo, setGroupCallInfo] = useState({});
-  const [isGroupVideoCallOpen, setIsGroupVideoCallOpen] = useState(false);
   const [selectedCourse, setSelectedCourse] = useState(null);
-  const location = useLocation();
 
-  // Handle ?joinCall=<roomId> — guest joining via invite link
   useEffect(() => {
-    const params = new URLSearchParams(location.search);
-    const joinRoomId = params.get("joinCall");
-    if (joinRoomId) {
-      setGroupCallInfo({
-        roomId: joinRoomId,
-        title: "Meet",
-        isCreator: false,
-      });
-      setIsGroupVideoCallOpen(true);
-      // Clean up URL without page reload
-      const clean = window.location.pathname;
-      window.history.replaceState({}, "", clean);
+    const handleResize = () => setIsMobile(window.innerWidth <= 768);
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  useEffect(() => {
+    if (initialNav && initialNav !== selectedNav) {
+      setSelectedNav(initialNav);
     }
-  }, [location.search]);
+    if (initialChannel !== undefined && initialChannel !== selectedChannel) {
+      setSelectedChannel(initialChannel);
+    }
+  }, [initialNav, initialChannel]);
+
+  const handleSelectNav = (navId) => {
+    setSelectedNav(navId);
+    setSelectedChannel(0);
+    navigate(`/${navId}`);
+  };
 
   const handleCreateGroup = async (groupData) => {
     try {
@@ -90,244 +84,92 @@ const JammLayout = ({ initialNav = "home", initialChannel = 0 }) => {
         isGroup: true,
         name: groupData.name,
         description: groupData.description,
-        avatar: groupData.image, // URL or null
-        memberIds: groupData.members, // IDs of selected users
+        avatar: groupData.image,
+        memberIds: groupData.members,
       });
       setIsCreateGroupOpen(false);
-
-      // Optionally navigate to the new chat
       if (chatId) {
-        setSelectedNav("groups");
-        setSelectedChannel(chatId);
+        navigate(`/a/${chatId}`);
       }
     } catch (error) {
       console.error("Failed to create group", error);
     }
   };
 
-  const handleSelectNav = (navId) => {
-    setIsUserNavigation(true);
-    setSelectedNav(navId);
-    if (navId === "group-video-call") {
-      setIsDialogOpen(true);
-    } else {
-      setSelectedChannel(0);
-    }
-  };
-
-  // Update URL when selection changes (only if user initiated)
-  useEffect(() => {
-    if (navigate && isUserNavigation) {
-      if (selectedChannel > 0) {
-        navigate(`/${selectedNav}/${selectedChannel}`);
-      } else if (selectedNav !== "home") {
-        navigate(`/${selectedNav}`);
-      } else {
-        navigate("/home");
-      }
-      setIsUserNavigation(false); // Reset flag
-    }
-  }, [selectedNav, selectedChannel, navigate, isUserNavigation]);
-
-  // Handle navigation changes
-  const handleNavChange = (nav) => {
-    handleSelectNav(nav);
-  };
-
-  const handleCreateCall = (callInfo) => {
-    const roomId = `jamm-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
-    saveMeet({
-      roomId,
-      title: callInfo.title,
-      isPrivate: callInfo.isPrivate || false,
-      isCreator: true,
-    });
-    // Navigate to the same unified /join/:roomId URL (creator auto-skips form)
-    navigate(`/join/${roomId}`);
-  };
-
-  const handleCloseDialog = () => {
-    setIsDialogOpen(false);
-  };
-
-  const handleCloseGroupCall = () => {
-    setIsGroupVideoCallOpen(false);
-    setGroupCallInfo({});
-    navigate("/");
-  };
-
-  useEffect(() => {
-    // Sync state when URL params change (not user initiated)
-    if (!isUserNavigation) {
-      setSelectedNav(initialNav);
-      setSelectedChannel(initialChannel);
-    }
-  }, [initialNav, initialChannel, isUserNavigation]);
-
-  useEffect(() => {
-    const handleResize = () => {
-      setIsMobile(window.innerWidth <= 768);
-    };
-
-    window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
-  }, []);
-
-  if (isMobile) {
-    return (
-      <AppContainer>
-        <ServerSidebar
-          selectedNav={selectedNav}
-          onSelectNav={handleNavChange}
-        />
-        <MainContent>
-          <CoursesProvider>
-            <ChatContainer>
-              {selectedNav === "courses" ? (
-                selectedCourse ? (
-                  <CoursePlayer
-                    selectedCourseId={selectedCourse}
-                    onBack={() => setSelectedCourse(null)}
-                  />
-                ) : (
-                  <CourseSidebar
-                    selectedCourse={selectedCourse}
-                    onSelectCourse={setSelectedCourse}
-                  />
-                )
-              ) : selectedNav === "home" ? (
-                <CoursesDashboard
-                  onNavigateToCourse={(courseId) => {
-                    setSelectedCourse(courseId);
-                    handleNavChange("courses");
-                  }}
-                />
-              ) : selectedChannel &&
-                selectedChannel !== "0" &&
-                selectedChannel !== 0 &&
-                !isUserNavigation ? (
-                <ChatArea
-                  onBack={handleBackToSidebar}
-                  selectedChannel={selectedChannel}
-                  selectedNav={selectedNav}
-                  onChangeState={handleChangeState}
-                  navigate={navigate}
-                  chats={chats}
-                />
-              ) : (
-                <ChannelSidebar
-                  selectedChannel={selectedChannel}
-                  selectedNav={selectedNav}
-                  chats={chats}
-                  onOpenCreateGroup={() => setIsCreateGroupOpen(true)}
-                  onOpenCreateMeet={() => setIsDialogOpen(true)}
-                />
-              )}
-            </ChatContainer>
-          </CoursesProvider>
-          {/* <UserPanel /> */}
-        </MainContent>
-        {/* Create Group Dialog */}
-        <CreateGroupDialog
-          isOpen={isCreateGroupOpen}
-          onClose={() => setIsCreateGroupOpen(false)}
-          onCreate={handleCreateGroup}
-          users={chats.filter((c) => c.type === "user")}
-        />
-        {/* Universal Dialog for creating group video call */}
-        <UniversalDialog
-          isOpen={isDialogOpen}
-          onClose={handleCloseDialog}
-          onCreateCall={handleCreateCall}
-        />
-
-        {/* GroupVideoCall now lives at /join/:roomId — no in-app render needed */}
-      </AppContainer>
-    );
-  }
-
   return (
     <AppContainer>
-      <ServerSidebar selectedNav={selectedNav} onSelectNav={handleNavChange} />
+      <ServerSidebar selectedNav={selectedNav} onSelectNav={handleSelectNav} />
       <MainContent>
-        <CoursesProvider>
-          {selectedNav === "courses" ? (
-            <>
-              <CourseSidebar
-                selectedCourse={selectedCourse}
-                onSelectCourse={setSelectedCourse}
-              />
-              <CoursePlayer selectedCourseId={selectedCourse} />
-            </>
-          ) : selectedNav === "home" ? (
-            <CoursesDashboard
-              onNavigateToCourse={(courseId) => {
-                setSelectedCourse(courseId);
-                handleNavChange("courses");
-              }}
-            />
-          ) : (
-            <>
+        {selectedNav === "courses" ? (
+          <>
+            <CourseSidebar onSelectCourse={setSelectedCourse} />
+            <CoursePlayer courseId={selectedCourse} />
+          </>
+        ) : selectedNav === "home" ? (
+          <CoursesDashboard
+            onNavigateToCourse={(c) => {
+              setSelectedCourse(c);
+              handleSelectNav("courses");
+            }}
+          />
+        ) : (
+          <>
+            {!isMobile || !selectedChannel || selectedChannel === "0" ? (
               <ChannelSidebar
                 selectedChannel={selectedChannel}
                 selectedNav={selectedNav}
                 chats={chats}
                 onOpenCreateGroup={() => setIsCreateGroupOpen(true)}
-                onOpenCreateMeet={() => setIsDialogOpen(true)}
               />
-              <ChatContainer>
-                {selectedChannel &&
-                selectedChannel !== "0" &&
-                selectedChannel !== 0 ? (
-                  <ChatArea
-                    onBack={handleNavChange}
-                    selectedChannel={selectedChannel}
-                    selectedNav={selectedNav}
-                    navigate={navigate}
-                    chats={chats}
-                  />
-                ) : (
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      color: "var(--text-secondary-color)",
-                      fontSize: "16px",
-                    }}
-                  >
-                    Select a channel to start chatting
-                  </div>
-                )}
-              </ChatContainer>
-            </>
-          )}
-        </CoursesProvider>
-        {/* <UserPanel /> */}
+            ) : null}
+            <ChatContainer>
+              {selectedChannel && selectedChannel !== "0" ? (
+                <ChatArea
+                  selectedChannel={selectedChannel}
+                  selectedNav={selectedNav}
+                  chats={chats}
+                  onBack={() => {
+                    setSelectedChannel(0);
+                    navigate(`/${selectedNav}`);
+                  }}
+                />
+              ) : (
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    height: "100%",
+                    color: "#8e9297",
+                  }}
+                >
+                  Suhbatni tanlang
+                </div>
+              )}
+            </ChatContainer>
+          </>
+        )}
       </MainContent>
-
-      {/* Create Group Dialog */}
       <CreateGroupDialog
         isOpen={isCreateGroupOpen}
         onClose={() => setIsCreateGroupOpen(false)}
         onCreate={handleCreateGroup}
-        users={chats.filter((c) => c.type === "user")}
-      />
-
-      {/* Universal Dialog for creating group video call */}
-      <UniversalDialog
-        isOpen={isDialogOpen}
-        onClose={handleCloseDialog}
-        onCreateCall={handleCreateCall}
-      />
-
-      {/* Group Video Call (standalone, like Google Meet) */}
-      <GroupVideoCall
-        isOpen={isGroupVideoCallOpen}
-        onClose={handleCloseGroupCall}
-        roomId={groupCallInfo.roomId}
-        chatTitle={groupCallInfo.title || "Meet"}
-        isCreator={groupCallInfo.isCreator !== false}
+        users={chats
+          .filter((c) => c.type === "user" && !c.isSavedMessages)
+          .map((c) => {
+            const currentUser = JSON.parse(
+              localStorage.getItem("user") || "{}",
+            );
+            const other = c.members?.find(
+              (m) => (m._id || m.id) !== (currentUser?._id || currentUser?.id),
+            );
+            return {
+              ...other,
+              id: other?._id || other?.id,
+              name: other?.nickname || other?.username || "Noma'lum",
+            };
+          })
+          .filter((u) => u.id)}
       />
     </AppContainer>
   );

@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState } from "react";
+import React, { useRef, useEffect, useState, useCallback } from "react";
 import styled, { keyframes, css } from "styled-components";
 import {
   Mic,
@@ -16,6 +16,11 @@ import {
   Clock,
   Monitor,
   MonitorOff,
+  Circle,
+  Maximize,
+  Hand,
+  Lock,
+  UserMinus,
 } from "lucide-react";
 import { useWebRTC } from "../hooks/useWebRTC";
 
@@ -396,7 +401,90 @@ const Spin = styled(Loader)`
   animation: ${pulse} 1.2s linear infinite;
 `;
 
+const recPulse = keyframes`
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+`;
+
+const RecBadge = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(240, 71, 71, 0.15);
+  border: 1px solid rgba(240, 71, 71, 0.3);
+  border-radius: 20px;
+  padding: 4px 12px 4px 8px;
+  color: #f04747;
+  font-size: 11px;
+  font-weight: 700;
+  animation: ${recPulse} 1.5s ease infinite;
+`;
+
+const RecordMenu = styled.div`
+  position: absolute;
+  bottom: 62px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #1e2124;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  padding: 6px;
+  min-width: 220px;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.5);
+  animation: ${slideIn} 0.15s ease;
+  z-index: 100;
+`;
+
+const RecordOption = styled.button`
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: #dcddde;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.12s;
+  text-align: left;
+  &:hover {
+    background: rgba(114, 137, 218, 0.15);
+    color: #fff;
+  }
+`;
+
+const RecordOptionIcon = styled.div`
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: ${(p) => p.$bg || "rgba(255,255,255,0.06)"};
+  flex-shrink: 0;
+`;
+
 // ─── VideoEl ──────────────────────────────────────────────────────────────────
+
+const FullscreenBtn = styled.button`
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: rgba(0, 0, 0, 0.55);
+  border: none;
+  border-radius: 6px;
+  color: #fff;
+  padding: 5px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s;
+  z-index: 5;
+  &:hover {
+    background: rgba(114, 137, 218, 0.7);
+  }
+`;
 
 const VideoEl = ({
   stream,
@@ -406,11 +494,39 @@ const VideoEl = ({
   isCamOn = true,
 }) => {
   const ref = useRef(null);
+  const tileRef = useRef(null);
   useEffect(() => {
     if (ref.current && stream) ref.current.srcObject = stream;
-  }, [stream]);
+  }, [stream, isCamOn]);
+
+  const goFullscreen = () => {
+    const el = tileRef.current;
+    if (!el) return;
+    if (document.fullscreenElement) {
+      document.exitFullscreen();
+    } else {
+      el.requestFullscreen?.() || el.webkitRequestFullscreen?.();
+    }
+  };
+
   return (
-    <VideoTile $isLocal={isLocal}>
+    <VideoTile
+      $isLocal={isLocal}
+      ref={tileRef}
+      onDoubleClick={goFullscreen}
+      style={{ cursor: "pointer" }}
+      onMouseEnter={(e) => {
+        const b = e.currentTarget.querySelector(".fs-btn");
+        if (b) b.style.opacity = 1;
+      }}
+      onMouseLeave={(e) => {
+        const b = e.currentTarget.querySelector(".fs-btn");
+        if (b) b.style.opacity = 0;
+      }}
+    >
+      <FullscreenBtn className="fs-btn" onClick={goFullscreen}>
+        <Maximize size={14} />
+      </FullscreenBtn>
       {isCamOn && stream ? (
         <video ref={ref} autoPlay playsInline muted={muted} />
       ) : (
@@ -437,6 +553,8 @@ const GroupVideoCall = ({
   chatTitle,
   isCreator = true,
   isPrivate = false,
+  initialMicOn = true,
+  initialCamOn = true,
 }) => {
   const [copied, setCopied] = useState(false);
   const [showDrawer, setShowDrawer] = useState(false);
@@ -465,11 +583,23 @@ const GroupVideoCall = ({
     joinStatus,
     isMicOn,
     isCamOn,
+    micLocked,
+    camLocked,
     toggleMic,
     toggleCam,
     leaveCall,
     error,
     roomTitle,
+    remoteIsRecording,
+    emitRecording,
+    forceMuteMic,
+    forceMuteCam,
+    allowMic,
+    allowCam,
+    isHandRaised,
+    raisedHands,
+    toggleHandRaise,
+    kickPeer,
   } = useWebRTC({
     roomId,
     displayName,
@@ -477,9 +607,142 @@ const GroupVideoCall = ({
     isCreator,
     isPrivate,
     chatTitle,
+    initialMicOn,
+    initialCamOn,
   });
 
+  // ─── Recording logic ─────────────────────────────────────────────────────────
+  const [isRecording, setIsRecording] = useState(false);
+  const [showRecordMenu, setShowRecordMenu] = useState(false);
+  const mediaRecorderRef = useRef(null);
+  const chunksRef = useRef([]);
+  const canvasRef = useRef(null);
+  const drawIntervalRef = useRef(null);
+  const recordScreenStreamRef = useRef(null);
+
+  const mixAllAudio = useCallback(() => {
+    const audioCtx = new AudioContext();
+    const dest = audioCtx.createMediaStreamDestination();
+    const allStreams = [
+      localStream,
+      ...remoteStreams.map((r) => r.stream),
+    ].filter(Boolean);
+    allStreams.forEach((s) => {
+      const audioTracks = s.getAudioTracks();
+      if (audioTracks.length > 0) {
+        const source = audioCtx.createMediaStreamSource(
+          new MediaStream(audioTracks),
+        );
+        source.connect(dest);
+      }
+    });
+    return dest.stream;
+  }, [localStream, remoteStreams]);
+
+  const startRecording = useCallback(
+    async (mode) => {
+      try {
+        setShowRecordMenu(false);
+        let videoStream;
+
+        if (mode === "screen") {
+          // Record screen share via getDisplayMedia
+          const screen = await navigator.mediaDevices.getDisplayMedia({
+            video: true,
+            audio: false,
+          });
+          recordScreenStreamRef.current = screen;
+          videoStream = screen;
+          // Auto stop when user stops share
+          screen.getVideoTracks()[0].onended = () => stopRecording();
+        } else {
+          // Record all tiles via canvas composite
+          const canvas = document.createElement("canvas");
+          canvas.width = 1280;
+          canvas.height = 720;
+          canvasRef.current = canvas;
+          const ctx = canvas.getContext("2d");
+          const drawFrame = () => {
+            const videos = document.querySelectorAll("video");
+            const count = videos.length || 1;
+            const cols = count <= 1 ? 1 : count <= 4 ? 2 : 3;
+            const rows = Math.ceil(count / cols);
+            const w = canvas.width / cols;
+            const h = canvas.height / rows;
+            ctx.fillStyle = "#0b0d0f";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            videos.forEach((video, i) => {
+              const col = i % cols;
+              const row = Math.floor(i / cols);
+              try {
+                ctx.drawImage(video, col * w, row * h, w, h);
+              } catch {}
+            });
+          };
+          drawIntervalRef.current = setInterval(drawFrame, 33);
+          videoStream = canvas.captureStream(30);
+        }
+
+        // Mix all audio
+        const mixedAudio = mixAllAudio();
+
+        // Combine video + audio
+        const combined = new MediaStream([
+          ...videoStream.getVideoTracks(),
+          ...mixedAudio.getAudioTracks(),
+        ]);
+
+        chunksRef.current = [];
+        const recorder = new MediaRecorder(combined, {
+          mimeType: "video/webm;codecs=vp9,opus",
+        });
+        recorder.ondataavailable = (e) => {
+          if (e.data.size > 0) chunksRef.current.push(e.data);
+        };
+        mediaRecorderRef.current = recorder;
+        recorder.start(1000);
+
+        setIsRecording(true);
+        emitRecording(true);
+      } catch (err) {
+        console.error("Recording error:", err);
+        setShowRecordMenu(false);
+      }
+    },
+    [mixAllAudio, emitRecording],
+  );
+
+  const stopRecording = useCallback(() => {
+    if (drawIntervalRef.current) {
+      clearInterval(drawIntervalRef.current);
+      drawIntervalRef.current = null;
+    }
+    if (recordScreenStreamRef.current) {
+      recordScreenStreamRef.current.getTracks().forEach((t) => t.stop());
+      recordScreenStreamRef.current = null;
+    }
+    if (
+      mediaRecorderRef.current &&
+      mediaRecorderRef.current.state !== "inactive"
+    ) {
+      mediaRecorderRef.current.onstop = () => {
+        const blob = new Blob(chunksRef.current, { type: "video/webm" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `meet-${roomId}-${Date.now()}.webm`;
+        a.click();
+        URL.revokeObjectURL(url);
+        chunksRef.current = [];
+      };
+      mediaRecorderRef.current.stop();
+    }
+    setIsRecording(false);
+    emitRecording(false);
+  }, [roomId, emitRecording]);
+
   const handleLeave = () => {
+    if (isRecording) stopRecording();
     leaveCall();
     onClose();
   };
@@ -513,6 +776,11 @@ const GroupVideoCall = ({
           <CallSub>{roomId}</CallSub>
         </CallInfo>
         <TopActions>
+          {(isRecording || remoteIsRecording) && (
+            <RecBadge>
+              <Circle size={8} fill="#f04747" /> REC
+            </RecBadge>
+          )}
           <TinyBtn onClick={handleCopy}>
             {copied ? <Check size={13} /> : <Copy size={13} />}
             {copied ? "Nusxalandi!" : "Link"}
@@ -579,7 +847,23 @@ const GroupVideoCall = ({
               />
             )}
             {remoteStreams.map(({ peerId, stream, displayName: n }) => (
-              <VideoEl key={peerId} stream={stream} label={n} isCamOn />
+              <div key={peerId} style={{ position: "relative" }}>
+                <VideoEl stream={stream} label={n} isCamOn />
+                {raisedHands.has(peerId) && (
+                  <span
+                    style={{
+                      position: "absolute",
+                      top: 8,
+                      left: 8,
+                      fontSize: 24,
+                      zIndex: 5,
+                      filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.5))",
+                    }}
+                  >
+                    ✋
+                  </span>
+                )}
+              </div>
             ))}
             {/* Remote screen share tiles */}
             {remoteScreenStreams.map(({ peerId, stream, displayName: n }) => (
@@ -670,10 +954,55 @@ const GroupVideoCall = ({
                   <MemberAvatar>
                     {n?.charAt(0)?.toUpperCase() || "?"}
                   </MemberAvatar>
-                  <MemberInfo>{n}</MemberInfo>
+                  <MemberInfo>
+                    {raisedHands.has(peerId) && "✋ "}
+                    {n}
+                  </MemberInfo>
                   <MemberIcons>
-                    <Mic size={13} color="#43b581" />
-                    <Video size={13} color="#43b581" />
+                    {isCreator ? (
+                      <>
+                        <span
+                          onClick={() => forceMuteMic(peerId)}
+                          style={{ cursor: "pointer" }}
+                          title="Mic o'chirish"
+                        >
+                          <MicOff size={13} color="#f04747" />
+                        </span>
+                        <span
+                          onClick={() => allowMic(peerId)}
+                          style={{ cursor: "pointer" }}
+                          title="Mic ruxsat"
+                        >
+                          <Mic size={13} color="#43b581" />
+                        </span>
+                        <span
+                          onClick={() => forceMuteCam(peerId)}
+                          style={{ cursor: "pointer" }}
+                          title="Cam o'chirish"
+                        >
+                          <VideoOff size={13} color="#f04747" />
+                        </span>
+                        <span
+                          onClick={() => allowCam(peerId)}
+                          style={{ cursor: "pointer" }}
+                          title="Cam ruxsat"
+                        >
+                          <Video size={13} color="#43b581" />
+                        </span>
+                        <span
+                          onClick={() => kickPeer(peerId)}
+                          style={{ cursor: "pointer", marginLeft: 8 }}
+                          title="Chiqarib yuborish"
+                        >
+                          <UserMinus size={13} color="#f04747" />
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <Mic size={13} color="#43b581" />
+                        <Video size={13} color="#43b581" />
+                      </>
+                    )}
                   </MemberIcons>
                 </MemberRow>
               ))}
@@ -683,15 +1012,89 @@ const GroupVideoCall = ({
       </Body>
 
       <ControlBar>
-        <CtrlBtn $active={isMicOn} onClick={toggleMic}>
+        <CtrlBtn
+          $active={isMicOn}
+          onClick={toggleMic}
+          style={micLocked ? { opacity: 0.5, cursor: "not-allowed" } : {}}
+        >
           {isMicOn ? <Mic size={21} /> : <MicOff size={21} />}
+          {micLocked && (
+            <Lock
+              size={10}
+              style={{ position: "absolute", bottom: 4, right: 4 }}
+            />
+          )}
         </CtrlBtn>
-        <CtrlBtn $active={isCamOn} onClick={toggleCam}>
+        <CtrlBtn
+          $active={isCamOn}
+          onClick={toggleCam}
+          style={camLocked ? { opacity: 0.5, cursor: "not-allowed" } : {}}
+        >
           {isCamOn ? <Video size={21} /> : <VideoOff size={21} />}
+          {camLocked && (
+            <Lock
+              size={10}
+              style={{ position: "absolute", bottom: 4, right: 4 }}
+            />
+          )}
         </CtrlBtn>
         <CtrlBtn $active={isScreenSharing} onClick={toggleScreenShare}>
           {isScreenSharing ? <MonitorOff size={21} /> : <Monitor size={21} />}
         </CtrlBtn>
+        <CtrlBtn
+          $active={isHandRaised}
+          onClick={toggleHandRaise}
+          style={
+            isHandRaised
+              ? { background: "rgba(250,166,26,0.2)", color: "#faa61a" }
+              : {}
+          }
+        >
+          <Hand size={21} />
+        </CtrlBtn>
+        {isCreator && (
+          <div style={{ position: "relative" }}>
+            <CtrlBtn
+              $active={isRecording}
+              onClick={() =>
+                isRecording ? stopRecording() : setShowRecordMenu((p) => !p)
+              }
+              style={
+                isRecording
+                  ? { background: "rgba(240,71,71,0.2)", color: "#f04747" }
+                  : {}
+              }
+            >
+              <Circle size={21} fill={isRecording ? "#f04747" : "none"} />
+            </CtrlBtn>
+            {showRecordMenu && !isRecording && (
+              <RecordMenu>
+                <RecordOption onClick={() => startRecording("screen")}>
+                  <RecordOptionIcon $bg="rgba(114,137,218,0.15)">
+                    <Monitor size={16} color="#7289da" />
+                  </RecordOptionIcon>
+                  <div>
+                    <div style={{ fontWeight: 600 }}>Ekranni yozish</div>
+                    <div style={{ fontSize: 11, color: "#72767d" }}>
+                      Faqat ekran + barcha ovozlar
+                    </div>
+                  </div>
+                </RecordOption>
+                <RecordOption onClick={() => startRecording("all")}>
+                  <RecordOptionIcon $bg="rgba(240,71,71,0.12)">
+                    <Circle size={16} color="#f04747" />
+                  </RecordOptionIcon>
+                  <div>
+                    <div style={{ fontWeight: 600 }}>Hammasini yozish</div>
+                    <div style={{ fontSize: 11, color: "#72767d" }}>
+                      Barcha oynalar + barcha ovozlar
+                    </div>
+                  </div>
+                </RecordOption>
+              </RecordMenu>
+            )}
+          </div>
+        )}
         <CtrlBtn $danger onClick={handleLeave}>
           <PhoneOff size={21} />
         </CtrlBtn>

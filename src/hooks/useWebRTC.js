@@ -38,6 +38,8 @@ export function useWebRTC({
   isCreator = false,
   isPrivate = false,
   chatTitle = "",
+  initialMicOn = true,
+  initialCamOn = true,
 }) {
   const socketRef = useRef(null);
   const localStreamRef = useRef(null);
@@ -45,18 +47,23 @@ export function useWebRTC({
 
   const [localStream, setLocalStream] = useState(null);
   const [remoteStreams, setRemoteStreams] = useState([]);
-  const [screenStream, setScreenStream] = useState(null); // local screen share
-  const [remoteScreenStreams, setRemoteScreenStreams] = useState([]); // remote screen shares
+  const [screenStream, setScreenStream] = useState(null);
+  const [remoteScreenStreams, setRemoteScreenStreams] = useState([]);
   const [isScreenSharing, setIsScreenSharing] = useState(false);
   const [knockRequests, setKnockRequests] = useState([]);
-  const [isMicOn, setIsMicOn] = useState(true);
-  const [isCamOn, setIsCamOn] = useState(true);
+  const [isMicOn, setIsMicOn] = useState(initialMicOn);
+  const [isCamOn, setIsCamOn] = useState(initialCamOn);
+  const [micLocked, setMicLocked] = useState(false);
+  const [camLocked, setCamLocked] = useState(false);
+  const [isHandRaised, setIsHandRaised] = useState(false);
+  const [raisedHands, setRaisedHands] = useState(new Set());
   const [joinStatus, setJoinStatus] = useState("idle");
   const [error, setError] = useState(null);
   const [roomTitle, setRoomTitle] = useState(chatTitle || "");
+  const [remoteIsRecording, setRemoteIsRecording] = useState(false);
   const screenStreamRef = useRef(null);
-  const screenSendersRef = useRef({}); // peerId -> RTCRtpSender
-  const knownStreamsRef = useRef({}); // peerId -> first camera streamId
+  const screenSendersRef = useRef({});
+  const knownStreamsRef = useRef({});
 
   // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -219,6 +226,12 @@ export function useWebRTC({
         localStreamRef.current = stream;
         setLocalStream(stream);
 
+        // Apply initial mic/cam state
+        const audioTrack = stream.getAudioTracks()[0];
+        if (audioTrack) audioTrack.enabled = initialMicOn;
+        const videoTrack = stream.getVideoTracks()[0];
+        if (videoTrack) videoTrack.enabled = initialCamOn;
+
         // 2. Connect to signaling server
         const socket = io(`${SIGNAL_URL}/video`, { transports: ["websocket"] });
         socketRef.current = socket;
@@ -242,8 +255,23 @@ export function useWebRTC({
             setJoinStatus("waiting");
           });
 
-          socket.on("knock-approved", () => {
+          socket.on("knock-approved", ({ mediaLocked }) => {
             setJoinStatus("joined");
+            // Private rooms: lock mic/cam until creator allows
+            if (mediaLocked) {
+              setMicLocked(true);
+              setCamLocked(true);
+              const audio = localStreamRef.current?.getAudioTracks()[0];
+              if (audio) {
+                audio.enabled = false;
+                setIsMicOn(false);
+              }
+              const video = localStreamRef.current?.getVideoTracks()[0];
+              if (video) {
+                video.enabled = false;
+                setIsCamOn(false);
+              }
+            }
           });
 
           socket.on("knock-rejected", ({ reason }) => {
@@ -259,13 +287,53 @@ export function useWebRTC({
 
         // 5c. Screen share signals from peers
         socket.on("screen-share-stopped", ({ peerId: sharerPeerId }) => {
-          // Remove screen stream entry and reset known stream tracking
-          // so re-shared streams are detected correctly
           setRemoteScreenStreams((prev) =>
             prev.filter((r) => r.peerId !== sharerPeerId),
           );
-          // Reset known streams so only camera remains tracked
           delete knownStreamsRef.current[sharerPeerId];
+        });
+
+        // 5d. Recording signals from peers
+        socket.on("recording-started", () => setRemoteIsRecording(true));
+        socket.on("recording-stopped", () => setRemoteIsRecording(false));
+
+        // 5e. Kicked signal
+        socket.on("kicked", () => {
+          setError("Siz yaratuvchi tomonidan chiqarib yuborildingiz");
+          setJoinStatus("rejected");
+          leaveCall();
+        });
+
+        // 5e. Creator media control signals
+        socket.on("force-mute-mic", () => {
+          const t = localStreamRef.current?.getAudioTracks()[0];
+          if (t) {
+            t.enabled = false;
+            setIsMicOn(false);
+          }
+          setMicLocked(true);
+        });
+        socket.on("force-mute-cam", () => {
+          const t = localStreamRef.current?.getVideoTracks()[0];
+          if (t) {
+            t.enabled = false;
+            setIsCamOn(false);
+          }
+          setCamLocked(true);
+        });
+        socket.on("allow-mic", () => setMicLocked(false));
+        socket.on("allow-cam", () => setCamLocked(false));
+
+        // 5f. Hand raise signals
+        socket.on("hand-raised", ({ peerId: pid }) => {
+          setRaisedHands((prev) => new Set([...prev, pid]));
+        });
+        socket.on("hand-lowered", ({ peerId: pid }) => {
+          setRaisedHands((prev) => {
+            const s = new Set(prev);
+            s.delete(pid);
+            return s;
+          });
         });
 
         // 6. Join or create room
@@ -342,23 +410,23 @@ export function useWebRTC({
     [roomId],
   );
 
-  // ─── Controls ─────────────────────────────────────────────────────────────────
-
   const toggleMic = useCallback(() => {
+    if (micLocked) return; // creator locked
     const t = localStreamRef.current?.getAudioTracks()[0];
     if (t) {
       t.enabled = !t.enabled;
       setIsMicOn(t.enabled);
     }
-  }, []);
+  }, [micLocked]);
 
   const toggleCam = useCallback(() => {
+    if (camLocked) return; // creator locked
     const t = localStreamRef.current?.getVideoTracks()[0];
     if (t) {
       t.enabled = !t.enabled;
       setIsCamOn(t.enabled);
     }
-  }, []);
+  }, [camLocked]);
 
   const leaveCall = useCallback(() => {
     if (socketRef.current) {
@@ -451,6 +519,65 @@ export function useWebRTC({
     }
   }, [isScreenSharing, roomId]);
 
+  // ─── Recording signal ─────────────────────────────────────────────────────────
+
+  const emitRecording = useCallback(
+    (started) => {
+      if (socketRef.current) {
+        socketRef.current.emit(
+          started ? "recording-started" : "recording-stopped",
+          { roomId },
+        );
+      }
+    },
+    [roomId],
+  );
+
+  // ─── Creator media controls ─────────────────────────────────────────────────
+
+  const forceMuteMic = useCallback(
+    (peerId) => {
+      socketRef.current?.emit("force-mute-mic", { roomId, peerId });
+    },
+    [roomId],
+  );
+
+  const forceMuteCam = useCallback(
+    (peerId) => {
+      socketRef.current?.emit("force-mute-cam", { roomId, peerId });
+    },
+    [roomId],
+  );
+
+  const allowMic = useCallback(
+    (peerId) => {
+      socketRef.current?.emit("allow-mic", { roomId, peerId });
+    },
+    [roomId],
+  );
+
+  const allowCam = useCallback(
+    (peerId) => {
+      socketRef.current?.emit("allow-cam", { roomId, peerId });
+    },
+    [roomId],
+  );
+
+  const kickPeer = useCallback(
+    (peerId) => {
+      socketRef.current?.emit("kick-peer", { roomId, peerId });
+    },
+    [roomId],
+  );
+
+  // ─── Hand raise ─────────────────────────────────────────────────────────
+
+  const toggleHandRaise = useCallback(() => {
+    const next = !isHandRaised;
+    setIsHandRaised(next);
+    socketRef.current?.emit(next ? "hand-raised" : "hand-lowered", { roomId });
+  }, [isHandRaised, roomId]);
+
   return {
     localStream,
     remoteStreams,
@@ -464,10 +591,22 @@ export function useWebRTC({
     joinStatus,
     isMicOn,
     isCamOn,
+    micLocked,
+    camLocked,
     toggleMic,
     toggleCam,
     leaveCall,
     error,
     roomTitle,
+    remoteIsRecording,
+    emitRecording,
+    forceMuteMic,
+    forceMuteCam,
+    allowMic,
+    allowCam,
+    isHandRaised,
+    raisedHands,
+    toggleHandRaise,
+    kickPeer,
   };
 }

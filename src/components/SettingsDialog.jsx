@@ -377,6 +377,7 @@ const SettingsDialog = ({ isOpen, onClose }) => {
   const [profileLoading, setProfileLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState(null); // null | 'ok' | 'error'
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const avatarInputRef = useRef(null);
 
   useEffect(() => {
@@ -421,18 +422,70 @@ const SettingsDialog = ({ isOpen, onClose }) => {
         localStorage.setItem("user", JSON.stringify({ ...stored, ...updated }));
         setSaveStatus("ok");
       } else {
-        setSaveStatus("error");
+        const errorData = await res.json().catch(() => null);
+        setSaveStatus(errorData?.message || "Xatolik yuz berdi");
       }
     } catch {
-      setSaveStatus("error");
+      setSaveStatus("Tarmoq xatosi yuz berdi");
     }
     setSaving(false);
     setTimeout(() => setSaveStatus(null), 3000);
   };
 
-  const handleAvatarUrl = () => {
-    const url = window.prompt("Avatar URL kiriting:", profile.avatar);
-    if (url !== null) setProfile((p) => ({ ...p, avatar: url }));
+  const handleAvatarClick = () => {
+    if (avatarInputRef.current) {
+      avatarInputRef.current.click();
+    }
+  };
+
+  const handleFileChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Check file size (limit to 2MB for now)
+    if (file.size > 2 * 1024 * 1024) {
+      alert("Fayl hajmi juda katta (maksimum 2MB)");
+      return;
+    }
+
+    setUploadingAvatar(true);
+    setSaveStatus(null);
+
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      const res = await fetch(`${API_URL}/users/avatar`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
+        },
+        body: formData,
+      });
+
+      if (res.ok) {
+        const updatedUser = await res.json();
+        setProfile((p) => ({ ...p, avatar: updatedUser.avatar }));
+
+        // Update localStorage
+        const stored = JSON.parse(localStorage.getItem("user") || "{}");
+        localStorage.setItem(
+          "user",
+          JSON.stringify({ ...stored, ...updatedUser }),
+        );
+
+        setSaveStatus("Avatar yuklandi!");
+        setTimeout(() => setSaveStatus(null), 3000);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        alert(err.message || "Avatar yuklashda xatolik");
+      }
+    } catch (err) {
+      console.error("Upload error:", err);
+      alert("Tarmoq xatosi yuz berdi");
+    } finally {
+      setUploadingAvatar(false);
+    }
   };
   // ─────────────────────────────────────────────────────────────────────────
 
@@ -486,9 +539,21 @@ const SettingsDialog = ({ isOpen, onClose }) => {
         <SectionTitle>My Account</SectionTitle>
 
         {/* Avatar */}
-        <AvatarWrap onClick={handleAvatarUrl} title="Avatar URL o'zgartirish">
+        <input
+          type="file"
+          ref={avatarInputRef}
+          style={{ display: "none" }}
+          accept="image/*"
+          onChange={handleFileChange}
+        />
+        <AvatarWrap onClick={handleAvatarClick} title="Rasm yuklash">
           <AvatarImg>
-            {profile.avatar ? (
+            {uploadingAvatar ? (
+              <Loader
+                size={32}
+                style={{ animation: "spin 1s linear infinite" }}
+              />
+            ) : profile.avatar ? (
               <img src={profile.avatar} alt="avatar" />
             ) : (
               (profile.nickname || profile.username || "?")
@@ -534,17 +599,6 @@ const SettingsDialog = ({ isOpen, onClose }) => {
           />
         </FormField>
 
-        <FormField>
-          <FieldLabel>Avatar URL</FieldLabel>
-          <FieldInput
-            value={profile.avatar}
-            onChange={(e) =>
-              setProfile((p) => ({ ...p, avatar: e.target.value }))
-            }
-            placeholder="https://..."
-          />
-        </FormField>
-
         <SaveBar>
           <SaveBtn onClick={handleSave} disabled={saving}>
             {saving ? <Loader size={14} /> : <Check size={14} />}
@@ -556,10 +610,10 @@ const SettingsDialog = ({ isOpen, onClose }) => {
               Muvaffaqiyatli saqlandi!
             </StatusMsg>
           )}
-          {saveStatus === "error" && (
+          {saveStatus && saveStatus !== "ok" && (
             <StatusMsg $error>
               <AlertCircle size={13} />
-              Xatolik yuz berdi
+              {saveStatus}
             </StatusMsg>
           )}
         </SaveBar>

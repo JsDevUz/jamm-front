@@ -18,12 +18,15 @@ import {
   Reply,
   Edit2,
   Trash2,
+  Check,
+  CheckCheck,
+  Bookmark,
 } from "lucide-react";
 import PrivateVideoCall from "./PrivateVideoCall";
 import IncomingCallRequest from "./IncomingCallRequest";
 import OutgoingCallRequest from "./OutgoingCallRequest";
-import GroupVideoCall from "./GroupVideoCall";
-import JoinCallModal from "./JoinCallModal";
+import EditGroupDialog from "./EditGroupDialog";
+import { usePresence } from "../contexts/PresenceContext";
 import { useChats } from "../contexts/ChatsContext";
 
 const ChatContainer = styled.div`
@@ -62,11 +65,20 @@ const ChatContainer = styled.div`
   }
 `;
 
+const OuterChatWrapper = styled.div`
+  display: flex;
+  flex: 1;
+  width: 100%;
+  height: 100vh;
+  overflow: hidden;
+  position: relative;
+`;
+
 const ChatHeader = styled.div`
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 16px;
+  padding: 4px 16px;
   border-bottom: 1px solid var(--border-color);
   background-color: var(--secondary-color);
   min-height: 56px;
@@ -95,7 +107,10 @@ const ChatAvatar = styled.div`
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: ${(props) =>
+    props.$isSavedMessages
+      ? "#0288D1"
+      : "linear-gradient(135deg, #667eea 0%, #764ba2 100%)"};
   display: flex;
   align-items: center;
   justify-content: center;
@@ -423,7 +438,7 @@ const MessageTime = styled.div`
 `;
 
 const ContextMenu = styled.div`
-  position: absolute;
+  position: fixed;
   /* Ultra-low opacity for maximum transparent iOS look */
   background-color: rgba(20, 20, 20, 0.1);
   backdrop-filter: blur(5px) saturate(200%);
@@ -691,7 +706,7 @@ const MessageInput = styled.textarea`
   outline: none;
   resize: none;
   min-height: 25px;
-  max-height: 120px;
+  max-height: 400px;
   padding: 0;
   font-family: inherit;
 
@@ -1033,6 +1048,24 @@ const InfoText = styled.p`
   font-size: 14px;
   color: var(--text-color);
   line-height: 1.5;
+  word-break: break-all;
+`;
+
+const CopyButton = styled.button`
+  background-color: var(--primary-color);
+  color: white;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-top: 8px;
+  transition: background-color 0.2s;
+
+  &:hover {
+    background-color: #5b6eae;
+  }
 `;
 
 const MembersList = styled.div`
@@ -1043,9 +1076,17 @@ const MembersList = styled.div`
 const MemberItem = styled.div`
   display: flex;
   align-items: center;
-  padding: 8px 0;
+  padding: 8px;
+  margin: 0 -8px;
   gap: 12px;
   color: var(--text-color);
+  cursor: pointer;
+  border-radius: 8px;
+  transition: background-color 0.2s;
+
+  &:hover {
+    background-color: var(--hover-color, rgba(255, 255, 255, 0.05));
+  }
 `;
 
 const MemberAvatar = styled.div`
@@ -1068,13 +1109,68 @@ const ChatArea = ({
   chats = [],
 }) => {
   const [showInfo, setShowInfo] = useState(false);
-  const { fetchMessages, sendMessage, editMessage, deleteMessage } = useChats();
-  const currentChat = chats.find((c) => c.id === selectedChannel);
+  const {
+    fetchMessages,
+    sendMessage,
+    editMessage,
+    deleteMessage,
+    getUserByUsername,
+    createChat,
+    editChat,
+    previewGroupChat,
+    joinGroupChat,
+    chatSocket,
+    markMessagesAsRead,
+    typingUsers,
+    sendTypingStatus,
+  } = useChats();
+  const { isUserOnline, getOnlineCount } = usePresence();
+  const currentChat = chats.find(
+    (c) => c.urlSlug === selectedChannel || c.id === selectedChannel,
+  );
   const [messageInput, setMessageInput] = useState("");
+  const typingTimeoutRef = useRef(null);
   const [messages, setMessages] = useState([]);
+  const [isEditGroupOpen, setIsEditGroupOpen] = useState(false);
+
+  const handleMemberClick = async (targetUser) => {
+    const currentUserStr = localStorage.getItem("user");
+    const currentUser = currentUserStr ? JSON.parse(currentUserStr) : {};
+    const currentUserId = currentUser._id || currentUser.id;
+    const targetId = targetUser._id || targetUser.id;
+
+    if (targetId === currentUserId) return; // Prevent clicking self to start private chat
+
+    const existingChat = chats.find((c) => {
+      if (c.isGroup || !c.members || c.isSavedMessages) return false;
+      return c.members.some((m) => (m._id || m.id) === targetId);
+    });
+
+    if (existingChat) {
+      navigate(`/a/${existingChat.urlSlug}`);
+      setShowInfo(false);
+    } else {
+      try {
+        const chatId = await createChat({
+          isGroup: false,
+          memberIds: [targetId],
+        });
+        if (chatId) {
+          navigate(`/a/${chatId}`);
+          setShowInfo(false);
+        }
+      } catch (error) {
+        console.error("Failed to start private chat", error);
+      }
+    }
+  };
   const [replayMessage, setReplayMessage] = useState(null);
   const [editingMessage, setEditingMessage] = useState(null);
   const [editInput, setEditInput] = useState("");
+  const [previewChat, setPreviewChat] = useState(null);
+
+  const displayChat = currentChat || previewChat;
+
   const [contextMenu, setContextMenu] = useState(null);
   const messageRefs = useRef({});
   const messagesEndRef = useRef(null);
@@ -1087,17 +1183,250 @@ const ChatArea = ({
     return userStr ? JSON.parse(userStr) : null;
   }, []);
 
+  // Presence check helpers
+  const otherMember =
+    displayChat?.type !== "group" && displayChat?.members
+      ? displayChat.members.find(
+          (m) => m._id !== (currentUser?._id || currentUser?.id),
+        )
+      : null;
+  const isOnline = otherMember ? isUserOnline(otherMember._id) : false;
+  const onlineCount =
+    displayChat?.type === "group" ? getOnlineCount(displayChat.members) : 0;
+
+  // Format last seen text
+  const lastSeenText = React.useMemo(() => {
+    if (!otherMember || isOnline) return "Online";
+    if (!otherMember.lastSeen) return "Offline";
+    const date = new Date(otherMember.lastSeen);
+    const now = new Date();
+    const diffMs = now - date;
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMins / 60);
+
+    if (diffMins < 60) return `Last seen ${diffMins}m ago`;
+    if (diffHours < 24) return `Last seen ${diffHours}h ago`;
+    return `Last seen ${date.toLocaleDateString("en-US", { month: "short", day: "numeric" })}`;
+  }, [otherMember, isOnline]);
+
+  // Fetch group preview if channel exists but user is not in it
+  useEffect(() => {
+    if (
+      (selectedNav === "groups" || selectedNav === "a") &&
+      selectedChannel &&
+      !currentChat
+    ) {
+      previewGroupChat(selectedChannel)
+        .then((chat) => setPreviewChat(chat))
+        .catch((err) => {
+          console.error("Preview failed:", err);
+          setPreviewChat(null);
+        });
+    } else {
+      setPreviewChat(null);
+    }
+  }, [selectedNav, selectedChannel, currentChat, previewGroupChat]);
+
   // Output fetching messages on channel select
   useEffect(() => {
-    if (!selectedChannel) return;
+    if (!currentChat) return;
 
     const loadMessages = async () => {
-      const msgs = await fetchMessages(selectedChannel);
+      const msgs = await fetchMessages(currentChat.id);
       setMessages(msgs);
+
+      const currentUserId = currentUser?._id || currentUser?.id;
+      const firstUnread = msgs.find(
+        (m) =>
+          m.senderId !== currentUserId && !m.readBy?.includes(currentUserId),
+      );
+
+      setTimeout(() => {
+        const msgId = firstUnread ? firstUnread.id || firstUnread._id : null;
+        if (msgId && messageRefs.current[msgId]) {
+          messageRefs.current[msgId].scrollIntoView({
+            behavior: "auto",
+            block: "center",
+          });
+        } else {
+          scrollToBottom("auto");
+        }
+      }, 100);
     };
 
     loadMessages();
-  }, [selectedChannel, fetchMessages]);
+  }, [currentChat?.id, fetchMessages]);
+
+  // Handle Socket Rooms
+  useEffect(() => {
+    if (!chatSocket || !currentChat) return;
+
+    chatSocket.emit("join_chat", { chatId: currentChat.id });
+
+    return () => {
+      chatSocket.emit("leave_chat", { chatId: currentChat.id });
+    };
+  }, [chatSocket, currentChat?.id]);
+
+  // Listen to Real-time Events
+  useEffect(() => {
+    if (!chatSocket) return;
+
+    const handleNewMessage = (rawMsg) => {
+      if (rawMsg.chatId !== currentChat?.id) return;
+
+      const msg = {
+        id: rawMsg._id,
+        user: rawMsg.senderId?.nickname || rawMsg.senderId?.username,
+        avatar:
+          rawMsg.senderId?.avatar ||
+          (rawMsg.senderId?.nickname || rawMsg.senderId?.username)?.charAt(0) ||
+          "U",
+        senderId: rawMsg.senderId?._id || rawMsg.senderId,
+        content: rawMsg.content,
+        timestamp: new Date(rawMsg.createdAt).toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+        date: new Date(rawMsg.createdAt).toDateString(),
+        edited: rawMsg.isEdited,
+        isDeleted: rawMsg.isDeleted,
+        readBy: rawMsg.readBy || [],
+        replayTo: rawMsg.replayTo
+          ? {
+              id: rawMsg.replayTo._id,
+              user:
+                rawMsg.replayTo.senderId?.nickname ||
+                rawMsg.replayTo.senderId?.username,
+              content: rawMsg.replayTo.content,
+            }
+          : null,
+      };
+
+      setMessages((prev) => {
+        if (prev.some((m) => m.id === msg.id)) return prev;
+        return [...prev, msg];
+      });
+
+      const currentUserId = currentUser?._id || currentUser?.id;
+      if (msg.senderId === currentUserId) {
+        setTimeout(() => scrollToBottom("smooth"), 100);
+      }
+    };
+
+    const handleUpdatedMessage = (rawMsg) => {
+      if (rawMsg.chatId !== currentChat?.id) return;
+
+      setMessages((prev) =>
+        prev.map((m) => {
+          if (m.id === rawMsg._id) {
+            return { ...m, content: rawMsg.content, edited: true };
+          }
+          return m;
+        }),
+      );
+    };
+
+    const handleDeletedMessage = (rawMsg) => {
+      if (rawMsg.chatId !== currentChat?.id) return;
+
+      setMessages((prev) => prev.filter((m) => m.id !== rawMsg._id));
+    };
+
+    const handleMessagesRead = ({ chatId, readByUserId, messageIds }) => {
+      if (currentChat?.id !== chatId) return;
+      setMessages((prev) =>
+        prev.map((m) => {
+          const senderIdStr =
+            m.senderId && typeof m.senderId === "object"
+              ? m.senderId._id || m.senderId.id
+              : m.senderId;
+
+          if (
+            senderIdStr !== readByUserId &&
+            messageIds?.includes(m.id || m._id) &&
+            !m.readBy?.includes(readByUserId)
+          ) {
+            return { ...m, readBy: [...(m.readBy || []), readByUserId] };
+          }
+          return m;
+        }),
+      );
+    };
+
+    chatSocket.on("message_new", handleNewMessage);
+    chatSocket.on("message_updated", handleUpdatedMessage);
+    chatSocket.on("message_deleted", handleDeletedMessage);
+    chatSocket.on("messages_read", handleMessagesRead);
+
+    return () => {
+      chatSocket.off("message_new", handleNewMessage);
+      chatSocket.off("message_updated", handleUpdatedMessage);
+      chatSocket.off("message_deleted", handleDeletedMessage);
+      chatSocket.off("messages_read", handleMessagesRead);
+    };
+  }, [chatSocket, currentChat?.id]);
+
+  // IntersectionObserver for read receipts
+  useEffect(() => {
+    if (!currentChat) return;
+
+    // We only need to mark as read if there are unread messages from the other person
+    const currentUserId = currentUser?._id || currentUser?.id;
+    const unreadMessages = messages.filter((m) => {
+      const senderIdStr =
+        m.senderId && typeof m.senderId === "object"
+          ? m.senderId._id || m.senderId.id
+          : m.senderId;
+      return (
+        senderIdStr !== currentUserId && !m.readBy?.includes(currentUserId)
+      );
+    });
+
+    if (unreadMessages.length === 0) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const newlyReadIds = [];
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            const messageId = entry.target.dataset.messageId;
+            const msg = messages.find(
+              (m) =>
+                String(m.id) === String(messageId) ||
+                String(m._id) === String(messageId),
+            );
+            if (msg) {
+              const senderIdStr =
+                msg.senderId && typeof msg.senderId === "object"
+                  ? msg.senderId._id || msg.senderId.id
+                  : msg.senderId;
+
+              if (
+                String(senderIdStr) !== String(currentUserId) &&
+                !msg.readBy?.includes(currentUserId)
+              ) {
+                newlyReadIds.push(msg.id || msg._id);
+              }
+            }
+          }
+        });
+
+        if (newlyReadIds.length > 0) {
+          markMessagesAsRead(currentChat.id, newlyReadIds);
+        }
+      },
+      { threshold: 0.1 },
+    );
+
+    // Observe unread messages
+    unreadMessages.forEach((msg) => {
+      const el = messageRefs.current[msg.id];
+      if (el) observer.observe(el);
+    });
+
+    return () => observer.disconnect();
+  }, [messages, currentChat, currentUser, markMessagesAsRead]);
 
   // Keep focus on message input
   useEffect(() => {
@@ -1111,6 +1440,14 @@ const ChatArea = ({
     }
   }, [selectedChannel, selectedNav, replayMessage]);
 
+  // Auto-resize message input height
+  useEffect(() => {
+    if (messageInputRef.current) {
+      messageInputRef.current.style.height = "25px";
+      messageInputRef.current.style.height = `${messageInputRef.current.scrollHeight}px`;
+    }
+  }, [messageInput]);
+
   const [clickCount, setClickCount] = useState(0);
   const [clickedMessageId, setClickedMessageId] = useState(null);
   const [clickTimer, setClickTimer] = useState(null);
@@ -1120,6 +1457,15 @@ const ChatArea = ({
   const [privateVideoCallUser, setPrivateVideoCallUser] = useState("");
   const [incomingCall, setIncomingCall] = useState(null);
   const [outgoingCall, setOutgoingCall] = useState(null);
+  const [isCopied, setIsCopied] = useState(false);
+
+  const handleCopyLink = (targetSlug) => {
+    const link = `${window.location.origin}/${targetSlug}`;
+    navigator.clipboard.writeText(link).then(() => {
+      setIsCopied(true);
+      setTimeout(() => setIsCopied(false), 2000);
+    });
+  };
 
   // useEffect(() => {
   //   // Check if navigation is for video call
@@ -1154,10 +1500,10 @@ const ChatArea = ({
     return messages;
   }, [messages]);
 
-  const currentChannelName = currentChat?.name || "Chat";
+  const currentChannelName = displayChat?.name || "Chat";
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  const scrollToBottom = (behavior = "auto") => {
+    messagesEndRef.current?.scrollIntoView({ behavior });
   };
 
   const focusToReplayedMessage = (messageId) => {
@@ -1172,7 +1518,10 @@ const ChatArea = ({
     }
   };
 
-  const handleMessageDoubleClick = (message) => {
+  const handleMessageDoubleClick = (message, event) => {
+    // Prevent double click on mobile from causing zooming
+    if (event) event.preventDefault();
+
     // If clicking on a different message, reset click count
     if (clickedMessageId !== message.id) {
       setClickCount(1);
@@ -1213,23 +1562,6 @@ const ChatArea = ({
     setClickTimer(timer);
   };
 
-  const handleMessageMouseDown = (message, event) => {
-    // Handle right-click immediately
-    if (event.button === 2) {
-      event.preventDefault();
-      event.stopPropagation();
-      showContextMenu(message, event);
-      return;
-    }
-
-    // Start long press timer for left-click
-    const timer = setTimeout(() => {
-      showContextMenu(message, event);
-    }, 2000); // 2 seconds
-
-    setLongPressTimer(timer);
-  };
-
   const showContextMenu = (message, event) => {
     const x = event.clientX;
     const y = event.clientY;
@@ -1258,14 +1590,6 @@ const ChatArea = ({
       y: adjustedY,
       message,
     });
-  };
-
-  const handleMessageMouseUp = () => {
-    // Clear long press timer if mouse is released early
-    if (longPressTimer) {
-      clearTimeout(longPressTimer);
-      setLongPressTimer(null);
-    }
   };
 
   const handleContextMenuAction = async (action, message) => {
@@ -1347,6 +1671,57 @@ const ChatArea = ({
     }
   };
 
+  const handleInputChange = (e) => {
+    const value = e.target.value;
+    setMessageInput(value);
+
+    const chatId = currentChat?.id || currentChat?._id;
+    if (chatId && value.trim()) {
+      if (!typingTimeoutRef.current) {
+        sendTypingStatus(chatId, true);
+      }
+
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      typingTimeoutRef.current = setTimeout(() => {
+        sendTypingStatus(chatId, false);
+        typingTimeoutRef.current = null;
+      }, 3000);
+    } else if (chatId && !value.trim() && typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+      sendTypingStatus(chatId, false);
+      typingTimeoutRef.current = null;
+    }
+  };
+
+  const getTypingText = () => {
+    const chatId = currentChat?.id || currentChat?._id;
+    if (!chatId || !typingUsers[chatId]) return null;
+    const usersInChat = typingUsers[chatId];
+    const typingIds = Object.keys(usersInChat);
+    if (typingIds.length === 0) return null;
+
+    const currentUserId = currentUser?._id || currentUser?.id;
+    const othersTyping = typingIds.filter(
+      (id) => String(id) !== String(currentUserId),
+    );
+    if (othersTyping.length === 0) return null;
+
+    if (currentChat.type === "user") {
+      return "yozmoqda...";
+    } else {
+      const names = othersTyping.map((id) => {
+        const member = currentChat.members?.find(
+          (m) => String(m._id || m.id) === String(id),
+        );
+        return member?.nickname || member?.username || "Kimdir";
+      });
+      if (names.length === 1) return `${names[0]} yozmoqda...`;
+      if (names.length === 2)
+        return `${names[0]} va ${names[1]} yozmoqdalar...`;
+      return "Bir necha kishi yozmoqda...";
+    }
+  };
+
   const handleUsernameClick = (username, e) => {
     e.stopPropagation();
     // Find user ID from username (simplified logic)
@@ -1359,7 +1734,7 @@ const ChatArea = ({
 
     const userChat = userChats.find((chat) => chat.name === username);
     if (userChat && navigate) {
-      navigate(`/users/${userChat.id}`);
+      navigate(`/a/${userChat.id}`);
     }
   };
 
@@ -1436,33 +1811,47 @@ const ChatArea = ({
     return parts.length > 0 ? parts : [{ type: "text", content }];
   };
 
-  const handleMentionClick = (username, e) => {
-    console.log("kliked");
-
+  const handleMentionClick = async (username, e) => {
     e.stopPropagation();
-    // Find user ID from username
-    const userChats = [
-      { id: 200, name: "Ota" },
-      { id: 201, name: "Bob Smith" },
-      { id: 202, name: "Charlie Wilson" },
-      { id: 203, name: "Diana Brown" },
-    ];
+    try {
+      // Find user ID from username using backend API
+      const user = await getUserByUsername(username);
 
-    const userChat = userChats.find(
-      (chat) =>
-        chat.name.toLowerCase().includes(username.toLowerCase()) ||
-        chat.name
-          .split(" ")
-          .some((part) => part.toLowerCase() === username.toLowerCase()),
-    );
-    console.log(userChat);
+      if (user && navigate) {
+        // Stop if user is clicking on themselves
+        if (currentUser && user.id === currentUser.id) {
+          alert("Siz o'zingiz bilan suhbat qura olmaysiz");
+          return;
+        }
 
-    if (userChat && navigate) {
-      navigate(`/users/${userChat.id}`);
+        // Find existing chat with this user
+        const existingChat = chats.find(
+          (c) =>
+            !c.isGroup && c.members && c.members.some((m) => m._id === user.id),
+        );
+
+        if (existingChat) {
+          navigate(`/a/${existingChat.urlSlug}`);
+        } else {
+          // Create new private chat
+          const chatId = await createChat({
+            isGroup: false,
+            memberIds: [user.id],
+          });
+          if (chatId) {
+            navigate(`/a/${chatId}`);
+          }
+        }
+      } else {
+        alert("Bunday foydalanuvchi topilmadi");
+      }
+    } catch (error) {
+      console.error("Error handling mention click:", error);
+      alert("Foydalanuvchini qidirishda xatolik yuz berdi");
     }
   };
 
-  const MessageContent = ({ content }) => {
+  const renderMessageContent = (content) => {
     const parts = parseMessageContent(content);
 
     return parts.map((part, index) => {
@@ -1743,9 +2132,7 @@ const ChatArea = ({
     setPrivateVideoCallUser("");
   };
 
-  useEffect(() => {
-    scrollToBottom();
-  }, [currentMessages]);
+  // Use explicit scrolling for better UX
 
   useEffect(() => {
     // Close context menu when clicking outside
@@ -1875,14 +2262,15 @@ const ChatArea = ({
 
       try {
         const sentMessage = await sendMessage(
-          selectedChannel,
+          currentChat.id,
           content,
           replayId,
         );
 
         // Fetch fresh messages to ensure we have the correct DB IDs and populated fields
-        const msgs = await fetchMessages(selectedChannel);
+        const msgs = await fetchMessages(currentChat.id);
         setMessages(msgs);
+        setTimeout(() => scrollToBottom("smooth"), 100);
 
         console.log("Message sent to backend:", sentMessage);
       } catch (error) {
@@ -1892,395 +2280,756 @@ const ChatArea = ({
   };
 
   return (
-    <ChatContainer>
-      <ChatHeader>
-        <HeaderLeft
-          onClick={() =>
-            selectedNav === "groups" && setShowInfo((prev) => !prev)
-          }
-          style={{ cursor: selectedNav === "groups" ? "pointer" : "default" }}
-        >
-          <HeaderButton
-            onClick={(e) => {
-              e.stopPropagation();
-              onBack();
+    <OuterChatWrapper>
+      <ChatContainer>
+        <ChatHeader>
+          <HeaderLeft
+            onClick={() =>
+              (selectedNav === "groups" ||
+                selectedNav === "users" ||
+                selectedNav === "a") &&
+              setShowInfo((prev) => !prev)
+            }
+            style={{
+              cursor:
+                selectedNav === "groups" ||
+                selectedNav === "users" ||
+                selectedNav === "a"
+                  ? "pointer"
+                  : "default",
             }}
           >
-            <ArrowLeft size={20} />
-          </HeaderButton>
-          <ChatAvatar>{currentChannelName.charAt(0).toUpperCase()}</ChatAvatar>
-          <ChatInfo>
-            <ChatName>
-              {selectedNav === "channels" ? (
-                <>{currentChannelName}</>
-              ) : (
-                <>{currentChannelName}</>
-              )}
-            </ChatName>
-            <ChatStatus>
-              <StatusDot online={true} />
-              {selectedNav === "channels"
-                ? `${messages.length} members`
-                : "Online"}
-            </ChatStatus>
-          </ChatInfo>
-        </HeaderLeft>
-
-        <HeaderRight>
-          {selectedNav == "users" && (
             <HeaderButton
-              onClick={() => startPrivateVideoCall(currentChat?.name)}
+              onClick={(e) => {
+                e.stopPropagation();
+                onBack();
+              }}
             >
-              <Phone size={20} />
+              <ArrowLeft size={20} />
             </HeaderButton>
-          )}
-          <HeaderButton>
-            <MoreVertical size={20} />
-          </HeaderButton>
-        </HeaderRight>
-      </ChatHeader>
+            <ChatAvatar $isSavedMessages={currentChat?.isSavedMessages}>
+              {currentChat?.isSavedMessages ? (
+                <Bookmark size={20} color="white" fill="white" />
+              ) : currentChat?.avatar?.length > 1 ? (
+                <img
+                  src={currentChat.avatar}
+                  alt={currentChannelName}
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                    borderRadius: "50%",
+                    objectFit: "cover",
+                  }}
+                />
+              ) : (
+                currentChannelName.charAt(0).toUpperCase()
+              )}
+            </ChatAvatar>
+            <ChatInfo>
+              <ChatName>
+                {selectedNav === "channels" ? (
+                  <>{currentChannelName}</>
+                ) : (
+                  <>{currentChannelName}</>
+                )}
+              </ChatName>
+              <ChatStatus>
+                {displayChat?.type === "group" ? (
+                  <>
+                    <Users size={14} style={{ marginRight: 4 }} />
+                    {displayChat?.members?.length || 0} members
+                    {onlineCount > 0 && `, ${onlineCount} online`}
+                  </>
+                ) : (
+                  <>
+                    <StatusDot online={isOnline} />
+                    {lastSeenText}
+                  </>
+                )}
+              </ChatStatus>
+            </ChatInfo>
+          </HeaderLeft>
 
-      <div
-        style={{
-          display: "flex",
-          flex: 1,
-          overflow: "hidden",
-          position: "relative",
-        }}
-      >
+          <HeaderRight>
+            {selectedNav == "users" && (
+              <>
+                <HeaderButton
+                  onClick={() => startPrivateVideoCall(currentChat?.name)}
+                >
+                  <Phone size={20} />
+                </HeaderButton>
+                <HeaderButton>
+                  <MoreVertical size={20} />
+                </HeaderButton>
+              </>
+            )}
+          </HeaderRight>
+        </ChatHeader>
+
         <div
           style={{
             display: "flex",
-            flexDirection: "column",
             flex: 1,
-            minWidth: 0,
+            overflow: "hidden",
+            position: "relative",
           }}
         >
-          <MessagesContainer onContextMenu={(e) => e.preventDefault()}>
-            <MessageContainer>
-              {messageGroups.map((group, index) => {
-                if (group.type === "date") {
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              flex: 1,
+              minWidth: 0,
+            }}
+          >
+            <MessagesContainer onContextMenu={(e) => e.preventDefault()}>
+              <MessageContainer>
+                {messageGroups.map((group, index) => {
+                  if (group.type === "date") {
+                    return (
+                      <DateSeparator key={`date-${index}`}>
+                        <span>{formatDate(group.date)}</span>
+                      </DateSeparator>
+                    );
+                  }
+
+                  const currentUserId = currentUser
+                    ? currentUser._id || currentUser.id
+                    : null;
+
+                  // Safely extract the sender ID, handling the case where it's a populated Mongoose object
+                  const senderIdString =
+                    group.senderId && typeof group.senderId === "object"
+                      ? group.senderId._id || group.senderId.id
+                      : group.senderId;
+
+                  const isCurrentUserMessage =
+                    currentUserId && senderIdString === currentUserId;
+
                   return (
-                    <DateSeparator key={`date-${index}`}>
-                      <span>{formatDate(group.date)}</span>
-                    </DateSeparator>
-                  );
-                }
-
-                const currentUserId = currentUser
-                  ? currentUser._id || currentUser.id
-                  : null;
-                const isCurrentUserMessage =
-                  currentUserId && group.senderId === currentUserId;
-
-                // Debugging ownership logic
-                if (index === 0 || index === messageGroups.length - 1) {
-                  console.log("Ownership Debug:", {
-                    currentUserId,
-                    senderId: group.senderId,
-                    isMatch: isCurrentUserMessage,
-                    userObj: currentUser,
-                  });
-                }
-
-                return (
-                  <MessageWrapper
-                    key={group.id}
-                    isOwn={isCurrentUserMessage}
-                    onClick={() => handleMessageDoubleClick(group)}
-                    ref={(el) => {
-                      messageRefs.current[group.id] = el;
-                    }}
-                  >
-                    {!isCurrentUserMessage ? (
-                      <>
-                        <MessageHeader isOwn={false}>
-                          {selectedNav === "groups" && (
-                            <UserAvatar
-                              onClick={(e) =>
-                                handleUsernameClick(group.user, e)
-                              }
-                            >
-                              {getUserAvatar(group.user)}
-                            </UserAvatar>
-                          )}
-                          <div style={{ flex: 1 }}>
-                            <ClickableUsername>{group.user}</ClickableUsername>
-                          </div>
-                        </MessageHeader>
-                        {group.replayTo && (
-                          <ReplayIndicator
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              // Find the original message from messages array
-                              const allMessages = messages;
-                              const originalMessage = allMessages.find(
-                                (msg) =>
-                                  msg.user === group.replayTo.user &&
-                                  msg.content === group.replayTo.content,
-                              );
-                              if (originalMessage) {
-                                focusToReplayedMessage(originalMessage.id);
-                              }
-                            }}
-                          >
-                            {group.replayTo.user} - "{group.replayTo.content}"
-                          </ReplayIndicator>
-                        )}
-                        <MessageBubble isOwn={false}>
-                          {editingMessage?.id === group.id ? (
-                            <EditContainer>
-                              <EditInput
-                                className="edit-input"
-                                type="text"
-                                value={editInput}
-                                onChange={(e) => setEditInput(e.target.value)}
-                                onKeyDown={handleEditMessage}
-                                placeholder="Xabarni tahrirlang..."
-                                autoFocus
-                              />
-                            </EditContainer>
-                          ) : (
-                            <>
-                              <MessageText
-                                isOwn={false}
-                                onMouseDown={(e) =>
-                                  handleMessageMouseDown(group, e)
-                                }
-                                onMouseUp={handleMessageMouseUp}
-                                onMouseLeave={handleMessageMouseUp}
-                              >
-                                <MessageContent content={group.content} />
-                              </MessageText>
-                              {group.edited && (
-                                <EditedIndicator>(tahrirlandi)</EditedIndicator>
-                              )}
-                            </>
-                          )}
-                        </MessageBubble>
-                      </>
-                    ) : (
-                      <>
-                        {group.replayTo && (
-                          <ReplayIndicator
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              // Find the original message from messages array
-                              const allMessages = messages;
-                              const originalMessage = allMessages.find(
-                                (msg) =>
-                                  msg.user === group.replayTo.user &&
-                                  msg.content === group.replayTo.content,
-                              );
-                              if (originalMessage) {
-                                focusToReplayedMessage(originalMessage.id);
-                              }
-                            }}
-                          >
-                            {group.replayTo.user} - "{group.replayTo.content}"
-                          </ReplayIndicator>
-                        )}
-                        <MessageBubble
-                          isOwn={true}
-                          onMouseDown={(e) => handleMessageMouseDown(group, e)}
-                          onMouseUp={handleMessageMouseUp}
-                          onMouseLeave={handleMessageMouseUp}
-                        >
-                          {editingMessage?.id === group.id ? (
-                            <EditContainer>
-                              <EditInput
-                                className="edit-input"
-                                type="text"
-                                value={editInput}
-                                onChange={(e) => setEditInput(e.target.value)}
-                                onKeyDown={handleEditMessage}
-                                placeholder="Xabarni tahrirlang..."
-                                autoFocus
-                              />
-                            </EditContainer>
-                          ) : (
-                            <>
-                              <MessageText isOwn={true}>
-                                <MessageContent content={group.content} />
-                              </MessageText>
-                              {group.edited && (
-                                <EditedIndicator>(tahrirlandi)</EditedIndicator>
-                              )}
-                            </>
-                          )}
-                        </MessageBubble>
-                        <MessageHeader isOwn={true}>
-                          <span>{group.timestamp}</span>
-                        </MessageHeader>
-                      </>
-                    )}
-                  </MessageWrapper>
-                );
-              })}
-            </MessageContainer>
-            <div ref={messagesEndRef} />
-          </MessagesContainer>
-
-          <MessageInputContainer>
-            {replayMessage && (
-              <ReplayIndicator
-                onClick={() => {
-                  focusToReplayedMessage(replayMessage.id);
-                }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                  }}
-                >
-                  <div>
-                    <strong style={{ color: "#7289da" }}>
-                      {replayMessage.user}
-                    </strong>
-                    <div
-                      style={{
-                        fontSize: "12px",
-                        opacity: 0.8,
-                        marginTop: "2px",
+                    <MessageWrapper
+                      key={group.id}
+                      data-message-id={group.id}
+                      isOwn={isCurrentUserMessage}
+                      onClick={() => handleMessageDoubleClick(group)}
+                      ref={(el) => {
+                        messageRefs.current[group.id] = el;
                       }}
                     >
-                      {replayMessage.content}
-                    </div>
-                  </div>
-                  <span
-                    className="replay-close"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setReplayMessage(null);
-                    }}
-                  >
-                    ✕
-                  </span>
-                </div>
-              </ReplayIndicator>
-            )}
-            <InputWrapper>
-              <InputButtons>
-                <InputButton>
-                  <Plus size={20} />
-                </InputButton>
-                <InputButton
-                  onClick={toggleEmojiPicker}
-                  className="emoji-button"
-                >
-                  <Smile size={20} />
-                </InputButton>
-              </InputButtons>
-              <MessageInput
-                id="message-input"
-                ref={messageInputRef}
-                value={messageInput}
-                onChange={(e) => setMessageInput(e.target.value)}
-                onKeyDown={handleSendMessage}
-                placeholder="Message..."
-                rows={1}
-              />
-            </InputWrapper>
+                      {!isCurrentUserMessage ? (
+                        <>
+                          <MessageHeader isOwn={false}>
+                            {selectedNav === "groups" && (
+                              <UserAvatar
+                                onClick={(e) =>
+                                  handleUsernameClick(group.user, e)
+                                }
+                              >
+                                {getUserAvatar(group.user)}
+                              </UserAvatar>
+                            )}
+                            <div style={{ flex: 1 }}>
+                              <ClickableUsername>
+                                {group.user}
+                              </ClickableUsername>
+                            </div>
+                          </MessageHeader>
+                          {group.replayTo && (
+                            <ReplayIndicator
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                // Find the original message from messages array
+                                const allMessages = messages;
+                                const originalMessage = allMessages.find(
+                                  (msg) =>
+                                    msg.user === group.replayTo.user &&
+                                    msg.content === group.replayTo.content,
+                                );
+                                if (originalMessage) {
+                                  focusToReplayedMessage(originalMessage.id);
+                                }
+                              }}
+                            >
+                              {group.replayTo.user} - "{group.replayTo.content}"
+                            </ReplayIndicator>
+                          )}
+                          <MessageBubble
+                            isOwn={false}
+                            onContextMenu={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              showContextMenu(group, e);
+                            }}
+                          >
+                            {editingMessage?.id === group.id ? (
+                              <EditContainer>
+                                <EditInput
+                                  className="edit-input"
+                                  type="text"
+                                  value={editInput}
+                                  onChange={(e) => setEditInput(e.target.value)}
+                                  onKeyDown={handleEditMessage}
+                                  placeholder="Xabarni tahrirlang..."
+                                  autoFocus
+                                />
+                              </EditContainer>
+                            ) : (
+                              <>
+                                <MessageText isOwn={false}>
+                                  {renderMessageContent(group.content)}
+                                </MessageText>
+                                {group.edited && (
+                                  <EditedIndicator>
+                                    (tahrirlandi)
+                                  </EditedIndicator>
+                                )}
+                              </>
+                            )}
+                          </MessageBubble>
+                        </>
+                      ) : (
+                        <>
+                          {group.replayTo && (
+                            <ReplayIndicator
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                // Find the original message from messages array
+                                const allMessages = messages;
+                                const originalMessage = allMessages.find(
+                                  (msg) =>
+                                    msg.user === group.replayTo.user &&
+                                    msg.content === group.replayTo.content,
+                                );
+                                if (originalMessage) {
+                                  focusToReplayedMessage(originalMessage.id);
+                                }
+                              }}
+                            >
+                              {group.replayTo.user} - "{group.replayTo.content}"
+                            </ReplayIndicator>
+                          )}
+                          <MessageBubble
+                            isOwn={true}
+                            onContextMenu={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              showContextMenu(group, e);
+                            }}
+                          >
+                            {editingMessage?.id === group.id ? (
+                              <EditContainer>
+                                <EditInput
+                                  className="edit-input"
+                                  type="text"
+                                  value={editInput}
+                                  onChange={(e) => setEditInput(e.target.value)}
+                                  onKeyDown={handleEditMessage}
+                                  placeholder="Xabarni tahrirlang..."
+                                  autoFocus
+                                />
+                              </EditContainer>
+                            ) : (
+                              <>
+                                <MessageText isOwn={true}>
+                                  {renderMessageContent(group.content)}
+                                </MessageText>
+                                {group.edited && (
+                                  <EditedIndicator>
+                                    (tahrirlandi)
+                                  </EditedIndicator>
+                                )}
+                              </>
+                            )}
+                          </MessageBubble>
+                          <MessageHeader isOwn={true}>
+                            <span>{group.timestamp}</span>
+                            {!group.isDeleted && (
+                              <span
+                                style={{
+                                  marginLeft: "4px",
+                                  display: "flex",
+                                  alignItems: "center",
+                                }}
+                              >
+                                {group.readBy && group.readBy.length > 0 ? (
+                                  <CheckCheck size={14} color="#4ade80" />
+                                ) : (
+                                  <Check size={14} color="#72767d" />
+                                )}
+                              </span>
+                            )}
+                          </MessageHeader>
+                        </>
+                      )}
+                    </MessageWrapper>
+                  );
+                })}
+              </MessageContainer>
+              <div ref={messagesEndRef} />
+            </MessagesContainer>
 
-            {showEmojiPicker && (
-              <EmojiPicker
-                className="emoji-picker-container"
-                style={{
-                  position: "fixed",
-                  bottom: "100px",
-                  right: "40px",
-                  backgroundColor: "#36393f",
-                  border: "3px solid #7289da",
-                  borderRadius: "12px",
-                  padding: "16px",
-                  boxShadow: "0 12px 24px rgba(0, 0, 0, 0.6)",
-                  zIndex: 9999,
-                  display: "grid",
-                  gridTemplateColumns: "repeat(8, 1fr)",
-                  gap: "6px",
-                  maxWidth: "360px",
-                  maxHeight: "240px",
-                  overflowY: "auto",
-                }}
-              >
-                {emojis.map((emoji, index) => (
-                  <EmojiButton
-                    key={index}
-                    onClick={() => handleEmojiClick(emoji)}
+            <MessageInputContainer>
+              {previewChat && !currentChat ? (
+                <div
+                  style={{
+                    padding: "20px",
+                    textAlign: "center",
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    gap: "10px",
+                  }}
+                >
+                  <div style={{ color: "var(--text-muted-color)" }}>
+                    Siz ushbu guruh a'zosi emassiz
+                  </div>
+                  <button
+                    onClick={async () => {
+                      try {
+                        await joinGroupChat(
+                          previewChat.privateurl || previewChat.jammId,
+                        );
+                        navigate(
+                          `/a/${previewChat.jammId || previewChat.privateurl}`,
+                          {
+                            replace: true,
+                          },
+                        );
+                      } catch (err) {
+                        alert(
+                          err.message ||
+                            "Guruhga qo'shilishda xatolik yuz berdi",
+                        );
+                      }
+                    }}
                     style={{
-                      background: "none",
+                      background: "#5865F2",
+                      color: "white",
+                      padding: "10px 20px",
                       border: "none",
-                      fontSize: "24px",
+                      borderRadius: "4px",
                       cursor: "pointer",
-                      padding: "8px",
-                      borderRadius: "6px",
-                      minWidth: "32px",
-                      minHeight: "32px",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
+                      fontWeight: "bold",
                     }}
                   >
-                    {emoji}
-                  </EmojiButton>
-                ))}
-              </EmojiPicker>
-            )}
-          </MessageInputContainer>
+                    Guruhga qo'shilish
+                  </button>
+                </div>
+              ) : (
+                <>
+                  {replayMessage && (
+                    <ReplayIndicator
+                      onClick={() => {
+                        focusToReplayedMessage(replayMessage.id);
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                        }}
+                      >
+                        <div>
+                          <strong style={{ color: "#7289da" }}>
+                            {replayMessage.user}
+                          </strong>
+                          <div
+                            style={{
+                              fontSize: "12px",
+                              opacity: 0.8,
+                              marginTop: "2px",
+                            }}
+                          >
+                            {replayMessage.content}
+                          </div>
+                        </div>
+                        <span
+                          className="replay-close"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setReplayMessage(null);
+                          }}
+                        >
+                          ✕
+                        </span>
+                      </div>
+                    </ReplayIndicator>
+                  )}
+                  {getTypingText() && (
+                    <TypingIndicator>{getTypingText()}</TypingIndicator>
+                  )}
+                  <InputWrapper>
+                    <InputButtons>
+                      <InputButton>
+                        <Plus size={20} />
+                      </InputButton>
+                      <InputButton
+                        onClick={toggleEmojiPicker}
+                        className="emoji-button"
+                      >
+                        <Smile size={20} />
+                      </InputButton>
+                    </InputButtons>
+                    <MessageInput
+                      id="message-input"
+                      ref={messageInputRef}
+                      value={messageInput}
+                      onChange={handleInputChange}
+                      onKeyDown={handleSendMessage}
+                      placeholder="Message..."
+                      rows={1}
+                    />
+                  </InputWrapper>
+
+                  {showEmojiPicker && (
+                    <EmojiPicker
+                      className="emoji-picker-container"
+                      style={{
+                        position: "fixed",
+                        bottom: "100px",
+                        right: "40px",
+                        backgroundColor: "#36393f",
+                        border: "3px solid #7289da",
+                        borderRadius: "12px",
+                        padding: "16px",
+                        boxShadow: "0 12px 24px rgba(0, 0, 0, 0.6)",
+                        zIndex: 9999,
+                        display: "grid",
+                        gridTemplateColumns: "repeat(8, 1fr)",
+                        gap: "6px",
+                        maxWidth: "360px",
+                        maxHeight: "240px",
+                        overflowY: "auto",
+                      }}
+                    >
+                      {emojis.map((emoji, index) => (
+                        <EmojiButton
+                          key={index}
+                          onClick={() => handleEmojiClick(emoji)}
+                          style={{
+                            background: "none",
+                            border: "none",
+                            fontSize: "24px",
+                            cursor: "pointer",
+                            padding: "8px",
+                            borderRadius: "6px",
+                            minWidth: "32px",
+                            minHeight: "32px",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                          }}
+                        >
+                          {emoji}
+                        </EmojiButton>
+                      ))}
+                    </EmojiPicker>
+                  )}
+                </>
+              )}
+            </MessageInputContainer>
+          </div>
         </div>
 
-        {showInfo && currentChat && (
-          <RightSidebar>
-            <SidebarHeader>
-              Guruh ma'lumotlari
-              <SidebarCloseButton onClick={() => setShowInfo(false)}>
-                <X size={20} />
-              </SidebarCloseButton>
-            </SidebarHeader>
-            <SidebarContent>
-              <GroupProfile>
-                <LargeAvatar>
-                  {currentChat.avatar ? (
-                    <img src={currentChat.avatar} alt={currentChat.name} />
-                  ) : (
-                    currentChat.name.charAt(0)
+        {/* Context Menu */}
+        {contextMenu && (
+          <ContextMenu
+            style={{
+              left: `${contextMenu.x}px`,
+              top: `${contextMenu.y}px`,
+            }}
+            onClick={(e) => e.stopPropagation()}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+            }}
+          >
+            <ContextMenuItem
+              onClick={() =>
+                handleContextMenuAction("replay", contextMenu.message)
+              }
+            >
+              <Reply size={16} /> Javob yozish
+            </ContextMenuItem>
+            {(() => {
+              if (!currentUser || !contextMenu.message) return null;
+
+              const currentUserId = currentUser._id || currentUser.id;
+              const msgSenderIdStr =
+                contextMenu.message.senderId &&
+                typeof contextMenu.message.senderId === "object"
+                  ? contextMenu.message.senderId._id ||
+                    contextMenu.message.senderId.id
+                  : contextMenu.message.senderId;
+
+              const isOwnMessage = msgSenderIdStr === currentUserId;
+
+              // Permission check for groups
+              let canDeleteOthers = false;
+              if (!isOwnMessage && currentChat?.type === "group") {
+                const isOwner = currentChat.createdBy === currentUserId;
+                const myAdminRecord = currentChat.admins?.find(
+                  (a) => (a.userId || a.id || a._id) === currentUserId,
+                );
+                canDeleteOthers =
+                  isOwner ||
+                  (myAdminRecord &&
+                    myAdminRecord.permissions?.includes(
+                      "delete_others_messages",
+                    ));
+              }
+
+              if (!isOwnMessage && !canDeleteOthers) return null;
+
+              return (
+                <>
+                  {isOwnMessage && (
+                    <ContextMenuItem
+                      onClick={() =>
+                        handleContextMenuAction("edit", contextMenu.message)
+                      }
+                    >
+                      <Edit2 size={16} /> Tahrirlash
+                    </ContextMenuItem>
                   )}
-                </LargeAvatar>
-                <GroupName>{currentChat.name}</GroupName>
-                <GroupStatus>
-                  {currentChat.members?.length || 0} a'zo
-                </GroupStatus>
-              </GroupProfile>
+                  <ContextMenuItem
+                    onClick={() =>
+                      handleContextMenuAction("delete", contextMenu.message)
+                    }
+                    $danger={true}
+                  >
+                    <Trash2 size={16} /> O'chirish
+                  </ContextMenuItem>
+                </>
+              );
+            })()}
+          </ContextMenu>
+        )}
 
-              {currentChat.description && (
-                <InfoSection>
-                  <SectionTitle>Haqida</SectionTitle>
-                  <InfoText>{currentChat.description}</InfoText>
-                </InfoSection>
-              )}
+        {/* Call Requests */}
+        <IncomingCallRequest
+          isOpen={!!incomingCall}
+          onAccept={handleAcceptCall}
+          onReject={handleRejectCall}
+          caller={incomingCall}
+        />
 
+        <OutgoingCallRequest
+          isOpen={!!outgoingCall}
+          onCancel={handleCancelCall}
+          target={outgoingCall}
+        />
+
+        {/* Private Video Call */}
+        <PrivateVideoCall
+          isOpen={isPrivateVideoCallOpen}
+          onClose={endPrivateVideoCall}
+          user={privateVideoCallUser}
+        />
+        {/* Group Video Call and JoinCallModal are handled in JammLayout */}
+      </ChatContainer>
+
+      {showInfo && currentChat && (
+        <RightSidebar>
+          <SidebarHeader>
+            <SidebarCloseButton onClick={() => setShowInfo(false)}>
+              <X size={20} />
+            </SidebarCloseButton>
+            <span style={{ flex: 1, textAlign: "center" }}>
+              {currentChat.type === "user"
+                ? "Foydalanuvchi ma'lumotlari"
+                : "Guruh ma'lumotlari"}
+            </span>
+            {currentChat.type === "group" ? (
+              (() => {
+                const currentUserId = currentUser?._id || currentUser?.id;
+                const isOwner = currentChat.createdBy === currentUserId;
+                const myAdminRecord = currentChat.admins?.find(
+                  (a) => (a.userId || a.id || a._id) === currentUserId,
+                );
+                const canEditAnything =
+                  isOwner ||
+                  (myAdminRecord && myAdminRecord.permissions?.length > 0);
+
+                if (!canEditAnything) return <div style={{ width: 28 }} />;
+
+                return (
+                  <SidebarCloseButton onClick={() => setIsEditGroupOpen(true)}>
+                    <Edit2 size={18} />
+                  </SidebarCloseButton>
+                );
+              })()
+            ) : (
+              <div style={{ width: 28 }} />
+            )}
+          </SidebarHeader>
+          <SidebarContent>
+            <GroupProfile>
+              <LargeAvatar
+                style={
+                  currentChat?.isSavedMessages ? { background: "#0288D1" } : {}
+                }
+              >
+                {currentChat?.isSavedMessages ? (
+                  <Bookmark size={40} color="white" fill="white" />
+                ) : currentChat?.avatar?.length > 1 ? (
+                  <img src={currentChat.avatar} alt={currentChat.name} />
+                ) : (
+                  currentChat.name.charAt(0)
+                )}
+              </LargeAvatar>
+              <GroupName>{currentChat.name}</GroupName>
+              <GroupStatus>
+                {currentChat.type === "user" ? (
+                  (() => {
+                    const currentUserStr = localStorage.getItem("user");
+                    const userObj = currentUserStr
+                      ? JSON.parse(currentUserStr)
+                      : null;
+                    const otherUser = currentChat.members?.find((m) => {
+                      const mId = m._id || m.id;
+                      return mId !== userObj?.id;
+                    });
+                    const targetId = otherUser?._id || otherUser?.id;
+
+                    if (!targetId) return null;
+
+                    return (
+                      <span
+                        style={{
+                          color: isUserOnline(targetId)
+                            ? "var(--primary-color)"
+                            : "var(--text-muted-color)",
+                        }}
+                      >
+                        {isUserOnline(targetId)
+                          ? "Online"
+                          : otherUser.lastSeen || otherUser.lastActive
+                            ? `Oxirgi marta: ${new Date(
+                                otherUser.lastSeen || otherUser.lastActive,
+                              ).toLocaleTimeString("uz-UZ", {
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })}`
+                            : "Offline"}
+                      </span>
+                    );
+                  })()
+                ) : (
+                  <>
+                    {currentChat.members?.length || 0} a'zo
+                    {onlineCount > 0 && ` · ${onlineCount} online`}
+                  </>
+                )}
+              </GroupStatus>
+            </GroupProfile>
+
+            {currentChat.description && (
+              <InfoSection>
+                <SectionTitle>Haqida</SectionTitle>
+                <InfoText>{currentChat.description}</InfoText>
+              </InfoSection>
+            )}
+
+            {displayChat?.type === "group" && (
+              <InfoSection>
+                <SectionTitle>Taklif havolasi</SectionTitle>
+                <InfoText
+                  style={{ fontSize: "12px", color: "var(--text-muted-color)" }}
+                >
+                  {window.location.origin}/
+                  {displayChat.privateurl || displayChat.urlSlug}
+                </InfoText>
+                <CopyButton
+                  onClick={() =>
+                    handleCopyLink(
+                      displayChat.privateurl || displayChat.urlSlug,
+                    )
+                  }
+                >
+                  {isCopied ? "Nusxa olindi!" : "Nusxa olish"}
+                </CopyButton>
+              </InfoSection>
+            )}
+
+            {displayChat?.type === "group" && (
               <InfoSection>
                 <SectionTitle>
-                  A'zolar — {currentChat.members?.length || 0}
+                  A'zolar —{" "}
+                  {displayChat?.memberCount ||
+                    displayChat?.members?.length ||
+                    0}
                 </SectionTitle>
                 <MembersList>
-                  {currentChat.members &&
-                    currentChat.members.map((memberId) => {
-                      const member = chats.find((c) => c.id === memberId);
+                  {displayChat?.members &&
+                    displayChat.members.map((memberData) => {
+                      const member =
+                        typeof memberData === "object" ? memberData : null;
                       if (!member) return null;
+
+                      const id = member._id || member.id;
+                      const name =
+                        member.name ||
+                        member.nickname ||
+                        member.username ||
+                        "Foydalanuvchi";
+
                       return (
-                        <MemberItem key={member.id}>
+                        <MemberItem
+                          key={id}
+                          onClick={() => handleMemberClick(member)}
+                        >
                           <MemberAvatar>
-                            {member.avatar || member.name.charAt(0)}
+                            {member.avatar?.length > 1 ? (
+                              <img
+                                src={member.avatar}
+                                alt={name}
+                                style={{
+                                  width: "100%",
+                                  height: "100%",
+                                  borderRadius: "50%",
+                                  objectFit: "cover",
+                                }}
+                              />
+                            ) : (
+                              name.charAt(0)
+                            )}
                           </MemberAvatar>
-                          <span>{member.name}</span>
+                          <div
+                            style={{ display: "flex", flexDirection: "column" }}
+                          >
+                            <span
+                              style={{ fontSize: "14px", fontWeight: "500" }}
+                            >
+                              {name}
+                            </span>
+                            <span
+                              style={{
+                                fontSize: "12px",
+                                color: isUserOnline(id)
+                                  ? "var(--primary-color)"
+                                  : "var(--text-muted-color)",
+                              }}
+                            >
+                              {isUserOnline(id)
+                                ? "Online"
+                                : member.lastSeen || member.lastActive
+                                  ? `Oxirgi marta: ${new Date(
+                                      member.lastSeen || member.lastActive,
+                                    ).toLocaleTimeString("uz-UZ", {
+                                      hour: "2-digit",
+                                      minute: "2-digit",
+                                    })}`
+                                  : "Offline"}
+                            </span>
+                          </div>
                         </MemberItem>
                       );
                     })}
-                  {(!currentChat.members ||
-                    currentChat.members.length === 0) && (
+
+                  {(!displayChat?.members ||
+                    displayChat.members.length === 0) && (
                     <div
                       style={{ fontSize: 13, color: "var(--text-muted-color)" }}
                     >
@@ -2289,77 +3038,29 @@ const ChatArea = ({
                   )}
                 </MembersList>
               </InfoSection>
-            </SidebarContent>
-          </RightSidebar>
-        )}
-      </div>
-
-      {/* Context Menu */}
-      {contextMenu && (
-        <ContextMenu
-          style={{
-            left: `${contextMenu.x}px`,
-            top: `${contextMenu.y}px`,
-          }}
-          onClick={(e) => e.stopPropagation()}
-          onContextMenu={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-          }}
-        >
-          <ContextMenuItem
-            onClick={() =>
-              handleContextMenuAction("replay", contextMenu.message)
-            }
-          >
-            <Reply size={16} /> Javob yozish
-          </ContextMenuItem>
-          {currentUser &&
-            contextMenu.message.senderId ===
-              (currentUser._id || currentUser.id) && (
-              <>
-                <ContextMenuItem
-                  onClick={() =>
-                    handleContextMenuAction("edit", contextMenu.message)
-                  }
-                >
-                  <Edit2 size={16} /> Tahrirlash
-                </ContextMenuItem>
-                <ContextMenuItem
-                  onClick={() =>
-                    handleContextMenuAction("delete", contextMenu.message)
-                  }
-                  $danger={true}
-                >
-                  <Trash2 size={16} /> O'chirish
-                </ContextMenuItem>
-              </>
             )}
-        </ContextMenu>
+          </SidebarContent>
+        </RightSidebar>
       )}
 
-      {/* Call Requests */}
-      <IncomingCallRequest
-        isOpen={!!incomingCall}
-        onAccept={handleAcceptCall}
-        onReject={handleRejectCall}
-        caller={incomingCall}
-      />
+      {/* Outgoing Call Overlay */}
+      <OutgoingCallRequest />
 
-      <OutgoingCallRequest
-        isOpen={!!outgoingCall}
-        onCancel={handleCancelCall}
-        target={outgoingCall}
+      {/* Edit Group Dialog */}
+      <EditGroupDialog
+        isOpen={isEditGroupOpen}
+        onClose={() => setIsEditGroupOpen(false)}
+        group={currentChat}
+        users={chats.filter((c) => c.type === "user")}
+        onSave={async (updatedData) => {
+          try {
+            await editChat(currentChat.id || currentChat._id, updatedData);
+          } catch (error) {
+            console.error("Guruhni tahrirlashda xatolik", error);
+          }
+        }}
       />
-
-      {/* Private Video Call */}
-      <PrivateVideoCall
-        isOpen={isPrivateVideoCallOpen}
-        onClose={endPrivateVideoCall}
-        user={privateVideoCallUser}
-      />
-      {/* Group Video Call and JoinCallModal are handled in JammLayout */}
-    </ChatContainer>
+    </OuterChatWrapper>
   );
 };
 

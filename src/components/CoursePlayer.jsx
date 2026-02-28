@@ -1542,7 +1542,20 @@ const CoursePlayer = ({ selectedCourseId }) => {
                 {/* Comment input */}
                 <CommentInputArea>
                   <CommentAvatar isAdmin={admin}>
-                    {currentUser.avatar}
+                    {currentUser.avatar?.length > 1 ? (
+                      <img
+                        src={currentUser.avatar}
+                        alt="avatar"
+                        style={{
+                          width: "100%",
+                          height: "100%",
+                          borderRadius: "50%",
+                          objectFit: "cover",
+                        }}
+                      />
+                    ) : (
+                      (currentUser.name || "?").charAt(0)
+                    )}
                   </CommentAvatar>
                   <CommentInputWrapper>
                     <CommentInput
@@ -1614,7 +1627,20 @@ const CoursePlayer = ({ selectedCourseId }) => {
                           <CommentAvatar
                             isAdmin={comment.userId === course.createdBy}
                           >
-                            {comment.userAvatar || comment.userName.charAt(0)}
+                            {comment.userAvatar?.length > 1 ? (
+                              <img
+                                src={comment.userAvatar}
+                                alt="avatar"
+                                style={{
+                                  width: "100%",
+                                  height: "100%",
+                                  borderRadius: "50%",
+                                  objectFit: "cover",
+                                }}
+                              />
+                            ) : (
+                              comment.userName.charAt(0)
+                            )}
                           </CommentAvatar>
                           <CommentBody>
                             <CommentHeader>
@@ -1654,7 +1680,20 @@ const CoursePlayer = ({ selectedCourseId }) => {
                                   small
                                   isAdmin={reply.userId === course.createdBy}
                                 >
-                                  {reply.userAvatar || reply.userName.charAt(0)}
+                                  {reply.userAvatar?.length > 1 ? (
+                                    <img
+                                      src={reply.userAvatar}
+                                      alt="avatar"
+                                      style={{
+                                        width: "100%",
+                                        height: "100%",
+                                        borderRadius: "50%",
+                                        objectFit: "cover",
+                                      }}
+                                    />
+                                  ) : (
+                                    reply.userName.charAt(0)
+                                  )}
                                 </CommentAvatar>
                                 <CommentBody>
                                   <CommentHeader>
@@ -1683,7 +1722,20 @@ const CoursePlayer = ({ selectedCourseId }) => {
                         {replyingTo === comment.id && (
                           <ReplyInputArea>
                             <CommentAvatar small isAdmin={admin}>
-                              {currentUser.avatar}
+                              {currentUser.avatar?.length > 1 ? (
+                                <img
+                                  src={currentUser.avatar}
+                                  alt="avatar"
+                                  style={{
+                                    width: "100%",
+                                    height: "100%",
+                                    borderRadius: "50%",
+                                    objectFit: "cover",
+                                  }}
+                                />
+                              ) : (
+                                (currentUser.name || "?").charAt(0)
+                              )}
                             </CommentAvatar>
                             <ReplyInput
                               placeholder="Javob yozing..."
@@ -1803,7 +1855,20 @@ const CoursePlayer = ({ selectedCourseId }) => {
                 <MemberAvatars>
                   {approvedMembers.slice(0, 4).map((m, i) => (
                     <MiniAvatar key={m.id} index={i}>
-                      {m.avatar || m.name.charAt(0)}
+                      {m.avatar?.length > 1 ? (
+                        <img
+                          src={m.avatar}
+                          alt="avatar"
+                          style={{
+                            width: "100%",
+                            height: "100%",
+                            borderRadius: "50%",
+                            objectFit: "cover",
+                          }}
+                        />
+                      ) : (
+                        m.name.charAt(0)
+                      )}
                     </MiniAvatar>
                   ))}
                   {approvedMembers.length > 4 && (
@@ -1870,7 +1935,20 @@ const CoursePlayer = ({ selectedCourseId }) => {
                     {pendingMembers.map((member) => (
                       <MemberRow key={member.id}>
                         <MemberAvatar>
-                          {member.avatar || member.name.charAt(0)}
+                          {member.avatar?.length > 1 ? (
+                            <img
+                              src={member.avatar}
+                              alt="avatar"
+                              style={{
+                                width: "100%",
+                                height: "100%",
+                                borderRadius: "50%",
+                                objectFit: "cover",
+                              }}
+                            />
+                          ) : (
+                            member.name.charAt(0)
+                          )}
                         </MemberAvatar>
                         <MemberInfo>
                           <MemberName>{member.name}</MemberName>
@@ -1919,7 +1997,20 @@ const CoursePlayer = ({ selectedCourseId }) => {
                   approvedMembers.map((member) => (
                     <MemberRow key={member.id}>
                       <MemberAvatar>
-                        {member.avatar || member.name.charAt(0)}
+                        {member.avatar?.length > 1 ? (
+                          <img
+                            src={member.avatar}
+                            alt="avatar"
+                            style={{
+                              width: "100%",
+                              height: "100%",
+                              borderRadius: "50%",
+                              objectFit: "cover",
+                            }}
+                          />
+                        ) : (
+                          member.name.charAt(0)
+                        )}
                       </MemberAvatar>
                       <MemberInfo>
                         <MemberName>{member.name}</MemberName>

@@ -9,6 +9,7 @@ import {
   User,
 } from "lucide-react";
 import SettingsDialog from "./SettingsDialog";
+import { useChats } from "../contexts/ChatsContext";
 
 const SidebarContainer = styled.div`
   width: 72px;
@@ -89,8 +90,18 @@ const navItems = [
   { id: "courses", icon: GraduationCap, label: "Kurslar" },
 ];
 
-const ServerSidebar = ({ selectedNav, onSelectNav }) => {
+const ServerSidebar = ({ onSelectNav }) => {
+  const { selectedNav, setSelectedNav } = useChats();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+
+  // Use either the passed onSelectNav or the context-based setSelectedNav
+  const handleNav = (id) => {
+    if (onSelectNav) {
+      onSelectNav(id);
+    } else {
+      setSelectedNav(id);
+    }
+  };
 
   return (
     <>
@@ -99,7 +110,7 @@ const ServerSidebar = ({ selectedNav, onSelectNav }) => {
           <NavButton
             key={item.id}
             active={selectedNav === item.id}
-            onClick={() => onSelectNav(item.id)}
+            onClick={() => handleNav(item.id)}
             title={item.label}
           >
             <item.icon size={20} />
