@@ -411,6 +411,7 @@ const MessageText = styled.div`
   font-size: 14px;
   line-height: 1.4;
   margin-bottom: 2px;
+  white-space: pre-wrap;
   // user-select: none;
 
   ${(props) =>
@@ -665,6 +666,47 @@ const MessageInputContainer = styled.div`
   position: relative;
 `;
 
+const HeaderTypingIndicator = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--primary-color);
+  font-size: 13px;
+  font-weight: 500;
+
+  .dots {
+    display: flex;
+    gap: 2px;
+    align-items: center;
+  }
+
+  .dot {
+    width: 3px;
+    height: 3px;
+    background-color: var(--primary-color);
+    border-radius: 50%;
+    animation: bounce 1.4s infinite ease-in-out both;
+  }
+
+  .dot:nth-child(1) {
+    animation-delay: -0.32s;
+  }
+  .dot:nth-child(2) {
+    animation-delay: -0.16s;
+  }
+
+  @keyframes bounce {
+    0%,
+    80%,
+    100% {
+      transform: scale(0);
+    }
+    40% {
+      transform: scale(1);
+    }
+  }
+`;
+
 const InputWrapper = styled.div`
   display: flex;
   align-items: flex-end;
@@ -731,210 +773,6 @@ const MessageInput = styled.textarea`
     color: #dcddde;
   }
 `;
-
-const channelMessages = {
-  // Channel messages
-  0: [
-    // general
-    {
-      id: 1,
-      user: "Alice",
-      content: "Hey everyone! How's it going?",
-      timestamp: "2:30 PM",
-    },
-    {
-      id: 2,
-      user: "Bob",
-      content: "Pretty good! Just working on some code.",
-      timestamp: "2:32 PM",
-    },
-    {
-      id: 3,
-      user: "Charlie",
-      content: "Same here, building a Jamm!",
-      timestamp: "2:35 PM",
-    },
-    {
-      id: 4,
-      user: "Alice",
-      content: "That's awesome! What tech stack are you using?",
-      timestamp: "2:36 PM",
-    },
-    {
-      id: 5,
-      user: "Bob",
-      content: "React with styled-components and Vite",
-      timestamp: "2:38 PM",
-    },
-  ],
-
-  // User chats (Alice Johnson)
-  200: [
-    // Alice Johnson
-    {
-      id: 1,
-      user: "Alice Johnson",
-      content: "Yaxshimisiz, qalaysiz?",
-      timestamp: "10:28 AM",
-    },
-    {
-      id: 2,
-      user: "You",
-      content: "Yaxshi, rahmat! Siz qalaysiz?",
-      timestamp: "10:29 AM",
-    },
-    {
-      id: 3,
-      user: "Alice Johnson",
-      content: "Men ham yaxshi. Bugun nima qilyapsiz?",
-      timestamp: "10:30 AM",
-    },
-    {
-      id: 4,
-      user: "You",
-      content: "Ishlayapman, Jamm project ustida ishlayapman",
-      timestamp: "10:31 AM",
-    },
-    {
-      id: 5,
-      user: "Alice Johnson",
-      content: "Qiziqarli! Qanday progress?",
-      timestamp: "10:32 AM",
-    },
-  ],
-
-  // User chats (Bob Smith)
-  201: [
-    // Bob Smith
-    {
-      id: 1,
-      user: "Bob Smith",
-      content: "Bugun uchrashamizmi?",
-      timestamp: "Dushanba",
-    },
-    { id: 2, user: "You", content: "Ha, qachon kerak?", timestamp: "Dushanba" },
-    {
-      id: 3,
-      user: "Bob Smith",
-      content: "5:00 da bo'ladi",
-      timestamp: "Dushanba",
-    },
-  ],
-
-  // User chats (Charlie Wilson)
-  202: [
-    // Charlie Wilson
-    {
-      id: 1,
-      user: "Charlie Wilson",
-      content: "Rahmat, yaxshi kun!",
-      timestamp: "Kecha",
-    },
-    { id: 2, user: "You", content: "Siz ham rahmat!", timestamp: "Kecha" },
-  ],
-
-  // User chats (Diana Brown)
-  203: [
-    // Diana Brown
-    {
-      id: 1,
-      user: "Diana Brown",
-      content: "Qiziqarli, shu yerda",
-      timestamp: "Kecha",
-    },
-    { id: 2, user: "You", content: "Ha, ajoyib joy!", timestamp: "Kecha" },
-  ],
-
-  // Group messages
-  100: [
-    // Oila Guruhlari
-    { id: 1, user: "Ona", content: "Noncha yaxshi!", timestamp: "10:28 AM" },
-    {
-      id: 2,
-      user: "Ota",
-      content: "Bugun kechqurun kelinglar",
-      timestamp: "10:29 AM",
-    },
-    {
-      id: 3,
-      user: "Akasi",
-      content: "Yaxshi, men ham kelaman",
-      timestamp: "10:30 AM",
-    },
-    { id: 4, user: "Opasi", content: "Noncha yaxshi!", timestamp: "10:31 AM" },
-  ],
-  101: [
-    // Do'stlar
-    { id: 1, user: "Ali", content: "Kelasizmi?", timestamp: "Dushanba" },
-    { id: 2, user: "Vali", content: "Qachon?", timestamp: "Dushanba" },
-    { id: 3, user: "Sami", content: "Men ham boraman", timestamp: "Dushanba" },
-  ],
-  102: [
-    // Ish Guruhlari
-    {
-      id: 1,
-      user: "Manager",
-      content: "Meeting 3:00 da",
-      timestamp: "09:15 AM",
-    },
-    {
-      id: 2,
-      user: "Colleague1",
-      content: "Qanday mavzu?",
-      timestamp: "09:16 AM",
-    },
-    {
-      id: 3,
-      user: "Manager",
-      content: "Yangi loyiha haqida",
-      timestamp: "09:17 AM",
-    },
-    {
-      id: 4,
-      user: "Colleague2",
-      content: "Yaxshi, tayyor bo'laman",
-      timestamp: "09:18 AM",
-    },
-  ],
-  103: [
-    // O'quvchilar
-    {
-      id: 1,
-      user: "Teacher",
-      content: "Uyga vazifa berildi",
-      timestamp: "Kecha",
-    },
-    {
-      id: 2,
-      user: "Student1",
-      content: "Qaysi fanlardan?",
-      timestamp: "Kecha",
-    },
-    {
-      id: 3,
-      user: "Teacher",
-      content: "Matematika va fizikadan",
-      timestamp: "Kecha",
-    },
-  ],
-};
-
-const channelNames = {
-  // Channel names
-  0: "general",
-
-  // User names
-  200: "Alice Johnson",
-  201: "Bob Smith",
-  202: "Charlie Wilson",
-  203: "Diana Brown",
-
-  // Group names
-  100: "Oila Guruhlari",
-  101: "Do'stlar",
-  102: "Ish Guruhlari",
-  103: "O'quvchilar",
-};
 
 const RightSidebar = styled.div`
   width: 300px;
@@ -1707,7 +1545,7 @@ const ChatArea = ({
     if (othersTyping.length === 0) return null;
 
     if (currentChat.type === "user") {
-      return "yozmoqda...";
+      return "yozmoqda";
     } else {
       const names = othersTyping.map((id) => {
         const member = currentChat.members?.find(
@@ -1715,10 +1553,9 @@ const ChatArea = ({
         );
         return member?.nickname || member?.username || "Kimdir";
       });
-      if (names.length === 1) return `${names[0]} yozmoqda...`;
-      if (names.length === 2)
-        return `${names[0]} va ${names[1]} yozmoqdalar...`;
-      return "Bir necha kishi yozmoqda...";
+      if (names.length === 1) return `${names[0]} yozmoqda`;
+      if (names.length === 2) return `${names[0]} va ${names[1]} yozmoqdalar`;
+      return "Bir necha kishi yozmoqda";
     }
   };
 
@@ -2245,36 +2082,39 @@ const ChatArea = ({
   };
 
   const handleSendMessage = async (e) => {
-    if (e.key === "Enter" && messageInput.trim()) {
-      const content = messageInput.trim();
-      const replayId = replayMessage ? replayMessage.id : null;
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      if (messageInput.trim()) {
+        const content = messageInput.trim();
+        const replayId = replayMessage ? replayMessage.id : null;
 
-      // Clear input and replay state immediately for snappy UI
-      setMessageInput("");
-      setReplayMessage(null);
+        // Clear input and replay state immediately for snappy UI
+        setMessageInput("");
+        setReplayMessage(null);
 
-      // Refocus input and set cursor to end
-      setTimeout(() => {
-        if (messageInputRef.current) {
-          messageInputRef.current.focus();
+        // Refocus input and set cursor to end
+        setTimeout(() => {
+          if (messageInputRef.current) {
+            messageInputRef.current.focus();
+          }
+        }, 0);
+
+        try {
+          const sentMessage = await sendMessage(
+            currentChat.id,
+            content,
+            replayId,
+          );
+
+          // Fetch fresh messages to ensure we have the correct DB IDs and populated fields
+          const msgs = await fetchMessages(currentChat.id);
+          setMessages(msgs);
+          setTimeout(() => scrollToBottom("smooth"), 100);
+
+          console.log("Message sent to backend:", sentMessage);
+        } catch (error) {
+          console.error("Failed to send message:", error);
         }
-      }, 0);
-
-      try {
-        const sentMessage = await sendMessage(
-          currentChat.id,
-          content,
-          replayId,
-        );
-
-        // Fetch fresh messages to ensure we have the correct DB IDs and populated fields
-        const msgs = await fetchMessages(currentChat.id);
-        setMessages(msgs);
-        setTimeout(() => scrollToBottom("smooth"), 100);
-
-        console.log("Message sent to backend:", sentMessage);
-      } catch (error) {
-        console.error("Failed to send message:", error);
       }
     }
   };
@@ -2334,7 +2174,16 @@ const ChatArea = ({
                 )}
               </ChatName>
               <ChatStatus>
-                {displayChat?.type === "group" ? (
+                {getTypingText() ? (
+                  <HeaderTypingIndicator>
+                    <div className="dots">
+                      <div className="dot"></div>
+                      <div className="dot"></div>
+                      <div className="dot"></div>
+                    </div>
+                    {getTypingText()}
+                  </HeaderTypingIndicator>
+                ) : displayChat?.type === "group" ? (
                   <>
                     <Users size={14} style={{ marginRight: 4 }} />
                     {displayChat?.members?.length || 0} members
@@ -2655,9 +2504,6 @@ const ChatArea = ({
                         </span>
                       </div>
                     </ReplayIndicator>
-                  )}
-                  {getTypingText() && (
-                    <TypingIndicator>{getTypingText()}</TypingIndicator>
                   )}
                   <InputWrapper>
                     <InputButtons>
