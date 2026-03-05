@@ -29,9 +29,18 @@ import {
   MessageCircle,
   Send,
   CornerDownRight,
+  FileText,
+  Download,
+  AlertCircle,
+  ArrowLeft,
 } from "lucide-react";
 import { useCourses } from "../contexts/CoursesContext";
+import { useChats } from "../contexts/ChatsContext";
+import { useNavigate } from "react-router-dom";
+import InfiniteScroll from "react-infinite-scroll-component";
 import AddLessonDialog from "./AddLessonDialog";
+import ConfirmDialog from "./ConfirmDialog";
+import useAuthStore from "../store/authStore";
 
 /* ============================
    LAYOUT CONTAINERS
@@ -46,6 +55,27 @@ const PlayerContainer = styled.div`
   @media (max-width: 1300px) {
     flex-direction: column;
     overflow-y: auto;
+  }
+
+  @media (max-width: 768px) {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    height: 100vh;
+    z-index: 9999;
+    animation: slideInFromRight 0.3s ease-out;
+  }
+
+  @keyframes slideInFromRight {
+    from {
+      transform: translateX(100%);
+    }
+    to {
+      transform: translateX(0);
+    }
   }
 `;
 
@@ -593,6 +623,22 @@ const PlaylistTitle = styled.div`
   color: var(--text-color);
 `;
 
+const MobileBackBtn = styled.button`
+  display: none;
+  background: none;
+  border: none;
+  color: var(--text-secondary-color);
+  cursor: pointer;
+  padding: 4px;
+  margin-right: 8px;
+
+  @media (max-width: 768px) {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+`;
+
 const PlaylistActions = styled.div`
   display: flex;
   align-items: center;
@@ -821,7 +867,7 @@ const CommentsSectionHeader = styled.div`
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 20px;
+  margin-bottom: 12px;
 `;
 
 const CommentsTitle = styled.h3`
@@ -837,6 +883,31 @@ const CommentsCount = styled.span`
   font-size: 13px;
   font-weight: 500;
   color: var(--text-muted-color);
+`;
+
+const MinimapCommentsBox = styled.div`
+  background: var(--input-color);
+  border-radius: 12px;
+  padding: 12px 16px;
+  cursor: pointer;
+  transition: background 0.2s;
+  &:hover {
+    background: var(--hover-color);
+  }
+`;
+
+const TopCommentPreview = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 12px;
+`;
+
+const TopCommentText = styled.span`
+  font-size: 13px;
+  color: var(--text-color);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 `;
 
 const CommentInputArea = styled.div`
@@ -1136,7 +1207,10 @@ function formatCommentTime(dateString) {
 /* ============================
    MAIN COMPONENT
    ============================ */
-const CoursePlayer = ({ selectedCourseId }) => {
+const CoursePlayer = ({ courseId, initialLessonSlug, onClose }) => {
+  const navigate = useNavigate();
+  const { createChat } = useChats();
+  const token = useAuthStore((s) => s.token);
   const {
     courses,
     currentUser,
@@ -1147,8 +1221,11 @@ const CoursePlayer = ({ selectedCourseId }) => {
     removeUser,
     incrementViews,
     removeLesson,
+    getLessonComments,
     addComment,
     addReply,
+    joinCourseRoom,
+    leaveCourseRoom,
   } = useCourses();
 
   const [activeLesson, setActiveLesson] = useState(0);
@@ -1160,6 +1237,12 @@ const CoursePlayer = ({ selectedCourseId }) => {
   const [replyingTo, setReplyingTo] = useState(null);
   const [replyText, setReplyText] = useState("");
   const [commentsExpanded, setCommentsExpanded] = useState(false);
+  const [paginatedComments, setPaginatedComments] = useState([]);
+  const [commentsPage, setCommentsPage] = useState(1);
+  const [commentsHasMore, setCommentsHasMore] = useState(true);
+  const [isLoadingComments, setIsLoadingComments] = useState(false);
+  const [lessonToDelete, setLessonToDelete] = useState(null);
+  const [isDeletingLesson, setIsDeletingLesson] = useState(false);
 
   // Video player state
   const videoRef = useRef(null);
@@ -1167,6 +1250,7 @@ const CoursePlayer = ({ selectedCourseId }) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
+  const [playbackError, setPlaybackError] = useState(null);
   const [volume, setVolume] = useState(1);
   const [isMuted, setIsMuted] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -1174,10 +1258,108 @@ const CoursePlayer = ({ selectedCourseId }) => {
   const [buffered, setBuffered] = useState(0);
   const [hasCountedView, setHasCountedView] = useState(false);
   const hideControlsTimer = useRef(null);
+  // Secure streaming state
+  const [blobUrl, setBlobUrl] = useState(null);
+  const [isLoadingVideo, setIsLoadingVideo] = useState(false);
+  // Player enhancements
+  const [playbackSpeed, setPlaybackSpeed] = useState(1);
+  const [showSettings, setShowSettings] = useState(false);
+  const [hoverTime, setHoverTime] = useState(null);
+  const [hoverX, setHoverX] = useState(0);
+  const [isBuffering, setIsBuffering] = useState(false);
 
-  const course = courses.find((c) => c.id === selectedCourseId);
-  const enrollStatus = course ? isEnrolled(selectedCourseId) : "none";
-  const admin = course ? isAdmin(selectedCourseId) : false;
+  const course = courses.find(
+    (c) =>
+      c._id === courseId ||
+      c.urlSlug === courseId ||
+      String(c.id) === String(courseId),
+  );
+  const lessons = course?.lessons || [];
+  const currentLesson = lessons[activeLesson] || null;
+
+  const fetchComments = useCallback(
+    async (page = 1) => {
+      if (!courseId || !currentLesson?._id) return;
+      try {
+        if (page === 1) setIsLoadingComments(true);
+        const res = await getLessonComments(
+          courseId,
+          currentLesson._id,
+          page,
+          10,
+        );
+        const newComments = res.data || [];
+        const totalPages = res.totalPages || 1;
+
+        setPaginatedComments((prev) =>
+          page === 1 ? newComments : [...prev, ...newComments],
+        );
+        setCommentsPage(page);
+        setCommentsHasMore(page < totalPages);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        if (page === 1) setIsLoadingComments(false);
+      }
+    },
+    [courseId, currentLesson?._id, getLessonComments],
+  );
+
+  useEffect(() => {
+    if (commentsExpanded) {
+      fetchComments(1);
+    }
+  }, [currentLesson?._id, commentsExpanded, fetchComments]);
+
+  const enrollmentStatus = isEnrolled(courseId);
+  const admin = course ? isAdmin(courseId) : false;
+  console.log(admin);
+
+  const currentUserId = currentUser?._id || currentUser?.id;
+  const isOwner = course?.createdBy?._id === currentUserId;
+
+  const handleDeleteLessonConfirm = async () => {
+    if (!lessonToDelete) return;
+    try {
+      setIsDeletingLesson(true);
+      await removeLesson(courseId, lessonToDelete);
+      if (activeLesson >= course.lessons.length - 1 && activeLesson > 0) {
+        setActiveLesson(activeLesson - 1);
+      }
+      setLessonToDelete(null);
+    } catch (err) {
+      console.error(err);
+      toast.error("Darsni o'chirishda xatolik yuz berdi");
+    } finally {
+      setIsDeletingLesson(false);
+    }
+  };
+
+  // React to initial URL parameter for direct lesson links
+  useEffect(() => {
+    if (course && initialLessonSlug) {
+      const idx = course.lessons.findIndex(
+        (l) =>
+          l.urlSlug === initialLessonSlug ||
+          String(l._id) === initialLessonSlug ||
+          String(l.id) === initialLessonSlug,
+      );
+      if (idx !== -1 && idx !== activeLesson) {
+        setActiveLesson(idx);
+      }
+    }
+  }, [course, initialLessonSlug]); // Intentionally not including activeLesson to avoid infinite loops if it changes via UI
+  const myMemberRecord = course?.members?.find((m) => {
+    const memId = m.userId?._id || m.userId || m._id || m.id;
+    return memId === currentUserId;
+  });
+
+  const enrollStatus = myMemberRecord ? myMemberRecord.status : "none";
+  const canAccessLessons = isOwner || enrollStatus === "approved" || admin;
+  const canAccessLesson = useCallback(
+    (index) => canAccessLessons || index === 0,
+    [canAccessLessons],
+  );
 
   // Reset state when course changes
   useEffect(() => {
@@ -1188,49 +1370,57 @@ const CoursePlayer = ({ selectedCourseId }) => {
     setCurrentTime(0);
     setDuration(0);
     setHasCountedView(false);
-  }, [selectedCourseId]);
+  }, [courseId]);
 
-  const canAccessLessons = admin || enrollStatus === "approved";
-  const canAccessLesson = useCallback(
-    (index) => canAccessLessons || index === 0,
-    [canAccessLessons],
-  );
   const isPreviewMode = !canAccessLessons && activeLesson === 0;
 
-  // Reset view count tracking when lesson changes, and count after 3 seconds
+  // Track views — fire once per lesson per session, after 10 seconds
+  const viewedLessonsRef = useRef(new Set());
+
   useEffect(() => {
-    setHasCountedView(false);
     setIsPlaying(false);
     setCurrentTime(0);
 
-    // Track views after 3 seconds of being on the lesson
+    const lessonId = currentLesson?._id || currentLesson?.id;
+    if (
+      !courseId ||
+      !lessonId ||
+      !canAccessLesson(activeLesson) ||
+      viewedLessonsRef.current.has(lessonId)
+    ) {
+      return;
+    }
+
+    // Track views after 10 seconds of being on the lesson
     const viewTimer = setTimeout(() => {
-      if (course && !hasCountedView) {
-        const lesson = course.lessons[activeLesson];
-        if (lesson && canAccessLesson(activeLesson)) {
-          incrementViews(selectedCourseId, lesson.id);
-          setHasCountedView(true);
-        }
-      }
-    }, 3000);
+      incrementViews(courseId, lessonId);
+      viewedLessonsRef.current.add(lessonId);
+    }, 10000);
 
     return () => clearTimeout(viewTimer);
-  }, [
-    activeLesson,
-    course,
-    selectedCourseId,
-    canAccessLesson,
-    hasCountedView,
-    incrementViews,
-  ]);
+  }, [activeLesson, courseId, currentLesson, canAccessLesson, incrementViews]);
 
   // Video player handlers
   const togglePlay = useCallback(() => {
     if (!videoRef.current) return;
+    setPlaybackError(null);
     if (isPlaying) {
       videoRef.current.pause();
     } else {
-      videoRef.current.play();
+      const playPromise = videoRef.current.play();
+      if (playPromise !== undefined) {
+        playPromise.catch((error) => {
+          if (error.name === "NotSupportedError") {
+            setPlaybackError(
+              "Bu video formatini brauzeringiz qo'llab-quvvatlamaydi (masalan .mov bevosita Chrome'da ishlamasligi mumkin).",
+            );
+          } else {
+            console.error("Playback error:", error);
+            setPlaybackError("Videoni ishga tushirishda xatolik yuz berdi.");
+          }
+          setIsPlaying(false);
+        });
+      }
     }
   }, [isPlaying]);
 
@@ -1298,6 +1488,26 @@ const CoursePlayer = ({ selectedCourseId }) => {
     if (videoRef.current) videoRef.current.currentTime -= 10;
   }, []);
 
+  const handleSpeedChange = useCallback((speed) => {
+    setPlaybackSpeed(speed);
+    if (videoRef.current) videoRef.current.playbackRate = speed;
+    setShowSettings(false);
+  }, []);
+
+  const handleProgressHover = useCallback(
+    (e) => {
+      if (!duration) return;
+      const rect = e.currentTarget.getBoundingClientRect();
+      const percent = Math.max(
+        0,
+        Math.min(1, (e.clientX - rect.left) / rect.width),
+      );
+      setHoverTime(percent * duration);
+      setHoverX(e.clientX - rect.left);
+    },
+    [duration],
+  );
+
   const showControlsHandler = useCallback(() => {
     setShowControls(true);
     if (hideControlsTimer.current) clearTimeout(hideControlsTimer.current);
@@ -1306,8 +1516,69 @@ const CoursePlayer = ({ selectedCourseId }) => {
     }, 3000);
   }, [isPlaying]);
 
+  // Keyboard shortcuts (placed here so togglePlay/toggleFullscreen/toggleMute are already defined)
+  useEffect(() => {
+    const handleKey = (e) => {
+      if (["INPUT", "TEXTAREA"].includes(e.target.tagName)) return;
+      switch (e.key) {
+        case " ":
+        case "k":
+          e.preventDefault();
+          togglePlay();
+          break;
+        case "ArrowRight":
+          if (videoRef.current) videoRef.current.currentTime += 10;
+          break;
+        case "ArrowLeft":
+          if (videoRef.current) videoRef.current.currentTime -= 10;
+          break;
+        case "ArrowUp":
+          e.preventDefault();
+          if (videoRef.current) {
+            const newVol = Math.min(1, (videoRef.current.volume || 0) + 0.1);
+            videoRef.current.volume = newVol;
+            setVolume(newVol);
+            setIsMuted(false);
+          }
+          break;
+        case "ArrowDown":
+          e.preventDefault();
+          if (videoRef.current) {
+            const newVol = Math.max(0, (videoRef.current.volume || 0) - 0.1);
+            videoRef.current.volume = newVol;
+            setVolume(newVol);
+            setIsMuted(newVol === 0);
+          }
+          break;
+        case "f":
+        case "F":
+          toggleFullscreen();
+          break;
+        case "m":
+        case "M":
+          toggleMute();
+          break;
+        default:
+          break;
+      }
+    };
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [togglePlay, toggleFullscreen, toggleMute]);
+
   const handleLessonClick = (index) => {
     setActiveLesson(index);
+    const lessonData = course.lessons[index];
+    if (lessonData) {
+      const lessonSlug = lessonData.urlSlug || lessonData._id || lessonData.id;
+      const courseSlug = course.urlSlug || course._id || course.id;
+      // Update URL without full page reload
+      window.history.replaceState(
+        null,
+        "",
+        `/courses/${courseSlug}/${lessonSlug}`,
+      );
+    }
   };
 
   const playNextLesson = useCallback(() => {
@@ -1315,6 +1586,56 @@ const CoursePlayer = ({ selectedCourseId }) => {
       setActiveLesson((prev) => prev + 1);
     }
   }, [course, activeLesson]);
+
+  // Derived values needed for Blob URL useEffect (must be before early return)
+  const currentLessonData = course?.lessons?.[activeLesson];
+  const isYouTube = currentLessonData?.videoUrl?.includes("youtu");
+  const isLocalVideo = currentLessonData?.type === "file";
+  const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
+  const lessonIdentifier =
+    currentLessonData?.urlSlug ||
+    currentLessonData?._id ||
+    currentLessonData?.id;
+  const streamEndpointUrl = `${API_URL}/courses/${courseId}/lessons/${lessonIdentifier}/stream`;
+
+  // Secure Blob URL: fetch with Authorization header so token is never in the DOM
+  // This MUST live before any early returns to satisfy React's rules of hooks.
+  useEffect(() => {
+    if (!isLocalVideo || !lessonIdentifier || !canAccessLesson(activeLesson)) {
+      setBlobUrl(null);
+      return;
+    }
+    let objectUrl = null;
+    const controller = new AbortController();
+    const fetchVideo = async () => {
+      setIsLoadingVideo(true);
+      setBlobUrl(null);
+      setPlaybackError(null);
+      try {
+        const res = await fetch(streamEndpointUrl, {
+          signal: controller.signal,
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        if (!res.ok) throw new Error(`Stream error: ${res.status}`);
+        const blob = await res.blob();
+        objectUrl = URL.createObjectURL(blob);
+        setBlobUrl(objectUrl);
+      } catch (err) {
+        if (err.name !== "AbortError") {
+          setPlaybackError("Videoni yuklab olishda xatolik yuz berdi.");
+        }
+      } finally {
+        setIsLoadingVideo(false);
+      }
+    };
+    fetchVideo();
+    return () => {
+      controller.abort();
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [lessonIdentifier, activeLesson, isLocalVideo, token, streamEndpointUrl]);
 
   if (!course) {
     return (
@@ -1330,11 +1651,8 @@ const CoursePlayer = ({ selectedCourseId }) => {
     );
   }
 
-  const currentLessonData = course.lessons[activeLesson];
   const approvedMembers = course.members.filter((m) => m.status === "approved");
   const pendingMembers = course.members.filter((m) => m.status === "pending");
-
-  const isYouTube = currentLessonData?.videoUrl?.includes("youtu");
 
   // Extract YouTube video ID from various URL formats
   const getYouTubeId = (url) => {
@@ -1363,6 +1681,26 @@ const CoursePlayer = ({ selectedCourseId }) => {
                     allowFullScreen
                     title={currentLessonData.title}
                   />
+                  {/* Overlay just to provide mobile back button if youtube hides controls */}
+                  <VideoOverlay
+                    visible={true}
+                    style={{ pointerEvents: "none", background: "transparent" }}
+                  >
+                    <TopBar>
+                      <MobileBackBtn
+                        onClick={() => onClose()}
+                        style={{
+                          pointerEvents: "auto",
+                          color: "white",
+                          background: "rgba(0,0,0,0.5)",
+                          borderRadius: "50%",
+                          padding: "8px",
+                        }}
+                      >
+                        <ArrowLeft size={20} />
+                      </MobileBackBtn>
+                    </TopBar>
+                  </VideoOverlay>
                 </VideoWrapper>
               ) : (
                 /* Regular Video - use HTML5 video player */
@@ -1373,23 +1711,103 @@ const CoursePlayer = ({ selectedCourseId }) => {
                     if (isPlaying) setShowControls(false);
                   }}
                   onClick={togglePlay}
+                  onContextMenu={(e) => e.preventDefault()}
                 >
+                  {/* Buffering Spinner */}
+                  {(isLoadingVideo || isBuffering) && (
+                    <div
+                      style={{
+                        position: "absolute",
+                        inset: 0,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        zIndex: 10,
+                        background: "rgba(0,0,0,0.3)",
+                        pointerEvents: "none",
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: 48,
+                          height: 48,
+                          border: "4px solid rgba(255,255,255,0.2)",
+                          borderTop: "4px solid var(--primary-color)",
+                          borderRadius: "50%",
+                          animation: "spin 0.9s linear infinite",
+                        }}
+                      />
+                      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+                    </div>
+                  )}
                   <StyledVideo
                     ref={videoRef}
-                    src={currentLessonData.videoUrl}
+                    src={
+                      isLocalVideo
+                        ? blobUrl || undefined
+                        : currentLessonData.videoUrl
+                    }
+                    controlsList="nodownload"
+                    disablePictureInPicture
+                    onContextMenu={(e) => e.preventDefault()}
                     onPlay={() => setIsPlaying(true)}
                     onPause={() => setIsPlaying(false)}
+                    onWaiting={() => setIsBuffering(true)}
+                    onCanPlay={() => setIsBuffering(false)}
                     onTimeUpdate={handleTimeUpdate}
                     onLoadedMetadata={() => {
-                      if (videoRef.current)
+                      if (videoRef.current) {
                         setDuration(videoRef.current.duration);
+                        videoRef.current.playbackRate = playbackSpeed;
+                      }
+                    }}
+                    onError={(e) => {
+                      if (!isLoadingVideo)
+                        setPlaybackError(
+                          "Videoni ishga tushirishda xatolik yuz berdi.",
+                        );
                     }}
                     onEnded={playNextLesson}
+                    style={{ userSelect: "none", WebkitUserSelect: "none" }}
                   />
+
+                  {/* Error Overlay */}
+                  {playbackError && (
+                    <div
+                      style={{
+                        position: "absolute",
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        background: "rgba(0, 0, 0, 0.8)",
+                        color: "#ef4444",
+                        padding: "20px",
+                        textAlign: "center",
+                        zIndex: 20,
+                        flexDirection: "column",
+                        gap: "12px",
+                      }}
+                    >
+                      <AlertCircle size={48} />
+                      <p
+                        style={{
+                          fontWeight: 600,
+                          maxWidth: "400px",
+                          lineHeight: 1.5,
+                        }}
+                      >
+                        {playbackError}
+                      </p>
+                    </div>
+                  )}
 
                   {/* Center play button when paused */}
                   <CenterPlayButton
-                    visible={!isPlaying}
+                    visible={!isPlaying && !playbackError}
                     onClick={(e) => {
                       e.stopPropagation();
                       togglePlay();
@@ -1404,17 +1822,59 @@ const CoursePlayer = ({ selectedCourseId }) => {
                     onClick={(e) => e.stopPropagation()}
                   >
                     <TopBar>
-                      <TopBarTitle>{currentLessonData.title}</TopBarTitle>
+                      <div style={{ display: "flex", alignItems: "center" }}>
+                        <MobileBackBtn
+                          onClick={() => onClose()}
+                          style={{ color: "white" }}
+                        >
+                          <ArrowLeft size={20} />
+                        </MobileBackBtn>
+                        <TopBarTitle>{currentLessonData.title}</TopBarTitle>
+                      </div>
                     </TopBar>
 
                     <ControlsBar>
-                      <ProgressContainer onClick={handleSeek}>
+                      <ProgressContainer
+                        onMouseMove={(e) => {
+                          handleProgressHover(e);
+                          e.stopPropagation();
+                        }}
+                        onMouseLeave={() => setHoverTime(null)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleSeek(e);
+                        }}
+                        style={{ cursor: "pointer" }}
+                      >
                         <BufferedProgress style={{ width: `${buffered}%` }} />
                         <ProgressFilled
                           style={{
                             width: `${duration ? (currentTime / duration) * 100 : 0}%`,
                           }}
                         />
+                        {/* Hover time tooltip */}
+                        {hoverTime !== null && (
+                          <div
+                            style={{
+                              position: "absolute",
+                              bottom: "14px",
+                              left: hoverX,
+                              transform: "translateX(-50%)",
+                              background: "rgba(0,0,0,0.85)",
+                              color: "white",
+                              fontSize: "11px",
+                              fontWeight: 600,
+                              padding: "3px 7px",
+                              borderRadius: "4px",
+                              whiteSpace: "nowrap",
+                              pointerEvents: "none",
+                              zIndex: 20,
+                              letterSpacing: "0.5px",
+                            }}
+                          >
+                            {formatTime(hoverTime)}
+                          </div>
+                        )}
                       </ProgressContainer>
 
                       <ControlsRow>
@@ -1454,6 +1914,97 @@ const CoursePlayer = ({ selectedCourseId }) => {
                           </TimeDisplay>
                         </ControlsLeft>
                         <ControlsRight>
+                          {/* Speed Selector */}
+                          <div
+                            style={{ position: "relative" }}
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <ControlButton
+                              title="Tezlik"
+                              onClick={() => setShowSettings((v) => !v)}
+                              style={{
+                                fontSize: "11px",
+                                fontWeight: 700,
+                                width: "auto",
+                                padding: "0 8px",
+                                borderRadius: "4px",
+                                border: showSettings
+                                  ? "1px solid var(--primary-color)"
+                                  : "1px solid rgba(255,255,255,0.2)",
+                                color:
+                                  playbackSpeed !== 1
+                                    ? "var(--primary-color)"
+                                    : "white",
+                              }}
+                            >
+                              {playbackSpeed}x
+                            </ControlButton>
+                            {showSettings && (
+                              <div
+                                style={{
+                                  position: "absolute",
+                                  bottom: "44px",
+                                  right: 0,
+                                  background: "rgba(15,15,20,0.97)",
+                                  border: "1px solid rgba(255,255,255,0.1)",
+                                  borderRadius: "10px",
+                                  overflow: "hidden",
+                                  minWidth: "110px",
+                                  boxShadow: "0 8px 32px rgba(0,0,0,0.6)",
+                                  zIndex: 50,
+                                }}
+                              >
+                                <div
+                                  style={{
+                                    padding: "8px 12px",
+                                    fontSize: "11px",
+                                    color: "rgba(255,255,255,0.5)",
+                                    fontWeight: 700,
+                                    textTransform: "uppercase",
+                                    letterSpacing: "1px",
+                                    borderBottom:
+                                      "1px solid rgba(255,255,255,0.08)",
+                                  }}
+                                >
+                                  Tezlik
+                                </div>
+                                {[0.5, 0.75, 1, 1.25, 1.5, 2].map((speed) => (
+                                  <div
+                                    key={speed}
+                                    onClick={() => handleSpeedChange(speed)}
+                                    style={{
+                                      padding: "9px 16px",
+                                      fontSize: "13px",
+                                      cursor: "pointer",
+                                      color:
+                                        playbackSpeed === speed
+                                          ? "var(--primary-color)"
+                                          : "white",
+                                      fontWeight:
+                                        playbackSpeed === speed ? 700 : 400,
+                                      background:
+                                        playbackSpeed === speed
+                                          ? "rgba(88,101,242,0.1)"
+                                          : "transparent",
+                                      transition: "background 0.15s",
+                                    }}
+                                    onMouseEnter={(e) =>
+                                      (e.currentTarget.style.background =
+                                        "rgba(255,255,255,0.06)")
+                                    }
+                                    onMouseLeave={(e) =>
+                                      (e.currentTarget.style.background =
+                                        playbackSpeed === speed
+                                          ? "rgba(88,101,242,0.1)"
+                                          : "transparent")
+                                    }
+                                  >
+                                    {speed === 1 ? "Oddiy (1x)" : `${speed}x`}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
                           <ControlButton onClick={toggleFullscreen}>
                             {isFullscreen ? (
                               <Minimize size={18} />
@@ -1485,246 +2036,161 @@ const CoursePlayer = ({ selectedCourseId }) => {
                 </VideoMeta>
               </VideoInfo>
 
-              {/* Preview enrollment CTA */}
-              {isPreviewMode && (
-                <EnrollmentSection
-                  style={{ background: "var(--secondary-color)" }}
-                >
-                  <EnrollmentInfo style={{ flex: 1 }}>
-                    <div
-                      style={{
-                        fontSize: 14,
-                        color: "var(--text-color)",
-                        fontWeight: 600,
-                      }}
-                    >
-                      Bu bepul tanishuv darsi ✨
-                    </div>
+              {/* COMMENTS SECTION */}
+              <CommentsSection>
+                <CommentsSectionHeader>
+                  <CommentsTitle>Izohlar</CommentsTitle>
+                  <CommentsCount>
+                    {currentLessonData.comments?.length || 0}
+                  </CommentsCount>
+                </CommentsSectionHeader>
+
+                {/* Minimalist Comments Box */}
+                {!commentsExpanded ? (
+                  <MinimapCommentsBox onClick={() => setCommentsExpanded(true)}>
                     <div
                       style={{
                         fontSize: 13,
                         color: "var(--text-muted-color)",
-                        marginTop: 2,
                       }}
                     >
-                      Qolgan darslarni ko'rish uchun kursga yoziling
+                      Izoh yozing...
                     </div>
-                  </EnrollmentInfo>
-                  {enrollStatus === "none" ? (
-                    <EnrollButton
-                      variant="enroll"
-                      onClick={() => enrollInCourse(selectedCourseId)}
-                    >
-                      <UserPlus size={16} />
-                      Kursga yozilish
-                    </EnrollButton>
-                  ) : enrollStatus === "pending" ? (
-                    <EnrollButton variant="pending">
-                      <Clock size={16} />
-                      Kutilmoqda
-                    </EnrollButton>
-                  ) : null}
-                </EnrollmentSection>
-              )}
-
-              {/* COMMENTS SECTION */}
-              <CommentsSection>
-                <CommentsSectionHeader>
-                  <CommentsTitle>
-                    <MessageCircle size={18} />
-                    Izohlar
-                  </CommentsTitle>
-                  <CommentsCount>
-                    {currentLessonData.comments?.length || 0} ta izoh
-                  </CommentsCount>
-                </CommentsSectionHeader>
-
-                {/* Comment input */}
-                <CommentInputArea>
-                  <CommentAvatar isAdmin={admin}>
-                    {currentUser.avatar?.length > 1 ? (
-                      <img
-                        src={currentUser.avatar}
-                        alt="avatar"
-                        style={{
-                          width: "100%",
-                          height: "100%",
-                          borderRadius: "50%",
-                          objectFit: "cover",
-                        }}
-                      />
-                    ) : (
-                      (currentUser.name || "?").charAt(0)
-                    )}
-                  </CommentAvatar>
-                  <CommentInputWrapper>
-                    <CommentInput
-                      placeholder="Izoh qoldiring..."
-                      value={commentText}
-                      onChange={(e) => {
-                        setCommentText(e.target.value);
-                        if (!showCommentInput && e.target.value)
-                          setShowCommentInput(true);
-                      }}
-                      onFocus={() => setShowCommentInput(true)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" && commentText.trim()) {
-                          addComment(
-                            selectedCourseId,
-                            currentLessonData.id,
-                            commentText.trim(),
-                          );
-                          setCommentText("");
-                          setShowCommentInput(false);
-                        }
-                      }}
-                    />
-                    {showCommentInput && (
-                      <CommentInputActions>
-                        <CommentBtn
-                          onClick={() => {
-                            setShowCommentInput(false);
-                            setCommentText("");
-                          }}
-                        >
-                          Bekor qilish
-                        </CommentBtn>
-                        <CommentBtn
-                          primary
-                          disabled={!commentText.trim()}
-                          onClick={() => {
-                            if (!commentText.trim()) return;
-                            addComment(
-                              selectedCourseId,
-                              currentLessonData.id,
-                              commentText.trim(),
-                            );
-                            setCommentText("");
-                            setShowCommentInput(false);
-                          }}
-                        >
-                          Izoh qoldirish
-                        </CommentBtn>
-                      </CommentInputActions>
-                    )}
-                  </CommentInputWrapper>
-                </CommentInputArea>
-
-                {/* Comments list */}
-                {!currentLessonData.comments ||
-                currentLessonData.comments.length === 0 ? (
-                  <NoComments>
-                    Hali izohlar yo'q. Birinchi bo'lib izoh qoldiring!
-                  </NoComments>
+                  </MinimapCommentsBox>
                 ) : (
                   <>
-                    {(commentsExpanded
-                      ? currentLessonData.comments
-                      : currentLessonData.comments.slice(0, 1)
-                    ).map((comment) => (
-                      <CommentThread key={comment.id}>
-                        <CommentItem>
-                          <CommentAvatar
-                            isAdmin={comment.userId === course.createdBy}
-                          >
-                            {comment.userAvatar?.length > 1 ? (
-                              <img
-                                src={comment.userAvatar}
-                                alt="avatar"
-                                style={{
-                                  width: "100%",
-                                  height: "100%",
-                                  borderRadius: "50%",
-                                  objectFit: "cover",
-                                }}
-                              />
-                            ) : (
-                              comment.userName.charAt(0)
-                            )}
-                          </CommentAvatar>
-                          <CommentBody>
-                            <CommentHeader>
-                              <CommentAuthor
-                                isAdmin={comment.userId === course.createdBy}
-                              >
-                                {comment.userName}
-                              </CommentAuthor>
-                              {comment.userId === course.createdBy && (
-                                <AdminBadge>Admin</AdminBadge>
-                              )}
-                              <CommentTime>
-                                {formatCommentTime(comment.createdAt)}
-                              </CommentTime>
-                            </CommentHeader>
-                            <CommentText>{comment.text}</CommentText>
-                            <ReplyButton
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "flex-end",
+                        marginBottom: 16,
+                      }}
+                    >
+                      <button
+                        onClick={() => setCommentsExpanded(false)}
+                        style={{
+                          background: "none",
+                          border: "none",
+                          color: "var(--text-secondary-color)",
+                          cursor: "pointer",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 4,
+                          fontSize: 13,
+                          fontWeight: 600,
+                        }}
+                      >
+                        <ChevronUp size={16} /> Yig'ish
+                      </button>
+                    </div>
+
+                    {/* Comment input */}
+                    <CommentInputArea>
+                      <CommentAvatar isAdmin={admin}>
+                        {currentUser.avatar?.length > 1 ? (
+                          <img
+                            src={currentUser.avatar}
+                            alt="avatar"
+                            style={{
+                              width: "100%",
+                              height: "100%",
+                              borderRadius: "50%",
+                              objectFit: "cover",
+                            }}
+                          />
+                        ) : (
+                          (currentUser.name || "?").charAt(0)
+                        )}
+                      </CommentAvatar>
+                      <CommentInputWrapper>
+                        <CommentInput
+                          placeholder="Izoh qoldiring..."
+                          value={commentText}
+                          onChange={(e) => {
+                            setCommentText(e.target.value);
+                            if (!showCommentInput && e.target.value)
+                              setShowCommentInput(true);
+                          }}
+                          onFocus={() => setShowCommentInput(true)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" && commentText.trim()) {
+                              addComment(
+                                courseId,
+                                currentLessonData._id,
+                                commentText.trim(),
+                              );
+                              setCommentText("");
+                              setShowCommentInput(false);
+                            }
+                          }}
+                        />
+                        {showCommentInput && (
+                          <CommentInputActions>
+                            <CommentBtn
                               onClick={() => {
-                                setReplyingTo(
-                                  replyingTo === comment.id ? null : comment.id,
-                                );
-                                setReplyText("");
+                                setShowCommentInput(false);
+                                setCommentText("");
                               }}
                             >
-                              <CornerDownRight size={12} />
-                              Javob berish
-                            </ReplyButton>
-                          </CommentBody>
-                        </CommentItem>
-
-                        {/* Replies */}
-                        {comment.replies && comment.replies.length > 0 && (
-                          <RepliesContainer>
-                            {comment.replies.map((reply) => (
-                              <CommentItem key={reply.id}>
-                                <CommentAvatar
-                                  small
-                                  isAdmin={reply.userId === course.createdBy}
-                                >
-                                  {reply.userAvatar?.length > 1 ? (
-                                    <img
-                                      src={reply.userAvatar}
-                                      alt="avatar"
-                                      style={{
-                                        width: "100%",
-                                        height: "100%",
-                                        borderRadius: "50%",
-                                        objectFit: "cover",
-                                      }}
-                                    />
-                                  ) : (
-                                    reply.userName.charAt(0)
-                                  )}
-                                </CommentAvatar>
-                                <CommentBody>
-                                  <CommentHeader>
-                                    <CommentAuthor
-                                      isAdmin={
-                                        reply.userId === course.createdBy
-                                      }
-                                    >
-                                      {reply.userName}
-                                    </CommentAuthor>
-                                    {reply.userId === course.createdBy && (
-                                      <AdminBadge>Admin</AdminBadge>
-                                    )}
-                                    <CommentTime>
-                                      {formatCommentTime(reply.createdAt)}
-                                    </CommentTime>
-                                  </CommentHeader>
-                                  <CommentText>{reply.text}</CommentText>
-                                </CommentBody>
-                              </CommentItem>
-                            ))}
-                          </RepliesContainer>
+                              Bekor qilish
+                            </CommentBtn>
+                            <CommentBtn
+                              primary
+                              disabled={!commentText.trim()}
+                              onClick={() => {
+                                if (!commentText.trim()) return;
+                                addComment(
+                                  courseId,
+                                  currentLessonData._id,
+                                  commentText.trim(),
+                                ).then(() => fetchComments(1));
+                                setCommentText("");
+                                setShowCommentInput(false);
+                              }}
+                            >
+                              Yuborish
+                            </CommentBtn>
+                          </CommentInputActions>
                         )}
+                      </CommentInputWrapper>
+                    </CommentInputArea>
 
-                        {/* Reply input */}
-                        {replyingTo === comment.id && (
-                          <ReplyInputArea>
-                            <CommentAvatar small isAdmin={admin}>
-                              {currentUser.avatar?.length > 1 ? (
+                    {/* Comments List */}
+                    <InfiniteScroll
+                      dataLength={paginatedComments.length}
+                      next={() => fetchComments(commentsPage + 1)}
+                      hasMore={commentsHasMore}
+                      loader={
+                        <div
+                          style={{
+                            textAlign: "center",
+                            padding: "10px",
+                            color: "var(--text-muted-color)",
+                            fontSize: "12px",
+                          }}
+                        >
+                          Yuklanmoqda...
+                        </div>
+                      }
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "16px",
+                        paddingBottom: "32px",
+                      }}
+                      scrollableTarget={
+                        null
+                      } /* Usually CoursePlayer has window scroll or container scroll, adjust if needed */
+                    >
+                      {paginatedComments.map((comment) => (
+                        <CommentThread key={comment._id}>
+                          <CommentItem>
+                            <CommentAvatar
+                              isAdmin={comment.userId === course.createdBy}
+                            >
+                              {comment.userAvatar?.length > 1 ? (
                                 <img
-                                  src={currentUser.avatar}
+                                  src={comment.userAvatar}
                                   alt="avatar"
                                   style={{
                                     width: "100%",
@@ -1734,65 +2200,143 @@ const CoursePlayer = ({ selectedCourseId }) => {
                                   }}
                                 />
                               ) : (
-                                (currentUser.name || "?").charAt(0)
+                                comment.userName.charAt(0)
                               )}
                             </CommentAvatar>
-                            <ReplyInput
-                              placeholder="Javob yozing..."
-                              value={replyText}
-                              onChange={(e) => setReplyText(e.target.value)}
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter" && replyText.trim()) {
+                            <CommentBody>
+                              <CommentHeader>
+                                <CommentAuthor
+                                  isAdmin={comment.userId === course.createdBy}
+                                >
+                                  {comment.userName}
+                                </CommentAuthor>
+                                {comment.userId === course.createdBy && (
+                                  <AdminBadge>Admin</AdminBadge>
+                                )}
+                                <CommentTime>
+                                  {formatCommentTime(comment.createdAt)}
+                                </CommentTime>
+                              </CommentHeader>
+                              <CommentText>{comment.text}</CommentText>
+                              <ReplyButton
+                                onClick={() =>
+                                  setReplyingTo(
+                                    replyingTo === comment._id
+                                      ? null
+                                      : comment._id,
+                                  )
+                                }
+                              >
+                                Javob berish
+                              </ReplyButton>
+                            </CommentBody>
+                          </CommentItem>
+
+                          {/* Replies */}
+                          {comment.replies && comment.replies.length > 0 && (
+                            <RepliesContainer>
+                              {comment.replies.map((reply) => (
+                                <CommentItem key={reply._id}>
+                                  <CommentAvatar
+                                    small
+                                    isAdmin={reply.userId === course.createdBy}
+                                  >
+                                    {reply.userAvatar?.length > 1 ? (
+                                      <img
+                                        src={reply.userAvatar}
+                                        alt="avatar"
+                                        style={{
+                                          width: "100%",
+                                          height: "100%",
+                                          borderRadius: "50%",
+                                          objectFit: "cover",
+                                        }}
+                                      />
+                                    ) : (
+                                      reply.userName.charAt(0)
+                                    )}
+                                  </CommentAvatar>
+                                  <CommentBody>
+                                    <CommentHeader>
+                                      <CommentAuthor
+                                        isAdmin={
+                                          reply.userId === course.createdBy
+                                        }
+                                      >
+                                        {reply.userName}
+                                      </CommentAuthor>
+                                      {reply.userId === course.createdBy && (
+                                        <AdminBadge>Admin</AdminBadge>
+                                      )}
+                                      <CommentTime>
+                                        {formatCommentTime(reply.createdAt)}
+                                      </CommentTime>
+                                    </CommentHeader>
+                                    <CommentText>{reply.text}</CommentText>
+                                  </CommentBody>
+                                </CommentItem>
+                              ))}
+                            </RepliesContainer>
+                          )}
+
+                          {/* Reply input */}
+                          {replyingTo === comment._id && (
+                            <ReplyInputArea>
+                              <CommentAvatar small isAdmin={admin}>
+                                {currentUser.avatar?.length > 1 ? (
+                                  <img
+                                    src={currentUser.avatar}
+                                    alt="avatar"
+                                    style={{
+                                      width: "100%",
+                                      height: "100%",
+                                      borderRadius: "50%",
+                                      objectFit: "cover",
+                                    }}
+                                  />
+                                ) : (
+                                  (currentUser.name || "?").charAt(0)
+                                )}
+                              </CommentAvatar>
+                              <ReplyInput
+                                placeholder="Javob yozing..."
+                                value={replyText}
+                                onChange={(e) => setReplyText(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter" && replyText.trim()) {
+                                    addReply(
+                                      courseId,
+                                      currentLessonData._id,
+                                      comment._id,
+                                      replyText.trim(),
+                                    ).then(() => fetchComments(1));
+                                    setReplyText("");
+                                    setReplyingTo(null);
+                                  }
+                                }}
+                                autoFocus
+                              />
+                              <SendBtn
+                                disabled={!replyText.trim()}
+                                onClick={() => {
+                                  if (!replyText.trim()) return;
                                   addReply(
-                                    selectedCourseId,
-                                    currentLessonData.id,
-                                    comment.id,
+                                    courseId,
+                                    currentLessonData._id,
+                                    comment._id,
                                     replyText.trim(),
                                   );
                                   setReplyText("");
                                   setReplyingTo(null);
-                                }
-                              }}
-                              autoFocus
-                            />
-                            <SendBtn
-                              disabled={!replyText.trim()}
-                              onClick={() => {
-                                if (!replyText.trim()) return;
-                                addReply(
-                                  selectedCourseId,
-                                  currentLessonData.id,
-                                  comment.id,
-                                  replyText.trim(),
-                                );
-                                setReplyText("");
-                                setReplyingTo(null);
-                              }}
-                            >
-                              <Send size={14} />
-                            </SendBtn>
-                          </ReplyInputArea>
-                        )}
-                      </CommentThread>
-                    ))}
-                    {currentLessonData.comments.length > 1 && (
-                      <ShowAllCommentsBtn
-                        onClick={() => setCommentsExpanded(!commentsExpanded)}
-                      >
-                        {commentsExpanded ? (
-                          <>
-                            <ChevronUp size={14} />
-                            Izohlarni yashirish
-                          </>
-                        ) : (
-                          <>
-                            <ChevronDown size={14} />
-                            Barcha izohlarni ko'rish (
-                            {currentLessonData.comments.length})
-                          </>
-                        )}
-                      </ShowAllCommentsBtn>
-                    )}
+                                }}
+                              >
+                                <Send size={14} />
+                              </SendBtn>
+                            </ReplyInputArea>
+                          )}
+                        </CommentThread>
+                      ))}
+                    </InfiniteScroll>
                   </>
                 )}
               </CommentsSection>
@@ -1836,91 +2380,139 @@ const CoursePlayer = ({ selectedCourseId }) => {
                   ? "Sizning so'rovingiz admin tomonidan ko'rib chiqilmoqda. Iltimos kuting."
                   : "Darslarni ko'rish uchun avval kursga yozilish kerak. Admin tasdiqlangandan keyin darslarni ko'rishingiz mumkin."}
               </p>
-              {enrollStatus === "none" && (
-                <EnrollButton
-                  variant="enroll"
-                  onClick={() => enrollInCourse(selectedCourseId)}
-                >
-                  <UserPlus size={16} />
-                  Kursga yozilish
-                </EnrollButton>
-              )}
             </LockedView>
           )}
 
-          {/* Enrollment / Admin Section */}
-          <EnrollmentSection>
+          {/* YouTube-like Author & Enrollment Section */}
+          <EnrollmentSection
+            style={{ padding: "12px 24px", borderBottom: "none" }}
+          >
             <EnrollmentInfo>
-              {approvedMembers.length > 0 && (
-                <MemberAvatars>
-                  {approvedMembers.slice(0, 4).map((m, i) => (
-                    <MiniAvatar key={m.id} index={i}>
-                      {m.avatar?.length > 1 ? (
-                        <img
-                          src={m.avatar}
-                          alt="avatar"
-                          style={{
-                            width: "100%",
-                            height: "100%",
-                            borderRadius: "50%",
-                            objectFit: "cover",
-                          }}
-                        />
-                      ) : (
-                        m.name.charAt(0)
-                      )}
-                    </MiniAvatar>
-                  ))}
-                  {approvedMembers.length > 4 && (
-                    <MiniAvatar index={4} bg="var(--input-color)">
-                      +{approvedMembers.length - 4}
-                    </MiniAvatar>
-                  )}
-                </MemberAvatars>
-              )}
-              <MemberCountBadge>
-                <Users size={14} />
-                {approvedMembers.length} ta a'zo
-                {pendingMembers.length > 0 && admin && (
-                  <span style={{ color: "var(--warning-color)" }}>
-                    · {pendingMembers.length} kutmoqda
-                  </span>
+              <MiniAvatar style={{ width: 40, height: 40, fontSize: 16 }}>
+                {course?.createdBy?.avatar ? (
+                  <img
+                    src={course.createdBy.avatar}
+                    alt="author"
+                    style={{
+                      width: "100%",
+                      height: "100%",
+                      borderRadius: "50%",
+                      objectFit: "cover",
+                    }}
+                  />
+                ) : (
+                  (
+                    course?.createdBy?.name ||
+                    course?.createdBy?.username ||
+                    "?"
+                  )
+                    .charAt(0)
+                    .toUpperCase()
                 )}
-              </MemberCountBadge>
+              </MiniAvatar>
+              <div style={{ display: "flex", flexDirection: "column" }}>
+                <span
+                  style={{
+                    fontWeight: 600,
+                    color: "var(--text-color)",
+                    fontSize: 15,
+                  }}
+                >
+                  {course?.createdBy?.name ||
+                    course?.createdBy?.username ||
+                    "Muallif"}
+                </span>
+                <span
+                  style={{ fontSize: 12, color: "var(--text-muted-color)" }}
+                >
+                  {course?.members?.length || 0} talaba
+                </span>
+              </div>
             </EnrollmentInfo>
 
-            {admin ? (
-              <EnrollButton
-                variant="admin"
-                onClick={() => setIsAdminPanelOpen(!isAdminPanelOpen)}
-              >
-                <Shield size={16} />
-                A'zolarni boshqarish
-                {isAdminPanelOpen ? (
-                  <ChevronUp size={14} />
-                ) : (
-                  <ChevronDown size={14} />
-                )}
-              </EnrollButton>
-            ) : enrollStatus === "none" ? (
-              <EnrollButton
-                variant="enroll"
-                onClick={() => enrollInCourse(selectedCourseId)}
-              >
-                <UserPlus size={16} />
-                Yozilish
-              </EnrollButton>
-            ) : enrollStatus === "pending" ? (
-              <EnrollButton variant="pending">
-                <Clock size={16} />
-                Kutilmoqda
-              </EnrollButton>
-            ) : (
-              <EnrollButton variant="enrolled">
-                <CheckCircle size={16} />
-                A'zo
-              </EnrollButton>
-            )}
+            <div style={{ display: "flex", gap: "8px" }}>
+              {admin ? (
+                <EnrollButton
+                  variant="admin"
+                  onClick={() => setIsAdminPanelOpen(!isAdminPanelOpen)}
+                  style={{ borderRadius: "20px", padding: "8px 16px" }}
+                >
+                  <Shield size={16} />
+                  Boshqarish
+                  {isAdminPanelOpen ? (
+                    <ChevronUp size={16} />
+                  ) : (
+                    <ChevronDown size={16} />
+                  )}
+                </EnrollButton>
+              ) : enrollStatus === "pending" ? (
+                <div style={{ display: "flex", gap: "8px" }}>
+                  <EnrollButton
+                    variant="pending"
+                    style={{ borderRadius: "20px" }}
+                  >
+                    <Clock size={16} />
+                    Kutilmoqda
+                  </EnrollButton>
+                  <EnrollButton
+                    variant="admin"
+                    onClick={() =>
+                      removeUser(courseId, currentUser?.id || currentUser?._id)
+                    }
+                    style={{ borderRadius: "20px" }}
+                  >
+                    Bekor qilish
+                  </EnrollButton>
+                </div>
+              ) : enrollStatus === "approved" ? (
+                <EnrollButton
+                  variant="enrolled"
+                  style={{ borderRadius: "20px" }}
+                >
+                  <CheckCircle size={16} />
+                  Obuna bo'lingan
+                </EnrollButton>
+              ) : course?.accessType === "paid" && enrollStatus === "none" ? (
+                <EnrollButton
+                  variant="enroll"
+                  style={{ borderRadius: "20px" }}
+                  onClick={async () => {
+                    try {
+                      await enrollInCourse(courseId);
+                      const authorId = course.createdBy._id || course.createdBy;
+                      const chatRes = await createChat({
+                        isGroup: false,
+                        memberIds: [authorId],
+                      });
+                      if (chatRes) {
+                        const slug =
+                          chatRes.urlSlug ||
+                          chatRes.jammId ||
+                          chatRes._id ||
+                          chatRes.id ||
+                          chatRes;
+                        navigate(`/a/${slug}`);
+                      }
+                    } catch (err) {
+                      console.error(err);
+                      toast.error("Xatolik yuz berdi: Chat yaratib bo'lmadi");
+                    }
+                  }}
+                >
+                  <UserPlus size={16} />
+                  Sotib olish: {course?.price?.toLocaleString() || 0} so'm
+                </EnrollButton>
+              ) : enrollStatus === "none" ? (
+                <EnrollButton
+                  variant="enroll"
+                  onClick={() => enrollInCourse(courseId)}
+                  style={{ borderRadius: "20px" }}
+                >
+                  <UserPlus size={16} />
+                  Obuna bo'lish {course?.price > 0 && `(${course.price})`}
+                </EnrollButton>
+              ) : null}
+            </div>
           </EnrollmentSection>
 
           {/* Admin Members Panel */}
@@ -1933,7 +2525,7 @@ const CoursePlayer = ({ selectedCourseId }) => {
                       Kutayotganlar ({pendingMembers.length})
                     </AdminSectionTitle>
                     {pendingMembers.map((member) => (
-                      <MemberRow key={member.id}>
+                      <MemberRow key={member.userId || member._id || member.id}>
                         <MemberAvatar>
                           {member.avatar?.length > 1 ? (
                             <img
@@ -1958,7 +2550,10 @@ const CoursePlayer = ({ selectedCourseId }) => {
                           <ActionBtn
                             approve
                             onClick={() =>
-                              approveUser(selectedCourseId, member.id)
+                              approveUser(
+                                courseId,
+                                member.userId || member._id || member.id,
+                              )
                             }
                             title="Tasdiqlash"
                           >
@@ -1966,7 +2561,10 @@ const CoursePlayer = ({ selectedCourseId }) => {
                           </ActionBtn>
                           <ActionBtn
                             onClick={() =>
-                              removeUser(selectedCourseId, member.id)
+                              removeUser(
+                                courseId,
+                                member.userId || member._id || member.id,
+                              )
                             }
                             title="Rad etish"
                           >
@@ -1977,7 +2575,6 @@ const CoursePlayer = ({ selectedCourseId }) => {
                     ))}
                   </>
                 )}
-
                 <AdminSectionTitle
                   style={{ marginTop: pendingMembers.length > 0 ? 16 : 0 }}
                 >
@@ -1995,7 +2592,7 @@ const CoursePlayer = ({ selectedCourseId }) => {
                   </div>
                 ) : (
                   approvedMembers.map((member) => (
-                    <MemberRow key={member.id}>
+                    <MemberRow key={member.userId || member._id || member.id}>
                       <MemberAvatar>
                         {member.avatar?.length > 1 ? (
                           <img
@@ -2019,7 +2616,10 @@ const CoursePlayer = ({ selectedCourseId }) => {
                       <MemberActions>
                         <ActionBtn
                           onClick={() =>
-                            removeUser(selectedCourseId, member.id)
+                            removeUser(
+                              courseId,
+                              member.userId || member._id || member.id,
+                            )
                           }
                           title="Chiqarish"
                         >
@@ -2038,6 +2638,9 @@ const CoursePlayer = ({ selectedCourseId }) => {
         <PlaylistPanel>
           <PlaylistHeader>
             <PlaylistTitle>
+              <MobileBackBtn onClick={() => onClose()}>
+                <ArrowLeft size={20} />
+              </MobileBackBtn>
               <ListVideo size={18} />
               Darslar
             </PlaylistTitle>
@@ -2081,7 +2684,7 @@ const CoursePlayer = ({ selectedCourseId }) => {
             ) : (
               course.lessons.map((lesson, index) => (
                 <LessonItem
-                  key={lesson.id}
+                  key={lesson._id}
                   active={canAccessLesson(index) && activeLesson === index}
                   onClick={() =>
                     canAccessLesson(index) && handleLessonClick(index)
@@ -2141,13 +2744,7 @@ const CoursePlayer = ({ selectedCourseId }) => {
                     <DeleteLessonBtn
                       onClick={(e) => {
                         e.stopPropagation();
-                        removeLesson(selectedCourseId, lesson.id);
-                        if (
-                          activeLesson >= course.lessons.length - 1 &&
-                          activeLesson > 0
-                        ) {
-                          setActiveLesson(activeLesson - 1);
-                        }
+                        setLessonToDelete(lesson._id);
                       }}
                       title="O'chirish"
                     >
@@ -2164,7 +2761,22 @@ const CoursePlayer = ({ selectedCourseId }) => {
       <AddLessonDialog
         isOpen={isAddLessonOpen}
         onClose={() => setIsAddLessonOpen(false)}
-        courseId={selectedCourseId}
+        courseId={courseId}
+        onCreated={(lessonId) => {
+          setIsAddLessonOpen(false);
+          setActiveLesson(course.lessons.length);
+        }}
+      />
+
+      <ConfirmDialog
+        isOpen={!!lessonToDelete}
+        onClose={() => setLessonToDelete(null)}
+        title="Darsni o'chirish"
+        description="Rostdan ham bu darsni o'chirmoqchimisiz? Agar unga video biriktirilgan bo'lsa, u ham o'chib ketadi."
+        confirmText={isDeletingLesson ? "O'chirilmoqda..." : "Ha, o'chirish"}
+        cancelText="Beqor qilish"
+        onConfirm={handleDeleteLessonConfirm}
+        isDanger={true}
       />
     </>
   );

@@ -10,13 +10,21 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@tanstack/react-query": "^5.90.21",
+    "axios": "^1.13.6",
+    "dayjs": "^1.11.19",
     "lucide-react": "^0.294.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
+    "react-hot-toast": "^2.6.0",
+    "react-infinite-scroll-component": "^6.1.1",
     "react-player": "^3.4.0",
     "react-router-dom": "^6.20.1",
     "socket.io-client": "^4.8.3",
-    "styled-components": "^6.1.1"
+    "styled-components": "^6.1.1",
+    "uui": "^1.0.7",
+    "uuid": "^13.0.0",
+    "zustand": "^5.0.11"
   },
   "devDependencies": {
     "@types/react": "^18.2.37",

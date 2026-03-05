@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import styled from "styled-components";
+import { useChats } from "../contexts/ChatsContext";
 import {
   X,
   User,
@@ -17,7 +19,11 @@ import {
   Star,
   Zap,
 } from "lucide-react";
+import { toast } from "react-hot-toast";
 import { useTheme } from "../contexts/ThemeContext";
+import useAuthStore from "../store/authStore";
+import { getUserByUsername, createChat, fetchChats } from "../api/chatApi";
+import { Skeleton, SkeletonCircle } from "./Skeleton";
 
 const SettingsOverlay = styled.div`
   position: fixed;
@@ -41,6 +47,12 @@ const SettingsDialogComponent = styled.div`
   display: flex;
   flex-direction: column;
   box-shadow: 0 8px 16px rgba(0, 0, 0, 0.24);
+
+  @media (max-width: 768px) {
+    width: 100%;
+    height: 100%;
+    border-radius: 0;
+  }
 `;
 
 const SettingsHeader = styled.div`
@@ -76,12 +88,30 @@ const SettingsContent = styled.div`
   display: flex;
   flex: 1;
   overflow: hidden;
+
+  @media (max-width: 768px) {
+    flex-direction: column;
+  }
 `;
 
 const Sidebar = styled.div`
   width: 240px;
   background-color: #202225;
   padding: 8px 0;
+
+  @media (max-width: 768px) {
+    width: 100%;
+    display: flex;
+    overflow-x: auto;
+    padding: 0;
+    flex-shrink: 0;
+
+    &::-webkit-scrollbar {
+      display: none;
+    }
+    -ms-overflow-style: none; /* IE and Edge */
+    scrollbar-width: none; /* Firefox */
+  }
 `;
 
 const SidebarItem = styled.div`
@@ -107,12 +137,28 @@ const SidebarItem = styled.div`
     color: #fff;
     border-radius: 4px;
   `}
+
+  @media (max-width: 768px) {
+    padding: 12px 16px;
+    white-space: nowrap;
+    border-radius: 0;
+    ${(props) =>
+      props.active &&
+      `
+      border-bottom: 2px solid #5865f2;
+      border-radius: 0;
+    `}
+  }
 `;
 
 const MainContent = styled.div`
   flex: 1;
   padding: 24px;
   overflow-y: auto;
+
+  @media (max-width: 768px) {
+    padding: 16px;
+  }
 `;
 
 const SectionTitle = styled.div`
@@ -139,6 +185,12 @@ const SettingItem = styled.div`
   align-items: center;
   padding: 12px 0;
   border-bottom: 1px solid #40444b;
+
+  @media (max-width: 768px) {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
 `;
 
 const SettingLabel = styled.div`
@@ -187,6 +239,11 @@ const Select = styled.select`
     outline: none;
     border-color: #5865f2;
   }
+
+  @media (max-width: 768px) {
+    width: 100%;
+    padding: 10px 12px;
+  }
 `;
 
 const Input = styled.input`
@@ -200,6 +257,11 @@ const Input = styled.input`
   &:focus {
     outline: none;
     border-color: #5865f2;
+  }
+
+  @media (max-width: 768px) {
+    width: 100%;
+    padding: 10px 12px;
   }
 `;
 
@@ -217,6 +279,11 @@ const Button = styled.button`
   &:hover {
     background-color: #4752c4;
   }
+
+  @media (max-width: 768px) {
+    width: 100%;
+    padding: 12px 16px;
+  }
 `;
 
 const DangerButton = styled.button`
@@ -232,6 +299,11 @@ const DangerButton = styled.button`
 
   &:hover {
     background-color: #c82333;
+  }
+
+  @media (max-width: 768px) {
+    width: 100%;
+    padding: 12px 16px;
   }
 `;
 
@@ -318,6 +390,11 @@ const SaveBar = styled.div`
   align-items: center;
   gap: 12px;
   margin-top: 24px;
+
+  @media (max-width: 768px) {
+    flex-direction: column;
+    align-items: stretch;
+  }
 `;
 
 const SaveBtn = styled.button`
@@ -331,6 +408,7 @@ const SaveBtn = styled.button`
   cursor: pointer;
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
   transition: all 0.2s;
   &:hover {
@@ -339,6 +417,11 @@ const SaveBtn = styled.button`
   &:disabled {
     opacity: 0.5;
     cursor: not-allowed;
+  }
+
+  @media (max-width: 768px) {
+    width: 100%;
+    padding: 14px 20px;
   }
 `;
 
@@ -350,7 +433,57 @@ const StatusMsg = styled.div`
   color: ${(p) => (p.$error ? "#f04747" : "#43b581")};
 `;
 
-const PremiumSection = ({ profile, API_URL, getHeaders, loadProfile }) => {
+const PlansGrid = styled.div`
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-top: 16px;
+
+  @media (max-width: 768px) {
+    grid-template-columns: 1fr;
+  }
+`;
+
+const PlanCard = styled.div`
+  background: #2f3136;
+  padding: 16px;
+  border-radius: 8px;
+  border: 1px solid #40444b;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+`;
+
+const PromoCodeGroup = styled.div`
+  display: flex;
+  gap: 10px;
+  margin-top: 8px;
+
+  @media (max-width: 768px) {
+    flex-direction: column;
+    align-items: stretch;
+  }
+`;
+
+const PremiumStatusCard = styled.div`
+  background: var(--input-color);
+  padding: 20px;
+  border-radius: 8px;
+  margin-bottom: 32px;
+  border: 1px solid
+    ${(props) =>
+      props.$active ? "var(--primary-color)" : "var(--border-color)"};
+`;
+
+const PremiumSection = ({
+  profile,
+  API_URL,
+  getHeaders,
+  loadProfile,
+  onClose,
+}) => {
+  const { getUserByUsername, createChat, fetchChats } = useChats();
+  const navigate = useNavigate();
   const [promoCode, setPromoCode] = useState("");
   const [redeeming, setRedeeming] = useState(false);
   const [plans, setPlans] = useState([]);
@@ -405,58 +538,62 @@ const PremiumSection = ({ profile, API_URL, getHeaders, loadProfile }) => {
   return (
     <>
       <SectionTitle style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <Star color="#ffaa00" fill="#ffaa00" /> Jamm Premium
+        <Shield size={20} color="var(--primary-color)" /> Jamm Premium
       </SectionTitle>
       <SectionDescription>
-        Premium obuna orqali qo'shimcha imkoniyatlarga ega bo'ling: katta
-        hajmdagi fayllar, 10 tagacha guruh ochish va maxsus belgilar.
+        Qo'shimcha imkoniyatlarni ochish uchun Premium obunani faollashtiring:
+        Fayllar hajmini oshirish, qo'shimcha guruhlar ochish va maxsus
+        imtiyozlar.
       </SectionDescription>
 
-      <div
-        style={{
-          background: "linear-gradient(135deg, #2c2f33 0%, #23272a 100%)",
-          padding: 20,
-          borderRadius: 8,
-          marginBottom: 32,
-          border:
-            profile.premiumStatus === "active"
-              ? "1px solid #ffaa00"
-              : "1px solid #40444b",
-        }}
-      >
+      <PremiumStatusCard $active={profile.premiumStatus === "active"}>
         <div
           style={{
-            fontSize: 18,
+            fontSize: 16,
             fontWeight: 600,
-            color: "#fff",
+            color: "var(--text-color)",
             marginBottom: 8,
           }}
         >
-          Sizning holatingiz:{" "}
+          Holat:{" "}
           {profile.premiumStatus === "active" ? (
-            <span style={{ color: "#ffaa00" }}>Aktiv Premium</span>
+            <span style={{ color: "var(--primary-color)" }}>Aktiv</span>
           ) : (
-            <span style={{ color: "#b9bbbe" }}>Oddiy</span>
+            <span style={{ color: "var(--text-muted-color)" }}>
+              Oddiy (Faol emas)
+            </span>
           )}
         </div>
         {profile.premiumStatus === "active" && (
-          <div style={{ color: "#b9bbbe", fontSize: 14 }}>
+          <div style={{ color: "var(--text-muted-color)", fontSize: 13 }}>
             Amal qilish muddati:{" "}
-            {new Date(profile.premiumExpiresAt).toLocaleDateString()} gacha
+            <strong style={{ color: "var(--text-color)" }}>
+              {new Date(profile.premiumExpiresAt).toLocaleDateString()}
+            </strong>{" "}
+            gacha
           </div>
         )}
-      </div>
+      </PremiumStatusCard>
 
       <SettingGroup>
         <FieldLabel>Promo-kod orqali faollashtirish</FieldLabel>
-        <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
+        <PromoCodeGroup>
           <FieldInput
-            placeholder="Promo-kodni kiriting"
+            placeholder="Kodni kiriting"
             value={promoCode}
             onChange={(e) => setPromoCode(e.target.value)}
             style={{ flex: 1 }}
           />
-          <Button onClick={handleRedeem} disabled={redeeming || !promoCode}>
+          <Button
+            onClick={handleRedeem}
+            disabled={redeeming || !promoCode}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              justifyContent: "center",
+            }}
+          >
             {redeeming ? (
               <Loader
                 size={14}
@@ -465,9 +602,9 @@ const PremiumSection = ({ profile, API_URL, getHeaders, loadProfile }) => {
             ) : (
               <Zap size={14} />
             )}
-            {redeeming ? "..." : "Faollashtirish"}
+            <span>{redeeming ? "Tekshirilmoqda..." : "Tasdiqlash"}</span>
           </Button>
-        </div>
+        </PromoCodeGroup>
         {status && (
           <StatusMsg style={{ marginTop: 10 }} $error={status.error}>
             {status.text}
@@ -478,46 +615,60 @@ const PremiumSection = ({ profile, API_URL, getHeaders, loadProfile }) => {
       <SectionTitle style={{ fontSize: 18, marginTop: 40 }}>
         Obuna rejalari
       </SectionTitle>
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 1fr",
-          gap: 16,
-          marginTop: 16,
-        }}
-      >
+
+      <PlansGrid>
         {plans.map((plan) => (
-          <div
-            key={plan._id}
-            style={{
-              background: "#2f3136",
-              padding: 16,
-              borderRadius: 8,
-              border: "1px solid #40444b",
-              display: "flex",
-              flexDirection: "column",
-              gap: 8,
-            }}
-          >
-            <div style={{ color: "#fff", fontWeight: 600 }}>{plan.name}</div>
-            <div style={{ color: "#ffaa00", fontSize: 20, fontWeight: 700 }}>
+          <PlanCard key={plan._id}>
+            <div
+              style={{
+                color: "var(--text-color)",
+                fontWeight: 600,
+                fontSize: 16,
+              }}
+            >
+              {plan.name}
+            </div>
+            <div
+              style={{
+                color: "var(--text-color)",
+                fontSize: 24,
+                fontWeight: 700,
+                margin: "8px 0",
+              }}
+            >
               ${plan.price}
             </div>
-            <div style={{ color: "#8e9297", fontSize: 12 }}>
-              {plan.durationInDays} kun davomida aktiv
+            <div style={{ color: "var(--text-muted-color)", fontSize: 13 }}>
+              {plan.durationInDays} kunlik muddat
             </div>
             <Button
-              style={{ marginTop: 8, backgroundColor: "#40444b" }}
-              disabled
+              style={{ marginTop: 16, width: "100%" }}
+              onClick={async () => {
+                try {
+                  const admin = await getUserByUsername("jamm_admin");
+                  if (!admin) return;
+                  const chat = await createChat({
+                    isGroup: false,
+                    memberIds: [admin._id || admin.id],
+                  });
+                  await fetchChats();
+                  onClose?.();
+                  navigate(
+                    `/groups/${chat.urlSlug || chat.jammId || chat._id || chat.id}`,
+                  );
+                } catch (e) {
+                  console.error("Admin chat open error", e);
+                }
+              }}
             >
-              Hozirda faqat promo-kod
+              Ulanish uchun murojaat
             </Button>
-          </div>
+          </PlanCard>
         ))}
         {loadingPlans && (
           <Loader size={20} style={{ animation: "spin 1s linear infinite" }} />
         )}
-      </div>
+      </PlansGrid>
     </>
   );
 };
@@ -548,12 +699,18 @@ const SettingsDialog = ({ isOpen, onClose, initialSection = "my-account" }) => {
 
   // ── My Account state ──────────────────────────────────────────────────────
   const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
+
+  // Initialize from Zustand store for immediate accurate rendering
+  const initialUser = useAuthStore((state) => state.user) || {};
   const [profile, setProfile] = useState({
-    nickname: "",
-    username: "",
-    phone: "",
-    avatar: "",
+    nickname: initialUser.nickname || "",
+    username: initialUser.username || "",
+    phone: initialUser.phone || "",
+    avatar: initialUser.avatar || "",
+    premiumStatus: initialUser.premiumStatus || "none",
+    premiumExpiresAt: initialUser.premiumExpiresAt || null,
   });
+
   const [profileLoading, setProfileLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState(null); // null | 'ok' | 'error'
@@ -561,12 +718,15 @@ const SettingsDialog = ({ isOpen, onClose, initialSection = "my-account" }) => {
   const avatarInputRef = useRef(null);
 
   useEffect(() => {
-    if (isOpen && activeSection === "my-account") loadProfile();
-  }, [isOpen, activeSection]);
+    // Always load fresh profile data when dialog opens, regardless of section
+    if (isOpen) {
+      loadProfile();
+    }
+  }, [isOpen]);
 
   const getHeaders = () => ({
     "Content-Type": "application/json",
-    Authorization: `Bearer ${localStorage.getItem("token")}`,
+    Authorization: `Bearer ${useAuthStore.getState().token}`,
   });
 
   const loadProfile = async () => {
@@ -580,37 +740,86 @@ const SettingsDialog = ({ isOpen, onClose, initialSection = "my-account" }) => {
           username: data.username || "",
           phone: data.phone || "",
           avatar: data.avatar || "",
+          bio: data.bio || "",
           premiumStatus: data.premiumStatus || "none",
           premiumExpiresAt: data.premiumExpiresAt,
         });
-        // Sync to localStorage
-        const stored = JSON.parse(localStorage.getItem("user") || "{}");
-        localStorage.setItem("user", JSON.stringify({ ...stored, ...data }));
+        // Sync to Zustand store
+        const {
+          user: storedUser,
+          token: storedToken,
+          setAuth,
+        } = useAuthStore.getState();
+        setAuth({ ...storedUser, ...data }, storedToken);
       }
     } catch {}
     setProfileLoading(false);
   };
 
   const handleSave = async () => {
+    // Frontend Validations
+    if (
+      profile.nickname &&
+      (profile.nickname.length < 3 || profile.nickname.length > 30)
+    ) {
+      setSaveStatus("Nickname 3 tadan 30 tagacha belgi bo'lishi kerak");
+      setTimeout(() => setSaveStatus(null), 3000);
+      return;
+    }
+    if (profile.username) {
+      if (!/^[a-zA-Z0-9]{8,30}$/.test(profile.username)) {
+        setSaveStatus(
+          "Username kamida 8 ta harf va raqamdan (min 8) iborat bo'lishi kerak",
+        );
+        setTimeout(() => setSaveStatus(null), 3000);
+        return;
+      }
+    }
+    if (profile.bio && profile.bio.length > 30) {
+      setSaveStatus(
+        "Haqida (Bio) ko'pi bilan 30 ta belgidan iborat bo'lishi kerak",
+      );
+      setTimeout(() => setSaveStatus(null), 3000);
+      return;
+    }
+    if (profile.phone) {
+      if (!/^\+998 \d{2} \d{3} \d{2} \d{2}$/.test(profile.phone)) {
+        setSaveStatus(
+          "Telefon raqam aniq '+998 XX XXX XX XX' formatida bo'lishi kerak",
+        );
+        setTimeout(() => setSaveStatus(null), 3000);
+        return;
+      }
+    }
+
     setSaving(true);
     setSaveStatus(null);
+    const { premiumStatus, premiumExpiresAt, phone, ...rest } = profile;
     try {
       const res = await fetch(`${API_URL}/users/me`, {
         method: "PATCH",
         headers: getHeaders(),
-        body: JSON.stringify(profile),
+        body: JSON.stringify({ ...rest, phone: phone.replace(/\s/g, "") }),
       });
       if (res.ok) {
         const updated = await res.json();
-        // Update localStorage so the rest of the app sees the new profile
-        const stored = JSON.parse(localStorage.getItem("user") || "{}");
-        localStorage.setItem("user", JSON.stringify({ ...stored, ...updated }));
+        const {
+          user: storedUser,
+          token: storedToken,
+          setAuth,
+        } = useAuthStore.getState();
+        setAuth({ ...storedUser, ...updated }, storedToken);
         setSaveStatus("ok");
       } else {
         const errorData = await res.json().catch(() => null);
-        setSaveStatus(errorData?.message || "Xatolik yuz berdi");
+        const errMsg = Array.isArray(errorData?.message)
+          ? errorData.message[0]
+          : errorData?.message;
+        setSaveStatus(errMsg || "Xatolik yuz berdi");
       }
-    } catch {
+    } catch (err) {
+      console.log(err);
+
       setSaveStatus("Tarmoq xatosi yuz berdi");
     }
     setSaving(false);
@@ -629,7 +838,7 @@ const SettingsDialog = ({ isOpen, onClose, initialSection = "my-account" }) => {
 
     // Check file size (limit to 2MB for now)
     if (file.size > 2 * 1024 * 1024) {
-      alert("Fayl hajmi juda katta (maksimum 2MB)");
+      toast.error("Fayl hajmi juda katta (maksimum 2MB)");
       return;
     }
 
@@ -643,7 +852,7 @@ const SettingsDialog = ({ isOpen, onClose, initialSection = "my-account" }) => {
       const res = await fetch(`${API_URL}/users/avatar`, {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${localStorage.getItem("token")}`,
+          Authorization: `Bearer ${useAuthStore.getState().token}`,
         },
         body: formData,
       });
@@ -652,22 +861,23 @@ const SettingsDialog = ({ isOpen, onClose, initialSection = "my-account" }) => {
         const updatedUser = await res.json();
         setProfile((p) => ({ ...p, avatar: updatedUser.avatar }));
 
-        // Update localStorage
-        const stored = JSON.parse(localStorage.getItem("user") || "{}");
-        localStorage.setItem(
-          "user",
-          JSON.stringify({ ...stored, ...updatedUser }),
-        );
+        // Update Zustand store
+        const {
+          user: storedUser,
+          token: storedToken,
+          setAuth,
+        } = useAuthStore.getState();
+        setAuth({ ...storedUser, ...updatedUser }, storedToken);
 
         setSaveStatus("Avatar yuklandi!");
         setTimeout(() => setSaveStatus(null), 3000);
       } else {
         const err = await res.json().catch(() => ({}));
-        alert(err.message || "Avatar yuklashda xatolik");
+        toast.error(err.message || "Avatar yuklashda xatolik");
       }
     } catch (err) {
       console.error("Upload error:", err);
-      alert("Tarmoq xatosi yuz berdi");
+      toast.error("Tarmoq xatosi yuz berdi");
     } finally {
       setUploadingAvatar(false);
     }
@@ -709,15 +919,26 @@ const SettingsDialog = ({ isOpen, onClose, initialSection = "my-account" }) => {
       return (
         <div
           style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 10,
-            color: "#b9bbbe",
             paddingTop: 40,
+            display: "flex",
+            flexDirection: "column",
+            gap: "24px",
           }}
         >
-          <Loader size={18} style={{ animation: "spin 1s linear infinite" }} />
-          <span>Yuklanmoqda…</span>
+          <Skeleton height="24px" width="150px" mb="0" />
+          <SkeletonCircle size="80px" mb="0" />
+          <div>
+            <Skeleton height="16px" width="80px" mb="8px" />
+            <Skeleton height="40px" width="100%" mb="0" />
+          </div>
+          <div>
+            <Skeleton height="16px" width="80px" mb="8px" />
+            <Skeleton height="40px" width="100%" mb="0" />
+          </div>
+          <div>
+            <Skeleton height="16px" width="80px" mb="8px" />
+            <Skeleton height="40px" width="100%" mb="0" />
+          </div>
         </div>
       );
     return (
@@ -780,12 +1001,53 @@ const SettingsDialog = ({ isOpen, onClose, initialSection = "my-account" }) => {
         </FormField>
 
         <FormField>
+          <div style={{ display: "flex", justifyContent: "space-between" }}>
+            <FieldLabel>Haqida (Bio)</FieldLabel>
+            <span
+              style={{
+                fontSize: "11px",
+                color:
+                  profile.bio?.length > 30
+                    ? "#f04747"
+                    : "var(--text-muted-color)",
+              }}
+            >
+              {profile.bio?.length || 0}/30
+            </span>
+          </div>
+          <FieldInput
+            as="textarea"
+            rows={2}
+            value={profile.bio || ""}
+            onChange={(e) => setProfile((p) => ({ ...p, bio: e.target.value }))}
+            placeholder="O'zingiz haqingizda maksimal 30 ta belgi..."
+            maxLength={30}
+            style={{ resize: "none" }}
+          />
+        </FormField>
+
+        <FormField>
           <FieldLabel>Telefon raqam</FieldLabel>
           <FieldInput
-            value={profile.phone}
-            onChange={(e) =>
-              setProfile((p) => ({ ...p, phone: e.target.value }))
-            }
+            value={profile.phone || "+998"}
+            onChange={(e) => {
+              let val = e.target.value;
+              // Ensure +998 is always present at start
+              if (!val.startsWith("+998")) {
+                val = "+998";
+              }
+              // Extract only digits after +998, max 9 digits
+              const digits = val.slice(4).replace(/[^\d]/g, "").slice(0, 9);
+
+              // Format as +998 XX XXX XX XX
+              let formatted = "+998";
+              if (digits.length > 0) formatted += " " + digits.slice(0, 2);
+              if (digits.length > 2) formatted += " " + digits.slice(2, 5);
+              if (digits.length > 5) formatted += " " + digits.slice(5, 7);
+              if (digits.length > 7) formatted += " " + digits.slice(7, 9);
+
+              setProfile((p) => ({ ...p, phone: formatted }));
+            }}
             placeholder="+998 90 000 00 00"
           />
         </FormField>
@@ -1034,7 +1296,7 @@ const SettingsDialog = ({ isOpen, onClose, initialSection = "my-account" }) => {
       </SettingGroup>
 
       <SettingGroup>
-        <DangerButton onClick={() => alert("Log out functionality")}>
+        <DangerButton onClick={() => toast("Log out functionality WIP")}>
           <LogOut size={16} style={{ marginRight: "8px" }} />
           Log Out
         </DangerButton>
@@ -1151,6 +1413,7 @@ const SettingsDialog = ({ isOpen, onClose, initialSection = "my-account" }) => {
             API_URL={API_URL}
             getHeaders={getHeaders}
             loadProfile={loadProfile}
+            onClose={onClose}
           />
         );
       default:

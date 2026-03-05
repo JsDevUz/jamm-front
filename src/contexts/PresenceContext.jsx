@@ -7,6 +7,7 @@ import React, {
   useRef,
 } from "react";
 import { io } from "socket.io-client";
+import useAuthStore from "../store/authStore";
 
 const PresenceContext = createContext();
 
@@ -31,7 +32,7 @@ export const PresenceProvider = ({ children }) => {
   const heartbeatRef = useRef(null);
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
+    const token = useAuthStore.getState().token;
     if (!token) return;
 
     // Connect to /presence namespace with JWT
@@ -112,7 +113,7 @@ export const PresenceProvider = ({ children }) => {
    */
   const fetchBulkStatuses = useCallback(async (userIds) => {
     try {
-      const token = localStorage.getItem("token");
+      const token = useAuthStore.getState().token;
       const res = await fetch(`${API_URL}/presence/status/bulk`, {
         method: "POST",
         headers: {
@@ -162,6 +163,7 @@ export const PresenceProvider = ({ children }) => {
     isUserOnline,
     getOnlineCount,
     fetchBulkStatuses,
+    socket: socketRef.current,
   };
 
   return (

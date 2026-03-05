@@ -4,26 +4,22 @@ import React, {
   useState,
   useCallback,
   useEffect,
+  useRef,
 } from "react";
+import { io } from "socket.io-client";
+import * as coursesApi from "../api/coursesApi";
 
 const CoursesContext = createContext(null);
 
 const API_URL = "http://localhost:3000";
 
-// Helper to get auth headers
-const getHeaders = () => {
-  const token = localStorage.getItem("token");
-  return {
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${token}`,
-  };
-};
-
-// Get current user from localStorage
+// Get current user from Zustand auth-storage
 const getCurrentUser = () => {
   try {
-    const user = localStorage.getItem("user");
-    return user ? JSON.parse(user) : null;
+    const raw = localStorage.getItem("auth-storage");
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed?.state?.user || null;
   } catch {
     return null;
   }
@@ -32,75 +28,144 @@ const getCurrentUser = () => {
 export const CoursesProvider = ({ children }) => {
   const [courses, setCourses] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [coursesPage, setCoursesPage] = useState(1);
+  const [coursesHasMore, setCoursesHasMore] = useState(true);
+  const socketRef = useRef(null);
 
   const currentUser = getCurrentUser();
 
   // Fetch all courses from API
-  const fetchCourses = useCallback(async () => {
+  const fetchCourses = useCallback(async (page = 1) => {
     try {
-      const res = await fetch(`${API_URL}/courses`, { headers: getHeaders() });
-      if (!res.ok) throw new Error("Failed to fetch courses");
-      const data = await res.json();
+      if (page === 1) setLoading(true);
+      const res = await coursesApi.fetchCourses(page, 15);
+      const data = res?.data || [];
+      const totalPages = res?.totalPages || 1;
+
       // Map _id to id for compatibility with existing frontend components
       const mapped = data.map((c) => ({
         ...c,
         id: c._id,
         createdBy: c.createdBy,
-        members: (c.members || []).map((m) => ({
-          ...m,
-          id: m.userId,
-        })),
-        lessons: (c.lessons || []).map((l) => ({
-          ...l,
-          id: l._id,
-          comments: (l.comments || []).map((cm) => ({
-            ...cm,
-            id: cm._id,
-            replies: (cm.replies || []).map((r) => ({
-              ...r,
-              id: r._id,
-            })),
-          })),
-        })),
       }));
-      setCourses(mapped);
+      setCourses((prev) => (page === 1 ? mapped : [...prev, ...mapped]));
+      setCoursesPage(page);
+      setCoursesHasMore(page < totalPages);
     } catch (err) {
       console.error("Error fetching courses:", err);
     } finally {
-      setLoading(false);
+      if (page === 1) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    fetchCourses();
+    // Moved to CourseSidebar for lazy loading
+  }, []);
+
+  // Connect to /courses socket namespace for real-time enrollment updates
+  useEffect(() => {
+    let token = null;
+    try {
+      const raw = localStorage.getItem("auth-storage");
+      if (raw) {
+        token = JSON.parse(raw)?.state?.token || null;
+      }
+    } catch {}
+    if (!token) return;
+
+    const socketUrl = API_URL.replace("http", "ws") + "/courses";
+
+    socketRef.current = io(socketUrl, {
+      auth: { token },
+      transports: ["websocket"],
+    });
+
+    const handleEvent = (data) => {
+      console.log("Course socket event receive:", data);
+      fetchCourses();
+    };
+
+    socketRef.current.on("course_enrolled", handleEvent);
+    socketRef.current.on("member_approved", handleEvent);
+    socketRef.current.on("member_rejected", handleEvent);
+    socketRef.current.on("member_approved_broadcast", handleEvent);
+    socketRef.current.on("member_rejected_broadcast", handleEvent);
+
+    return () => {
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+      }
+    };
   }, [fetchCourses]);
 
+  const joinCourseRoom = useCallback((courseId) => {
+    if (socketRef.current && socketRef.current.connected) {
+      socketRef.current.emit("join_course", { courseId });
+    }
+  }, []);
+
+  const leaveCourseRoom = useCallback((courseId) => {
+    if (socketRef.current && socketRef.current.connected) {
+      socketRef.current.emit("leave_course", { courseId });
+    }
+  }, []);
+
   const createCourse = useCallback(
-    async (name, description, image) => {
+    async (name, description, image, category, price, accessType) => {
       try {
-        const res = await fetch(`${API_URL}/courses`, {
-          method: "POST",
-          headers: getHeaders(),
-          body: JSON.stringify({ name, description, image }),
+        const data = await coursesApi.createCourse({
+          name,
+          description,
+          image,
+          category,
+          price,
+          accessType,
         });
-        if (!res.ok) throw new Error("Failed to create course");
         await fetchCourses();
-        const data = await res.json();
         return data._id;
       } catch (err) {
         console.error("Error creating course:", err);
+        throw err;
+      }
+    },
+    [fetchCourses],
+  );
+
+  const removeCourse = useCallback(
+    async (courseId) => {
+      try {
+        await coursesApi.removeCourse(courseId);
+        await fetchCourses();
+        return true;
+      } catch (err) {
+        console.error("Error deleting course:", err);
+        throw err;
       }
     },
     [fetchCourses],
   );
 
   const addLesson = useCallback(
-    async (courseId, title, videoUrl, description) => {
+    async (
+      courseId,
+      title,
+      videoUrl,
+      description,
+      type = "video",
+      fileUrl = "",
+      fileName = "",
+      fileSize = 0,
+    ) => {
       try {
-        await fetch(`${API_URL}/courses/${courseId}/lessons`, {
-          method: "POST",
-          headers: getHeaders(),
-          body: JSON.stringify({ title, videoUrl, description }),
+        await coursesApi.addLesson({
+          courseId,
+          title,
+          videoUrl,
+          description,
+          type,
+          fileUrl,
+          fileName,
+          fileSize,
         });
         await fetchCourses();
       } catch (err) {
@@ -110,13 +175,27 @@ export const CoursesProvider = ({ children }) => {
     [fetchCourses],
   );
 
+  const getLessonComments = useCallback(
+    async (courseId, lessonId, page = 1, limit = 15) => {
+      try {
+        return await coursesApi.getLessonComments(
+          courseId,
+          lessonId,
+          page,
+          limit,
+        );
+      } catch (err) {
+        console.error("Error getting lesson comments:", err);
+        return { data: [], totalPages: 1 };
+      }
+    },
+    [],
+  );
+
   const removeLesson = useCallback(
     async (courseId, lessonId) => {
       try {
-        await fetch(`${API_URL}/courses/${courseId}/lessons/${lessonId}`, {
-          method: "DELETE",
-          headers: getHeaders(),
-        });
+        await coursesApi.removeLesson({ courseId, lessonId });
         await fetchCourses();
       } catch (err) {
         console.error("Error removing lesson:", err);
@@ -128,14 +207,7 @@ export const CoursesProvider = ({ children }) => {
   const addComment = useCallback(
     async (courseId, lessonId, text) => {
       try {
-        await fetch(
-          `${API_URL}/courses/${courseId}/lessons/${lessonId}/comments`,
-          {
-            method: "POST",
-            headers: getHeaders(),
-            body: JSON.stringify({ text }),
-          },
-        );
+        await coursesApi.addComment({ courseId, lessonId, text });
         await fetchCourses();
       } catch (err) {
         console.error("Error adding comment:", err);
@@ -147,14 +219,7 @@ export const CoursesProvider = ({ children }) => {
   const addReply = useCallback(
     async (courseId, lessonId, commentId, text) => {
       try {
-        await fetch(
-          `${API_URL}/courses/${courseId}/lessons/${lessonId}/comments/${commentId}/replies`,
-          {
-            method: "POST",
-            headers: getHeaders(),
-            body: JSON.stringify({ text }),
-          },
-        );
+        await coursesApi.addReply({ courseId, lessonId, commentId, text });
         await fetchCourses();
       } catch (err) {
         console.error("Error adding reply:", err);
@@ -166,10 +231,7 @@ export const CoursesProvider = ({ children }) => {
   const enrollInCourse = useCallback(
     async (courseId) => {
       try {
-        await fetch(`${API_URL}/courses/${courseId}/enroll`, {
-          method: "POST",
-          headers: getHeaders(),
-        });
+        await coursesApi.enrollInCourse(courseId);
         await fetchCourses();
       } catch (err) {
         console.error("Error enrolling:", err);
@@ -181,13 +243,7 @@ export const CoursesProvider = ({ children }) => {
   const approveUser = useCallback(
     async (courseId, userId) => {
       try {
-        await fetch(
-          `${API_URL}/courses/${courseId}/members/${userId}/approve`,
-          {
-            method: "PATCH",
-            headers: getHeaders(),
-          },
-        );
+        await coursesApi.approveUser({ courseId, userId });
         await fetchCourses();
       } catch (err) {
         console.error("Error approving user:", err);
@@ -199,10 +255,7 @@ export const CoursesProvider = ({ children }) => {
   const removeUser = useCallback(
     async (courseId, userId) => {
       try {
-        await fetch(`${API_URL}/courses/${courseId}/members/${userId}`, {
-          method: "DELETE",
-          headers: getHeaders(),
-        });
+        await coursesApi.removeUser({ courseId, userId });
         await fetchCourses();
       } catch (err) {
         console.error("Error removing user:", err);
@@ -213,10 +266,7 @@ export const CoursesProvider = ({ children }) => {
 
   const incrementViews = useCallback(async (courseId, lessonId) => {
     try {
-      await fetch(`${API_URL}/courses/${courseId}/lessons/${lessonId}/views`, {
-        method: "PATCH",
-        headers: getHeaders(),
-      });
+      await coursesApi.incrementViews({ courseId, lessonId });
       // Update locally without full refetch for performance
       setCourses((prev) =>
         prev.map((course) => {
@@ -237,7 +287,7 @@ export const CoursesProvider = ({ children }) => {
   const isAdmin = useCallback(
     (courseId) => {
       if (!currentUser) return false;
-      const course = courses.find((c) => c.id === courseId);
+      const course = courses.find((c) => (c._id || c.id) === courseId);
       return course?.createdBy === currentUser._id;
     },
     [courses, currentUser],
@@ -246,9 +296,11 @@ export const CoursesProvider = ({ children }) => {
   const isEnrolled = useCallback(
     (courseId) => {
       if (!currentUser) return "none";
-      const course = courses.find((c) => c.id === courseId);
+      const course = courses.find((c) => (c._id || c.id) === courseId);
       if (course?.createdBy === currentUser._id) return "admin";
-      const member = course?.members.find((m) => m.id === currentUser._id);
+      const member = course?.members?.find(
+        (m) => (m._id || m.id || m.userId) === currentUser._id,
+      );
       if (!member) return "none";
       return member.status;
     },
@@ -268,8 +320,10 @@ export const CoursesProvider = ({ children }) => {
         }
       : null,
     createCourse,
+    removeCourse,
     addLesson,
     removeLesson,
+    getLessonComments,
     addComment,
     addReply,
     enrollInCourse,
@@ -279,7 +333,11 @@ export const CoursesProvider = ({ children }) => {
     isAdmin,
     isEnrolled,
     loading,
+    coursesPage,
+    coursesHasMore,
     fetchCourses,
+    joinCourseRoom,
+    leaveCourseRoom,
   };
 
   return (

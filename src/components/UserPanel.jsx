@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import styled from "styled-components";
 import { Mic, Headphones, Settings, Volume2, X, Star } from "lucide-react";
+import useAuthStore from "../store/authStore";
 
 const PanelContainer = styled.div`
   width: 60px;
@@ -153,7 +154,7 @@ const UserPanel = () => {
     }
   };
 
-  const user = JSON.parse(localStorage.getItem("user") || "{}");
+  const user = useAuthStore((state) => state.user);
   const isPremium = user?.premiumStatus === "active";
   const nameInitial = (user?.nickname || user?.username || "JD")
     .substring(0, 2)

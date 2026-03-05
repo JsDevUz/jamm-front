@@ -1,10 +1,30 @@
 import React, { useState, useEffect } from "react";
 import styled from "styled-components";
 import { Link, useNavigate } from "react-router-dom";
-import { Plus, Video, Lock, Globe, Trash2, Bookmark } from "lucide-react";
+import {
+  Plus,
+  Settings,
+  Bell,
+  LogOut,
+  Search,
+  Users,
+  Compass,
+  MessageSquare,
+  Zap,
+  Bookmark,
+  Hash,
+  Video,
+  Trash2,
+  Lock,
+  Globe,
+  Star,
+} from "lucide-react";
+import { Skeleton, SkeletonCircle, SkeletonRow } from "./Skeleton";
 import { useChats } from "../contexts/ChatsContext";
 import { usePresence } from "../contexts/PresenceContext";
 import { getMeets, removeMeet } from "../utils/meetStore";
+import useAuthStore from "../store/authStore";
+import InfiniteScroll from "react-infinite-scroll-component";
 
 const SidebarContainer = styled.div`
   width: 340px;
@@ -85,6 +105,31 @@ const FilterContainer = styled.div`
   padding: 8px 16px;
   gap: 8px;
   border-bottom: 1px solid var(--border-color);
+`;
+
+const ChatsTabsRow = styled.div`
+  display: flex;
+  border-bottom: 1px solid var(--border-color);
+  flex-shrink: 0;
+`;
+
+const ChatsTab = styled.button`
+  flex: 1;
+  padding: 11px 0;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid
+    ${(p) => (p.active ? "var(--primary-color)" : "transparent")};
+  color: ${(p) => (p.active ? "var(--text-color)" : "var(--text-muted-color)")};
+  font-size: 14px;
+  font-weight: ${(p) => (p.active ? "700" : "500")};
+  cursor: pointer;
+  transition: all 0.2s;
+
+  &:hover {
+    color: var(--text-color);
+    background: var(--hover-color);
+  }
 `;
 
 const FilterButton = styled.button`
@@ -202,6 +247,9 @@ const ChatMessage = styled.div`
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  display: flex;
+  align-items: center;
+  gap: 4px;
 `;
 
 const ChatMeta = styled.div`
@@ -273,23 +321,52 @@ const Status = styled.div`
 const UniversalSidebar = ({ onOpenCreateGroup, onOpenCreateMeet }) => {
   const {
     chats,
+    chatsPage,
+    chatsHasMore,
+    fetchChats,
     searchUsers,
     createChat,
     selectedNav,
+    getAllUsers,
     setSelectedNav,
     selectedChannel,
     setSelectedChannel,
+    previewChat,
   } = useChats();
   const { isUserOnline, getOnlineCount, fetchBulkStatuses } = usePresence();
+
+  const currentUser = useAuthStore((state) => state.user);
+
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (selectedNav !== "meets") {
+      fetchChats();
+    }
+  }, [fetchChats, selectedNav]);
+
   const [searchQuery, setSearchQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState("all");
-  const [userSearchResults, setUserSearchResults] = useState([]);
-  const [isSearchingUsers, setIsSearchingUsers] = useState(false);
+  const [allUsers, setAllUsers] = useState([]);
+  const [loadingUsers, setLoadingUsers] = useState(false);
+  const [chatTab, setChatTab] = useState(() => {
+    if (selectedNav === "groups") return "group";
+    return "private";
+  }); // 'private' | 'group'
+  const [meets, setMeets] = useState([]);
+
+  // Sync chatTab with selectedNav on mount or change
+  useEffect(() => {
+    if (selectedNav === "groups") {
+      setChatTab("group");
+    } else if (selectedNav === "users") {
+      setChatTab("private");
+    }
+  }, [selectedNav]);
 
   // Fetch initial online statuses for all members in all chats
   useEffect(() => {
-    if (!chats || chats.length === 0) return;
+    if (!chats || chats.length === 0 || selectedNav === "meets") return;
 
     const uniqueMemberIds = new Set();
     chats.forEach((chat) => {
@@ -305,28 +382,50 @@ const UniversalSidebar = ({ onOpenCreateGroup, onOpenCreateMeet }) => {
     if (userIds.length > 0) {
       fetchBulkStatuses(userIds);
     }
-  }, [chats, fetchBulkStatuses]);
+  }, [chats, fetchBulkStatuses, selectedNav]);
 
-  // When searchQuery changes and we are in 'users' tab, query the backend
+  // Tracks which nav we've already fetched users for — prevents duplicate calls
+  const fetchedNavRef = React.useRef(null);
+
+  // Load all users when entering users tab; search when query changes
   useEffect(() => {
-    if (selectedNav === "users" && searchQuery.trim().length > 0) {
-      const delayDebounceFn = setTimeout(async () => {
-        setIsSearchingUsers(true);
-        const results = await searchUsers(searchQuery);
-        setUserSearchResults(results);
-        setIsSearchingUsers(false);
-      }, 500); // Debounce for 500ms
-      return () => clearTimeout(delayDebounceFn);
-    } else {
-      setUserSearchResults([]);
+    if (selectedNav !== "users") {
+      setAllUsers([]);
+      fetchedNavRef.current = null;
+      return;
     }
-  }, [searchQuery, selectedNav, searchUsers]);
+    if (searchQuery.trim().length > 0) {
+      fetchedNavRef.current = null; // reset so full list re-fetches after clearing
+      const timer = setTimeout(async () => {
+        setLoadingUsers(true);
+        const results = await searchUsers(searchQuery);
+        setAllUsers(
+          results.map((u) => ({
+            id: u.id || u._id,
+            name: u.name,
+            username: u.username,
+            avatar: u.avatar,
+            premiumStatus: u.premiumStatus,
+          })),
+        );
+        setLoadingUsers(false);
+      }, 500);
+      return () => clearTimeout(timer);
+    } else {
+      // Only fetch all users once per nav visit (guard against re-renders)
+      if (fetchedNavRef.current === "users") return;
+      fetchedNavRef.current = "users";
+      setLoadingUsers(true);
+      getAllUsers().then((users) => {
+        setAllUsers(users);
+        setLoadingUsers(false);
+      });
+    }
+  }, [searchQuery, selectedNav, searchUsers, getAllUsers]);
 
   const handleStartPrivateChat = async (targetUser) => {
     // Check if chat already exists with this user
-    const currentUserStr = localStorage.getItem("user");
-    const currentUser = currentUserStr ? JSON.parse(currentUserStr) : {};
-    const currentUserId = currentUser._id || currentUser.id;
+    const currentUserId = currentUser?._id || currentUser?.id;
     const targetId = targetUser.id || targetUser._id;
 
     const existingChat = chats.find((c) => {
@@ -343,16 +442,21 @@ const UniversalSidebar = ({ onOpenCreateGroup, onOpenCreateMeet }) => {
     });
 
     if (existingChat) {
-      navigate(`/a/${existingChat.urlSlug}`);
+      if (existingChat.type === "group") {
+        navigate(`/groups/${existingChat.urlSlug}`);
+      } else {
+        navigate(`/users/${existingChat.urlSlug}`);
+      }
     } else {
       // Create new private chat
       try {
-        const chatId = await createChat({
+        const chat = await createChat({
           isGroup: false,
-          memberIds: [targetUser.id],
+          memberIds: [targetUser._id || targetUser.id],
         });
-        if (chatId) {
-          navigate(`/a/${chatId}`);
+        const chatSlug = chat?.urlSlug || chat?.jammId || chat?._id || chat?.id;
+        if (chatSlug) {
+          navigate(`/users/${chatSlug}`);
           setSearchQuery(""); // Clear search
         }
       } catch (error) {
@@ -361,25 +465,35 @@ const UniversalSidebar = ({ onOpenCreateGroup, onOpenCreateMeet }) => {
     }
   };
 
-  // Filter chats based on selectedNav and search
+  // Filter chats based on selectedNav/chatTab and search
   const filteredChats = React.useMemo(() => {
     let result = chats;
 
-    // Filter by type
-    if (selectedNav === "users") {
-      result = result.filter(
-        (chat) =>
-          chat.type === "user" &&
-          (chat.hasMessages || chat.id === selectedChannel),
-      );
-    } else if (selectedNav === "groups") {
-      result = result.filter((chat) => chat.type === "group");
+    // Unified filter: chats, users, and groups all use chatTab
+    if (
+      selectedNav === "chats" ||
+      selectedNav === "users" ||
+      selectedNav === "groups"
+    ) {
+      if (chatTab === "private") {
+        result = result.filter(
+          (chat) =>
+            chat.type === "user" &&
+            (chat.isSavedMessages ||
+              chat.hasMessages ||
+              String(chat.id) === String(selectedChannel)),
+        );
+      } else {
+        result = result.filter((chat) => chat.type === "group");
+      }
     } else if (selectedNav === "home") {
       result = result.filter(
         (chat) =>
           chat.type === "group" ||
           (chat.type === "user" &&
-            (chat.hasMessages || chat.id === selectedChannel)),
+            (chat.isSavedMessages ||
+              chat.hasMessages ||
+              String(chat.id) === String(selectedChannel))),
       );
     }
 
@@ -392,9 +506,7 @@ const UniversalSidebar = ({ onOpenCreateGroup, onOpenCreateMeet }) => {
 
     // Filter by date
     if (activeFilter === "today") {
-      const today = new Date().toDateString();
       result = result.filter((chat) => {
-        // Simple date filtering logic
         return chat.time.includes(":") || chat.time === "Kecha";
       });
     } else if (activeFilter === "week") {
@@ -403,11 +515,49 @@ const UniversalSidebar = ({ onOpenCreateGroup, onOpenCreateMeet }) => {
       });
     }
 
+    // Check if we have a preview user that hasn't been added to chats
+    if (
+      (selectedNav === "users" ||
+        (selectedNav === "chats" && chatTab === "private")) &&
+      previewChat &&
+      previewChat.type === "user" &&
+      !result.some((c) =>
+        c.members?.some((m) => (m._id || m.id) === previewChat.targetUserId),
+      )
+    ) {
+      // Create a virtual chat object for the previewed user so they show up in the active list
+      const virtualChat = {
+        id: `virtual-${previewChat.targetUserId}`,
+        urlSlug: previewChat.targetUserId,
+        type: "user",
+        name: previewChat.name,
+        avatar: previewChat.avatar,
+        hasMessages: false,
+        members: [{ _id: previewChat.targetUserId }],
+        lastMessage: "Xabar yozishni boshlang...",
+      };
+
+      // Add it to the top of the list if we're on their slug
+      if (String(selectedChannel) === String(previewChat.targetUserId)) {
+        result = [virtualChat, ...result];
+      }
+    }
+
     return result;
-  }, [selectedNav, searchQuery, activeFilter, chats, selectedChannel]);
+  }, [
+    selectedNav,
+    chatTab,
+    searchQuery,
+    activeFilter,
+    chats,
+    selectedChannel,
+    previewChat,
+  ]);
 
   const getHeaderText = () => {
     switch (selectedNav) {
+      case "chats":
+        return chatTab === "private" ? "Shaxsiy suhbatlar" : "Guruhlar";
       case "home":
         return "Barcha suhbatlar";
       case "users":
@@ -422,9 +572,15 @@ const UniversalSidebar = ({ onOpenCreateGroup, onOpenCreateMeet }) => {
   };
 
   // Meet list helpers
-  const [meets, setMeets] = useState([]);
+  const meetsFetchedRef = React.useRef(false);
   useEffect(() => {
-    if (selectedNav === "meets") setMeets(getMeets());
+    if (selectedNav === "meets" && !meetsFetchedRef.current) {
+      meetsFetchedRef.current = true;
+      getMeets().then((data) => setMeets(Array.isArray(data) ? data : []));
+    }
+    if (selectedNav !== "meets") {
+      meetsFetchedRef.current = false;
+    }
   }, [selectedNav]);
 
   function timeAgo(ts) {
@@ -453,12 +609,15 @@ const UniversalSidebar = ({ onOpenCreateGroup, onOpenCreateMeet }) => {
           style={{
             flex: 1,
             marginRight:
-              selectedNav === "groups" || selectedNav === "meets"
+              selectedNav === "groups" ||
+              selectedNav === "meets" ||
+              (selectedNav === "chats" && chatTab === "group")
                 ? "12px"
                 : "0",
           }}
         />
-        {selectedNav === "groups" && (
+        {(selectedNav === "groups" ||
+          (selectedNav === "chats" && chatTab === "group")) && (
           <AddButton onClick={onOpenCreateGroup} title="Guruh yaratish">
             <Plus size={18} />
           </AddButton>
@@ -469,6 +628,26 @@ const UniversalSidebar = ({ onOpenCreateGroup, onOpenCreateMeet }) => {
           </AddButton>
         )}
       </TopHeader>
+
+      {/* Internal tabs when chats nav is active */}
+      {(selectedNav === "chats" ||
+        selectedNav === "users" ||
+        selectedNav === "groups") && (
+        <ChatsTabsRow>
+          <ChatsTab
+            active={chatTab === "private"}
+            onClick={() => setChatTab("private")}
+          >
+            Shaxsiy
+          </ChatsTab>
+          <ChatsTab
+            active={chatTab === "group"}
+            onClick={() => setChatTab("group")}
+          >
+            Guruhlar
+          </ChatsTab>
+        </ChatsTabsRow>
+      )}
 
       {selectedNav === "home" && (
         <FilterContainer>
@@ -493,7 +672,7 @@ const UniversalSidebar = ({ onOpenCreateGroup, onOpenCreateMeet }) => {
         </FilterContainer>
       )}
 
-      <ChatList>
+      <ChatList id="sidebarScrollArea">
         {/* ─── Meets List ─── */}
         {selectedNav === "meets" ? (
           meets.length === 0 ? (
@@ -511,15 +690,17 @@ const UniversalSidebar = ({ onOpenCreateGroup, onOpenCreateMeet }) => {
             meets.map((m) => (
               <ChatLink key={m.roomId} to={`/join/${m.roomId}`}>
                 <ChatItem>
-                  <ChatAvatar isGroup>
-                    <Video size={18} />
-                  </ChatAvatar>
+                  <AvatarWrapper>
+                    <ChatAvatar isGroup>
+                      <Video size={18} />
+                    </ChatAvatar>
+                  </AvatarWrapper>
                   <ChatInfo>
                     <ChatName>{m.title || "Nomsiz meet"}</ChatName>
                     <ChatMessage>
-                      {m.isPrivate ? "🔒 Private" : "🌐 Open"}
-                      {" · "}
-                      {m.isCreator ? "Yaratuvchi" : "Ishtirokchi"}
+                      {m.isPrivate ? <Lock size={12} /> : <Globe size={12} />}
+
+                      <span>{m.isCreator ? "Admin" : "Ishtirokchi"}</span>
                     </ChatMessage>
                   </ChatInfo>
                   <ChatMeta>
@@ -542,165 +723,228 @@ const UniversalSidebar = ({ onOpenCreateGroup, onOpenCreateMeet }) => {
               </ChatLink>
             ))
           )
-        ) : selectedNav === "users" && searchQuery.trim() ? (
-          <>
-            {isSearchingUsers ? (
-              <div
-                style={{
-                  padding: "20px",
-                  textAlign: "center",
-                  color: "var(--text-muted-color)",
-                }}
-              >
-                Qidirilmoqda...
-              </div>
-            ) : userSearchResults.length > 0 ? (
-              userSearchResults.map((user) => (
-                <ChatItem
-                  key={user.id}
-                  onClick={() => handleStartPrivateChat(user)}
-                  style={{ cursor: "pointer" }}
-                >
-                  <ChatAvatar isGroup={false}>
-                    {user?.avatar?.length > 1 ? (
-                      <img
-                        src={user.avatar}
-                        alt={user.name}
-                        style={{
-                          width: "100%",
-                          height: "100%",
-                          borderRadius: "50%",
-                          objectFit: "cover",
-                        }}
-                      />
-                    ) : (
-                      user.name.charAt(0)
-                    )}
-                  </ChatAvatar>
-                  <ChatInfo>
-                    <ChatName>{user.name}</ChatName>
-                    <ChatMessage>@{user.username}</ChatMessage>
-                  </ChatInfo>
-                </ChatItem>
-              ))
-            ) : (
-              <div
-                style={{
-                  padding: "20px",
-                  textAlign: "center",
-                  color: "var(--text-muted-color)",
-                }}
-              >
-                Foydalanuvchi topilmadi
-              </div>
-            )}
-          </>
         ) : (
           <>
-            {(selectedNav === "users" || selectedNav === "home") &&
-              !searchQuery.trim() &&
-              !chats.some((c) => c.isSavedMessages) && (
-                <ChatItem
-                  onClick={() => {
-                    const currentUserStr = localStorage.getItem("user");
-                    if (currentUserStr) {
-                      const currentUser = JSON.parse(currentUserStr);
-                      const currentUserId = currentUser._id || currentUser.id;
-                      if (currentUserId) {
-                        handleStartPrivateChat({ id: currentUserId });
-                      }
-                    }
+            <InfiniteScroll
+              dataLength={filteredChats.length}
+              next={() => fetchChats(chatsPage + 1)}
+              hasMore={
+                chatsHasMore && activeFilter === "all" && searchQuery === ""
+              }
+              loader={
+                <div
+                  style={{
+                    textAlign: "center",
+                    padding: "10px",
+                    color: "var(--text-muted-color)",
+                    fontSize: "12px",
                   }}
-                  style={{ cursor: "pointer" }}
                 >
-                  <AvatarWrapper>
-                    <ChatAvatar style={{ backgroundColor: "#0288D1" }}>
-                      <Bookmark size={18} color="white" fill="white" />
-                    </ChatAvatar>
-                  </AvatarWrapper>
-                  <ChatInfo>
-                    <ChatName>Saqlangan xabarlar</ChatName>
-                    <ChatMessage>O'zingizga xabar yozish</ChatMessage>
-                  </ChatInfo>
-                </ChatItem>
-              )}
-            {filteredChats.map((chat) => {
-              // Get the other user's ID for private chats
-              const currentUser = JSON.parse(
-                localStorage.getItem("user") || "{}",
-              );
-              const currentUserId = currentUser._id || currentUser.id;
-              const otherMember =
-                chat.type !== "group" && chat.members
-                  ? chat.members.find((m) => m._id !== currentUserId)
-                  : null;
-              const otherUserId = otherMember?._id;
-              const isOnline = otherUserId ? isUserOnline(otherUserId) : false;
-              const onlineCount =
-                chat.type === "group" ? getOnlineCount(chat.members) : 0;
+                  Yuklanmoqda...
+                </div>
+              }
+              endMessage={
+                filteredChats.length > 0 &&
+                activeFilter === "all" &&
+                searchQuery === "" ? (
+                  <div
+                    style={{
+                      textAlign: "center",
+                      padding: "10px",
+                      color: "var(--text-muted-color)",
+                      fontSize: "12px",
+                    }}
+                  >
+                    Barcha suhbatlar ko'rsatildi.
+                  </div>
+                ) : null
+              }
+              scrollableTarget="sidebarScrollArea"
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                overflow: "visible",
+              }}
+            >
+              {filteredChats.map((chat) => {
+                // Get the other user's ID for private chats
+                const currentUserId = currentUser?._id || currentUser?.id;
+                const otherMember =
+                  chat.type !== "group" && chat.members
+                    ? chat.members.find((m) => m._id !== currentUserId)
+                    : null;
+                const otherUserId = otherMember?._id;
+                const isOnline = otherUserId
+                  ? isUserOnline(otherUserId)
+                  : false;
+                const onlineCount =
+                  chat.type === "group" ? getOnlineCount(chat.members) : 0;
 
-              return (
-                <ChatLink key={chat.id} to={`/a/${chat.urlSlug}`}>
-                  <ChatItem active={selectedChannel === chat.urlSlug}>
-                    <AvatarWrapper>
-                      <ChatAvatar
-                        $isGroup={chat.type === "group" || chat.isSavedMessages}
-                        style={
-                          chat.isSavedMessages
-                            ? { backgroundColor: "#0288D1" }
-                            : {}
-                        }
+                return (
+                  <ChatLink
+                    key={chat.id}
+                    to={`/${chat.type === "group" ? "groups" : "users"}/${chat.urlSlug}`}
+                  >
+                    <ChatItem active={selectedChannel === chat.urlSlug}>
+                      <AvatarWrapper>
+                        <ChatAvatar
+                          $isGroup={
+                            chat.type === "group" || chat.isSavedMessages
+                          }
+                          style={
+                            chat.isSavedMessages
+                              ? { backgroundColor: "#0288D1" }
+                              : {}
+                          }
+                        >
+                          {chat.isSavedMessages ? (
+                            <Bookmark size={18} color="white" fill="white" />
+                          ) : chat.avatar?.length > 1 ? (
+                            <img
+                              src={chat.avatar}
+                              alt={chat.name}
+                              style={{
+                                width: "100%",
+                                height: "100%",
+                                borderRadius: "50%",
+                                objectFit: "cover",
+                              }}
+                            />
+                          ) : chat.type === "group" ? (
+                            chat.name.charAt(0)
+                          ) : (
+                            chat.name
+                              .split(" ")
+                              .map((n) => n[0])
+                              .join("")
+                          )}
+                        </ChatAvatar>
+                        {chat.type !== "group" && !chat.isSavedMessages && (
+                          <OnlineDot $online={isOnline} />
+                        )}
+                      </AvatarWrapper>
+                      <ChatInfo>
+                        <ChatName>
+                          {chat.name}
+                          {chat.premiumStatus === "active" && (
+                            <Star
+                              size={14}
+                              fill="#ffaa00"
+                              color="#ffaa00"
+                              style={{ marginLeft: 4 }}
+                            />
+                          )}
+                        </ChatName>
+                        <ChatMessage>
+                          {chat.type === "group" && onlineCount > 0 ? (
+                            <>
+                              {chat.lastMessage}
+                              {" · "}
+                              <OnlineSubtext>
+                                {onlineCount} online
+                              </OnlineSubtext>
+                            </>
+                          ) : (
+                            chat.lastMessage
+                          )}
+                        </ChatMessage>
+                      </ChatInfo>
+                      <ChatMeta>
+                        <ChatTime>{chat.time}</ChatTime>
+                        {chat.unread > 0 && (
+                          <UnreadBadge>{chat.unread}</UnreadBadge>
+                        )}
+                      </ChatMeta>
+                    </ChatItem>
+                  </ChatLink>
+                );
+              })}
+            </InfiniteScroll>
+
+            {/* ─── Global Platform Users List (Users tab only) ─── */}
+            {selectedNav === "users" && (
+              <>
+                {loadingUsers ? (
+                  <div
+                    style={{
+                      padding: "20px 16px",
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "16px",
+                    }}
+                  >
+                    {[...Array(4)].map((_, i) => (
+                      <SkeletonRow key={i}>
+                        <SkeletonCircle size="40px" />
+                        <div style={{ flex: 1 }}>
+                          <Skeleton height="14px" width="60%" mb="6px" />
+                          <Skeleton height="12px" width="40%" mb="0" />
+                        </div>
+                      </SkeletonRow>
+                    ))}
+                  </div>
+                ) : (
+                  allUsers
+                    .filter((u) => {
+                      const targetUserId = u.id || u._id;
+                      const currentUserId = currentUser?._id || currentUser?.id;
+
+                      // Skip me
+                      if (targetUserId === currentUserId) return false;
+
+                      // Check if this user is ALREADY displayed in the 'filteredChats' list above
+                      const isAlreadyDisplayed = filteredChats.some(
+                        (c) =>
+                          !c.isGroup &&
+                          !c.isSavedMessages &&
+                          c.members?.some(
+                            (m) => (m._id || m.id) === targetUserId,
+                          ),
+                      );
+
+                      return !isAlreadyDisplayed;
+                    })
+                    .map((user) => (
+                      <ChatItem
+                        key={user.id}
+                        onClick={() => handleStartPrivateChat(user)}
+                        style={{ cursor: "pointer" }}
                       >
-                        {chat.isSavedMessages ? (
-                          <Bookmark size={18} color="white" fill="white" />
-                        ) : chat.avatar?.length > 1 ? (
-                          <img
-                            src={chat.avatar}
-                            alt={chat.name}
-                            style={{
-                              width: "100%",
-                              height: "100%",
-                              borderRadius: "50%",
-                              objectFit: "cover",
-                            }}
-                          />
-                        ) : chat.type === "group" ? (
-                          chat.name.charAt(0)
-                        ) : (
-                          chat.name
-                            .split(" ")
-                            .map((n) => n[0])
-                            .join("")
-                        )}
-                      </ChatAvatar>
-                      {chat.type !== "group" && !chat.isSavedMessages && (
-                        <OnlineDot $online={isOnline} />
-                      )}
-                    </AvatarWrapper>
-                    <ChatInfo>
-                      <ChatName>{chat.name}</ChatName>
-                      <ChatMessage>
-                        {chat.type === "group" && onlineCount > 0 ? (
-                          <>
-                            {chat.lastMessage}
-                            {" · "}
-                            <OnlineSubtext>{onlineCount} online</OnlineSubtext>
-                          </>
-                        ) : (
-                          chat.lastMessage
-                        )}
-                      </ChatMessage>
-                    </ChatInfo>
-                    <ChatMeta>
-                      <ChatTime>{chat.time}</ChatTime>
-                      {chat.unread > 0 && (
-                        <UnreadBadge>{chat.unread}</UnreadBadge>
-                      )}
-                    </ChatMeta>
-                  </ChatItem>
-                </ChatLink>
-              );
-            })}
+                        <ChatAvatar isGroup={false}>
+                          {user?.avatar?.length > 1 ? (
+                            <img
+                              src={user.avatar}
+                              alt={user.name}
+                              style={{
+                                width: "100%",
+                                height: "100%",
+                                borderRadius: "50%",
+                                objectFit: "cover",
+                              }}
+                            />
+                          ) : (
+                            (user.name || "?").charAt(0)
+                          )}
+                        </ChatAvatar>
+                        <ChatInfo>
+                          <ChatName>
+                            {user.name}
+                            {user.premiumStatus === "active" && (
+                              <Star
+                                size={14}
+                                fill="#ffaa00"
+                                color="#ffaa00"
+                                style={{ marginLeft: 4 }}
+                              />
+                            )}
+                          </ChatName>
+                          <ChatMessage>@{user.username}</ChatMessage>
+                        </ChatInfo>
+                      </ChatItem>
+                    ))
+                )}
+              </>
+            )}
           </>
         )}
       </ChatList>

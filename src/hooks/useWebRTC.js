@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { io } from "socket.io-client";
+import useAuthStore from "../store/authStore";
 
 const SIGNAL_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
 
@@ -64,6 +65,7 @@ export function useWebRTC({
   const screenStreamRef = useRef(null);
   const screenSendersRef = useRef({});
   const knownStreamsRef = useRef({});
+  const candidateQueuesRef = useRef({}); // Store candidates until remote sdp is set
 
   // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -163,6 +165,14 @@ export function useWebRTC({
         let pc = peerConnectionsRef.current[senderId];
         if (!pc) pc = createPeerConnection(senderId, senderId);
         await pc.setRemoteDescription(new RTCSessionDescription(sdp));
+
+        // Process queued ice candidates
+        const queue = candidateQueuesRef.current[senderId] || [];
+        while (queue.length > 0) {
+          const cand = queue.shift();
+          await pc.addIceCandidate(new RTCIceCandidate(cand)).catch(() => {});
+        }
+
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
         socket.emit("answer", { targetId: senderId, sdp: answer });
@@ -170,15 +180,29 @@ export function useWebRTC({
 
       socket.on("answer", async ({ senderId, sdp }) => {
         const pc = peerConnectionsRef.current[senderId];
-        if (pc) await pc.setRemoteDescription(new RTCSessionDescription(sdp));
+        if (pc) {
+          await pc.setRemoteDescription(new RTCSessionDescription(sdp));
+          // Process queued ice candidates
+          const queue = candidateQueuesRef.current[senderId] || [];
+          while (queue.length > 0) {
+            const cand = queue.shift();
+            await pc.addIceCandidate(new RTCIceCandidate(cand)).catch(() => {});
+          }
+        }
       });
 
       socket.on("ice-candidate", async ({ senderId, candidate }) => {
         const pc = peerConnectionsRef.current[senderId];
-        if (pc && candidate) {
+        if (pc && pc.remoteDescription && pc.remoteDescription.type) {
           try {
             await pc.addIceCandidate(new RTCIceCandidate(candidate));
           } catch {}
+        } else {
+          // Queue candidates if connection not ready for them
+          if (!candidateQueuesRef.current[senderId]) {
+            candidateQueuesRef.current[senderId] = [];
+          }
+          candidateQueuesRef.current[senderId].push(candidate);
         }
       });
 
@@ -233,7 +257,11 @@ export function useWebRTC({
         if (videoTrack) videoTrack.enabled = initialCamOn;
 
         // 2. Connect to signaling server
-        const socket = io(`${SIGNAL_URL}/video`, { transports: ["websocket"] });
+        const token = useAuthStore.getState().token;
+        const socket = io(`${SIGNAL_URL}/video`, {
+          transports: ["websocket"],
+          auth: { token },
+        });
         socketRef.current = socket;
 
         // 3. Attach signaling
@@ -336,6 +364,26 @@ export function useWebRTC({
           });
         });
 
+        // 5g. Server-side error (e.g. premium limit, auth failed)
+        socket.on("error", ({ message }) => {
+          if (!isMounted) return;
+
+          // If Room not found and we are a guest, we have retry logic below
+          if (message === "Room not found" && !isCreator) {
+            return;
+          }
+
+          setError(message || "Server xatosi yuz berdi");
+          setJoinStatus("idle");
+        });
+
+        socket.on("connect_error", (err) => {
+          if (isMounted) {
+            setError("Serverga ulanib bo'lmadi: " + err.message);
+            setJoinStatus("idle");
+          }
+        });
+
         // 6. Join or create room
         if (isCreator) {
           socket.emit("create-room", {
@@ -348,9 +396,31 @@ export function useWebRTC({
             setJoinStatus("joined");
           });
         } else {
-          socket.emit("join-room", { roomId, displayName });
-          // Don't set joined here — wait for server to confirm via
-          // "existing-peers" (open) or "knock-approved" (private)
+          // Join with retry if room not found (creator might still be creating)
+          let retryCount = 0;
+          const MAX_RETRIES = 6; // ~10 seconds total
+
+          const join = () => {
+            if (!socketRef.current) return;
+            socketRef.current.emit("join-room", { roomId, displayName });
+          };
+
+          const handleRoomError = ({ message }) => {
+            if (message === "Room not found" && isMounted) {
+              if (retryCount < MAX_RETRIES) {
+                retryCount++;
+                console.log(
+                  `[useWebRTC] Room not found, retrying join (${retryCount}/${MAX_RETRIES})...`,
+                );
+                setTimeout(join, 1500); // Retry after 1.5s
+              } else {
+                setError("Xona topilmadi yoki hali boshlanmagan");
+                setJoinStatus("idle");
+              }
+            }
+          };
+          socket.on("error", handleRoomError);
+          join();
         }
       } catch (err) {
         console.error("[useWebRTC]", err);
@@ -429,21 +499,27 @@ export function useWebRTC({
   }, [camLocked]);
 
   const leaveCall = useCallback(() => {
-    if (socketRef.current) {
-      socketRef.current.emit("leave-room", { roomId });
-      socketRef.current.disconnect();
+    try {
+      if (socketRef.current) {
+        socketRef.current.emit("leave-room", { roomId });
+        socketRef.current.disconnect();
+      }
+      Object.values(peerConnectionsRef.current).forEach((pc) => pc.close());
+      peerConnectionsRef.current = {};
+      localStreamRef.current?.getTracks().forEach((t) => t.stop());
+      localStreamRef.current = null;
+      screenStreamRef.current?.getTracks().forEach((t) => t.stop());
+      screenStreamRef.current = null;
+    } catch (e) {
+      console.error("Error in leaveCall:", e);
+    } finally {
+      setLocalStream(null);
+      setScreenStream(null);
+      setIsScreenSharing(false);
+      setRemoteStreams([]);
+      setRemoteScreenStreams([]);
+      setJoinStatus("idle");
     }
-    Object.values(peerConnectionsRef.current).forEach((pc) => pc.close());
-    peerConnectionsRef.current = {};
-    localStreamRef.current?.getTracks().forEach((t) => t.stop());
-    localStreamRef.current = null;
-    screenStreamRef.current?.getTracks().forEach((t) => t.stop());
-    screenStreamRef.current = null;
-    setLocalStream(null);
-    setScreenStream(null);
-    setIsScreenSharing(false);
-    setRemoteStreams([]);
-    setRemoteScreenStreams([]);
   }, [roomId]);
 
   // ─── Screen Share ─────────────────────────────────────────────────────────────

@@ -6,6 +6,10 @@ import React, {
   useCallback,
 } from "react";
 import { io } from "socket.io-client";
+import useAuthStore from "../store/authStore";
+import * as chatApi from "../api/chatApi";
+import { formatChatTime } from "../utils/dateUtils";
+import dayjs from "dayjs";
 
 const ChatsContext = createContext();
 
@@ -18,13 +22,43 @@ export const useChats = () => {
 export const ChatsProvider = ({ children }) => {
   const [chats, setChats] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [selectedNav, setSelectedNav] = useState("home");
-  const [selectedChannel, setSelectedChannel] = useState(0);
+  const [chatsPage, setChatsPage] = useState(1);
+  const [chatsHasMore, setChatsHasMore] = useState(true);
+  const [selectedNav, setSelectedNav] = useState(() => {
+    const parts = window.location.pathname.split("/").filter(Boolean);
+    const first = parts[0] || "home";
+    const knownNavs = [
+      "home",
+      "feed",
+      "chats",
+      "users",
+      "groups",
+      "meets",
+      "courses",
+      "arena",
+      "profile",
+    ];
+    if (first === "a") return "chats";
+    return knownNavs.includes(first) ? first : "feed";
+  });
+  const [selectedChannel, setSelectedChannel] = useState(() => {
+    const parts = window.location.pathname.split("/").filter(Boolean);
+    if (
+      (parts[0] === "a" ||
+        parts[0] === "users" ||
+        parts[0] === "groups" ||
+        parts[0] === "chats") &&
+      parts[1]
+    )
+      return parts[1];
+    return 0;
+  });
   const [chatSocket, setChatSocket] = useState(null);
-  const [typingUsers, setTypingUsers] = useState({}); // { chatId: { userId: timestamp } }
+  const [typingUsers, setTypingUsers] = useState({});
+  const [previewChat, setPreviewChat] = useState(null);
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
+    const token = useAuthStore.getState().token;
     if (!token) return;
 
     const baseUrl = API_URL.replace(/\/$/, "");
@@ -65,14 +99,10 @@ export const ChatsProvider = ({ children }) => {
 
         chat.lastMessage = rawMsg.content;
         chat.hasMessages = true;
-        chat.time = new Date(rawMsg.createdAt).toLocaleDateString("uz-UZ", {
-          month: "short",
-          day: "numeric",
-          hour: "2-digit",
-          minute: "2-digit",
-        });
+        chat.time = formatChatTime(rawMsg.createdAt);
+        chat.date = dayjs(rawMsg.createdAt).format("YYYY-MM-DD");
 
-        const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
+        const currentUser = useAuthStore.getState().user || {};
         const currentUserId = currentUser._id || currentUser.id;
         const isOurMessage =
           (rawMsg.senderId?._id || rawMsg.senderId) === currentUserId;
@@ -88,7 +118,7 @@ export const ChatsProvider = ({ children }) => {
     };
 
     const handleGlobalMessagesRead = ({ chatId, readByUserId, messageIds }) => {
-      const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
+      const currentUser = useAuthStore.getState().user || {};
       const currentUserId = currentUser._id || currentUser.id;
 
       if (String(readByUserId) === String(currentUserId)) {
@@ -107,7 +137,7 @@ export const ChatsProvider = ({ children }) => {
     };
 
     const handleChatUpdated = (data) => {
-      const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
+      const currentUser = useAuthStore.getState().user || {};
       const currentUserId = currentUser?._id || currentUser?.id;
 
       if (data.members && currentUserId) {
@@ -196,20 +226,20 @@ export const ChatsProvider = ({ children }) => {
     [chatSocket],
   );
 
-  const fetchChats = useCallback(async () => {
+  const fetchChats = useCallback(async (page = 1) => {
     try {
-      const token = localStorage.getItem("token");
+      if (page === 1) setLoading(true);
+      const token = useAuthStore.getState().token;
       if (!token) return;
 
-      const res = await fetch(`${API_URL}/chats`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await res.json();
+      const res = await chatApi.fetchChats(page, 15);
+      const rawChats = res?.data || [];
+      const totalPages = res?.totalPages || 1;
 
-      const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
+      const currentUser = useAuthStore.getState().user || {};
       const currentUserId = currentUser._id || currentUser.id;
 
-      const formatted = data.map((chat) => {
+      const formatted = rawChats.map((chat) => {
         let displayInfo = { name: "Noma'lum", avatar: "" };
 
         if (chat.isGroup) {
@@ -228,6 +258,7 @@ export const ChatsProvider = ({ children }) => {
               avatar:
                 other.avatar || (other.nickname || other.username).charAt(0),
               urlSlug: other.username,
+              premiumStatus: other.premiumStatus,
             };
           } else {
             displayInfo = {
@@ -246,6 +277,7 @@ export const ChatsProvider = ({ children }) => {
           name: displayInfo.name,
           avatar: displayInfo.avatar,
           isSavedMessages: displayInfo.isSavedMessages,
+          premiumStatus: displayInfo.premiumStatus,
           urlSlug: chat.jammId
             ? String(chat.jammId)
             : displayInfo.urlSlug || chat._id,
@@ -254,65 +286,64 @@ export const ChatsProvider = ({ children }) => {
             chat.lastMessage ||
             (chat.isGroup ? "Guruh yaratildi" : "Suhbat boshlandi"),
           time: chat.lastMessageAt
-            ? new Date(chat.lastMessageAt).toLocaleDateString("uz-UZ", {
-                month: "short",
-                day: "numeric",
-                hour: "2-digit",
-                minute: "2-digit",
-              })
+            ? formatChatTime(chat.lastMessageAt)
+            : "Oldin",
+          date: chat.lastMessageAt
+            ? dayjs(chat.lastMessageAt).format("YYYY-MM-DD")
             : "Oldin",
           members: chat.members,
           createdBy: chat.createdBy,
           admins: chat.admins || [],
+          hasMessages: !!chat.lastMessage,
         };
       });
 
-      setChats(formatted);
+      setChats((prev) => (page === 1 ? formatted : [...prev, ...formatted]));
+      setChatsPage(page);
+      setChatsHasMore(page < totalPages);
     } catch (error) {
       console.error(error);
     } finally {
-      setLoading(false);
+      if (page === 1) setLoading(false);
     }
   }, []);
 
   const createChat = async (dto) => {
-    const res = await fetch(`${API_URL}/chats`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${localStorage.getItem("token")}`,
-      },
-      body: JSON.stringify(dto),
-    });
-
-    const data = await res.json();
-    if (!res.ok) {
-      throw new Error(data.message || "Xatolik yuz berdi");
-    }
-
+    const data = await chatApi.createChat(dto);
     fetchChats();
-    return String(data.jammId || data._id);
+    return data;
   };
 
   const editChat = async (chatId, dto) => {
-    await fetch(`${API_URL}/chats/${chatId}`, {
-      method: "PATCH",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${localStorage.getItem("token")}`,
-      },
-      body: JSON.stringify(dto),
-    });
+    await chatApi.editChat({ chatId, dto });
     fetchChats();
   };
 
-  const fetchMessages = useCallback(async (chatId) => {
-    if (!chatId) return [];
-    const res = await fetch(`${API_URL}/chats/${chatId}/messages`, {
-      headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
-    });
-    const data = await res.json();
-    return data.map((msg) => ({
+  const fetchMessages = useCallback(async (chatId, page = 1, limit = 30) => {
+    if (!chatId) return { data: [], totalPages: 1 };
+    const res = await chatApi.fetchMessages(chatId, page, limit);
+    return {
+      data: (res.data || []).map((msg) => ({
+        id: msg._id,
+        user: msg.senderId?.nickname || msg.senderId?.username,
+        senderId: msg.senderId?._id || msg.senderId,
+        avatar:
+          msg.senderId?.avatar ||
+          (msg.senderId?.nickname || msg.senderId?.username)?.charAt(0) ||
+          "U",
+        content: msg.content,
+        timestamp: dayjs(msg.createdAt).format("HH:mm"),
+
+        readBy: msg.readBy || [],
+      })),
+      totalPages: res.totalPages || 1,
+      page: res.page || 1,
+    };
+  }, []);
+
+  const sendMessage = useCallback(async (chatId, content, replayToId) => {
+    const msg = await chatApi.sendMessage({ chatId, content, replayToId });
+    return {
       id: msg._id,
       user: msg.senderId?.nickname || msg.senderId?.username,
       senderId: msg.senderId?._id || msg.senderId,
@@ -321,29 +352,11 @@ export const ChatsProvider = ({ children }) => {
         (msg.senderId?.nickname || msg.senderId?.username)?.charAt(0) ||
         "U",
       content: msg.content,
-      timestamp: new Date(msg.createdAt).toLocaleTimeString([], {
-        hour: "2-digit",
-        minute: "2-digit",
-      }),
+      timestamp: dayjs(msg.createdAt).format("HH:mm"),
       readBy: msg.readBy || [],
-    }));
+      replayTo: msg.replayTo || null,
+    };
   }, []);
-
-  const sendMessage = useCallback(
-    async (chatId, content, replayToId) => {
-      const res = await fetch(`${API_URL}/chats/${chatId}/messages`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("token")}`,
-        },
-        body: JSON.stringify({ content, replayToId }),
-      });
-      fetchChats();
-      return res.json();
-    },
-    [fetchChats],
-  );
 
   const markMessagesAsRead = useCallback(
     (chatId, messageIds) => {
@@ -354,37 +367,46 @@ export const ChatsProvider = ({ children }) => {
   );
 
   const resolveChatSlug = useCallback(async (slug) => {
-    const res = await fetch(`${API_URL}/chats/resolve/${slug}`, {
-      headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
-    });
-    return res.json();
+    return chatApi.resolveChatSlug(slug);
   }, []);
 
-  const searchUsers = async (query) => {
+  const searchUsers = useCallback(async (query) => {
     if (!query) return [];
-    const res = await fetch(`${API_URL}/users/search?q=${query}`, {
-      headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
-    });
-    const data = await res.json();
+    const data = await chatApi.searchUsers(query);
     return data.map((u) => ({
       id: u._id,
       name: u.nickname || u.username,
       username: u.username,
       avatar: u.avatar || (u.nickname || u.username).charAt(0),
     }));
-  };
+  }, []);
 
   const getUserByUsername = async (username) => {
-    const res = await fetch(`${API_URL}/users/by-username/${username}`, {
-      headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
-    });
-    if (!res.ok) return null;
-    return res.json();
+    try {
+      return await chatApi.getUserByUsername(username);
+    } catch {
+      return null;
+    }
   };
 
+  const getAllUsers = useCallback(async () => {
+    try {
+      const data = await chatApi.getAllUsers();
+      return data.map((u) => ({
+        id: u._id,
+        name: u.nickname || u.username,
+        username: u.username,
+        avatar: u.avatar || (u.nickname || u.username || "").charAt(0),
+        premiumStatus: u.premiumStatus,
+      }));
+    } catch {
+      return [];
+    }
+  }, []);
+
   useEffect(() => {
-    fetchChats();
-  }, [fetchChats]);
+    // Moved to ChannelSidebar for lazy loading
+  }, []);
 
   useEffect(() => {
     if (!selectedChannel || selectedChannel === "0") return;
@@ -404,6 +426,8 @@ export const ChatsProvider = ({ children }) => {
   const value = {
     chats,
     loading,
+    chatsPage,
+    chatsHasMore,
     fetchChats,
     createChat,
     editChat,
@@ -413,6 +437,7 @@ export const ChatsProvider = ({ children }) => {
     resolveChatSlug,
     searchUsers,
     getUserByUsername,
+    getAllUsers,
     selectedNav,
     setSelectedNav,
     selectedChannel,
@@ -421,28 +446,19 @@ export const ChatsProvider = ({ children }) => {
     typingUsers,
     sendTypingStatus,
     previewGroupChat: async (slug) => {
-      const res = await fetch(`${API_URL}/chats/preview/${slug}`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
-      });
-      if (!res.ok) throw new Error("Guruh topilmadi");
-      return res.json();
+      return chatApi.previewGroupChat(slug);
     },
     joinGroupChat: async (slug) => {
-      const res = await fetch(`${API_URL}/chats/join/${slug}`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
-      });
-      if (!res.ok) throw new Error("Guruhga qo'shilish imkonsiz");
+      const data = await chatApi.joinGroupChat(slug);
       fetchChats();
-      return res.json();
+      return data;
     },
     deleteMessage: async (messageId) => {
-      await fetch(`${API_URL}/chats/messages/${messageId}`, {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
-      });
+      await chatApi.deleteMessage(messageId);
       fetchChats();
     },
+    previewChat,
+    setPreviewChat,
   };
 
   return (

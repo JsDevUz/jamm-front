@@ -1,8 +1,21 @@
 import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import styled from "styled-components";
-import { Plus, Users, Lock, CheckCircle, Clock } from "lucide-react";
+import {
+  Plus,
+  Users,
+  Lock,
+  CheckCircle,
+  Clock,
+  Trash2,
+  BookOpen,
+  Swords,
+  Layers,
+} from "lucide-react";
 import { useCourses } from "../contexts/CoursesContext";
+import InfiniteScroll from "react-infinite-scroll-component";
 import CreateCourseDialog from "./CreateCourseDialog";
+import ConfirmDialog from "./ConfirmDialog";
 
 const SidebarContainer = styled.div`
   width: 340px;
@@ -48,6 +61,34 @@ const CreateButton = styled.button`
   &:hover {
     color: var(--text-color);
     background-color: var(--hover-color);
+  }
+`;
+
+const TabsContainer = styled.div`
+  display: flex;
+  padding: 16px 16px 0 16px;
+  gap: 8px;
+`;
+
+const NavTab = styled.button`
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 8px;
+  border: none;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  background-color: ${(props) =>
+    props.active ? "var(--primary-color)" : "var(--background-color)"};
+  color: ${(props) => (props.active ? "white" : "var(--text-color)")};
+  transition: all 0.2s;
+
+  &:hover {
+    filter: brightness(1.1);
   }
 `;
 
@@ -171,7 +212,7 @@ const CourseMeta = styled.div`
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 4px;
+  gap: 8px;
   flex-shrink: 0;
 `;
 
@@ -233,15 +274,47 @@ const EmptyIcon = styled.div`
   opacity: 0.6;
 `;
 
-const CourseSidebar = ({ selectedCourse, onSelectCourse }) => {
-  const { courses, isAdmin, isEnrolled } = useCourses();
+const CourseSidebar = ({
+  selectedCourse,
+  onSelectCourse,
+  onOpenPremium,
+  viewMode = "courses",
+  onToggleViewMode,
+  activeArenaTab,
+  setActiveArenaTab,
+}) => {
+  console.log(selectedCourse);
+
+  const navigate = useNavigate(); // Added this line
+  const {
+    courses,
+    coursesPage,
+    coursesHasMore,
+    isAdmin,
+    isEnrolled,
+    removeCourse,
+    fetchCourses,
+  } = useCourses();
   const [searchQuery, setSearchQuery] = useState("");
+  const coursesFetchedRef = React.useRef(false);
+
+  React.useEffect(() => {
+    if (viewMode === "courses" && !coursesFetchedRef.current) {
+      coursesFetchedRef.current = true;
+      fetchCourses();
+    }
+    if (viewMode !== "courses") {
+      coursesFetchedRef.current = false;
+    }
+  }, [fetchCourses, viewMode]);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [courseToDelete, setCourseToDelete] = useState(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const filteredCourses = React.useMemo(() => {
     if (!searchQuery) {
       return courses.filter((course) => {
-        const status = isEnrolled(course.id);
+        const status = isEnrolled(course._id);
         return (
           status === "admin" || status === "approved" || status === "pending"
         );
@@ -268,79 +341,259 @@ const CourseSidebar = ({ selectedCourse, onSelectCourse }) => {
     }
   };
 
+  const handleSelectCourse = (course) => {
+    onSelectCourse(course._id);
+
+    const slug = course.urlSlug || course._id;
+    window.history.replaceState(null, "", `/courses/${slug}`);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!courseToDelete) return;
+    try {
+      setIsDeleting(true);
+      await removeCourse(courseToDelete._id);
+      if (selectedCourse === courseToDelete._id) {
+        onSelectCourse(null);
+        window.history.replaceState(null, "", `/courses`);
+      }
+      setCourseToDelete(null);
+    } catch (err) {
+      console.error(err);
+      toast.error("Kursni o'chirishda xatolik yuz berdi");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   return (
     <>
       <SidebarContainer>
-        <HeaderSection>
-          <SearchInput
-            type="text"
-            placeholder="Kurslarni qidirish..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            style={{ flex: 1, marginRight: "12px" }}
-          />
-          <CreateButton
-            onClick={() => setIsCreateOpen(true)}
-            title="Yangi kurs yaratish"
+        <TabsContainer>
+          <NavTab
+            active={viewMode === "courses"}
+            onClick={() => {
+              if (onToggleViewMode) onToggleViewMode("courses");
+              navigate("/courses");
+            }}
           >
-            <Plus size={18} />
-          </CreateButton>
-        </HeaderSection>
+            <BookOpen size={16} /> Kurslar
+          </NavTab>
+          <NavTab
+            active={viewMode === "arena"}
+            onClick={() => {
+              if (onToggleViewMode) onToggleViewMode("arena");
+              onSelectCourse(null);
+              navigate("/arena");
+            }}
+          >
+            <Swords size={16} /> Maydon
+          </NavTab>
+        </TabsContainer>
 
-        <CourseList>
-          {filteredCourses.length === 0 ? (
-            <EmptyState>
-              <EmptyIcon>
-                <Lock size={24} />
-              </EmptyIcon>
-              <span>Hozircha kurslar yo'q</span>
-              <span style={{ fontSize: 12 }}>
-                Yangi kurs yaratish uchun + tugmasini bosing
-              </span>
-            </EmptyState>
-          ) : (
-            filteredCourses.map((course) => {
-              const statusInfo = getStatusLabel(course.id);
-              const totalMembers = course.members.filter(
-                (m) => m.status === "approved",
-              ).length;
-              return (
-                <CourseItem
-                  key={course.id}
-                  active={selectedCourse === course.id}
-                  onClick={() => onSelectCourse(course.id)}
+        {viewMode === "arena" ? (
+          <CourseList style={{ paddingTop: "16px" }}>
+            <CourseItem
+              active={activeArenaTab === "tests"}
+              onClick={() => {
+                if (setActiveArenaTab) setActiveArenaTab("tests");
+                navigate("/arena/quiz");
+              }}
+            >
+              <CourseThumbnail gradient="linear-gradient(135deg, #FF6B6B 0%, #FF8E53 100%)">
+                <BookOpen size={20} color="white" />
+              </CourseThumbnail>
+              <CourseInfo>
+                <CourseName>Testlar</CourseName>
+                <CourseDescription>Ochiq testlarni ishlash</CourseDescription>
+              </CourseInfo>
+            </CourseItem>
+
+            <CourseItem
+              active={activeArenaTab === "flashcards"}
+              onClick={() => {
+                if (setActiveArenaTab) setActiveArenaTab("flashcards");
+                navigate("/arena/flashcard");
+              }}
+            >
+              <CourseThumbnail gradient="linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)">
+                <Layers size={20} color="white" />
+              </CourseThumbnail>
+              <CourseInfo>
+                <CourseName>Flashcards</CourseName>
+                <CourseDescription>Lug'atlarni yodlash</CourseDescription>
+              </CourseInfo>
+            </CourseItem>
+
+            <CourseItem
+              active={activeArenaTab === "battles"}
+              onClick={() => {
+                if (setActiveArenaTab) setActiveArenaTab("battles");
+                navigate("/arena/battle");
+              }}
+            >
+              <CourseThumbnail gradient="linear-gradient(135deg, #a18cd1 0%, #fbc2eb 100%)">
+                <Swords size={20} color="white" />
+              </CourseThumbnail>
+              <CourseInfo>
+                <CourseName>Bilimlar bellashuvi</CourseName>
+                <CourseDescription>Real vaqt musobaqa</CourseDescription>
+              </CourseInfo>
+            </CourseItem>
+          </CourseList>
+        ) : (
+          <>
+            <HeaderSection>
+              <input
+                type="text"
+                placeholder="Kurslarni qidirish..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                style={{
+                  flex: 1,
+                  marginRight: "12px",
+                  padding: "8px 12px",
+                  borderRadius: "6px",
+                  border: "1px solid var(--border-color)",
+                  background: "var(--input-color)",
+                  color: "var(--text-color)",
+                }}
+              />
+              <CreateButton
+                onClick={() => setIsCreateOpen(true)}
+                title="Yangi kurs yaratish"
+              >
+                <Plus size={18} />
+              </CreateButton>
+            </HeaderSection>
+
+            <CourseList id="sidebarCoursesArea">
+              {filteredCourses.length === 0 ? (
+                <EmptyState>
+                  <EmptyIcon>
+                    <Lock size={24} />
+                  </EmptyIcon>
+                  <span>Hozircha kurslar yo'q</span>
+                  <span style={{ fontSize: 12 }}>
+                    Yangi kurs yaratish uchun + tugmasini bosing
+                  </span>
+                </EmptyState>
+              ) : (
+                <InfiniteScroll
+                  dataLength={filteredCourses.length}
+                  next={() => fetchCourses(coursesPage + 1)}
+                  hasMore={coursesHasMore && !searchQuery}
+                  loader={
+                    <div
+                      style={{
+                        textAlign: "center",
+                        padding: "10px",
+                        color: "var(--text-muted-color)",
+                        fontSize: "12px",
+                      }}
+                    >
+                      Yuklanmoqda...
+                    </div>
+                  }
+                  endMessage={
+                    filteredCourses.length > 0 && !searchQuery ? (
+                      <div
+                        style={{
+                          textAlign: "center",
+                          padding: "10px",
+                          color: "var(--text-muted-color)",
+                          fontSize: "12px",
+                        }}
+                      >
+                        Barcha kurslar ko'rsatildi.
+                      </div>
+                    ) : null
+                  }
+                  scrollableTarget="sidebarCoursesArea"
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    overflow: "visible",
+                  }}
                 >
-                  <CourseThumbnail
-                    src={course.image}
-                    gradient={course.gradient}
-                  >
-                    {!course.image && course.name.charAt(0)}
-                  </CourseThumbnail>
-                  <CourseInfo>
-                    <CourseName>{course.name}</CourseName>
-                    <CourseDescription>
-                      {course.lessons.length > 0
-                        ? `${course.lessons.length} ta dars`
-                        : "Hali dars yo'q"}
-                      {statusInfo && (
-                        <StatusBadge status={isEnrolled(course.id)}>
-                          {statusInfo.icon}
-                          {statusInfo.text}
-                        </StatusBadge>
-                      )}
-                    </CourseDescription>
-                  </CourseInfo>
-                  <CourseMeta>
-                    <MemberCount>
-                      <Users size={12} />
-                      {totalMembers}
-                    </MemberCount>
-                  </CourseMeta>
-                </CourseItem>
-              );
-            })
-          )}
-        </CourseList>
+                  {filteredCourses.map((course) => {
+                    const statusInfo = getStatusLabel(course._id);
+                    const totalMembers = (course.members || []).filter(
+                      (m) => m.status === "approved",
+                    ).length;
+                    return (
+                      <CourseItem
+                        key={course._id}
+                        active={
+                          selectedCourse === course._id ||
+                          selectedCourse === course.urlSlug
+                        }
+                        onClick={() => handleSelectCourse(course)}
+                      >
+                        <CourseThumbnail
+                          src={course.image}
+                          gradient={course.gradient}
+                        >
+                          {!course.image && course.name.charAt(0)}
+                        </CourseThumbnail>
+                        <CourseInfo>
+                          <CourseName>{course.name}</CourseName>
+                          <CourseDescription>
+                            {(course.lessons || []).length > 0
+                              ? `${course.lessons.length} ta dars`
+                              : "Hali dars yo'q"}
+                            {statusInfo && (
+                              <StatusBadge status={isEnrolled(course._id)}>
+                                {statusInfo.icon}
+                                {statusInfo.text}
+                              </StatusBadge>
+                            )}
+                          </CourseDescription>
+                        </CourseInfo>
+                        <CourseMeta>
+                          <MemberCount>
+                            <Users size={12} />
+                            {totalMembers}
+                          </MemberCount>
+                          {isAdmin(course._id) && (
+                            <div
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setCourseToDelete(course);
+                              }}
+                              style={{
+                                color: "var(--text-muted-color)",
+                                cursor: "pointer",
+                                padding: "2px",
+                                borderRadius: "4px",
+                                display: "flex",
+                              }}
+                              onMouseOver={(e) => {
+                                e.currentTarget.style.color =
+                                  "var(--danger-color)";
+                                e.currentTarget.style.backgroundColor =
+                                  "rgba(239, 68, 68, 0.1)";
+                              }}
+                              onMouseOut={(e) => {
+                                e.currentTarget.style.color =
+                                  "var(--text-muted-color)";
+                                e.currentTarget.style.backgroundColor =
+                                  "transparent";
+                              }}
+                              title="Kursni o'chirish"
+                            >
+                              <Trash2 size={14} />
+                            </div>
+                          )}
+                        </CourseMeta>
+                      </CourseItem>
+                    );
+                  })}
+                </InfiniteScroll>
+              )}
+            </CourseList>
+          </>
+        )}
       </SidebarContainer>
 
       <CreateCourseDialog
@@ -348,8 +601,28 @@ const CourseSidebar = ({ selectedCourse, onSelectCourse }) => {
         onClose={() => setIsCreateOpen(false)}
         onCreated={(courseId) => {
           setIsCreateOpen(false);
-          onSelectCourse(courseId);
+          const c = courses.find((iter) => iter._id === courseId);
+          if (c) handleSelectCourse(c);
+          else onSelectCourse(courseId);
         }}
+        onOpenPremium={onOpenPremium}
+      />
+
+      <ConfirmDialog
+        isOpen={!!courseToDelete}
+        onClose={() => setCourseToDelete(null)}
+        title="Kursni o'chirish"
+        description={
+          <>
+            Rostdan ham <b>{courseToDelete?.name}</b> kursni o'chirmoqchimisiz?
+            Bu amalni keyin tiklab bo'lmaydi va kursga tegishli barcha videolar,
+            fayllar va ma'lumotlar o'chib ketadi.
+          </>
+        }
+        confirmText={isDeleting ? "O'chirilmoqda..." : "Ha, o'chirish"}
+        cancelText="Yo'q, qolsin"
+        onConfirm={handleDeleteConfirm}
+        isDanger={true}
       />
     </>
   );

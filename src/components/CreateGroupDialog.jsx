@@ -1,8 +1,7 @@
 import React, { useState, useRef } from "react";
 import styled from "styled-components";
 import { X, Upload, Check, Search, Loader } from "lucide-react";
-
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
+import useUploadAvatar from "../hooks/useUploadAvatar";
 
 const Overlay = styled.div`
   position: fixed;
@@ -230,8 +229,12 @@ const CreateGroupDialog = ({ isOpen, onClose, onCreate, users = [] }) => {
   const [imageUrl, setImageUrl] = useState("");
   const [selectedUsers, setSelectedUsers] = useState([]);
   const [searchUser, setSearchUser] = useState("");
-  const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const fileInputRef = useRef(null);
+
+  const uploadAvatarMutation = useUploadAvatar({
+    onSuccess: (url) => setImageUrl(url),
+    onError: () => toast.error("Rasm yuklashda xatolik yuz berdi"),
+  });
 
   if (!isOpen) return null;
 
@@ -269,38 +272,18 @@ const CreateGroupDialog = ({ isOpen, onClose, onCreate, users = [] }) => {
       searchUser.trim() !== "",
   );
 
-  const handleFileChange = async (e) => {
+  const handleFileChange = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     if (file.size > 2 * 1024 * 1024) {
-      alert("Fayl hajmi juda katta (maksimum 2MB)");
+      toast.error("Fayl hajmi juda katta (maksimum 2MB)");
       return;
     }
 
-    setUploadingAvatar(true);
     const formData = new FormData();
     formData.append("file", file);
-
-    try {
-      const res = await fetch(`${API_URL}/chats/upload-avatar`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("token")}`,
-        },
-        body: formData,
-      });
-      if (res.ok) {
-        const url = await res.text();
-        setImageUrl(url);
-      } else {
-        alert("Rasm yuklashda xatolik yuz berdi");
-      }
-    } catch {
-      alert("Tarmoq xatosi");
-    } finally {
-      setUploadingAvatar(false);
-    }
+    uploadAvatarMutation.mutate(formData);
   };
 
   return (
@@ -328,7 +311,7 @@ const CreateGroupDialog = ({ isOpen, onClose, onCreate, users = [] }) => {
                 if (fileInputRef.current) fileInputRef.current.click();
               }}
             >
-              {uploadingAvatar ? (
+              {uploadAvatarMutation.isPending ? (
                 <Loader
                   size={24}
                   style={{ animation: "spin 1s linear infinite" }}

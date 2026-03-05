@@ -21,8 +21,15 @@ import {
   Hand,
   Lock,
   UserMinus,
+  Link2,
+  ArrowLeft,
+  Timer,
+  CheckSquare,
+  User,
+  ShieldAlert,
 } from "lucide-react";
 import { useWebRTC } from "../hooks/useWebRTC";
+import useAuthStore from "../store/authStore";
 
 const slideIn = keyframes`
   from { opacity: 0; transform: translateY(24px); }
@@ -559,13 +566,7 @@ const GroupVideoCall = ({
   const [copied, setCopied] = useState(false);
   const [showDrawer, setShowDrawer] = useState(false);
 
-  const currentUser = (() => {
-    try {
-      return JSON.parse(localStorage.getItem("user") || "null");
-    } catch {
-      return null;
-    }
-  })();
+  const currentUser = useAuthStore((state) => state.user);
 
   const displayName =
     currentUser?.nickname || currentUser?.username || "Mehmon";
@@ -742,8 +743,18 @@ const GroupVideoCall = ({
   }, [roomId, emitRecording]);
 
   const handleLeave = () => {
-    if (isRecording) stopRecording();
-    leaveCall();
+    try {
+      if (isRecording) stopRecording();
+    } catch (e) {
+      console.error("Failed to stop recording:", e);
+    }
+
+    try {
+      leaveCall();
+    } catch (e) {
+      console.error("Failed to leave call:", e);
+    }
+
     onClose();
   };
 
@@ -768,8 +779,17 @@ const GroupVideoCall = ({
           <CallTitle>
             {roomTitle || chatTitle || "Meet"}
             {isPrivate && (
-              <span style={{ fontSize: 11, color: "#faa61a", marginLeft: 8 }}>
-                🔒 Private
+              <span
+                style={{
+                  fontSize: 11,
+                  color: "#faa61a",
+                  marginLeft: 8,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "4px",
+                }}
+              >
+                <ShieldAlert size={12} /> Private
               </span>
             )}
           </CallTitle>
@@ -842,7 +862,7 @@ const GroupVideoCall = ({
               <VideoEl
                 stream={screenStream}
                 muted
-                label={`🖥️ ${displayName} (Ekran)`}
+                label={`${displayName} (Ekran)`}
                 isCamOn
               />
             )}
@@ -860,7 +880,7 @@ const GroupVideoCall = ({
                       filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.5))",
                     }}
                   >
-                    ✋
+                    <Hand size={20} color="#faa61a" fill="#faa61a" />
                   </span>
                 )}
               </div>
@@ -870,7 +890,7 @@ const GroupVideoCall = ({
               <VideoEl
                 key={`screen-${peerId}`}
                 stream={stream}
-                label={`🖥️ ${n} (Ekran)`}
+                label={`${n} (Ekran)`}
                 isCamOn
               />
             ))}
@@ -893,8 +913,14 @@ const GroupVideoCall = ({
               {/* Waiting section — only creator of private room */}
               {isCreator && isPrivate && (
                 <>
-                  <SectionLabel>
-                    ⏳ Kutayotganlar ({knockRequests.length})
+                  <SectionLabel
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "4px",
+                    }}
+                  >
+                    <Timer size={12} /> Kutayotganlar ({knockRequests.length})
                   </SectionLabel>
                   {knockRequests.length === 0 ? (
                     <div
@@ -909,7 +935,15 @@ const GroupVideoCall = ({
                   ) : (
                     knockRequests.map(({ peerId, displayName: n }) => (
                       <KnockCard key={peerId}>
-                        <KnockName>👤 {n}</KnockName>
+                        <KnockName
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "6px",
+                          }}
+                        >
+                          <User size={14} /> {n}
+                        </KnockName>
                         <KnockActions>
                           <KnockBtn
                             $approve
@@ -928,7 +962,12 @@ const GroupVideoCall = ({
               )}
 
               {/* Joined members */}
-              <SectionLabel>✅ Qo'shilganlar ({totalTiles})</SectionLabel>
+              <SectionLabel
+                style={{ display: "flex", alignItems: "center", gap: "4px" }}
+              >
+                <CheckSquare size={12} color="#43b581" /> Qo'shilganlar (
+                {totalTiles})
+              </SectionLabel>
               {/* Local user */}
               <MemberRow>
                 <MemberAvatar>
@@ -954,8 +993,16 @@ const GroupVideoCall = ({
                   <MemberAvatar>
                     {n?.charAt(0)?.toUpperCase() || "?"}
                   </MemberAvatar>
-                  <MemberInfo>
-                    {raisedHands.has(peerId) && "✋ "}
+                  <MemberInfo
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "4px",
+                    }}
+                  >
+                    {raisedHands.has(peerId) && (
+                      <Hand size={14} color="#faa61a" fill="#faa61a" />
+                    )}
                     {n}
                   </MemberInfo>
                   <MemberIcons>

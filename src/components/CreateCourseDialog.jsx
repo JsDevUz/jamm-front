@@ -250,22 +250,52 @@ const Button = styled.button`
   `}
 `;
 
-const CreateCourseDialog = ({ isOpen, onClose, onCreated }) => {
+const CreateCourseDialog = ({ isOpen, onClose, onCreated, onOpenPremium }) => {
   const { createCourse } = useCourses();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [imageUrl, setImageUrl] = useState("");
+  const [category, setCategory] = useState("IT");
+  const [price, setPrice] = useState(0);
+  const [accessType, setAccessType] = useState("free_request");
   const fileInputRef = useRef(null);
+
+  const [error, setError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   if (!isOpen) return null;
 
-  const handleCreate = () => {
+  const handleCreate = async () => {
     if (!name.trim()) return;
-    const courseId = createCourse(name.trim(), description.trim(), imageUrl);
-    setName("");
-    setDescription("");
-    setImageUrl("");
-    onCreated(courseId);
+    setError("");
+    setIsSubmitting(true);
+
+    try {
+      const courseId = await createCourse(
+        name.trim(),
+        description.trim(),
+        imageUrl,
+        category,
+        price,
+        accessType,
+      );
+      setName("");
+      setDescription("");
+      setImageUrl("");
+      setCategory("IT");
+      setPrice(0);
+      setAccessType("free_request");
+      onCreated(courseId);
+    } catch (err) {
+      if (err.message.includes("Premium") || err.message.includes("maksimal")) {
+        onClose();
+        if (onOpenPremium) onOpenPremium();
+      } else {
+        setError(err.message || "Kurs yaratishda xatolik yuz berdi");
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleImageUrlChange = (e) => {
@@ -327,6 +357,61 @@ const CreateCourseDialog = ({ isOpen, onClose, onCreated }) => {
           </InputGroup>
 
           <InputGroup>
+            <Label>Kategoriya</Label>
+            <select
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              style={{
+                padding: "10px 14px",
+                backgroundColor: "var(--input-color)",
+                color: "var(--text-color)",
+                border: "none",
+                borderRadius: "8px",
+                outline: "none",
+              }}
+            >
+              <option value="IT">IT & Dasturlash</option>
+              <option value="SMM">SMM & Marketing</option>
+              <option value="Til o'rganish">Til o'rganish</option>
+              <option value="Mobile">Mobil Dasturlash</option>
+              <option value="Design">Dizayn</option>
+            </select>
+          </InputGroup>
+
+          <InputGroup>
+            <Label>Ruxsat turi</Label>
+            <select
+              value={accessType}
+              onChange={(e) => setAccessType(e.target.value)}
+              style={{
+                padding: "10px 14px",
+                backgroundColor: "var(--input-color)",
+                color: "var(--text-color)",
+                border: "none",
+                borderRadius: "8px",
+                outline: "none",
+              }}
+            >
+              <option value="free_request">Ruxsat so'rab (Tekin)</option>
+              <option value="free_open">Ruxsatsiz ochiq (Tekin)</option>
+              <option value="paid">Pullik</option>
+            </select>
+          </InputGroup>
+
+          {accessType === "paid" && (
+            <InputGroup>
+              <Label>Narxi (UZS)</Label>
+              <Input
+                type="number"
+                min="0"
+                placeholder="Masalan: 500000"
+                value={price}
+                onChange={(e) => setPrice(Number(e.target.value))}
+              />
+            </InputGroup>
+          )}
+
+          <InputGroup>
             <Label>Tavsif</Label>
             <TextArea
               placeholder="Kurs haqida qisqacha ma'lumot..."
@@ -334,12 +419,30 @@ const CreateCourseDialog = ({ isOpen, onClose, onCreated }) => {
               onChange={(e) => setDescription(e.target.value)}
             />
           </InputGroup>
+
+          {error && (
+            <div
+              style={{ color: "#ef4444", fontSize: "14px", marginTop: "8px" }}
+            >
+              {error}
+            </div>
+          )}
         </DialogBody>
 
         <DialogFooter>
-          <Button onClick={onClose}>Bekor qilish</Button>
-          <Button primary disabled={!name.trim()} onClick={handleCreate}>
-            Yaratish
+          <Button
+            $variant="secondary"
+            onClick={onClose}
+            disabled={isSubmitting}
+          >
+            Bekor qilish
+          </Button>
+          <Button
+            $variant="primary"
+            onClick={handleCreate}
+            disabled={!name.trim() || isSubmitting}
+          >
+            {isSubmitting ? "Yaratilmoqda..." : "Yaratish"}
           </Button>
         </DialogFooter>
       </Dialog>

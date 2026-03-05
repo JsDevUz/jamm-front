@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from "react";
 import styled, { keyframes } from "styled-components";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import GroupVideoCall from "../components/GroupVideoCall";
 import { getMeetById, saveMeet } from "../utils/meetStore";
 import { Loader, Mic, MicOff, Video, VideoOff } from "lucide-react";
+import useAuthStore from "../store/authStore";
 
 const fadeIn = keyframes`
   from { opacity: 0; transform: translateY(16px); }
@@ -156,34 +157,52 @@ const JoinCallPage = () => {
   const [error, setError] = useState("");
   const [initialMic, setInitialMic] = useState(false);
   const [initialCam, setInitialCam] = useState(false);
+  const [isCreator, setIsCreator] = useState(false);
+  const navigate = useNavigate();
+  const user = useAuthStore((state) => state.user);
 
   useEffect(() => {
-    const stored = getMeetById(roomId);
-    setMeet(stored);
+    let active = true;
+    const fetchMeet = async () => {
+      const stored = await getMeetById(roomId);
+      if (!active) return;
 
-    const user = (() => {
-      try {
-        return JSON.parse(localStorage.getItem("user") || "null");
-      } catch {
-        return null;
+      if (stored) {
+        setMeet(stored);
+        // Determine creator by comparing creator ObjectId with current user's _id
+        const currentUserId = user?._id || user?.id;
+        const creatorId =
+          typeof stored.creator === "object"
+            ? stored.creator?._id || stored.creator
+            : stored.creator;
+        const amICreator = String(creatorId) === String(currentUserId);
+        setIsCreator(amICreator);
+
+        if (amICreator) {
+          setName(user?.nickname || user?.username || "Host");
+          setStage("call");
+        } else {
+          setName(user?.nickname || user?.username || "");
+          setStage("form");
+        }
+      } else {
+        // Meet not in DB — treat current user as guest (link shared externally)
+        setName(user?.nickname || user?.username || "");
+        setStage("form");
       }
-    })();
+    };
+    fetchMeet();
+    return () => {
+      active = false;
+    };
+  }, [roomId, user]);
 
-    if (stored?.isCreator) {
-      setName(user?.nickname || user?.username || "Host");
-      setStage("call");
-    } else {
-      setName(user?.nickname || user?.username || "");
-      setStage("form");
-    }
-  }, [roomId]);
-
-  const handleJoin = () => {
+  const handleJoin = async () => {
     if (!name.trim()) {
       setError("Iltimos ismingizni kiriting");
       return;
     }
-    saveMeet({
+    await saveMeet({
       roomId,
       title: meet?.title || "Meet",
       isPrivate: meet?.isPrivate || false,
@@ -206,10 +225,10 @@ const JoinCallPage = () => {
     return (
       <GroupVideoCall
         isOpen
-        onClose={() => window.history.back()}
+        onClose={() => navigate("/meets")}
         roomId={roomId}
         chatTitle={meet?.title || "Meet"}
-        isCreator={meet?.isCreator || false}
+        isCreator={isCreator}
         isPrivate={meet?.isPrivate || false}
         initialMicOn={initialMic}
         initialCamOn={initialCam}

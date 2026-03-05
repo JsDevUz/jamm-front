@@ -1,7 +1,16 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import styled from "styled-components";
-import { X, Video, Link as LinkIcon, Upload, FileVideo } from "lucide-react";
+import {
+  X,
+  Video,
+  Link as LinkIcon,
+  Upload,
+  FileVideo,
+  Loader2,
+} from "lucide-react";
 import { useCourses } from "../contexts/CoursesContext";
+import useAuthStore from "../store/authStore";
+import { toast } from "react-hot-toast";
 
 const Overlay = styled.div`
   position: fixed;
@@ -10,7 +19,7 @@ const Overlay = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 1000;
+  z-index: 10000;
   backdrop-filter: blur(4px);
   animation: fadeIn 0.2s ease;
 
@@ -298,12 +307,26 @@ const Button = styled.button`
 
 const AddLessonDialog = ({ isOpen, onClose, courseId }) => {
   const { addLesson } = useCourses();
+  const currentUser = useAuthStore((state) => state.user);
+  const isPremium = currentUser?.premiumStatus === "active";
+
   const [title, setTitle] = useState("");
-  const [uploadMethod, setUploadMethod] = useState("upload"); // "upload" | "url"
+  const [uploadMethod, setUploadMethod] = useState(
+    isPremium ? "upload" : "url",
+  ); // "upload" | "url"
   const [videoUrl, setVideoUrl] = useState("");
   const [videoFile, setVideoFile] = useState(null);
   const [description, setDescription] = useState("");
+  const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef(null);
+
+  const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
+
+  useEffect(() => {
+    if (isOpen) {
+      setUploadMethod(isPremium ? "upload" : "url");
+    }
+  }, [isOpen, isPremium]);
 
   if (!isOpen) return null;
 
@@ -335,20 +358,63 @@ const AddLessonDialog = ({ isOpen, onClose, courseId }) => {
     return true;
   };
 
-  const handleAdd = () => {
-    if (!isFormValid()) return;
+  const handleAdd = async () => {
+    if (!isFormValid() || isUploading) return;
+    setIsUploading(true);
 
-    const finalUrl =
-      uploadMethod === "url" ? videoUrl.trim() : `upload://${videoFile.name}`;
+    try {
+      let finalFileUrl = "";
+      let finalFileName = "";
+      let finalFileSize = 0;
+      let finalVideoUrl = "";
+      let type = "video";
 
-    addLesson(courseId, title.trim(), finalUrl, description.trim());
+      if (uploadMethod === "upload" && videoFile && isPremium) {
+        const formData = new FormData();
+        formData.append("file", videoFile);
 
-    setTitle("");
-    setVideoUrl("");
-    setVideoFile(null);
-    setDescription("");
-    setUploadMethod("upload");
-    onClose();
+        const token = useAuthStore.getState().token;
+        const res = await fetch(`${API_URL}/courses/upload-media`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` },
+          body: formData,
+        });
+
+        if (!res.ok) throw new Error("Upload failed");
+        const data = await res.json();
+
+        finalFileUrl = data.url;
+        finalFileName = data.fileName;
+        finalFileSize = data.fileSize;
+        type = "file";
+      } else {
+        finalVideoUrl = videoUrl.trim();
+        type = "video";
+      }
+
+      await addLesson(
+        courseId,
+        title.trim(),
+        finalVideoUrl,
+        description.trim(),
+        type,
+        finalFileUrl,
+        finalFileName,
+        finalFileSize,
+      );
+
+      setTitle("");
+      setVideoUrl("");
+      setVideoFile(null);
+      setDescription("");
+      setUploadMethod(isPremium ? "upload" : "url");
+      onClose();
+    } catch (err) {
+      console.error(err);
+      toast.error("Yuklashda xatolik yuz berdi");
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   return (
@@ -374,35 +440,53 @@ const AddLessonDialog = ({ isOpen, onClose, courseId }) => {
           </InputGroup>
 
           <InputGroup>
-            <Label>Video manbasi *</Label>
-            <TabContainer>
-              <Tab
-                active={uploadMethod === "upload"}
-                onClick={() => setUploadMethod("upload")}
+            <Label>Video/Fayl manbasi *</Label>
+            {isPremium ? (
+              <TabContainer>
+                <Tab
+                  active={uploadMethod === "upload"}
+                  onClick={() => setUploadMethod("upload")}
+                  type="button"
+                >
+                  Fayl yuklash (Max 100MB)
+                </Tab>
+                <Tab
+                  active={uploadMethod === "url"}
+                  onClick={() => setUploadMethod("url")}
+                  type="button"
+                >
+                  YouTube URL
+                </Tab>
+              </TabContainer>
+            ) : (
+              <div
+                style={{
+                  padding: "8px",
+                  background: "rgba(251, 191, 36, 0.1)",
+                  color: "#fbbf24",
+                  borderRadius: "8px",
+                  fontSize: "13px",
+                  marginBottom: "8px",
+                }}
               >
-                Video yuklash
-              </Tab>
-              <Tab
-                active={uploadMethod === "url"}
-                onClick={() => setUploadMethod("url")}
-              >
-                YouTube URL
-              </Tab>
-            </TabContainer>
+                Fayl yuklash uchun Premium obuna talab qilinadi. Bepul tarifda
+                faqat YouTube URL orqali video qo'shishingiz mumkin.
+              </div>
+            )}
           </InputGroup>
 
-          {uploadMethod === "upload" ? (
+          {uploadMethod === "upload" && isPremium ? (
             <InputGroup>
-              <Label>Video fayl *</Label>
+              <Label>Video/Fayl *</Label>
               <FileInputContainer>
                 {!videoFile ? (
                   <FileInputLabel>
                     <Upload size={24} />
                     <span style={{ marginBottom: "4px", fontWeight: 600 }}>
-                      Videoni yuklang yoki shu yerga tashlang
+                      Faylni yuklang yoki shu yerga tashlang
                     </span>
                     <span style={{ fontSize: "12px" }}>
-                      MP4, WebM (Max: 2GB)
+                      MP4, WEBM, MOV (Max: 100MB)
                     </span>
                     <HiddenFileInput
                       type="file"
@@ -454,9 +538,23 @@ const AddLessonDialog = ({ isOpen, onClose, courseId }) => {
         </DialogBody>
 
         <DialogFooter>
-          <Button onClick={onClose}>Bekor qilish</Button>
-          <Button primary disabled={!isFormValid()} onClick={handleAdd}>
-            Qo'shish
+          <Button onClick={onClose} disabled={isUploading}>
+            Bekor qilish
+          </Button>
+          <Button
+            primary
+            disabled={!isFormValid() || isUploading}
+            onClick={handleAdd}
+          >
+            {isUploading ? (
+              <span
+                style={{ display: "flex", alignItems: "center", gap: "8px" }}
+              >
+                <Loader2 size={16} className="spin" /> Yuklanmoqda...
+              </span>
+            ) : (
+              "Qo'shish"
+            )}
           </Button>
         </DialogFooter>
       </Dialog>

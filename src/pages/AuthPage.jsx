@@ -15,7 +15,11 @@ import {
   Zap,
   Shield,
   GraduationCap,
+  Swords,
+  FileText,
+  X,
 } from "lucide-react";
+import useAuthStore from "../store/authStore";
 
 /* ============================
    ANIMATIONS
@@ -516,6 +520,17 @@ const ErrorMessage = styled.div`
   text-align: center;
 `;
 
+const SuccessMessage = styled.div`
+  background: rgba(67, 181, 129, 0.12);
+  border: 1px solid rgba(67, 181, 129, 0.3);
+  border-radius: 8px;
+  padding: 10px 14px;
+  color: #43b581;
+  font-size: 13px;
+  font-weight: 500;
+  text-align: center;
+`;
+
 const InputRow = styled.div`
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -526,36 +541,163 @@ const InputRow = styled.div`
   }
 `;
 
-/* ============================
-   COMPONENT
-   ============================ */
+const LegalOverlay = styled.div`
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(10px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+  animation: ${fadeIn} 0.3s ease-out;
+`;
+
+const LegalCard = styled.div`
+  width: 100%;
+  max-width: 600px;
+  max-height: 80vh;
+  background: #2f3136;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+`;
+
+const LegalHeader = styled.div`
+  padding: 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+
+  h3 {
+    margin: 0;
+    color: #fff;
+    font-size: 18px;
+  }
+`;
+
+const LegalBody = styled.div`
+  padding: 24px;
+  overflow-y: auto;
+  color: #dcddde;
+  line-height: 1.6;
+  font-size: 14px;
+
+  h4 {
+    color: #fff;
+    margin: 20px 0 10px 0;
+    font-size: 16px;
+  }
+
+  p {
+    margin-bottom: 16px;
+  }
+
+  ul {
+    margin-bottom: 16px;
+    padding-left: 20px;
+  }
+
+  li {
+    margin-bottom: 8px;
+  }
+
+  &::-webkit-scrollbar {
+    width: 8px;
+  }
+  &::-webkit-scrollbar-thumb {
+    background: #202225;
+    border-radius: 4px;
+  }
+`;
+
+const PolicyLinks = styled.div`
+  margin-top: 24px;
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+  font-size: 11px;
+`;
+
+const PolicyLink = styled.button`
+  background: none;
+  border: none;
+  color: #72767d;
+  cursor: pointer;
+  transition: all 0.2s;
+
+  &:hover {
+    color: #5865f2;
+    text-decoration: underline;
+  }
+`;
+
 const AuthPage = () => {
   const navigate = useNavigate();
+  const setAuth = useAuthStore((state) => state.setAuth);
   const [mode, setMode] = useState("login"); // "login" | "signup"
   const [showPassword, setShowPassword] = useState(false);
+  const [showLegal, setShowLegal] = useState(null); // null | 'privacy' | 'terms'
 
   // Form fields
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [username, setUsername] = useState("");
   const [nickname, setNickname] = useState("");
-  const [phone, setPhone] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
 
   const API_URL = "http://localhost:3000";
+
+  // Check for verification token in URL
+  React.useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const verifyToken = params.get("verify_token");
+
+    if (verifyToken) {
+      handleVerify(verifyToken);
+    }
+  }, []);
+
+  const handleVerify = async (token) => {
+    setLoading(true);
+    setError("");
+    try {
+      const res = await fetch(`${API_URL}/auth/verify/${token}`);
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.message || "Tasdiqlashda xatolik yuz berdi");
+      }
+
+      // Success! Auto-login
+      setAuth(data.user, data.access_token);
+      navigate("/");
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
+    setSuccess("");
     setLoading(true);
 
     try {
       const endpoint = mode === "login" ? "/auth/login" : "/auth/signup";
       const body =
-        mode === "login"
-          ? { email, password }
-          : { email, password, username, nickname, phone };
+        mode === "login" ? { email, password } : { email, password, nickname };
 
       const res = await fetch(`${API_URL}${endpoint}`, {
         method: "POST",
@@ -569,10 +711,17 @@ const AuthPage = () => {
         throw new Error(data.message || "Xatolik yuz berdi");
       }
 
-      // Save token and user
-      localStorage.setItem("token", data.access_token);
-      localStorage.setItem("user", JSON.stringify(data.user));
-      navigate("/");
+      if (mode === "signup") {
+        setSuccess(data.message);
+        // Clear fields
+        setEmail("");
+        setPassword("");
+        setNickname("");
+      } else {
+        // Login success
+        setAuth(data.user, data.access_token);
+        navigate("/");
+      }
     } catch (err) {
       setError(err.message);
     } finally {
@@ -582,7 +731,7 @@ const AuthPage = () => {
 
   const handleGoogleAuth = () => {
     // TODO: Google OAuth integration
-    alert("Google Auth hali ulanmagan. Email/parol bilan kiring.");
+    toast.error("Google Auth hali ulanmagan. Email/parol bilan kiring.");
   };
 
   return (
@@ -610,6 +759,12 @@ const AuthPage = () => {
                 <GraduationCap size={18} color="white" />
               </FeatureIcon>
               <FeatureText>Video kurslar va darsliklar</FeatureText>
+            </FeatureItem>
+            <FeatureItem>
+              <FeatureIcon>
+                <Swords size={18} color="white" />
+              </FeatureIcon>
+              <FeatureText>Bilimlar bellashuvi (Arena)</FeatureText>
             </FeatureItem>
             <FeatureItem>
               <FeatureIcon>
@@ -656,39 +811,21 @@ const AuthPage = () => {
 
           <Form onSubmit={handleSubmit}>
             {mode === "signup" && (
-              <InputRow>
-                <InputGroup>
-                  <Label>Username</Label>
-                  <InputWrapper>
-                    <StyledInput
-                      type="text"
-                      placeholder="username"
-                      value={username}
-                      onChange={(e) => setUsername(e.target.value)}
-                      required
-                    />
-                    <InputIcon>
-                      <AtSign size={16} />
-                    </InputIcon>
-                  </InputWrapper>
-                </InputGroup>
-
-                <InputGroup>
-                  <Label>Nik (Laqab)</Label>
-                  <InputWrapper>
-                    <StyledInput
-                      type="text"
-                      placeholder="Nikingiz"
-                      value={nickname}
-                      onChange={(e) => setNickname(e.target.value)}
-                      required
-                    />
-                    <InputIcon>
-                      <User size={16} />
-                    </InputIcon>
-                  </InputWrapper>
-                </InputGroup>
-              </InputRow>
+              <InputGroup>
+                <Label>Nik (Laqab)</Label>
+                <InputWrapper>
+                  <StyledInput
+                    type="text"
+                    placeholder="Nikingiz"
+                    value={nickname}
+                    onChange={(e) => setNickname(e.target.value)}
+                    required={mode === "signup"}
+                  />
+                  <InputIcon>
+                    <User size={16} />
+                  </InputIcon>
+                </InputWrapper>
+              </InputGroup>
             )}
 
             <InputGroup>
@@ -706,24 +843,6 @@ const AuthPage = () => {
                 </InputIcon>
               </InputWrapper>
             </InputGroup>
-
-            {mode === "signup" && (
-              <InputGroup>
-                <Label>Telefon raqam</Label>
-                <InputWrapper>
-                  <StyledInput
-                    type="tel"
-                    placeholder="+998 90 123 45 67"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    required
-                  />
-                  <InputIcon>
-                    <Phone size={16} />
-                  </InputIcon>
-                </InputWrapper>
-              </InputGroup>
-            )}
 
             <InputGroup>
               <Label>Parol</Label>
@@ -747,6 +866,7 @@ const AuthPage = () => {
               </InputWrapper>
             </InputGroup>
 
+            {success && <SuccessMessage>{success}</SuccessMessage>}
             {error && <ErrorMessage>{error}</ErrorMessage>}
 
             <SubmitButton type="submit" disabled={loading}>
@@ -785,8 +905,114 @@ const AuthPage = () => {
               </>
             )}
           </FooterText>
+          <PolicyLinks>
+            <PolicyLink type="button" onClick={() => setShowLegal("privacy")}>
+              Maxfiylik siyosati
+            </PolicyLink>
+            <PolicyLink type="button" onClick={() => setShowLegal("terms")}>
+              Foydalanish shartlari
+            </PolicyLink>
+          </PolicyLinks>
         </RightPanel>
       </AuthCard>
+
+      {showLegal && (
+        <LegalOverlay onClick={() => setShowLegal(null)}>
+          <LegalCard onClick={(e) => e.stopPropagation()}>
+            <LegalHeader>
+              <h3>
+                {showLegal === "privacy"
+                  ? "Maxfiylik Siyosati"
+                  : "Foydalanish Shartlari"}
+              </h3>
+              <button
+                onClick={() => setShowLegal(null)}
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: "#72767d",
+                  cursor: "pointer",
+                }}
+              >
+                <X size={24} />
+              </button>
+            </LegalHeader>
+            <LegalBody>
+              {showLegal === "privacy" ? (
+                <>
+                  <p>
+                    Jamm platformasi sizning maxfiyligingizni hurmat qiladi va
+                    shaxsiy ma'lumotlaringizni himoya qilishga intiladi.
+                  </p>
+                  <h4>1. To'planadigan ma'lumotlar</h4>
+                  <p>Biz quyidagi ma'lumotlarni to'playmiz:</p>
+                  <ul>
+                    <li>Elektron pochta manzili (hisobga kirish uchun)</li>
+                    <li>Username va Nik (platformada ko'rinish uchun)</li>
+                    <li>Telefon raqami (xavfsizlik va aloqa uchun)</li>
+                    <li>
+                      Akkaunt rasmi (ixtiyoriy, profilingizni shaxsiylashtirish
+                      uchun)
+                    </li>
+                  </ul>
+                  <h4>2. Ma'lumotlardan foydalanish</h4>
+                  <p>
+                    Sizning ma'lumotlaringiz platformaning to'liq ishlashini
+                    ta'minlash, siz bilan bog'lanish va xavfsizlikni ta'minlash
+                    maqsadida ishlatiladi.
+                  </p>
+                  <h4>3. Ma'lumotlarni saqlash</h4>
+                  <p>
+                    Barcha ma'lumotlar himoyalangan serverlarda saqlanadi va
+                    uchinchi shaxslarga sotilmaydi yoki ixtiyoriy ravishda
+                    berilmaydi.
+                  </p>
+                  <h4>4. Xavfsizlik</h4>
+                  <p>
+                    Biz zamonaviy shifrlash usullari va xavfsizlik
+                    protokollaridan foydalanamiz. Biroq, parolingizni hech kimga
+                    bermaslikni tavsiya qilamiz.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p>
+                    Ushbu shartlar Jamm platformasidan foydalanish qoidalarini
+                    belgilaydi. Platformadan foydalanish orqali siz ushbu
+                    shartlarga rozilik bildirasiz.
+                  </p>
+                  <h4>1. Foydalanish qoidalari</h4>
+                  <ul>
+                    <li>Boshqa foydalanuvchilarni haqorat qilmaslik</li>
+                    <li>Spam yoki noqonuniy kontent tarqatmaslik</li>
+                    <li>
+                      Platforma xavfsizligiga zarar yetkazuvchi harakatlar
+                      qilmaslik
+                    </li>
+                    <li>Bellashuvlarda (Arena) halol o'ynash</li>
+                  </ul>
+                  <h4>2. Mualliflik huquqi</h4>
+                  <p>
+                    Platformadagi barcha kontent (kurslar, savollar, kodlar)
+                    mualliflik huquqi bilan himoyalangan. Ularni ruxsatsiz
+                    ko'chirish taqiqlanadi.
+                  </p>
+                  <h4>3. Mas'uliyat</h4>
+                  <p>
+                    Foydalanuvchi o'z hisobi va u orqali amalga oshirilgan
+                    barcha harakatlar uchun shaxsan mas'uldir.
+                  </p>
+                  <h4>4. Hisobni o'chirish</h4>
+                  <p>
+                    Biz qoidalarni buzgan foydalanuvchilar hisobini
+                    ogohlantirishsiz to'xtatish yoki o'chirish huquqiga egamiz.
+                  </p>
+                </>
+              )}
+            </LegalBody>
+          </LegalCard>
+        </LegalOverlay>
+      )}
     </PageWrapper>
   );
 };

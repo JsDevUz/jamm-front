@@ -8,8 +8,17 @@ import CreateGroupDialog from "./CreateGroupDialog";
 import { useChats } from "../contexts/ChatsContext";
 import CourseSidebar from "./CourseSidebar";
 import CoursePlayer from "./CoursePlayer";
-import CoursesDashboard from "./CoursesDashboard";
+
+import ArenaDashboard from "./arena/ArenaDashboard";
+import ProfilePage from "./ProfilePage";
+import FeedPage from "./FeedPage";
 import SettingsDialog from "./SettingsDialog";
+import PremiumUpgradeModal from "./PremiumUpgradeModal";
+import UniversalDialog from "./UniversalDialog";
+import OnboardingModal from "./OnboardingModal";
+import { saveMeet, getMeets } from "../utils/meetStore";
+import useAuthStore from "../store/authStore";
+import { toast } from "react-hot-toast";
 
 const AppContainer = styled.div`
   display: flex;
@@ -18,8 +27,8 @@ const AppContainer = styled.div`
   background-color: #36393f;
   overflow: hidden;
 
-  @media (max-width: 768px) {
-    flex-direction: row;
+  @media (max-width: 700px) {
+    flex-direction: column;
   }
 `;
 
@@ -29,10 +38,12 @@ const MainContent = styled.div`
   height: 100%;
   overflow: hidden;
 
-  @media (max-width: 768px) {
+  @media (max-width: 700px) {
     flex-direction: column;
     width: 100%;
-    position: relative;
+    height: 100vh;
+    padding-bottom: 88px;
+    box-sizing: border-box;
   }
 `;
 
@@ -44,7 +55,11 @@ const ChatContainer = styled.div`
   overflow: hidden;
 `;
 
-const JammLayout = ({ initialNav = "home", initialChannel = 0 }) => {
+const JammLayout = ({
+  initialNav = "home",
+  initialChannel = 0,
+  initialLesson,
+}) => {
   const {
     chats,
     createChat,
@@ -59,6 +74,11 @@ const JammLayout = ({ initialNav = "home", initialChannel = 0 }) => {
   const [selectedCourse, setSelectedCourse] = useState(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isPremiumOpen, setIsPremiumOpen] = useState(false);
+  const [viewMode, setViewMode] = useState("courses"); // "courses" | "arena"
+  const [activeArenaTab, setActiveArenaTab] = useState(null);
+  const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
+  const [isCreateMeetOpen, setIsCreateMeetOpen] = useState(false);
+  const currentUser = useAuthStore((state) => state.user);
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth <= 768);
@@ -66,18 +86,70 @@ const JammLayout = ({ initialNav = "home", initialChannel = 0 }) => {
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
+  // Sync URL params → state. When URL is /a/:channelId, auto-detect nav type
+  // from the current chat so selectedNav is ALWAYS meaningful (never "a").
   useEffect(() => {
-    if (initialNav && initialNav !== selectedNav) {
-      setSelectedNav(initialNav);
-    }
     if (initialChannel !== undefined && initialChannel !== selectedChannel) {
       setSelectedChannel(initialChannel);
     }
-  }, [initialNav, initialChannel]);
+    if (initialNav === "a" || initialNav === "chats") {
+      // Direct message routing - always show chats
+      if (selectedNav !== "chats") setSelectedNav("chats");
+    } else if (initialNav === "users" || initialNav === "groups") {
+      if (selectedNav !== initialNav) setSelectedNav(initialNav);
+    } else if (initialNav === "arena") {
+      setSelectedNav("arena");
+      setViewMode("arena");
+
+      const path = window.location.pathname;
+      const tabMap = {
+        quiz: "tests",
+        test: "tests",
+        flashcard: "flashcards",
+        falshcard: "flashcards",
+        flashcards: "flashcards",
+        battle: "battles",
+        battles: "battles",
+      };
+
+      let targetTab = null;
+      if (path.includes("/arena/quiz")) targetTab = "tests";
+      else if (path.includes("/arena/flashcard")) targetTab = "flashcards";
+      else if (path.includes("/arena/battle")) targetTab = "battles";
+      else targetTab = tabMap[initialChannel] || initialChannel;
+
+      if (targetTab && ["tests", "flashcards", "battles"].includes(targetTab)) {
+        setActiveArenaTab(targetTab);
+      } else if (path === "/arena") {
+        setActiveArenaTab(null);
+      }
+    } else if (initialNav !== selectedNav) {
+      setSelectedNav(initialNav);
+      if (initialNav === "courses") setViewMode("courses");
+    }
+
+    if (initialNav === "courses" || initialNav === "arena") {
+      if (initialChannel && initialChannel !== "0" && initialNav !== "arena") {
+        setSelectedCourse(initialChannel);
+      } else if (
+        initialNav === "courses" &&
+        (!initialChannel || initialChannel === "0")
+      ) {
+        // If we are on /courses and no specific course is selected, clear it
+        setSelectedCourse(null);
+      }
+    }
+  }, [initialNav, initialChannel, chats]);
 
   const handleSelectNav = (navId) => {
     setSelectedNav(navId);
     setSelectedChannel(0);
+    if (navId === "arena") {
+      setViewMode("arena");
+      setActiveArenaTab(null);
+    } else if (navId === "courses") {
+      setViewMode("courses");
+    }
     navigate(`/${navId}`);
   };
 
@@ -91,15 +163,20 @@ const JammLayout = ({ initialNav = "home", initialChannel = 0 }) => {
         memberIds: groupData.members,
       });
       setIsCreateGroupOpen(false);
-      if (chatId) {
-        navigate(`/a/${chatId}`);
+      const chatSlug =
+        chatId?.urlSlug || chatId?.jammId || chatId?._id || chatId?.id;
+      if (chatSlug) {
+        navigate(`/a/${chatSlug}`);
       }
     } catch (error) {
       console.error("Failed to create group", error);
-      if (error.message.includes("Premium")) {
-        setIsPremiumOpen(true);
+      if (
+        error.message.includes("Premium") ||
+        error.message.includes("maksimal")
+      ) {
+        setIsUpgradeModalOpen(true);
       } else {
-        alert(error.message);
+        toast.error(error.message);
       }
     }
   };
@@ -113,18 +190,67 @@ const JammLayout = ({ initialNav = "home", initialChannel = 0 }) => {
         onOpenPremium={() => setIsPremiumOpen(true)}
       />
       <MainContent>
-        {selectedNav === "courses" ? (
+        {selectedNav === "courses" ||
+        selectedNav === "arena" ||
+        selectedNav === "home" ? (
           <>
-            <CourseSidebar onSelectCourse={setSelectedCourse} />
-            <CoursePlayer courseId={selectedCourse} />
+            <CourseSidebar
+              onSelectCourse={setSelectedCourse}
+              onOpenPremium={() => setIsPremiumOpen(true)}
+              viewMode={selectedNav === "arena" ? "arena" : viewMode}
+              onToggleViewMode={setViewMode}
+              selectedCourse={selectedCourse}
+              activeArenaTab={activeArenaTab}
+              setActiveArenaTab={setActiveArenaTab}
+            />
+            {selectedNav === "arena" ||
+            selectedNav === "home" ||
+            viewMode === "arena" ? (
+              <div style={{ flex: 1, overflowY: "auto" }}>
+                <ArenaDashboard
+                  activeTab={activeArenaTab}
+                  initialId={
+                    initialNav === "arena" &&
+                    initialChannel &&
+                    ![
+                      "tests",
+                      "flashcards",
+                      "battles",
+                      "quiz",
+                      "flashcard",
+                      "battle",
+                      "0",
+                    ].includes(initialChannel)
+                      ? initialChannel
+                      : initialLesson
+                  }
+                  onBack={() => {
+                    setActiveArenaTab(null);
+                    navigate("/arena");
+                  }}
+                />
+              </div>
+            ) : (
+              <CoursePlayer
+                courseId={selectedCourse}
+                initialLessonSlug={initialLesson}
+                onClose={() => {
+                  setSelectedCourse(null);
+                  navigate("/courses");
+                }}
+              />
+            )}
           </>
-        ) : selectedNav === "home" ? (
-          <CoursesDashboard
-            onNavigateToCourse={(c) => {
-              setSelectedCourse(c);
-              handleSelectNav("courses");
-            }}
+        ) : selectedNav === "profile" ? (
+          <ProfilePage
+            profileUserId={
+              initialChannel && initialChannel !== 0 && initialChannel !== "0"
+                ? String(initialChannel)
+                : null
+            }
           />
+        ) : selectedNav === "feed" ? (
+          <FeedPage />
         ) : (
           <>
             {!isMobile || !selectedChannel || selectedChannel === "0" ? (
@@ -133,6 +259,7 @@ const JammLayout = ({ initialNav = "home", initialChannel = 0 }) => {
                 selectedNav={selectedNav}
                 chats={chats}
                 onOpenCreateGroup={() => setIsCreateGroupOpen(true)}
+                onOpenCreateMeet={() => setIsCreateMeetOpen(true)}
               />
             ) : null}
             <ChatContainer>
@@ -141,6 +268,7 @@ const JammLayout = ({ initialNav = "home", initialChannel = 0 }) => {
                   selectedChannel={selectedChannel}
                   selectedNav={selectedNav}
                   chats={chats}
+                  navigate={navigate}
                   onBack={() => {
                     setSelectedChannel(0);
                     navigate(`/${selectedNav}`);
@@ -156,7 +284,9 @@ const JammLayout = ({ initialNav = "home", initialChannel = 0 }) => {
                     color: "#8e9297",
                   }}
                 >
-                  Suhbatni tanlang
+                  {selectedNav === "meets"
+                    ? "Meet tanlang"
+                    : "Suhbatni tanlang"}
                 </div>
               )}
             </ChatContainer>
@@ -170,9 +300,6 @@ const JammLayout = ({ initialNav = "home", initialChannel = 0 }) => {
         users={chats
           .filter((c) => c.type === "user" && !c.isSavedMessages)
           .map((c) => {
-            const currentUser = JSON.parse(
-              localStorage.getItem("user") || "{}",
-            );
             const other = c.members?.find(
               (m) => (m._id || m.id) !== (currentUser?._id || currentUser?.id),
             );
@@ -195,6 +322,45 @@ const JammLayout = ({ initialNav = "home", initialChannel = 0 }) => {
         onClose={() => setIsPremiumOpen(false)}
         initialSection="premium"
       />
+
+      <PremiumUpgradeModal
+        isOpen={isUpgradeModalOpen}
+        onClose={() => setIsUpgradeModalOpen(false)}
+        onUpgrade={() => {
+          setIsUpgradeModalOpen(false);
+          setIsPremiumOpen(true);
+        }}
+      />
+      <UniversalDialog
+        isOpen={isCreateMeetOpen}
+        onClose={() => setIsCreateMeetOpen(false)}
+        onCreateCall={async ({ title, isPrivate }) => {
+          if (currentUser) {
+            const isPremium = currentUser.premiumStatus === "active";
+            const myMeets = await getMeets();
+            const createdMeets = myMeets.filter(
+              (m) =>
+                m.creator === currentUser?._id ||
+                m.creator?._id === currentUser?._id,
+            );
+            const limit = isPremium ? 3 : 1;
+
+            if (createdMeets.length >= limit) {
+              setIsCreateMeetOpen(false);
+              setIsUpgradeModalOpen(true);
+              return;
+            }
+          }
+
+          const roomId =
+            title.toLowerCase().replace(/\s+/g, "-") +
+            "-" +
+            Date.now().toString().slice(-4);
+          await saveMeet({ roomId, title, isPrivate, isCreator: true });
+          navigate(`/join/${roomId}`);
+        }}
+      />
+      {currentUser && !currentUser.isOnboardingCompleted && <OnboardingModal />}
     </AppContainer>
   );
 };

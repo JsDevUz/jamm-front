@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import styled, { keyframes } from "styled-components";
 import { Phone, User, LogIn, Loader, CheckCircle, XCircle } from "lucide-react";
+import useAuthStore from "../store/authStore";
 
 const fadeIn = keyframes`
   from { opacity: 0; transform: scale(0.92) translateY(20px); }
@@ -182,14 +183,8 @@ const JoinCallModal = ({ chatId, onCallReady, onClose }) => {
   const [error, setError] = useState("");
   const pollRef = useRef(null);
 
-  // Read logged-in user from localStorage
-  const currentUser = (() => {
-    try {
-      return JSON.parse(localStorage.getItem("user") || "null");
-    } catch {
-      return null;
-    }
-  })();
+  // Read logged-in user from Zustand store
+  const currentUser = useAuthStore((state) => state.user);
 
   const sendJoinRequest = async (name, userId) => {
     setLoading(true);

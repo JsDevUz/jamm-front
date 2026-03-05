@@ -9,8 +9,8 @@ import {
   Shield,
   UserMinus,
 } from "lucide-react";
-
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
+import useAuthStore from "../store/authStore";
+import useUpdateGroupAvatar from "../hooks/useUpdateGroupAvatar";
 
 const Overlay = styled.div`
   position: fixed;
@@ -244,13 +244,17 @@ const EditGroupDialog = ({
   const [imageUrl, setImageUrl] = useState("");
   const [selectedUsers, setSelectedUsers] = useState([]);
   const [searchUser, setSearchUser] = useState("");
-  const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const fileInputRef = useRef(null);
+
+  const updateAvatarMutation = useUpdateGroupAvatar({
+    onSuccess: (url) => setImageUrl(url),
+    onError: () => toast.error("Rasm yuklashda xatolik yuz berdi"),
+  });
 
   const [admins, setAdmins] = useState([]);
   const [showAdminPanelFor, setShowAdminPanelFor] = useState(null);
 
-  const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
+  const currentUser = useAuthStore((state) => state.user);
   const currentUserId = currentUser?.id || currentUser?._id;
 
   const isOwner = String(group.createdBy) === String(currentUserId);
@@ -360,41 +364,21 @@ const EditGroupDialog = ({
     onClose();
   };
 
-  const handleFileChange = async (e) => {
+  const handleFileChange = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     if (file.size > 2 * 1024 * 1024) {
-      alert("Fayl hajmi juda katta (maksimum 2MB)");
+      toast.error("Fayl hajmi juda katta (maksimum 2MB)");
       return;
     }
 
-    setUploadingAvatar(true);
     const formData = new FormData();
     formData.append("file", file);
-
-    try {
-      const res = await fetch(
-        `${API_URL}/chats/${group.id || group._id}/avatar`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem("token")}`,
-          },
-          body: formData,
-        },
-      );
-      if (res.ok) {
-        const url = await res.text();
-        setImageUrl(url);
-      } else {
-        alert("Rasm yuklashda xatolik yuz berdi");
-      }
-    } catch {
-      alert("Tarmoq xatosi");
-    } finally {
-      setUploadingAvatar(false);
-    }
+    updateAvatarMutation.mutate({
+      chatId: group.id || group._id,
+      formData,
+    });
   };
 
   return (
@@ -425,7 +409,7 @@ const EditGroupDialog = ({
               }}
               style={{ cursor: canEditInfo ? "pointer" : "not-allowed" }}
             >
-              {uploadingAvatar ? (
+              {updateAvatarMutation.isPending ? (
                 <Loader
                   size={24}
                   style={{ animation: "spin 1s linear infinite" }}
