@@ -295,7 +295,7 @@ const CreatePostDialog = ({ isOpen, onClose, onSubmit, currentUser }) => {
 
           <SubmitBtn disabled={!text.trim()} onClick={handleSubmit}>
             <Send size={14} />
-            E'lon berish
+            Yuborish
           </SubmitBtn>
         </Toolbar>
       </Dialog>

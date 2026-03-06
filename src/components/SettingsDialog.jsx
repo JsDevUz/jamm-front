@@ -24,6 +24,7 @@ import { useTheme } from "../contexts/ThemeContext";
 import useAuthStore from "../store/authStore";
 import { getUserByUsername, createChat, fetchChats } from "../api/chatApi";
 import { Skeleton, SkeletonCircle } from "./Skeleton";
+import PremiumBadgeIcon from "./PremiumBadge";
 
 const SettingsOverlay = styled.div`
   position: fixed;
@@ -645,7 +646,7 @@ const PremiumSection = ({
               style={{ marginTop: 16, width: "100%" }}
               onClick={async () => {
                 try {
-                  const admin = await getUserByUsername("jamm_admin");
+                  const admin = await getUserByUsername("premium");
                   if (!admin) return;
                   const chat = await createChat({
                     isGroup: false,
@@ -977,7 +978,7 @@ const SettingsDialog = ({ isOpen, onClose, initialSection = "my-account" }) => {
           <FieldLabel style={{ display: "flex", alignItems: "center", gap: 6 }}>
             Nickname{" "}
             {profile.premiumStatus === "active" && (
-              <Star size={14} color="#ffaa00" fill="#ffaa00" />
+              <PremiumBadgeIcon width={14} height={14} />
             )}
           </FieldLabel>
           <FieldInput

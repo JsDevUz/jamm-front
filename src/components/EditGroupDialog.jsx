@@ -1,16 +1,21 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import styled from "styled-components";
 import {
+  Plus,
+  Trash,
+  ChevronRight,
   X,
   Upload,
-  Loader,
   Search,
-  Check,
   Shield,
-  UserMinus,
+  Loader,
 } from "lucide-react";
 import useAuthStore from "../store/authStore";
 import useUpdateGroupAvatar from "../hooks/useUpdateGroupAvatar";
+import { useChats } from "../contexts/ChatsContext";
+import useUploadAvatar from "../hooks/useUploadAvatar";
+import { toast } from "react-hot-toast";
+import { PlusBtn } from "./ProfilePage";
 
 const Overlay = styled.div`
   position: fixed;
@@ -147,13 +152,16 @@ const UserSearch = styled.div`
   position: relative;
   margin-bottom: 8px;
 `;
-
+// remove scrollbar
 const UserList = styled.div`
   max-height: 150px;
   overflow-y: auto;
   border: 1px solid var(--border-color, #202225);
-  border-radius: 4px;
+  border-radius: 16px;
   background-color: var(--tertiary-color, #36393f);
+  &::-webkit-scrollbar {
+    width: 0;
+  }
 `;
 
 const UserItem = styled.div`
@@ -228,9 +236,308 @@ const Button = styled.button`
       : `
     background-color: transparent;
     color: var(--text-color, #ffffff);
-    &:hover { text-decoration: underline; }
+    &:hover { background-color: rgba(255,255,255,0.05); }
+  `}
+
+  ${(props) =>
+    props.danger &&
+    `
+    color: #ed4245;
+    &:hover { background-color: rgba(237, 66, 69, 0.1); }
   `}
 `;
+
+const SwitchContainer = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 0;
+  cursor: pointer;
+`;
+
+const SwitchBase = styled.div`
+  width: 32px;
+  height: 18px;
+  background-color: ${(props) => (props.active ? "#43b581" : "#72767d")};
+  border-radius: 9px;
+  position: relative;
+  transition: background-color 0.2s;
+`;
+
+const SwitchThumb = styled.div`
+  width: 14px;
+  height: 14px;
+  background-color: white;
+  border-radius: 50%;
+  position: absolute;
+  top: 2px;
+  left: ${(props) => (props.active ? "16px" : "2px")};
+  transition: left 0.2s;
+`;
+
+const AdminRightsDialog = ({
+  isOpen,
+  onClose,
+  user,
+  permissions,
+  onTogglePerm,
+  onDismissAdmin,
+  isOwner,
+}) => {
+  if (!isOpen || !user) return null;
+
+  const PERMISSION_OPTIONS = [
+    { id: "edit_group_info", label: "Guruh ma'lumotlarini tahrirlash" },
+    { id: "add_members", label: "A'zo qo'shish" },
+    { id: "remove_members", label: "A'zo o'chirish" },
+    { id: "delete_others_messages", label: "Xabarlarni o'chirish" },
+    { id: "add_admins", label: "Admin qo'shish" },
+    { id: "pin_messages", label: "Xabarlarni biriktirish" },
+  ];
+
+  return (
+    <Overlay onClick={onClose}>
+      <Dialog onClick={(e) => e.stopPropagation()} style={{ width: "380px" }}>
+        <Header style={{ padding: "20px" }}>
+          <Title style={{ fontSize: "18px" }}>Admin huquqlari</Title>
+          <CloseButton onClick={onClose}>
+            <X size={20} />
+          </CloseButton>
+        </Header>
+
+        <div style={{ padding: "0 24px 20px" }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 12,
+              marginBottom: 20,
+              paddingBottom: 16,
+              borderBottom: "1px solid var(--border-color, #202225)",
+            }}
+          >
+            <Avatar style={{ width: 44, height: 44, fontSize: 16 }}>
+              {user.avatar?.length > 1 ? (
+                <img
+                  src={user.avatar}
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                    borderRadius: "50%",
+                    objectFit: "cover",
+                  }}
+                  alt=""
+                />
+              ) : (
+                (user.name || user.username || "").charAt(0)
+              )}
+            </Avatar>
+            <div>
+              <div style={{ color: "white", fontWeight: 600, fontSize: 15 }}>
+                {user.name || user.username}
+              </div>
+              <div style={{ color: "#b9bbbe", fontSize: 13 }}>
+                @{user.username}
+              </div>
+            </div>
+          </div>
+
+          <Label style={{ marginBottom: 10, display: "block" }}>HUQUQLAR</Label>
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            {PERMISSION_OPTIONS.map((opt) => {
+              const active = permissions.includes(opt.id);
+              return (
+                <SwitchContainer
+                  key={opt.id}
+                  onClick={() => onTogglePerm(opt.id)}
+                >
+                  <span style={{ color: "#dcddde", fontSize: 14 }}>
+                    {opt.label}
+                  </span>
+                  <SwitchBase active={active}>
+                    <SwitchThumb active={active} />
+                  </SwitchBase>
+                </SwitchContainer>
+              );
+            })}
+          </div>
+        </div>
+
+        <Footer
+          style={{
+            padding: "16px 20px",
+            justifyContent: "space-between",
+            flexDirection: "row-reverse",
+          }}
+        >
+          <Button primary onClick={onClose}>
+            Saqlash
+          </Button>
+          <Button danger onClick={onDismissAdmin}>
+            Adminlikni bekor qilish
+          </Button>
+        </Footer>
+      </Dialog>
+    </Overlay>
+  );
+};
+
+const AddMemberDialog = ({
+  isOpen,
+  onClose,
+  onSelect,
+  selectedUsers,
+  users,
+  searchGlobalUsers,
+}) => {
+  const [searchUser, setSearchUser] = useState("");
+  const [apiResults, setApiResults] = useState([]);
+  const [isSearching, setIsSearching] = useState(false);
+
+  useEffect(() => {
+    const timer = setTimeout(async () => {
+      if (!searchUser.trim()) {
+        setApiResults([]);
+        return;
+      }
+
+      setIsSearching(true);
+      try {
+        const results = await searchGlobalUsers(searchUser);
+        setApiResults(results);
+      } catch (error) {
+        console.error("Search failed:", error);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [searchUser, searchGlobalUsers]);
+
+  const combinedUsers = [
+    ...users,
+    ...apiResults.filter((apiU) => !users.some((u) => u.id === apiU.id)),
+  ];
+
+  const filteredUsers = combinedUsers.filter(
+    (user) =>
+      (user.name?.toLowerCase().includes(searchUser.toLowerCase()) ||
+        user.username?.toLowerCase().includes(searchUser.toLowerCase())) &&
+      !selectedUsers.includes(user.id),
+  );
+
+  const isFull = selectedUsers.length >= 40;
+
+  if (!isOpen) return null;
+
+  return (
+    <Overlay onClick={onClose}>
+      <Dialog onClick={(e) => e.stopPropagation()} style={{ width: "400px" }}>
+        <Header style={{ padding: "20px" }}>
+          <Title style={{ fontSize: "20px" }}>
+            A'zo qo'shish ({selectedUsers.length}/40)
+          </Title>
+          <CloseButton onClick={onClose}>
+            <X size={20} />
+          </CloseButton>
+        </Header>
+
+        <div style={{ padding: "0 24px 24px" }}>
+          <UserSearch>
+            <Input
+              placeholder="Ism yoki @username orqali qidirish"
+              value={searchUser}
+              onChange={(e) => setSearchUser(e.target.value)}
+              style={{ paddingLeft: 30, width: "100%" }}
+              autoFocus
+            />
+            <div
+              style={{
+                position: "absolute",
+                left: 10,
+                top: 12,
+                color: "#aaa",
+              }}
+            >
+              {isSearching ? (
+                <Loader size={14} className="animate-spin" />
+              ) : (
+                <Search size={14} />
+              )}
+            </div>
+          </UserSearch>
+
+          <UserList style={{ maxHeight: "300px", marginTop: 12 }}>
+            {searchUser.trim() === "" ? (
+              <div
+                style={{
+                  padding: 20,
+                  textAlign: "center",
+                  color: "#b9bbbe",
+                  fontSize: 14,
+                }}
+              >
+                Qidirishni boshlang...
+              </div>
+            ) : filteredUsers.length === 0 ? (
+              <div
+                style={{
+                  padding: 20,
+                  textAlign: "center",
+                  color: "#b9bbbe",
+                  fontSize: 14,
+                }}
+              >
+                Hech kim topilmadi
+              </div>
+            ) : (
+              filteredUsers.map((user) => (
+                <UserItem key={user.id} onClick={() => onSelect(user.id)}>
+                  <UserInfo>
+                    <Avatar>
+                      {user.avatar?.length > 1 ? (
+                        <img
+                          src={user.avatar}
+                          style={{
+                            width: "100%",
+                            height: "100%",
+                            borderRadius: "50%",
+                            objectFit: "cover",
+                          }}
+                          alt=""
+                        />
+                      ) : (
+                        (user.name || user.username || "").charAt(0)
+                      )}
+                    </Avatar>
+                    <div style={{ display: "flex", flexDirection: "column" }}>
+                      <UserName>{user.name || user.username}</UserName>
+                      <div style={{ fontSize: 11, color: "#b9bbbe" }}>
+                        @{user.username}
+                      </div>
+                    </div>
+                  </UserInfo>
+                  {isFull ? (
+                    <div style={{ fontSize: 10, color: "#ed4245" }}>
+                      Guruh to'la
+                    </div>
+                  ) : (
+                    <Plus size={16} color="var(--primary-color)" />
+                  )}
+                </UserItem>
+              ))
+            )}
+          </UserList>
+        </div>
+
+        <Footer style={{ padding: "12px 24px" }}>
+          <Button onClick={onClose}>Yopish</Button>
+        </Footer>
+      </Dialog>
+    </Overlay>
+  );
+};
 
 const EditGroupDialog = ({
   isOpen,
@@ -239,11 +546,14 @@ const EditGroupDialog = ({
   group = {},
   users = [],
 }) => {
+  if (!isOpen) return null;
+
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [imageUrl, setImageUrl] = useState("");
   const [selectedUsers, setSelectedUsers] = useState([]);
-  const [searchUser, setSearchUser] = useState("");
+  const [isAddMemberOpen, setIsAddMemberOpen] = useState(false);
+  const { searchGlobalUsers } = useChats();
   const fileInputRef = useRef(null);
 
   const updateAvatarMutation = useUpdateGroupAvatar({
@@ -287,12 +597,11 @@ const EditGroupDialog = ({
             }))
           : [],
       );
-      setSearchUser("");
-      setShowAdminPanelFor(null);
+      setIsAddMemberOpen(false);
     }
   }, [isOpen, group]);
 
-  if (!isOpen) return null;
+  /* Old debounced search effects moved to AddMemberDialog */
 
   const toggleUser = (userId) => {
     if (selectedUsers.includes(userId)) {
@@ -300,17 +609,15 @@ const EditGroupDialog = ({
       // Also remove from admins if removed from members
       setAdmins((prev) => prev.filter((a) => (a.userId || a.id) !== userId));
     } else {
+      if (selectedUsers.length >= 40) {
+        toast.error("Guruhga maksimal 40ta odam qo'shish mumkin");
+        return;
+      }
       setSelectedUsers([...selectedUsers, userId]);
     }
   };
 
-  const filteredUsers = users.filter(
-    (u) =>
-      u.name.toLowerCase().includes(searchUser.toLowerCase()) &&
-      u.type === "user" &&
-      !u.isSavedMessages &&
-      searchUser.trim() !== "",
-  );
+  const combinedUsers = [...users];
 
   const allUsersMap = new Map();
   group.members?.forEach((m) => allUsersMap.set(m.id || m._id || m, m));
@@ -351,6 +658,8 @@ const EditGroupDialog = ({
   };
 
   const handleSaveWrapper = () => {
+    console.log(selectedUsers);
+
     const data = {
       name,
       description,
@@ -380,7 +689,6 @@ const EditGroupDialog = ({
       formData,
     });
   };
-
   return (
     <Overlay onClick={onClose}>
       <Dialog onClick={(e) => e.stopPropagation()}>
@@ -446,7 +754,20 @@ const EditGroupDialog = ({
           </InputGroup>
 
           <UserSelection>
-            <Label>Mavjud a'zolar ({currentMembers.length})</Label>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
+              <Label>Mavjud a'zolar ({currentMembers.length}/40)</Label>
+              {canAddMembers && (
+                <PlusBtn onClick={() => setIsAddMemberOpen(true)}>
+                  <Plus size={16} />
+                </PlusBtn>
+              )}
+            </div>
             <UserList>
               {currentMembers.map((user) => {
                 const uid = String(user.id || user._id);
@@ -488,23 +809,31 @@ const EditGroupDialog = ({
                         )}
                       </UserInfo>
 
-                      <div style={{ display: "flex", gap: 8 }}>
-                        {canAddAdmins && uid !== group.createdBy && (
+                      <div
+                        style={{
+                          display: "flex",
+                          gap: 4,
+                          alignItems: "center",
+                        }}
+                      >
+                        {uid !== group.createdBy && (
                           <button
-                            onClick={() =>
-                              setShowAdminPanelFor(
-                                String(showAdminPanelFor) === uid ? null : uid,
-                              )
-                            }
+                            onClick={() => setShowAdminPanelFor(uid)}
                             style={{
                               background: "transparent",
                               border: "none",
-                              color: "#b9bbbe",
+                              color: adminRecord ? "#5865f2" : "#b9bbbe",
                               cursor: "pointer",
                               fontSize: 12,
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 2,
+                              padding: "4px 8px",
+                              borderRadius: 4,
                             }}
                           >
-                            Admin
+                            {adminRecord ? "Admin" : "Unsigned"}
+                            <ChevronRight size={14} />
                           </button>
                         )}
                         {canRemoveMembers && uid !== group.createdBy && (
@@ -515,141 +844,20 @@ const EditGroupDialog = ({
                               border: "none",
                               color: "#ed4245",
                               cursor: "pointer",
+                              padding: 6,
+                              borderRadius: 4,
                             }}
                           >
-                            <UserMinus size={16} />
+                            <Trash size={16} />
                           </button>
                         )}
                       </div>
                     </UserItem>
-
-                    {showAdminPanelFor === uid && (
-                      <div
-                        style={{
-                          padding: "8px 16px",
-                          backgroundColor: "var(--input-color, #202225)",
-                          fontSize: 13,
-                          display: "flex",
-                          flexDirection: "column",
-                          gap: 6,
-                        }}
-                      >
-                        {[
-                          {
-                            id: "edit_group_info",
-                            label: "Ma'lumotlarni tahrirlash",
-                          },
-                          { id: "add_members", label: "A'zo qo'shish" },
-                          { id: "remove_members", label: "A'zo o'chirish" },
-                          {
-                            id: "delete_others_messages",
-                            label: "Xabarlarni o'chirish",
-                          },
-                          { id: "add_admins", label: "Admin qo'shish" },
-                        ].map((perm) => {
-                          const has =
-                            adminRecord?.permissions?.includes(perm.id) ||
-                            false;
-                          return (
-                            <label
-                              key={perm.id}
-                              style={{
-                                display: "flex",
-                                alignItems: "center",
-                                gap: 8,
-                                cursor: "pointer",
-                                color: "#b9bbbe",
-                              }}
-                            >
-                              <input
-                                type="checkbox"
-                                checked={has}
-                                onChange={() => toggleAdminPerm(uid, perm.id)}
-                              />
-                              {perm.label}
-                            </label>
-                          );
-                        })}
-                      </div>
-                    )}
                   </div>
                 );
               })}
             </UserList>
           </UserSelection>
-
-          {canAddMembers && (
-            <UserSelection>
-              <Label>Yangi a'zo qo'shish</Label>
-              <UserSearch>
-                <Input
-                  placeholder="User qidirish..."
-                  value={searchUser}
-                  onChange={(e) => setSearchUser(e.target.value)}
-                  style={{ paddingLeft: 30, width: "100%" }}
-                />
-                <Search
-                  size={14}
-                  style={{
-                    position: "absolute",
-                    left: 10,
-                    top: 12,
-                    color: "#aaa",
-                  }}
-                />
-              </UserSearch>
-              {searchUser.trim() !== "" && (
-                <UserList>
-                  {filteredUsers.length === 0 ? (
-                    <div
-                      style={{
-                        padding: 12,
-                        color: "#b9bbbe",
-                        fontSize: 13,
-                        textAlign: "center",
-                      }}
-                    >
-                      Hech kim topilmadi
-                    </div>
-                  ) : (
-                    filteredUsers.map((user) => (
-                      <UserItem
-                        key={user.id}
-                        selected={selectedUsers.includes(user.id)}
-                        onClick={() => toggleUser(user.id)}
-                      >
-                        <UserInfo>
-                          <Avatar>
-                            {user.avatar?.length > 1 ? (
-                              <img
-                                src={user.avatar}
-                                style={{
-                                  width: "100%",
-                                  height: "100%",
-                                  borderRadius: "50%",
-                                  objectFit: "cover",
-                                }}
-                                alt=""
-                              />
-                            ) : (
-                              user.name.charAt(0)
-                            )}
-                          </Avatar>
-                          <UserName>{user.name}</UserName>
-                        </UserInfo>
-                        {selectedUsers.includes(user.id) && (
-                          <Check
-                            size={16}
-                            color="var(--primary-color, #5865F2)"
-                          />
-                        )}
-                      </UserItem>
-                    ))
-                  )}
-                </UserList>
-              )}
-            </UserSelection>
-          )}
         </Content>
 
         <Footer>
@@ -659,6 +867,45 @@ const EditGroupDialog = ({
           </Button>
         </Footer>
       </Dialog>
+
+      {/* Admin Rights Sub-Dialog */}
+      {showAdminPanelFor && (
+        <AdminRightsDialog
+          isOpen={!!showAdminPanelFor}
+          onClose={() => setShowAdminPanelFor(null)}
+          user={allUsersMap.get(showAdminPanelFor)}
+          permissions={
+            admins.find(
+              (a) => String(a.userId || a.id) === String(showAdminPanelFor),
+            )?.permissions || []
+          }
+          onTogglePerm={(permId) => toggleAdminPerm(showAdminPanelFor, permId)}
+          onDismissAdmin={() => {
+            setAdmins((prev) =>
+              prev.filter(
+                (a) => String(a.userId || a.id) !== String(showAdminPanelFor),
+              ),
+            );
+            setShowAdminPanelFor(null);
+          }}
+          isOwner={isOwner}
+        />
+      )}
+
+      {/* Add Member Sub-Dialog */}
+      {isAddMemberOpen && (
+        <AddMemberDialog
+          isOpen={isAddMemberOpen}
+          onClose={() => setIsAddMemberOpen(false)}
+          onSelect={(uid) => {
+            toggleUser(uid);
+            setIsAddMemberOpen(false);
+          }}
+          selectedUsers={selectedUsers}
+          users={users}
+          searchGlobalUsers={searchGlobalUsers}
+        />
+      )}
     </Overlay>
   );
 };

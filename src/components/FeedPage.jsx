@@ -10,6 +10,8 @@ import PostComments from "./PostComments";
 import { Skeleton, SkeletonCircle } from "./Skeleton";
 import { PlusBtn } from "./ProfilePage";
 import dayjs from "dayjs";
+import PremiumBadgeIcon from "./PremiumBadge";
+import { formatChatTime } from "../utils/dateUtils";
 
 /* ── Animations ── */
 const fadeSlide = keyframes`from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); }`;
@@ -571,10 +573,13 @@ const FeedPage = () => {
                       <PostHeader>
                         <PostAuthor onClick={() => goToProfile(author._id)}>
                           {authorName}
+                          {author.premiumStatus === "active" && (
+                            <PremiumBadgeIcon width={16} height={16} />
+                          )}
                         </PostAuthor>
                         <PostHandle>@{authorHandle}</PostHandle>
                         <PostDot>·</PostDot>
-                        <PostTime>{formatTime(post.createdAt)}</PostTime>
+                        <PostTime>{formatChatTime(post.createdAt)}</PostTime>
                       </PostHeader>
 
                       <PostText>{renderText(post.content)}</PostText>

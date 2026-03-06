@@ -260,6 +260,10 @@ const CreateGroupDialog = ({ isOpen, onClose, onCreate, users = [] }) => {
     if (selectedUsers.includes(userId)) {
       setSelectedUsers(selectedUsers.filter((id) => id !== userId));
     } else {
+      if (selectedUsers.length >= 39) {
+        toast.error("Guruhga maksimal 40ta odam qo'shish mumkin");
+        return;
+      }
       setSelectedUsers([...selectedUsers, userId]);
     }
   };
@@ -347,7 +351,7 @@ const CreateGroupDialog = ({ isOpen, onClose, onCreate, users = [] }) => {
           </InputGroup>
 
           <UserSelection>
-            <Label>Ishtirokchilar ({selectedUsers.length})</Label>
+            <Label>Ishtirokchilar ({selectedUsers.length}/40)</Label>
             <UserSearch>
               <Input
                 placeholder="User qidirish..."

@@ -178,16 +178,30 @@ export const ChatsProvider = ({ children }) => {
       });
     };
 
+    const handleChatDeleted = ({ chatId }) => {
+      setChats((prev) => prev.filter((c) => c.id !== chatId));
+      if (
+        String(selectedChannel) === String(chatId) ||
+        String(selectedChannel) === "0"
+      ) {
+        // Option: navigate back or clear selection if the deleted chat was active
+        // But context doesn't have navigate easily here without passing it
+        // The component using the chat will handle it by seeing currentChat is undefined
+      }
+    };
+
     chatSocket.on("message_new", handleGlobalNewMessage);
     chatSocket.on("messages_read", handleGlobalMessagesRead);
     chatSocket.on("chat_updated", handleChatUpdated);
     chatSocket.on("user_typing", handleUserTyping);
+    chatSocket.on("chat_deleted", handleChatDeleted);
 
     return () => {
       chatSocket.off("message_new");
       chatSocket.off("messages_read");
       chatSocket.off("chat_updated");
       chatSocket.off("user_typing");
+      chatSocket.off("chat_deleted");
     };
   }, [chatSocket, selectedChannel]);
 
@@ -254,7 +268,8 @@ export const ChatsProvider = ({ children }) => {
           );
           if (other) {
             displayInfo = {
-              name: other.nickname || other.username,
+              name: other.nickname,
+              username: other.username,
               avatar:
                 other.avatar || (other.nickname || other.username).charAt(0),
               urlSlug: other.username,
@@ -273,8 +288,10 @@ export const ChatsProvider = ({ children }) => {
         return {
           id: chat._id,
           jammId: chat.jammId,
+          isGroup: !!chat.isGroup,
           type: chat.isGroup ? "group" : "user",
           name: displayInfo.name,
+          username: displayInfo.username,
           avatar: displayInfo.avatar,
           isSavedMessages: displayInfo.isSavedMessages,
           premiumStatus: displayInfo.premiumStatus,
@@ -317,6 +334,16 @@ export const ChatsProvider = ({ children }) => {
   const editChat = async (chatId, dto) => {
     await chatApi.editChat({ chatId, dto });
     fetchChats();
+  };
+
+  const deleteChat = async (chatId) => {
+    await chatApi.deleteChat(chatId);
+    setChats((prev) => prev.filter((c) => c.id !== chatId));
+  };
+
+  const leaveChat = async (chatId) => {
+    await chatApi.leaveChat(chatId);
+    setChats((prev) => prev.filter((c) => c.id !== chatId));
   };
 
   const fetchMessages = useCallback(async (chatId, page = 1, limit = 30) => {
@@ -370,6 +397,17 @@ export const ChatsProvider = ({ children }) => {
     return chatApi.resolveChatSlug(slug);
   }, []);
 
+  const searchGlobalUsers = useCallback(async (query) => {
+    if (!query) return [];
+    const data = await chatApi.searchGlobalUsers(query);
+    return data.map((u) => ({
+      id: u._id,
+      name: u.nickname || u.username,
+      username: u.username,
+      avatar: u.avatar || (u.nickname || u.username).charAt(0),
+    }));
+  }, []);
+
   const searchUsers = useCallback(async (query) => {
     if (!query) return [];
     const data = await chatApi.searchUsers(query);
@@ -405,8 +443,10 @@ export const ChatsProvider = ({ children }) => {
   }, []);
 
   useEffect(() => {
-    // Moved to ChannelSidebar for lazy loading
-  }, []);
+    if (["chats", "groups", "users"].includes(selectedNav)) {
+      fetchChats();
+    }
+  }, [fetchChats, selectedNav]);
 
   useEffect(() => {
     if (!selectedChannel || selectedChannel === "0") return;
@@ -431,6 +471,8 @@ export const ChatsProvider = ({ children }) => {
     fetchChats,
     createChat,
     editChat,
+    deleteChat,
+    leaveChat,
     fetchMessages,
     sendMessage,
     markMessagesAsRead,
@@ -445,6 +487,7 @@ export const ChatsProvider = ({ children }) => {
     chatSocket,
     typingUsers,
     sendTypingStatus,
+    searchGlobalUsers,
     previewGroupChat: async (slug) => {
       return chatApi.previewGroupChat(slug);
     },

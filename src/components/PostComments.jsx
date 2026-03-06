@@ -5,6 +5,7 @@ import { usePosts } from "../contexts/PostsContext";
 import useAuthStore from "../store/authStore";
 import InfiniteScroll from "react-infinite-scroll-component";
 import dayjs from "dayjs";
+import PremiumBadgeIcon from "./PremiumBadge";
 
 /* ── Animations ── */
 const fadeIn = keyframes`from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); }`;
@@ -508,7 +509,13 @@ const PostComments = ({ post, onClose }) => {
                       <CommentContent>
                         <CommentBubble>
                           <AuthorRow>
-                            <AuthorName>{name}</AuthorName>
+                            <AuthorName>
+                              {name}
+
+                              {u?.premiumStatus === "active" && (
+                                <PremiumBadgeIcon width={16} height={16} />
+                              )}
+                            </AuthorName>
                             <CommentTime>{timeAgo(c.createdAt)}</CommentTime>
                           </AuthorRow>
                           <CommentText>{c.content}</CommentText>

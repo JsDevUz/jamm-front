@@ -88,7 +88,6 @@ function SlugResolver() {
     "chats",
     "users",
     "groups",
-    "channels",
     "courses",
     "arena",
     "meets",

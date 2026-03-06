@@ -20,6 +20,7 @@ import {
   Star,
 } from "lucide-react";
 import { Skeleton, SkeletonCircle, SkeletonRow } from "./Skeleton";
+import PremiumBadgeIcon from "./PremiumBadge";
 import { useChats } from "../contexts/ChatsContext";
 import { usePresence } from "../contexts/PresenceContext";
 import { getMeets, removeMeet } from "../utils/meetStore";
@@ -196,7 +197,9 @@ const ChatAvatar = styled.div`
   background: ${(props) =>
     props.$isGroup
       ? "linear-gradient(135deg, #667eea 0%, #764ba2 100%)"
-      : "#7289da"};
+      : props.$isSavedMessages
+        ? "#0288D1"
+        : "#7289da"};
   display: flex;
   align-items: center;
   justify-content: center;
@@ -339,16 +342,10 @@ const UniversalSidebar = ({ onOpenCreateGroup, onOpenCreateMeet }) => {
 
   const navigate = useNavigate();
 
-  useEffect(() => {
-    if (selectedNav !== "meets") {
-      fetchChats();
-    }
-  }, [fetchChats, selectedNav]);
-
   const [searchQuery, setSearchQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState("all");
-  const [allUsers, setAllUsers] = useState([]);
-  const [loadingUsers, setLoadingUsers] = useState(false);
+  const [searchResults, setSearchResults] = useState([]);
+  const [loadingSearch, setLoadingSearch] = useState(false);
   const [chatTab, setChatTab] = useState(() => {
     if (selectedNav === "groups") return "group";
     return "private";
@@ -384,22 +381,17 @@ const UniversalSidebar = ({ onOpenCreateGroup, onOpenCreateMeet }) => {
     }
   }, [chats, fetchBulkStatuses, selectedNav]);
 
-  // Tracks which nav we've already fetched users for — prevents duplicate calls
-  const fetchedNavRef = React.useRef(null);
-
-  // Load all users when entering users tab; search when query changes
+  // Load users only when searching
   useEffect(() => {
-    if (selectedNav !== "users") {
-      setAllUsers([]);
-      fetchedNavRef.current = null;
+    if (selectedNav !== "users" && selectedNav !== "chats") {
+      setSearchResults([]);
       return;
     }
     if (searchQuery.trim().length > 0) {
-      fetchedNavRef.current = null; // reset so full list re-fetches after clearing
       const timer = setTimeout(async () => {
-        setLoadingUsers(true);
+        setLoadingSearch(true);
         const results = await searchUsers(searchQuery);
-        setAllUsers(
+        setSearchResults(
           results.map((u) => ({
             id: u.id || u._id,
             name: u.name,
@@ -408,20 +400,13 @@ const UniversalSidebar = ({ onOpenCreateGroup, onOpenCreateMeet }) => {
             premiumStatus: u.premiumStatus,
           })),
         );
-        setLoadingUsers(false);
+        setLoadingSearch(false);
       }, 500);
       return () => clearTimeout(timer);
     } else {
-      // Only fetch all users once per nav visit (guard against re-renders)
-      if (fetchedNavRef.current === "users") return;
-      fetchedNavRef.current = "users";
-      setLoadingUsers(true);
-      getAllUsers().then((users) => {
-        setAllUsers(users);
-        setLoadingUsers(false);
-      });
+      setSearchResults([]);
     }
-  }, [searchQuery, selectedNav, searchUsers, getAllUsers]);
+  }, [searchQuery, selectedNav, searchUsers]);
 
   const handleStartPrivateChat = async (targetUser) => {
     // Check if chat already exists with this user
@@ -478,19 +463,19 @@ const UniversalSidebar = ({ onOpenCreateGroup, onOpenCreateMeet }) => {
       if (chatTab === "private") {
         result = result.filter(
           (chat) =>
-            chat.type === "user" &&
+            !chat.isGroup &&
             (chat.isSavedMessages ||
               chat.hasMessages ||
               String(chat.id) === String(selectedChannel)),
         );
       } else {
-        result = result.filter((chat) => chat.type === "group");
+        result = result.filter((chat) => chat.isGroup);
       }
     } else if (selectedNav === "home") {
       result = result.filter(
         (chat) =>
-          chat.type === "group" ||
-          (chat.type === "user" &&
+          chat.isGroup ||
+          (!chat.isGroup &&
             (chat.isSavedMessages ||
               chat.hasMessages ||
               String(chat.id) === String(selectedChannel))),
@@ -529,6 +514,7 @@ const UniversalSidebar = ({ onOpenCreateGroup, onOpenCreateMeet }) => {
       const virtualChat = {
         id: `virtual-${previewChat.targetUserId}`,
         urlSlug: previewChat.targetUserId,
+        isGroup: false,
         type: "user",
         name: previewChat.name,
         avatar: previewChat.avatar,
@@ -582,6 +568,7 @@ const UniversalSidebar = ({ onOpenCreateGroup, onOpenCreateMeet }) => {
       meetsFetchedRef.current = false;
     }
   }, [selectedNav]);
+  console.log(chats);
 
   function timeAgo(ts) {
     const diff = (Date.now() - ts) / 1000;
@@ -636,13 +623,19 @@ const UniversalSidebar = ({ onOpenCreateGroup, onOpenCreateMeet }) => {
         <ChatsTabsRow>
           <ChatsTab
             active={chatTab === "private"}
-            onClick={() => setChatTab("private")}
+            onClick={() => {
+              (setChatTab("private"),
+                selectedNav === "chats" && navigate("/users"));
+            }}
           >
             Shaxsiy
           </ChatsTab>
           <ChatsTab
             active={chatTab === "group"}
-            onClick={() => setChatTab("group")}
+            onClick={() => {
+              (setChatTab("group"),
+                selectedNav === "chats" && navigate("/groups"));
+            }}
           >
             Guruhlar
           </ChatsTab>
@@ -770,32 +763,27 @@ const UniversalSidebar = ({ onOpenCreateGroup, onOpenCreateMeet }) => {
                 // Get the other user's ID for private chats
                 const currentUserId = currentUser?._id || currentUser?.id;
                 const otherMember =
-                  chat.type !== "group" && chat.members
+                  !chat.isGroup && chat.members
                     ? chat.members.find((m) => m._id !== currentUserId)
                     : null;
                 const otherUserId = otherMember?._id;
                 const isOnline = otherUserId
                   ? isUserOnline(otherUserId)
                   : false;
-                const onlineCount =
-                  chat.type === "group" ? getOnlineCount(chat.members) : 0;
+                const onlineCount = chat.isGroup
+                  ? getOnlineCount(chat.members)
+                  : 0;
 
                 return (
                   <ChatLink
                     key={chat.id}
-                    to={`/${chat.type === "group" ? "groups" : "users"}/${chat.urlSlug}`}
+                    to={`/${chat.isGroup ? "groups" : "users"}/${chat.urlSlug}`}
                   >
                     <ChatItem active={selectedChannel === chat.urlSlug}>
                       <AvatarWrapper>
                         <ChatAvatar
-                          $isGroup={
-                            chat.type === "group" || chat.isSavedMessages
-                          }
-                          style={
-                            chat.isSavedMessages
-                              ? { backgroundColor: "#0288D1" }
-                              : {}
-                          }
+                          $isGroup={chat.isGroup}
+                          $isSavedMessages={chat.isSavedMessages}
                         >
                           {chat.isSavedMessages ? (
                             <Bookmark size={18} color="white" fill="white" />
@@ -810,7 +798,7 @@ const UniversalSidebar = ({ onOpenCreateGroup, onOpenCreateMeet }) => {
                                 objectFit: "cover",
                               }}
                             />
-                          ) : chat.type === "group" ? (
+                          ) : chat.isGroup ? (
                             chat.name.charAt(0)
                           ) : (
                             chat.name
@@ -819,7 +807,7 @@ const UniversalSidebar = ({ onOpenCreateGroup, onOpenCreateMeet }) => {
                               .join("")
                           )}
                         </ChatAvatar>
-                        {chat.type !== "group" && !chat.isSavedMessages && (
+                        {!chat.isGroup && !chat.isSavedMessages && (
                           <OnlineDot $online={isOnline} />
                         )}
                       </AvatarWrapper>
@@ -827,16 +815,11 @@ const UniversalSidebar = ({ onOpenCreateGroup, onOpenCreateMeet }) => {
                         <ChatName>
                           {chat.name}
                           {chat.premiumStatus === "active" && (
-                            <Star
-                              size={14}
-                              fill="#ffaa00"
-                              color="#ffaa00"
-                              style={{ marginLeft: 4 }}
-                            />
+                            <PremiumBadgeIcon width={14} height={14} />
                           )}
                         </ChatName>
                         <ChatMessage>
-                          {chat.type === "group" && onlineCount > 0 ? (
+                          {chat.isGroup && onlineCount > 0 ? (
                             <>
                               {chat.lastMessage}
                               {" · "}
@@ -861,10 +844,10 @@ const UniversalSidebar = ({ onOpenCreateGroup, onOpenCreateMeet }) => {
               })}
             </InfiniteScroll>
 
-            {/* ─── Global Platform Users List (Users tab only) ─── */}
-            {selectedNav === "users" && (
+            {/* ─── Search Results for New Users (Only when searching) ─── */}
+            {searchQuery && (
               <>
-                {loadingUsers ? (
+                {loadingSearch ? (
                   <div
                     style={{
                       padding: "20px 16px",
@@ -873,7 +856,7 @@ const UniversalSidebar = ({ onOpenCreateGroup, onOpenCreateMeet }) => {
                       gap: "16px",
                     }}
                   >
-                    {[...Array(4)].map((_, i) => (
+                    {[...Array(3)].map((_, i) => (
                       <SkeletonRow key={i}>
                         <SkeletonCircle size="40px" />
                         <div style={{ flex: 1 }}>
@@ -884,7 +867,7 @@ const UniversalSidebar = ({ onOpenCreateGroup, onOpenCreateMeet }) => {
                     ))}
                   </div>
                 ) : (
-                  allUsers
+                  searchResults
                     .filter((u) => {
                       const targetUserId = u.id || u._id;
                       const currentUserId = currentUser?._id || currentUser?.id;
@@ -892,8 +875,8 @@ const UniversalSidebar = ({ onOpenCreateGroup, onOpenCreateMeet }) => {
                       // Skip me
                       if (targetUserId === currentUserId) return false;
 
-                      // Check if this user is ALREADY displayed in the 'filteredChats' list above
-                      const isAlreadyDisplayed = filteredChats.some(
+                      // Check if already in active chats
+                      const isAlreadyInChats = filteredChats.some(
                         (c) =>
                           !c.isGroup &&
                           !c.isSavedMessages &&
@@ -902,7 +885,7 @@ const UniversalSidebar = ({ onOpenCreateGroup, onOpenCreateMeet }) => {
                           ),
                       );
 
-                      return !isAlreadyDisplayed;
+                      return !isAlreadyInChats;
                     })
                     .map((user) => (
                       <ChatItem
@@ -930,12 +913,7 @@ const UniversalSidebar = ({ onOpenCreateGroup, onOpenCreateMeet }) => {
                           <ChatName>
                             {user.name}
                             {user.premiumStatus === "active" && (
-                              <Star
-                                size={14}
-                                fill="#ffaa00"
-                                color="#ffaa00"
-                                style={{ marginLeft: 4 }}
-                              />
+                              <PremiumBadgeIcon width={14} height={14} />
                             )}
                           </ChatName>
                           <ChatMessage>@{user.username}</ChatMessage>

@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import styled from "styled-components";
 import { Mic, Headphones, Settings, Volume2, X, Star } from "lucide-react";
 import useAuthStore from "../store/authStore";
+import PremiumBadgeIcon from "./PremiumBadge";
 
 const PanelContainer = styled.div`
   width: 60px;
@@ -179,7 +180,7 @@ const UserPanel = () => {
               border: "2px solid #292b2f",
             }}
           >
-            <Star size={10} color="#fff" fill="#fff" />
+            <PremiumBadgeIcon width={10} height={10} color="#fff" />
           </div>
         )}
         <StatusIndicator />

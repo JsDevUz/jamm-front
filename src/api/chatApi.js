@@ -72,6 +72,11 @@ export const searchUsers = async (query) => {
   return data;
 };
 
+export const searchGlobalUsers = async (query) => {
+  const { data } = await axiosInstance.get(`/users/global-search?q=${query}`);
+  return data;
+};
+
 export const getUserByUsername = async (username) => {
   const { data } = await axiosInstance.get(`/users/by-username/${username}`);
   return data;
@@ -84,5 +89,15 @@ export const getAllUsers = async () => {
 
 export const getPublicProfile = async (identifier) => {
   const { data } = await axiosInstance.get(`/users/${identifier}/profile`);
+  return data;
+};
+
+export const deleteChat = async (chatId) => {
+  const { data } = await axiosInstance.delete(`/chats/${chatId}`);
+  return data;
+};
+
+export const leaveChat = async (chatId) => {
+  const { data } = await axiosInstance.post(`/chats/${chatId}/leave`);
   return data;
 };

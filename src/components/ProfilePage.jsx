@@ -3,14 +3,19 @@ import styled, { keyframes } from "styled-components";
 import {
   MessageSquare,
   GraduationCap,
+  MessageCircle,
+  ArrowLeft,
   Camera,
-  Calendar,
   Settings,
+  Calendar,
   Plus,
   Heart,
   Eye,
-  MessageCircle,
-  ArrowLeft,
+  ChevronRight,
+  Star,
+  Store,
+  Gift,
+  Coins,
 } from "lucide-react";
 import PremiumBadgeIcon from "./PremiumBadge";
 import useAuthStore from "../store/authStore";
@@ -20,6 +25,7 @@ import { usePosts } from "../contexts/PostsContext";
 import { useCourses } from "../contexts/CoursesContext";
 import { useNavigate } from "react-router-dom";
 import dayjs from "dayjs";
+import PremiumBadge from "./PremiumBadge";
 
 const MobileBackBtn = styled.button`
   display: none;
@@ -388,8 +394,11 @@ const SectionDivider = styled.div`
 const TabsContainer = styled.div`
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 0 16px 20px;
+  margin: 16px;
+  background: var(--secondary-color, #2f3136);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
   animation: ${fadeIn} 0.35s ease 0.2s both;
 `;
 
@@ -398,19 +407,29 @@ const TabItem = styled.button`
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 12px 16px;
-  background: ${(p) => (p.active ? "var(--input-color)" : "transparent")};
+  padding: 10px 16px;
+  background: ${(p) => (p.active ? "var(--hover-color)" : "transparent")};
   border: none;
-  border-radius: 8px;
   cursor: pointer;
-  color: ${(p) => (p.active ? "var(--text-color)" : "var(--text-muted-color)")};
-  font-size: 14px;
+  color: var(--text-color);
+  font-size: 15px;
   font-weight: 500;
   transition: all 0.2s;
+  position: relative;
 
   &:hover {
-    background: var(--input-color);
-    color: var(--text-color);
+    background: var(--hover-color);
+  }
+
+  &:not(:last-child)::after {
+    content: "";
+    position: absolute;
+    bottom: 0;
+    left: 60px;
+    right: 0;
+    height: 1px;
+    background: var(--border-color);
+    opacity: 0.3;
   }
 
   .icon-wrapper {
@@ -422,6 +441,17 @@ const TabItem = styled.button`
     border-radius: 8px;
     background: ${(p) => p.iconBg || "var(--primary-color)"};
     color: white;
+    flex-shrink: 0;
+  }
+
+  .label {
+    flex: 1;
+    text-align: left;
+  }
+
+  .chevron {
+    color: var(--text-muted-color);
+    opacity: 0.5;
   }
 `;
 
@@ -879,24 +909,60 @@ const ProfilePage = ({ profileUserId }) => {
           <TabItem
             active={activeTab === "groups"}
             onClick={() => setActiveTab("groups")}
-            iconBg="#3ba55d"
+            iconBg="linear-gradient(135deg, #3ba55d, #248147)"
           >
             <div className="icon-wrapper">
               <MessageSquare size={16} />
             </div>
-            Gurunglar
+            <span className="label">Gurunglar</span>
+            <ChevronRight className="chevron" size={16} />
           </TabItem>
           <TabItem
             active={activeTab === "courses"}
             onClick={() => setActiveTab("courses")}
-            iconBg="#faa61a"
+            iconBg="linear-gradient(135deg, #faa61a, #bd7b0a)"
           >
             <div className="icon-wrapper">
               <GraduationCap size={16} />
             </div>
-            Darslar
+            <span className="label">Darslar</span>
+            <ChevronRight className="chevron" size={16} />
           </TabItem>
         </TabsContainer>
+
+        {/* <TabsContainer>
+          <TabItem iconBg="linear-gradient(135deg, #8E2DE2, #4A00E0)">
+            <div className="icon-wrapper">
+              <Star size={16} />
+            </div>
+            <span className="label">Jamm Premium</span>
+            <ChevronRight className="chevron" size={16} />
+          </TabItem>
+
+          <TabItem iconBg="linear-gradient(135deg, #f8c333, #f57c00)">
+            <div className="icon-wrapper">
+              <Star size={16} />
+            </div>
+            <span className="label">Yulduzlarim</span>
+            <ChevronRight className="chevron" size={16} />
+          </TabItem>
+
+          <TabItem iconBg="linear-gradient(135deg, #ec008c, #673ab7)">
+            <div className="icon-wrapper">
+              <Store size={16} />
+            </div>
+            <span className="label">Jamm Biznes</span>
+            <ChevronRight className="chevron" size={16} />
+          </TabItem>
+
+          <TabItem iconBg="linear-gradient(135deg, #00d2ff, #3a7bd5)">
+            <div className="icon-wrapper">
+              <Gift size={16} />
+            </div>
+            <span className="label">Hadya yuborish</span>
+            <ChevronRight className="chevron" size={16} />
+          </TabItem>
+        </TabsContainer> */}
       </ProfileSidebar>
 
       {/* ── RIGHT: Content Area ── */}
@@ -940,7 +1006,10 @@ const ProfilePage = ({ profileUserId }) => {
                       )}
                     </PostAvatar>
                     <PostMeta>
-                      <h4>{displayName}</h4>
+                      <h4>
+                        {displayName}
+                        <PremiumBadge isPremium={isPremium} />
+                      </h4>
                       <span>{formatTime(post.createdAt)}</span>
                     </PostMeta>
                   </PostHeader>

@@ -1,6 +1,7 @@
 import React from "react";
 import styled from "styled-components";
 import { X, Star, Check, X as XIcon, Zap } from "lucide-react";
+import PremiumBadgeIcon from "./PremiumBadge";
 
 const Overlay = styled.div`
   position: fixed;
@@ -167,7 +168,7 @@ const PremiumUpgradeModal = ({ isOpen, onClose, onUpgrade }) => {
             <X size={20} />
           </CloseButton>
           <Title>
-            <Star color="#ffaa00" fill="#ffaa00" size={32} />
+            <PremiumBadgeIcon width={32} height={32} />
             Jamm Premium
           </Title>
           <Subtitle>
@@ -221,7 +222,7 @@ const PremiumUpgradeModal = ({ isOpen, onClose, onUpgrade }) => {
             {/* Premium Plan */}
             <PlanCard $premium>
               <PlanName $premium>
-                <Star size={18} fill="#ffaa00" /> Premium
+                <PremiumBadgeIcon width={18} height={18} /> Premium
               </PlanName>
               <FeatureList>
                 <FeatureItem>

@@ -16,15 +16,24 @@ import {
   Phone,
   X,
   Reply,
-  Edit2,
+  Link,
+  BellOff,
   Trash2,
   Check,
   CheckCheck,
   Bookmark,
   Star,
+  Info,
+  AtSign,
   Copy,
+  QrCode,
+  CopyIcon,
+  Link2,
+  LogOut,
+  Edit2,
 } from "lucide-react";
 import InfiniteScroll from "react-infinite-scroll-component";
+import PremiumBadgeIcon from "./PremiumBadge";
 import EditGroupDialog from "./EditGroupDialog";
 import { useChats } from "../contexts/ChatsContext";
 import { usePresence } from "../contexts/PresenceContext";
@@ -79,6 +88,162 @@ const OuterChatWrapper = styled.div`
   overflow: hidden;
   position: relative;
 `;
+
+const ProfileInfoSection = styled.div`
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+`;
+
+const ProfileInfoItem = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 8px;
+  transition: background 0.2s;
+
+  &:hover {
+    background-color: var(--hover-color);
+  }
+`;
+
+const ProfileInfoIcon = styled.div`
+  color: var(--primary-color);
+  margin-top: 2px;
+`;
+
+const ProfileInfoContent = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+`;
+
+const ProfileInfoLabel = styled.div`
+  font-size: 14px;
+  color: var(--text-color);
+  line-height: 1.4;
+`;
+
+const ProfileInfoValue = styled.div`
+  font-size: 12px;
+  color: var(--text-muted-color);
+`;
+
+const ProfileActions = styled.div`
+  display: flex;
+  justify-content: center;
+  gap: 24px;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--border-color);
+  margin: 0 16px;
+`;
+
+const ProfileActionBtn = styled.button`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--primary-color);
+  transition: opacity 0.2s;
+
+  &:hover {
+    opacity: 0.8;
+  }
+
+  span {
+    font-size: 12px;
+    font-weight: 500;
+  }
+`;
+
+const AdminBadge = styled.span`
+  font-size: 11px;
+  color: var(--primary-color);
+  background: rgba(88, 101, 242, 0.1);
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-weight: 600;
+  text-transform: uppercase;
+  margin-left: auto;
+`;
+
+const GroupInfoCard = styled.div`
+  background-color: var(--secondary-color);
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  border: 1px solid var(--border-color);
+`;
+
+const InfoItem = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  position: relative;
+`;
+
+const InfoLabel = styled.div`
+  font-size: 13px;
+  color: var(--text-muted-color);
+  font-weight: 400;
+`;
+
+const InfoValue = styled.div`
+  font-size: 15px;
+  color: var(--text-color);
+  line-height: 1.5;
+  word-break: break-word;
+`;
+
+const InfoLink = styled.div`
+  font-size: 15px;
+  color: #0088cc;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  text-decoration: none;
+
+  &:hover {
+    text-decoration: underline;
+  }
+`;
+
+const ShowMoreBtn = styled.span`
+  color: #0088cc;
+  cursor: pointer;
+  font-weight: 500;
+  margin-left: 8px;
+
+  &:hover {
+    text-decoration: underline;
+  }
+`;
+
+const MentionsText = ({ text }) => {
+  if (!text) return null;
+  const parts = text.split(/(@\w+)/g);
+  return (
+    <>
+      {parts.map((part, i) =>
+        part.startsWith("@") ? (
+          <span key={i} style={{ color: "#0088cc", cursor: "pointer" }}>
+            {part}
+          </span>
+        ) : (
+          part
+        ),
+      )}
+    </>
+  );
+};
 
 const ChatHeader = styled.div`
   display: flex;
@@ -193,69 +358,6 @@ const HeaderRight = styled.div`
   align-items: center;
   gap: 8px;
 `;
-
-const BackButton = styled.button`
-  display: none;
-  align-items: center;
-  justify-content: center;
-  background: none;
-  border: none;
-  color: #b9bbbe;
-  cursor: pointer;
-  padding: 8px;
-  border-radius: 4px;
-  transition: all 0.2s ease;
-  margin-right: 12px;
-
-  &:hover {
-    background-color: #4a4d52;
-    color: #dcddde;
-  }
-
-  /* Mobile responsive */
-  @media (max-width: 768px) {
-    display: flex;
-  }
-`;
-
-const ChannelInfo = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 8px;
-`;
-
-const ChannelIcon = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: ${(props) =>
-    props.isGroup
-      ? "linear-gradient(135deg, #667eea 0%, #764ba2 100%)"
-      : "#7289da"};
-  color: white;
-  font-weight: 600;
-  font-size: 14px;
-  flex-shrink: 0;
-`;
-
-const ChannelName = styled.span`
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--text-color);
-
-  /* Mobile responsive */
-  @media (max-width: 768px) {
-    font-size: 16px;
-  }
-
-  @media (max-width: 480px) {
-    font-size: 14px;
-  }
-`;
-
 const HeaderButton = styled.button`
   display: flex;
   align-items: center;
@@ -272,6 +374,15 @@ const HeaderButton = styled.button`
   &:hover {
     background-color: var(--hover-color);
     color: var(--text-color);
+  }
+
+  &:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+    &:hover {
+      background-color: transparent;
+      color: var(--text-secondary-color);
+    }
   }
 `;
 
@@ -296,6 +407,132 @@ const HeaderIcon = styled.button`
   &:hover {
     background-color: #4a4d52;
     color: #dcddde;
+  }
+`;
+
+const HeaderDropdown = styled.div`
+  position: absolute;
+  top: 55px;
+  right: 16px;
+  background-color: rgba(20, 20, 20, 0.1);
+  backdrop-filter: blur(5px) saturate(200%);
+  -webkit-backdrop-filter: blur(40px) saturate(200%);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 14px;
+  padding: 8px;
+  min-width: 200px;
+  z-index: 1000;
+  box-shadow:
+    0 24px 48px rgba(0, 0, 0, 0.4),
+    0 0 0 1px rgba(255, 255, 255, 0.05) inset;
+  display: flex;
+  flex-direction: column;
+
+  transform-origin: top right;
+  animation: headerMenuFadeIn 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275)
+    forwards;
+
+  @keyframes headerMenuFadeIn {
+    from {
+      opacity: 0;
+      transform: scale(0.9) translateY(-10px);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1) translateY(0);
+    }
+  }
+`;
+
+const DropdownItem = styled.div`
+  padding: 10px 14px;
+  color: #dcddde;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-radius: 8px;
+  transition: all 0.15s ease;
+  margin-bottom: 2px;
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+
+  &:hover {
+    background-color: var(--primary-color);
+    color: #ffffff;
+    transform: translateX(4px);
+  }
+
+  ${(props) =>
+    props.danger &&
+    `
+    color: #f04747;
+    &:hover {
+      background-color: #f04747;
+      color: #ffffff;
+    }
+  `}
+`;
+
+const ConfirmDialogOverlay = styled.div`
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+`;
+
+const ConfirmDialog = styled.div`
+  background-color: var(--secondary-color);
+  border-radius: 12px;
+  padding: 24px;
+  width: 100%;
+  max-width: 400px;
+  border: 1px solid var(--border-color);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  text-align: center;
+`;
+
+const ConfirmTitle = styled.h3`
+  margin: 0 0 16px 0;
+  font-size: 18px;
+  color: var(--text-color);
+`;
+
+const ConfirmText = styled.p`
+  margin: 0 0 24px 0;
+  font-size: 15px;
+  color: var(--text-muted-color);
+  line-height: 1.5;
+`;
+
+const ConfirmActions = styled.div`
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+`;
+
+const ConfirmButton = styled.button`
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  background-color: ${(props) => (props.danger ? "#ff4d4d" : "transparent")};
+  color: ${(props) => (props.danger ? "white" : "var(--text-muted-color)")};
+  transition: opacity 0.2s;
+
+  &:hover {
+    opacity: 0.8;
   }
 `;
 
@@ -330,7 +567,6 @@ const MessagesContainer = styled.div`
 const MessageContainer = styled.div`
   display: flex;
   flex-direction: column;
-  padding: 8px 16px;
 `;
 
 const MessageWrapper = styled.div`
@@ -783,7 +1019,7 @@ const MessageInput = styled.textarea`
 `;
 
 const RightSidebar = styled.div`
-  width: 300px;
+  width: 350px;
   background-color: var(--secondary-color);
   border-left: 1px solid var(--border-color);
   display: flex;
@@ -796,7 +1032,7 @@ const RightSidebar = styled.div`
     top: 0;
     right: 0;
     bottom: 0;
-    width: 300px;
+    width: 350px;
     z-index: 10;
     box-shadow: -4px 0 16px rgba(0, 0, 0, 0.2);
   }
@@ -839,8 +1075,7 @@ const SidebarCloseButton = styled.button`
   border: none;
   color: var(--text-muted-color);
   cursor: pointer;
-  padding: 4px;
-
+  height: 20px;
   &:hover {
     color: var(--text-color);
   }
@@ -850,7 +1085,7 @@ const SidebarContent = styled.div`
   padding: 24px 16px;
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 10px;
   overflow-y: auto;
 `;
 
@@ -862,18 +1097,19 @@ const GroupProfile = styled.div`
 `;
 
 const LargeAvatar = styled.div`
-  width: 80px;
-  height: 80px;
+  width: 100px;
+  height: 100px;
   border-radius: 50%;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   display: flex;
   align-items: center;
   justify-content: center;
   color: white;
-  font-size: 32px;
+  font-size: 40px;
   font-weight: 600;
-  margin-bottom: 16px;
+  margin-bottom: 20px;
   overflow: hidden;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
 
   img {
     width: 100%;
@@ -898,14 +1134,14 @@ const InfoSection = styled.div`
   display: flex;
   flex-direction: column;
   gap: 8px;
+  margin-top: 10px;
 `;
 
 const SectionTitle = styled.h4`
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 400;
   text-transform: uppercase;
   color: var(--text-muted-color);
-  margin-bottom: 8px;
 `;
 
 const InfoText = styled.p`
@@ -950,9 +1186,8 @@ const MembersList = styled.div`
 const MemberItem = styled.div`
   display: flex;
   align-items: center;
-  padding: 8px;
-  margin: 0 -8px;
-  gap: 12px;
+  padding: 10px 12px;
+  gap: 14px;
   color: var(--text-color);
   cursor: pointer;
   border-radius: 8px;
@@ -964,8 +1199,8 @@ const MemberItem = styled.div`
 `;
 
 const MemberAvatar = styled.div`
-  width: 32px;
-  height: 32px;
+  width: 42px;
+  height: 42px;
   border-radius: 50%;
   background: var(--primary-color);
   display: flex;
@@ -982,7 +1217,12 @@ const ChatArea = ({
   navigate,
   chats = [],
 }) => {
+  console.log(chats, selectedNav, selectedChannel);
+
   const [showInfo, setShowInfo] = useState(false);
+  useEffect(() => {
+    setShowInfo(false);
+  }, [selectedChannel]);
   const {
     fetchMessages,
     sendMessage,
@@ -993,18 +1233,23 @@ const ChatArea = ({
     editChat,
     previewGroupChat,
     joinGroupChat,
+    deleteChat,
+    leaveChat,
     chatSocket,
     markMessagesAsRead,
     typingUsers,
     sendTypingStatus,
     previewChat,
     setPreviewChat,
+    searchGlobalUsers,
   } = useChats();
   const { isUserOnline, getOnlineCount } = usePresence();
   const { startPrivateCall } = useCall();
   const currentChat = chats.find(
     (c) => c.urlSlug === selectedChannel || c.id === selectedChannel,
   );
+  console.log(currentChat, "----------");
+
   const [messageInput, setMessageInput] = useState("");
   const typingTimeoutRef = useRef(null);
   const [messages, setMessages] = useState([]);
@@ -1019,16 +1264,18 @@ const ChatArea = ({
   const handleMemberClick = async (targetUser) => {
     const currentUserId = currentUser?._id || currentUser?.id;
     const targetId = targetUser._id || targetUser.id;
-
-    if (targetId === currentUserId) return; // Prevent clicking self to start private chat
+    // if (targetId === currentUserId) return; // Prevent clicking self to start private chat
 
     const existingChat = chats.find((c) => {
       if (c.isGroup || !c.members || c.isSavedMessages) return false;
       return c.members.some((m) => (m._id || m.id) === targetId);
     });
+    console.log(targetUser, existingChat);
 
-    if (existingChat) {
-      navigate(`/a/${existingChat.urlSlug}`);
+    console.log(existingChat);
+
+    if (!existingChat) {
+      navigate(`/users/${existingChat.jammId}`);
       setShowInfo(false);
     } else {
       try {
@@ -1037,7 +1284,7 @@ const ChatArea = ({
           memberIds: [targetId],
         });
         if (chatId) {
-          navigate(`/a/${chatId}`);
+          navigate(`/users/${chatId.jammId}`);
           setShowInfo(false);
         }
       } catch (error) {
@@ -1051,7 +1298,12 @@ const ChatArea = ({
 
   const displayChat = currentChat || previewChat;
 
+  const [showSearch, setShowSearch] = useState(false);
   const [contextMenu, setContextMenu] = useState(null);
+  const [isDescExpanded, setIsDescExpanded] = useState(false);
+  const [showHeaderMenu, setShowHeaderMenu] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const headerMenuRef = useRef(null);
   const messageRefs = useRef({});
   const messagesEndRef = useRef(null);
   const messagesContainerRef = useRef(null); // Ref for message elements
@@ -1104,7 +1356,10 @@ const ChatArea = ({
           try {
             if (selectedNav === "users") {
               const { getPublicProfile } = await import("../api/chatApi");
+              console.log(getPublicProfile);
+
               const user = await getPublicProfile(selectedChannel);
+
               if (user) {
                 setPreviewChat({
                   type: "user",
@@ -1125,6 +1380,7 @@ const ChatArea = ({
             ) {
               try {
                 const chat = await previewGroupChat(selectedChannel);
+
                 setPreviewChat(chat);
               } catch (err) {
                 if (selectedNav === "groups") {
@@ -1136,6 +1392,8 @@ const ChatArea = ({
                 if (selectedNav !== "groups") {
                   const { getPublicProfile } = await import("../api/chatApi");
                   const user = await getPublicProfile(selectedChannel);
+                  console.log(user, "kjhkkkkkkk");
+
                   if (user) {
                     setPreviewChat({
                       type: "user",
@@ -1471,7 +1729,7 @@ const ChatArea = ({
     return messages;
   }, [messages]);
 
-  const currentChannelName = displayChat?.name || "Chat";
+  const currentChatName = displayChat?.name || "Chat";
 
   const scrollToBottom = (behavior = "auto") => {
     messagesEndRef.current?.scrollIntoView({ behavior });
@@ -1701,6 +1959,7 @@ const ChatArea = ({
       { id: 202, name: "Charlie Wilson" },
       { id: 203, name: "Diana Brown" },
     ];
+    console.log("click", username, e);
 
     const userChat = userChats.find((chat) => chat.name === username);
     if (userChat && navigate) {
@@ -1802,8 +2061,13 @@ const ChatArea = ({
             c.members &&
             c.members.some((m) => m._id === user._id),
         );
+
         if (existingChat) {
-          navigate(`/a/${existingChat.urlSlug}`);
+          if (existingChat?.isGroup) {
+            navigate(`/groups/${existingChat.jammId}`);
+          } else {
+            navigate(`/users/${existingChat.jammId}`);
+          }
         } else {
           // Create new private chat
           const chatId = await createChat({
@@ -1813,7 +2077,11 @@ const ChatArea = ({
           console.log(chatId);
 
           if (chatId) {
-            navigate(`/a/${chatId?.jammId}`);
+            if (chatId?.isGroup) {
+              navigate(`/groups/${chatId?.jammId}`);
+            } else {
+              navigate(`/users/${chatId?.jammId}`);
+            }
           }
         }
       } else {
@@ -1837,18 +2105,16 @@ const ChatArea = ({
             style={{
               pointerEvents: "auto",
               color: "var(--primary-color)",
-              backgroundColor: "var(--hover-color)",
               padding: "2px 4px",
               borderRadius: "4px",
               cursor: "pointer",
               fontWeight: "500",
-              transition: "background-color 0.2s ease",
             }}
             onMouseEnter={(e) => {
               e.target.style.backgroundColor = "var(--active-color)";
             }}
             onMouseLeave={(e) => {
-              e.target.style.backgroundColor = "var(--hover-color)";
+              e.target.style.backgroundColor = "transparent";
             }}
           >
             {part.content}
@@ -2086,6 +2352,32 @@ const ChatArea = ({
     }, 5000);
   };
 
+  const handleDeleteChat = async () => {
+    if (!currentChat?.id) return;
+    const isLeave =
+      currentChat.isGroup && currentChat.createdBy !== currentUser?._id;
+
+    try {
+      if (isLeave) {
+        await leaveChat(currentChat.id);
+        toast.success("Guruhdan muvaffaqiyatli chiqdingiz");
+      } else {
+        await deleteChat(currentChat.id);
+        toast.success("Suhbat muvaffaqiyatli o'chirildi");
+      }
+      setShowDeleteConfirm(false);
+      navigate("/chats");
+    } catch (error) {
+      console.error(error);
+      toast.error(
+        error.response?.data?.message ||
+          (isLeave
+            ? "Guruhdan chiqishda xatolik yuz berdi"
+            : "Suhbatni o'chirishda xatolik yuz berdi"),
+      );
+    }
+  };
+
   const handleAcceptCall = () => {
     setPrivateVideoCallUser(incomingCall.name);
     setIsPrivateVideoCallOpen(true);
@@ -2134,6 +2426,25 @@ const ChatArea = ({
       document.removeEventListener("click", handleEmojiPickerClickOutside);
     };
   }, [contextMenu, showEmojiPicker]);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (
+        showHeaderMenu &&
+        headerMenuRef.current &&
+        !headerMenuRef.current.contains(e.target)
+      ) {
+        setShowHeaderMenu(false);
+      }
+    };
+
+    if (showHeaderMenu) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => {
+        document.removeEventListener("mousedown", handleClickOutside);
+      };
+    }
+  }, [showHeaderMenu]);
 
   useEffect(() => {
     // Cancel edit mode when clicking outside
@@ -2281,7 +2592,7 @@ const ChatArea = ({
               ) : currentChat?.avatar?.length > 1 ? (
                 <img
                   src={currentChat.avatar}
-                  alt={currentChannelName}
+                  alt={currentChatName}
                   style={{
                     width: "100%",
                     height: "100%",
@@ -2290,25 +2601,14 @@ const ChatArea = ({
                   }}
                 />
               ) : (
-                currentChannelName.charAt(0).toUpperCase()
+                currentChatName.charAt(0).toUpperCase()
               )}
             </ChatAvatar>
             <ChatInfo>
               <ChatName>
-                {selectedNav === "channels" ? (
-                  <>
-                    {currentChannelName}
-                    {displayChat?.premiumStatus === "active" && (
-                      <Star
-                        size={16}
-                        fill="#ffaa00"
-                        color="#ffaa00"
-                        style={{ marginLeft: 6, flexShrink: 0 }}
-                      />
-                    )}
-                  </>
-                ) : (
-                  <>{currentChannelName}</>
+                {currentChatName}
+                {displayChat?.premiumStatus === "active" && (
+                  <PremiumBadgeIcon width={16} height={16} />
                 )}
               </ChatName>
               <ChatStatus>
@@ -2324,9 +2624,13 @@ const ChatArea = ({
                 ) : displayChat?.type === "group" ? (
                   <>
                     <Users size={14} style={{ marginRight: 4 }} />
-                    {displayChat?.members?.length || 0} members
+                    {displayChat?.members?.length || 0} a'zo
                     {onlineCount > 0 && `, ${onlineCount} online`}
                   </>
+                ) : displayChat?.isSavedMessages ? (
+                  <>o'zim</>
+                ) : ["jamm", "premium"].includes(displayChat?.username) ? (
+                  <>Rasmiy</>
                 ) : (
                   <>
                     <StatusDot online={isOnline} />
@@ -2338,16 +2642,113 @@ const ChatArea = ({
           </HeaderLeft>
 
           <HeaderRight>
-            {displayChat?.type === "user" && !displayChat?.isSavedMessages && (
-              <>
-                <HeaderButton onClick={startPrivateVideoCall}>
+            {displayChat?.type === "user" &&
+              !displayChat?.isSavedMessages &&
+              !["jamm", "premium"].includes(displayChat?.username) && (
+                <HeaderButton
+                  onClick={() => {
+                    if (isOnline) {
+                      startPrivateVideoCall();
+                    } else {
+                      toast.error(
+                        "Foydalanuvchi offline. Hozirda qo'ng'iroq qilib bo'lmaydi.",
+                      );
+                    }
+                  }}
+                  disabled={!isOnline}
+                  title={
+                    !isOnline ? "Foydalanuvchi offline" : "Video qo'ng'iroq"
+                  }
+                >
                   <Phone size={20} />
                 </HeaderButton>
-                <HeaderButton>
+              )}
+
+            <div style={{ position: "relative" }} ref={headerMenuRef}>
+              {!["jamm", "premium"].includes(displayChat?.username) && (
+                <HeaderButton
+                  onClick={() => setShowHeaderMenu(!showHeaderMenu)}
+                >
                   <MoreVertical size={20} />
                 </HeaderButton>
-              </>
-            )}
+              )}
+
+              {showHeaderMenu && (
+                <HeaderDropdown>
+                  <DropdownItem
+                    onClick={() => {
+                      setShowHeaderMenu(false);
+                      setShowInfo(true);
+                    }}
+                  >
+                    <Info size={18} />
+                    {displayChat?.type === "group"
+                      ? "Guruh ma'lumotlari"
+                      : "Foydalanuvchi ma'lumotlari"}
+                  </DropdownItem>
+
+                  {displayChat?.type === "group" &&
+                    (() => {
+                      const currentUserId = currentUser?._id || currentUser?.id;
+                      const isOwner = currentChat.createdBy === currentUserId;
+                      const myAdminRecord = currentChat.admins?.find(
+                        (a) => (a.userId || a.id || a._id) === currentUserId,
+                      );
+                      const canEdit =
+                        isOwner ||
+                        (myAdminRecord &&
+                          myAdminRecord.permissions?.length > 0);
+
+                      if (!canEdit) return null;
+
+                      return (
+                        <DropdownItem
+                          onClick={() => {
+                            setShowHeaderMenu(false);
+                            setIsEditGroupOpen(true);
+                          }}
+                        >
+                          <Edit2 size={18} />
+                          Guruhni tahrirlash
+                        </DropdownItem>
+                      );
+                    })()}
+
+                  <div
+                    style={{
+                      height: "1px",
+                      background: "rgba(255, 255, 255, 0.1)",
+                      margin: "4px 8px",
+                    }}
+                  />
+
+                  {displayChat?.isGroup &&
+                  displayChat?.createdBy !== currentUser?._id ? (
+                    <DropdownItem
+                      danger
+                      onClick={() => {
+                        setShowHeaderMenu(false);
+                        setShowDeleteConfirm(true);
+                      }}
+                    >
+                      <LogOut size={18} />
+                      Guruhni tark etish
+                    </DropdownItem>
+                  ) : (
+                    <DropdownItem
+                      danger
+                      onClick={() => {
+                        setShowHeaderMenu(false);
+                        setShowDeleteConfirm(true);
+                      }}
+                    >
+                      <Trash2 size={18} />
+                      Suhbatni o'chirish
+                    </DropdownItem>
+                  )}
+                </HeaderDropdown>
+              )}
+            </div>
           </HeaderRight>
         </ChatHeader>
 
@@ -2425,34 +2826,27 @@ const ChatArea = ({
                       >
                         {!isCurrentUserMessage ? (
                           <>
-                            <MessageHeader isOwn={false}>
-                              {selectedNav === "groups" && (
-                                <UserAvatar
-                                  onClick={(e) =>
-                                    handleUsernameClick(group.user, e)
-                                  }
+                            {displayChat?.type === "group" && (
+                              <MessageHeader isOwn={false}>
+                                <div
+                                  style={{
+                                    flex: 1,
+                                    marginLeft: "40px",
+                                  }}
                                 >
-                                  {getUserAvatar(group.user)}
-                                </UserAvatar>
-                              )}
-                              <div style={{ flex: 1 }}>
-                                <ClickableUsername>
-                                  {group.user}
-                                  {group.senderId?.premiumStatus ===
-                                    "active" && (
-                                    <Star
-                                      size={14}
-                                      fill="#ffaa00"
-                                      color="#ffaa00"
-                                      style={{
-                                        marginLeft: 4,
-                                        transform: "translateY(2px)",
-                                      }}
-                                    />
-                                  )}
-                                </ClickableUsername>
-                              </div>
-                            </MessageHeader>
+                                  <ClickableUsername>
+                                    {group.user}
+                                    {group.senderId?.premiumStatus ===
+                                      "active" && (
+                                      <PremiumBadgeIcon
+                                        width={14}
+                                        height={14}
+                                      />
+                                    )}
+                                  </ClickableUsername>
+                                </div>
+                              </MessageHeader>
+                            )}
                             {group.replayTo && (
                               <ReplayIndicator
                                 onClick={(e) => {
@@ -2473,41 +2867,54 @@ const ChatArea = ({
                                 {group.replayTo.content}"
                               </ReplayIndicator>
                             )}
-                            <MessageBubble
-                              isOwn={false}
-                              onContextMenu={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                showContextMenu(group, e);
-                              }}
+                            <div
+                              style={{ display: "flex", alignItems: "center" }}
                             >
-                              {editingMessage?.id === group.id ? (
-                                <EditContainer>
-                                  <EditInput
-                                    className="edit-input"
-                                    type="text"
-                                    value={editInput}
-                                    onChange={(e) =>
-                                      setEditInput(e.target.value)
-                                    }
-                                    onKeyDown={handleEditMessage}
-                                    placeholder="Xabarni tahrirlang..."
-                                    autoFocus
-                                  />
-                                </EditContainer>
-                              ) : (
-                                <>
-                                  <MessageText isOwn={false}>
-                                    {renderMessageContent(group.content)}
-                                  </MessageText>
-                                  {group.edited && (
-                                    <EditedIndicator>
-                                      (tahrirlandi)
-                                    </EditedIndicator>
-                                  )}
-                                </>
+                              {selectedNav === "groups" && (
+                                <UserAvatar
+                                  onClick={(e) =>
+                                    handleUsernameClick(group.user, e)
+                                  }
+                                >
+                                  {getUserAvatar(group.user)}
+                                </UserAvatar>
                               )}
-                            </MessageBubble>
+                              <MessageBubble
+                                isOwn={false}
+                                onContextMenu={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  showContextMenu(group, e);
+                                }}
+                              >
+                                {editingMessage?.id === group.id ? (
+                                  <EditContainer>
+                                    <EditInput
+                                      className="edit-input"
+                                      type="text"
+                                      value={editInput}
+                                      onChange={(e) =>
+                                        setEditInput(e.target.value)
+                                      }
+                                      onKeyDown={handleEditMessage}
+                                      placeholder="Xabarni tahrirlang..."
+                                      autoFocus
+                                    />
+                                  </EditContainer>
+                                ) : (
+                                  <>
+                                    <MessageText isOwn={false}>
+                                      {renderMessageContent(group.content)}
+                                    </MessageText>
+                                    {group.edited && (
+                                      <EditedIndicator>
+                                        (tahrirlandi)
+                                      </EditedIndicator>
+                                    )}
+                                  </>
+                                )}
+                              </MessageBubble>
+                            </div>
                           </>
                         ) : (
                           <>
@@ -2840,7 +3247,7 @@ const ChatArea = ({
             </SidebarCloseButton>
             <span style={{ flex: 1, textAlign: "center" }}>
               {currentChat.type === "user"
-                ? "Foydalanuvchi ma'lumotlari"
+                ? "Foydalanuvchi haqida"
                 : "Guruh ma'lumotlari"}
             </span>
             {currentChat.type === "group" ? (
@@ -2881,8 +3288,10 @@ const ChatArea = ({
                   currentChat.name.charAt(0)
                 )}
               </LargeAvatar>
-              <GroupName>{currentChat.name}</GroupName>
-              <GroupStatus>
+              <GroupName style={{ fontSize: "22px", margin: "0 0 6px" }}>
+                {currentChat.name}
+              </GroupName>
+              <GroupStatus style={{ fontSize: "14px" }}>
                 {currentChat.type === "user" ? (
                   (() => {
                     const otherUser = currentChat.members?.find((m) => {
@@ -2922,51 +3331,139 @@ const ChatArea = ({
               </GroupStatus>
             </GroupProfile>
 
-            {currentChat.description && (
-              <InfoSection>
-                <SectionTitle>Haqida</SectionTitle>
-                <InfoText>{currentChat.description}</InfoText>
-              </InfoSection>
+            {currentChat.type === "user" && !currentChat?.isSavedMessages && (
+              <GroupInfoCard>
+                {(() => {
+                  const otherUser = currentChat.members?.find((m) => {
+                    const mId = m._id || m.id;
+                    return (
+                      String(mId) !==
+                      String(currentUser?.id || currentUser?._id)
+                    );
+                  });
+                  if (!otherUser) return null;
+
+                  return (
+                    <>
+                      <InfoItem>
+                        <InfoLabel>foydalanuvchi nomi</InfoLabel>
+                        <InfoLink
+                          style={{ color: "#0088cc", fontWeight: "500" }}
+                          onClick={() => {
+                            if (otherUser.username) {
+                              navigator.clipboard.writeText(
+                                `@${otherUser.username}`,
+                              );
+                              toast.success("Nusxa olindi!");
+                            }
+                          }}
+                        >
+                          <span>@{otherUser.username || "user"}</span>
+                          <Link2 size={20} style={{ color: "#0088cc" }} />
+                        </InfoLink>
+                      </InfoItem>
+
+                      {otherUser.bio && (
+                        <>
+                          <div
+                            style={{
+                              height: "1px",
+                              backgroundColor: "var(--border-color)",
+                              margin: "0 -16px",
+                            }}
+                          />
+                          <InfoItem>
+                            <InfoLabel>tarjimayi hol</InfoLabel>
+                            <InfoValue>
+                              <MentionsText text={otherUser.bio} />
+                            </InfoValue>
+                          </InfoItem>
+                        </>
+                      )}
+
+                      {otherUser.jammId && (
+                        <>
+                          <div
+                            style={{
+                              height: "1px",
+                              backgroundColor: "var(--border-color)",
+                              margin: "0 -16px",
+                            }}
+                          />
+                          <InfoItem>
+                            <InfoLabel>jamm id</InfoLabel>
+                            <InfoValue>#{otherUser.jammId}</InfoValue>
+                          </InfoItem>
+                        </>
+                      )}
+                    </>
+                  );
+                })()}
+              </GroupInfoCard>
+            )}
+
+            {currentChat.type === "group" && (
+              <GroupInfoCard>
+                {(displayChat?.privateurl || displayChat?.urlSlug) && (
+                  <InfoItem>
+                    <InfoLabel>havolani ulashish</InfoLabel>
+                    <InfoLink
+                      onClick={() =>
+                        handleCopyLink(
+                          displayChat.privateurl || displayChat.urlSlug,
+                        )
+                      }
+                    >
+                      <span>
+                        {window.location.origin}/
+                        {displayChat.privateurl || displayChat.urlSlug}
+                      </span>
+                      <Link2
+                        size={20}
+                        style={{ color: "var(--text-muted-color)" }}
+                      />
+                    </InfoLink>
+                  </InfoItem>
+                )}
+
+                {currentChat.description && (
+                  <>
+                    <div
+                      style={{
+                        height: "1px",
+                        backgroundColor: "var(--border-color)",
+                        margin: "0 -16px",
+                      }}
+                    />
+                    <InfoItem>
+                      <InfoLabel>tasnif</InfoLabel>
+                      <InfoValue>
+                        <MentionsText
+                          text={
+                            !isDescExpanded &&
+                            currentChat.description.length > 100
+                              ? currentChat.description.substring(0, 100) +
+                                "..."
+                              : currentChat.description
+                          }
+                        />
+                        {currentChat.description.length > 100 && (
+                          <ShowMoreBtn
+                            onClick={() => setIsDescExpanded(!isDescExpanded)}
+                          >
+                            {isDescExpanded ? "yopish" : "yana"}
+                          </ShowMoreBtn>
+                        )}
+                      </InfoValue>
+                    </InfoItem>
+                  </>
+                )}
+              </GroupInfoCard>
             )}
 
             {displayChat?.type === "group" && (
               <InfoSection>
-                <SectionTitle>Taklif havolasi</SectionTitle>
-                <InfoText
-                  style={{ fontSize: "12px", color: "var(--text-muted-color)" }}
-                >
-                  {window.location.origin}/
-                  {displayChat.privateurl || displayChat.urlSlug}
-                </InfoText>
-                <CopyButton
-                  onClick={() =>
-                    handleCopyLink(
-                      displayChat.privateurl || displayChat.urlSlug,
-                    )
-                  }
-                  style={{ backgroundColor: isCopied ? "#43b581" : "" }}
-                >
-                  {isCopied ? (
-                    <>
-                      <Check size={16} strokeWidth={2.5} /> Nusxa olindi!
-                    </>
-                  ) : (
-                    <>
-                      <Copy size={16} strokeWidth={2.5} /> Nusxa olish
-                    </>
-                  )}
-                </CopyButton>
-              </InfoSection>
-            )}
-
-            {displayChat?.type === "group" && (
-              <InfoSection>
-                <SectionTitle>
-                  A'zolar —{" "}
-                  {displayChat?.memberCount ||
-                    displayChat?.members?.length ||
-                    0}
-                </SectionTitle>
+                <SectionTitle>A'zolar</SectionTitle>
                 <MembersList>
                   {displayChat?.members &&
                     displayChat.members.map((memberData) => {
@@ -3016,11 +3513,7 @@ const ChatArea = ({
                             >
                               {name}
                               {member.premiumStatus === "active" && (
-                                <Star
-                                  size={12}
-                                  fill="#ffaa00"
-                                  color="#ffaa00"
-                                />
+                                <PremiumBadgeIcon width={12} height={12} />
                               )}
                             </span>
                             <span
@@ -3040,6 +3533,15 @@ const ChatArea = ({
                                   : "Offline"}
                             </span>
                           </div>
+                          {(() => {
+                            const isAdmin = currentChat.admins?.some(
+                              (a) => (a.userId || a.id || a._id) === id,
+                            );
+                            const isOwner = currentChat.createdBy === id;
+                            if (isOwner) return <AdminBadge>Ega</AdminBadge>;
+                            if (isAdmin) return <AdminBadge>Admin</AdminBadge>;
+                            return null;
+                          })()}
                         </MemberItem>
                       );
                     })}
@@ -3067,8 +3569,22 @@ const ChatArea = ({
         isOpen={isEditGroupOpen}
         onClose={() => setIsEditGroupOpen(false)}
         group={currentChat}
-        users={chats.filter((c) => c.type === "user")}
+        users={chats
+          .filter((c) => c.type === "user" && !c.isSavedMessages)
+          .map((c) => {
+            const other = c.members?.find(
+              (m) => (m._id || m.id) !== (currentUser?._id || currentUser?.id),
+            );
+            return {
+              ...other,
+              id: other?._id || other?.id,
+              name: other?.nickname || other?.username || "Noma'lum",
+            };
+          })
+          .filter((u) => u.id)}
         onSave={async (updatedData) => {
+          console.log(updatedData);
+
           try {
             await editChat(currentChat.id || currentChat._id, updatedData);
           } catch (error) {
@@ -3076,6 +3592,36 @@ const ChatArea = ({
           }
         }}
       />
+
+      {showDeleteConfirm && (
+        <ConfirmDialogOverlay onClick={() => setShowDeleteConfirm(false)}>
+          <ConfirmDialog onClick={(e) => e.stopPropagation()}>
+            <ConfirmTitle>
+              {currentChat?.isGroup &&
+              currentChat?.createdBy !== currentUser?._id
+                ? "Guruhni tark etish"
+                : "Suhbatni o'chirish"}
+            </ConfirmTitle>
+            <ConfirmText>
+              {currentChat?.isGroup &&
+              currentChat?.createdBy !== currentUser?._id
+                ? "Siz haqiqatan ham ushbu guruhni tark etmoqchimisiz?"
+                : "Siz haqiqatan ham ushbu suhbatni o'chirib tashlamoqchimisiz? Bu amal barcha xabarlarni ikkala tomon uchun ham o'chirib yuboradi."}
+            </ConfirmText>
+            <ConfirmActions>
+              <ConfirmButton onClick={() => setShowDeleteConfirm(false)}>
+                Bekor qilish
+              </ConfirmButton>
+              <ConfirmButton danger onClick={handleDeleteChat}>
+                {currentChat?.isGroup &&
+                currentChat?.createdBy !== currentUser?._id
+                  ? "Chiqish"
+                  : "O'chirish"}
+              </ConfirmButton>
+            </ConfirmActions>
+          </ConfirmDialog>
+        </ConfirmDialogOverlay>
+      )}
     </OuterChatWrapper>
   );
 };

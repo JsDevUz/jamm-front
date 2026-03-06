@@ -324,6 +324,8 @@ const OnboardingModal = () => {
       }
 
       const updatedUser = await res.json();
+      console.log(updatedUser);
+
       updateUser(updatedUser);
       toast.success("Muvaffaqiyatli! Platformaga xush kelibsiz. 🚀");
     } catch (err) {
@@ -334,22 +336,22 @@ const OnboardingModal = () => {
   };
 
   const canGoNext = () => {
-    if (step === 2) {
+    if (step === 5) {
       if (!data.username || !usernameAvailable || !data.gender || !data.age)
         return false;
       const ageNum = Number(data.age);
       if (isNaN(ageNum) || ageNum < 4 || ageNum > 100) return false;
     }
-    if (step === 3 && data.interests.length === 0) return false;
-    if (step === 4 && data.goals.length === 0) return false;
-    if (step === 5 && !data.level) return false;
+    if (step === 2 && data.interests.length === 0) return false;
+    if (step === 3 && data.goals.length === 0) return false;
+    if (step === 4 && !data.level) return false;
     return true;
   };
 
   const nextStep = () => {
     if (!canGoNext() && step > 1) {
       let msg = "Maydonlarni to'ldiring";
-      if (step === 2) {
+      if (step === 5) {
         const ageNum = Number(data.age);
         if (!data.username) msg = "Username kiriting";
         else if (!usernameAvailable) msg = "Yaroqli username tanlang";
@@ -357,9 +359,9 @@ const OnboardingModal = () => {
         else if (!data.age) msg = "Yoshingizni kiriting";
         else if (ageNum < 4 || ageNum > 100)
           msg = "Yosh 4 va 100 oralig'ida bo'lishi kerak";
-      } else if (step === 3) msg = "Kamida bitta qiziqish tanlang";
-      else if (step === 4) msg = "Kamida bitta maqsad tanlang";
-      else if (step === 5) msg = "Bilim darajangizni tanlang";
+      } else if (step === 2) msg = "Kamida bitta qiziqish tanlang";
+      else if (step === 3) msg = "Kamida bitta maqsad tanlang";
+      else if (step === 4) msg = "Bilim darajangizni tanlang";
 
       return toast.error(msg);
     }
@@ -388,6 +390,80 @@ const OnboardingModal = () => {
           </Content>
         );
       case 2:
+        return (
+          <Content>
+            <IconWrapper>
+              <Target size={40} />
+            </IconWrapper>
+            <Title>Qiziqishlaringiz?</Title>
+            <Description>
+              Sizni qaysi yo'nalishlar ko'proq qiziqtiradi? (Bir nechta tanlash
+              mumkin)
+            </Description>
+            <OptionGrid>
+              {INTERESTS.map((item) => (
+                <OptionCard
+                  key={item.id}
+                  $active={data.interests.includes(item.id)}
+                  onClick={() => toggleInterest(item.id)}
+                >
+                  {item.icon}
+                  <OptionLabel>{item.label}</OptionLabel>
+                </OptionCard>
+              ))}
+            </OptionGrid>
+          </Content>
+        );
+      case 3:
+        return (
+          <Content>
+            <IconWrapper>
+              <Award size={40} />
+            </IconWrapper>
+            <Title>Asosiy Maqsadlar?</Title>
+            <Description>
+              Platformadan qaysi maqsadda foydalanmoqchisiz?
+            </Description>
+            <OptionGrid>
+              {GOALS.map((item) => (
+                <OptionCard
+                  key={item.id}
+                  $active={data.goals.includes(item.id)}
+                  onClick={() => toggleGoal(item.id)}
+                >
+                  {item.icon}
+                  <OptionLabel>{item.label}</OptionLabel>
+                </OptionCard>
+              ))}
+            </OptionGrid>
+          </Content>
+        );
+      case 4:
+        return (
+          <Content>
+            <IconWrapper>
+              <CheckCircle size={40} />
+            </IconWrapper>
+            <Title>Bilim Darajangiz?</Title>
+            <Description>
+              Hozirgi bilim darajangizni qanday baholaysiz?
+            </Description>
+            <OptionGrid>
+              {LEVELS.map((item) => (
+                <OptionCard
+                  key={item.id}
+                  $active={data.level === item.id}
+                  onClick={() => setData({ ...data, level: item.id })}
+                >
+                  {item.icon}
+                  <OptionLabel>{item.label}</OptionLabel>
+                </OptionCard>
+              ))}
+            </OptionGrid>
+          </Content>
+        );
+
+      case 5:
         return (
           <Content>
             <IconWrapper>
@@ -547,79 +623,7 @@ const OnboardingModal = () => {
             </div>
           </Content>
         );
-      case 3:
-        return (
-          <Content>
-            <IconWrapper>
-              <Target size={40} />
-            </IconWrapper>
-            <Title>Qiziqishlaringiz?</Title>
-            <Description>
-              Sizni qaysi yo'nalishlar ko'proq qiziqtiradi? (Bir nechta tanlash
-              mumkin)
-            </Description>
-            <OptionGrid>
-              {INTERESTS.map((item) => (
-                <OptionCard
-                  key={item.id}
-                  $active={data.interests.includes(item.id)}
-                  onClick={() => toggleInterest(item.id)}
-                >
-                  {item.icon}
-                  <OptionLabel>{item.label}</OptionLabel>
-                </OptionCard>
-              ))}
-            </OptionGrid>
-          </Content>
-        );
-      case 4:
-        return (
-          <Content>
-            <IconWrapper>
-              <Award size={40} />
-            </IconWrapper>
-            <Title>Asosiy Maqsadlar?</Title>
-            <Description>
-              Platformadan qaysi maqsadda foydalanmoqchisiz?
-            </Description>
-            <OptionGrid>
-              {GOALS.map((item) => (
-                <OptionCard
-                  key={item.id}
-                  $active={data.goals.includes(item.id)}
-                  onClick={() => toggleGoal(item.id)}
-                >
-                  {item.icon}
-                  <OptionLabel>{item.label}</OptionLabel>
-                </OptionCard>
-              ))}
-            </OptionGrid>
-          </Content>
-        );
-      case 5:
-        return (
-          <Content>
-            <IconWrapper>
-              <CheckCircle size={40} />
-            </IconWrapper>
-            <Title>Bilim Darajangiz?</Title>
-            <Description>
-              Hozirgi bilim darajangizni qanday baholaysiz?
-            </Description>
-            <OptionGrid>
-              {LEVELS.map((item) => (
-                <OptionCard
-                  key={item.id}
-                  $active={data.level === item.id}
-                  onClick={() => setData({ ...data, level: item.id })}
-                >
-                  {item.icon}
-                  <OptionLabel>{item.label}</OptionLabel>
-                </OptionCard>
-              ))}
-            </OptionGrid>
-          </Content>
-        );
+
       default:
         return null;
     }
