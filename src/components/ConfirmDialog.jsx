@@ -1,6 +1,7 @@
 import React from "react";
 import styled from "styled-components";
 import { X, AlertTriangle } from "lucide-react";
+import { ButtonWrapper } from "./BlogsSidebar";
 
 const DialogOverlay = styled.div`
   position: fixed;
@@ -150,9 +151,9 @@ const ConfirmDialog = ({
             {isDanger && <AlertTriangle size={24} />}
             {title}
           </DialogTitle>
-          <CloseButton onClick={onClose}>
-            <X size={20} />
-          </CloseButton>
+          <ButtonWrapper onClick={onClose}>
+            <X size={18} />
+          </ButtonWrapper>
         </DialogHeader>
 
         <DialogContent>{description}</DialogContent>

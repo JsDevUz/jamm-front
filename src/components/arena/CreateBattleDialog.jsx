@@ -1,7 +1,8 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import styled from "styled-components";
 import { X, Globe, EyeOff, Play, Info } from "lucide-react";
 import { useArena } from "../../contexts/ArenaContext";
+import { ButtonWrapper } from "../BlogsSidebar";
 
 const Overlay = styled.div`
   position: fixed;
@@ -197,10 +198,15 @@ const CreateButton = styled.button`
 `;
 
 const CreateBattleDialog = ({ isOpen, onClose }) => {
-  const { myTests, createBattle } = useArena();
+  const { myTests, createBattle, fetchMyTests } = useArena();
   const [selectedTestId, setSelectedTestId] = useState("");
   const [roomName, setRoomName] = useState("");
   const [visibility, setVisibility] = useState("public");
+
+  useEffect(() => {
+    if (!isOpen) return;
+    fetchMyTests(1);
+  }, [fetchMyTests, isOpen]);
 
   if (!isOpen) return null;
 
@@ -217,9 +223,9 @@ const CreateBattleDialog = ({ isOpen, onClose }) => {
       <Content onClick={(e) => e.stopPropagation()}>
         <Header>
           <h2>Yangi Bellashuv Xonasi</h2>
-          <CloseButton onClick={onClose}>
+          <ButtonWrapper onClick={onClose}>
             <X size={20} />
-          </CloseButton>
+          </ButtonWrapper>
         </Header>
 
         <Section>
@@ -244,6 +250,18 @@ const CreateBattleDialog = ({ isOpen, onClose }) => {
               </option>
             ))}
           </Select>
+          {myTests.length === 0 && (
+            <div
+              style={{
+                fontSize: "12px",
+                color: "var(--text-muted-color)",
+                lineHeight: 1.5,
+              }}
+            >
+              Hali test topilmadi. Test yaratgan bo'lsangiz, ro'yxat
+              yangilanmoqda.
+            </div>
+          )}
         </Section>
 
         <Section>

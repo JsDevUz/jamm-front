@@ -16,6 +16,7 @@ import { useChats } from "../contexts/ChatsContext";
 import useUploadAvatar from "../hooks/useUploadAvatar";
 import { toast } from "react-hot-toast";
 import { PlusBtn } from "./ProfilePage";
+import { ButtonWrapper } from "./BlogsSidebar";
 
 const Overlay = styled.div`
   position: fixed;
@@ -300,9 +301,9 @@ const AdminRightsDialog = ({
       <Dialog onClick={(e) => e.stopPropagation()} style={{ width: "380px" }}>
         <Header style={{ padding: "20px" }}>
           <Title style={{ fontSize: "18px" }}>Admin huquqlari</Title>
-          <CloseButton onClick={onClose}>
-            <X size={20} />
-          </CloseButton>
+          <ButtonWrapper onClick={onClose}>
+            <X size={18} />
+          </ButtonWrapper>
         </Header>
 
         <div style={{ padding: "0 24px 20px" }}>
@@ -438,9 +439,9 @@ const AddMemberDialog = ({
           <Title style={{ fontSize: "20px" }}>
             A'zo qo'shish ({selectedUsers.length}/40)
           </Title>
-          <CloseButton onClick={onClose}>
-            <X size={20} />
-          </CloseButton>
+          <ButtonWrapper onClick={onClose}>
+            <X size={18} />
+          </ButtonWrapper>
         </Header>
 
         <div style={{ padding: "0 24px 24px" }}>
@@ -695,9 +696,9 @@ const EditGroupDialog = ({
         <Header>
           <Title>Guruhni tahrirlash</Title>
           <Subtitle>Guruh ma'lumotlarini o'zgartirish</Subtitle>
-          <CloseButton onClick={onClose}>
-            <X size={24} />
-          </CloseButton>
+          <ButtonWrapper onClick={onClose}>
+            <X size={18} />
+          </ButtonWrapper>
         </Header>
 
         <Content>
@@ -763,9 +764,9 @@ const EditGroupDialog = ({
             >
               <Label>Mavjud a'zolar ({currentMembers.length}/40)</Label>
               {canAddMembers && (
-                <PlusBtn onClick={() => setIsAddMemberOpen(true)}>
+                <ButtonWrapper onClick={() => setIsAddMemberOpen(true)}>
                   <Plus size={16} />
-                </PlusBtn>
+                </ButtonWrapper>
               )}
             </div>
             <UserList>

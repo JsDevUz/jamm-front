@@ -2,6 +2,8 @@ import React, { useState, useRef } from "react";
 import styled from "styled-components";
 import { X, Upload, Image as ImageIcon } from "lucide-react";
 import { useCourses } from "../contexts/CoursesContext";
+import { ButtonWrapper } from "./BlogsSidebar";
+import { APP_LIMITS } from "../constants/appLimits";
 
 const Overlay = styled.div`
   position: fixed;
@@ -311,9 +313,9 @@ const CreateCourseDialog = ({ isOpen, onClose, onCreated, onOpenPremium }) => {
       <Dialog onClick={(e) => e.stopPropagation()}>
         <DialogHeader>
           <DialogTitle>Yangi kurs yaratish</DialogTitle>
-          <CloseButton onClick={onClose}>
+          <ButtonWrapper onClick={onClose}>
             <X size={18} />
-          </CloseButton>
+          </ButtonWrapper>
         </DialogHeader>
 
         <DialogBody>
@@ -351,7 +353,10 @@ const CreateCourseDialog = ({ isOpen, onClose, onCreated, onOpenPremium }) => {
               type="text"
               placeholder="Masalan: React Asoslari"
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) =>
+                setName(e.target.value.slice(0, APP_LIMITS.courseNameChars))
+              }
+              maxLength={APP_LIMITS.courseNameChars}
               autoFocus
             />
           </InputGroup>
@@ -416,7 +421,12 @@ const CreateCourseDialog = ({ isOpen, onClose, onCreated, onOpenPremium }) => {
             <TextArea
               placeholder="Kurs haqida qisqacha ma'lumot..."
               value={description}
-              onChange={(e) => setDescription(e.target.value)}
+              onChange={(e) =>
+                setDescription(
+                  e.target.value.slice(0, APP_LIMITS.courseDescriptionChars),
+                )
+              }
+              maxLength={APP_LIMITS.courseDescriptionChars}
             />
           </InputGroup>
 

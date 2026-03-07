@@ -20,6 +20,9 @@ export const ArenaProvider = ({ children }) => {
   const [flashcardDecks, setFlashcardDecks] = useState([]);
   const [flashcardsPage, setFlashcardsPage] = useState(1);
   const [flashcardsHasMore, setFlashcardsHasMore] = useState(true);
+  const [sentenceBuilderDecks, setSentenceBuilderDecks] = useState([]);
+  const [sentenceBuildersPage, setSentenceBuildersPage] = useState(1);
+  const [sentenceBuildersHasMore, setSentenceBuildersHasMore] = useState(true);
   const [activeBattle, setActiveBattle] = useState(null);
   const [battleHistory, setBattleHistory] = useState([]);
   const [activeBattles, setActiveBattles] = useState([]);
@@ -54,6 +57,40 @@ export const ArenaProvider = ({ children }) => {
       return data;
     } catch (err) {
       console.error("Error creating test:", err);
+    }
+  };
+
+  const updateTest = async (testId, payload) => {
+    try {
+      const data = await arenaApi.updateTest(testId, payload);
+      setMyTests((prev) =>
+        prev.map((test) => (test._id === testId ? { ...test, ...data } : test)),
+      );
+      setTests((prev) =>
+        prev.map((test) => (test._id === testId ? { ...test, ...data } : test)),
+      );
+      return data;
+    } catch (err) {
+      console.error("Error updating test:", err);
+      throw err;
+    }
+  };
+
+  const deleteTest = async (testId) => {
+    const previousMyTests = myTests;
+    const previousTests = tests;
+
+    setMyTests((prev) => prev.filter((test) => test._id !== testId));
+    setTests((prev) => prev.filter((test) => test._id !== testId));
+
+    try {
+      const data = await arenaApi.deleteTest(testId);
+      return { success: true, ...data };
+    } catch (err) {
+      setMyTests(previousMyTests);
+      setTests(previousTests);
+      console.error("Error deleting test:", err);
+      throw err;
     }
   };
 
@@ -98,6 +135,31 @@ export const ArenaProvider = ({ children }) => {
     }
   };
 
+  const updateFlashcardDeck = async (deckId, payload) => {
+    try {
+      const data = await arenaApi.updateFlashcardDeck(deckId, payload);
+      fetchFlashcards(1);
+      return data;
+    } catch (err) {
+      console.error("Error updating flashcard deck:", err);
+      throw err;
+    }
+  };
+
+  const deleteFlashcardDeck = async (deckId) => {
+    const previousDecks = flashcardDecks;
+    setFlashcardDecks((prev) => prev.filter((deck) => deck._id !== deckId));
+
+    try {
+      const data = await arenaApi.deleteFlashcardDeck(deckId);
+      return { success: true, ...data };
+    } catch (err) {
+      setFlashcardDecks(previousDecks);
+      console.error("Error deleting flashcard deck:", err);
+      throw err;
+    }
+  };
+
   const reviewFlashcard = async (deckId, cardId, quality) => {
     try {
       await arenaApi.reviewFlashcard({ deckId, cardId, quality });
@@ -109,6 +171,89 @@ export const ArenaProvider = ({ children }) => {
       console.error("Error reviewing flashcard:", err);
     }
   };
+
+  // --- API Methods: Sentence builders ---
+  const fetchSentenceBuilders = useCallback(async (page = 1) => {
+    try {
+      const res = await arenaApi.fetchSentenceBuilders(page, 20);
+      const data = res.data || [];
+      const totalPages = res.totalPages || 1;
+      setSentenceBuilderDecks((prev) => (page === 1 ? data : [...prev, ...data]));
+      setSentenceBuildersPage(page);
+      setSentenceBuildersHasMore(page < totalPages);
+    } catch (err) {
+      console.error("Error fetching sentence builders:", err);
+    }
+  }, []);
+
+  const createSentenceBuilderDeck = async (payload) => {
+    try {
+      const data = await arenaApi.createSentenceBuilderDeck(payload);
+      fetchSentenceBuilders(1);
+      return data;
+    } catch (err) {
+      console.error("Error creating sentence builder deck:", err);
+      throw err;
+    }
+  };
+
+  const updateSentenceBuilderDeck = async (deckId, payload) => {
+    try {
+      const data = await arenaApi.updateSentenceBuilderDeck(deckId, payload);
+      fetchSentenceBuilders(1);
+      return data;
+    } catch (err) {
+      console.error("Error updating sentence builder deck:", err);
+      throw err;
+    }
+  };
+
+  const deleteSentenceBuilderDeck = async (deckId) => {
+    const previousDecks = sentenceBuilderDecks;
+    setSentenceBuilderDecks((prev) => prev.filter((deck) => deck._id !== deckId));
+
+    try {
+      const data = await arenaApi.deleteSentenceBuilderDeck(deckId);
+      return { success: true, ...data };
+    } catch (err) {
+      setSentenceBuilderDecks(previousDecks);
+      console.error("Error deleting sentence builder deck:", err);
+      throw err;
+    }
+  };
+
+  const fetchSharedSentenceBuilderDeck = useCallback(async (shortCode) => {
+    return await arenaApi.fetchSharedSentenceBuilderDeck(shortCode);
+  }, []);
+
+  const fetchSentenceBuilderResults = useCallback(async (deckId, params = {}) => {
+    return await arenaApi.fetchSentenceBuilderResults(deckId, params);
+  }, []);
+
+  const fetchSentenceBuilderShareLinks = useCallback(async (deckId) => {
+    return await arenaApi.fetchSentenceBuilderShareLinks(deckId);
+  }, []);
+
+  const createSentenceBuilderShareLink = useCallback(
+    async (deckId, payload) => {
+      return await arenaApi.createSentenceBuilderShareLink(deckId, payload);
+    },
+    [],
+  );
+
+  const deleteSentenceBuilderShareLink = useCallback(
+    async (deckId, shareLinkId) => {
+      return await arenaApi.deleteSentenceBuilderShareLink(deckId, shareLinkId);
+    },
+    [],
+  );
+
+  const submitSentenceBuilderAttempt = useCallback(
+    async (deckId, payload) => {
+      return await arenaApi.submitSentenceBuilderAttempt(deckId, payload);
+    },
+    [],
+  );
 
   // --- API Methods: Battle History ---
   const fetchBattleHistory = useCallback(async (params = {}) => {
@@ -252,13 +397,30 @@ export const ArenaProvider = ({ children }) => {
         flashcardDecks,
         flashcardsPage,
         flashcardsHasMore,
+        sentenceBuilderDecks,
+        sentenceBuildersPage,
+        sentenceBuildersHasMore,
         activeBattle,
         fetchTests,
         fetchMyTests,
         createTest,
+        deleteTest,
+        updateTest,
         fetchFlashcards,
         createFlashcardDeck,
+        updateFlashcardDeck,
+        deleteFlashcardDeck,
         reviewFlashcard,
+        fetchSentenceBuilders,
+        createSentenceBuilderDeck,
+        updateSentenceBuilderDeck,
+        deleteSentenceBuilderDeck,
+        fetchSharedSentenceBuilderDeck,
+        fetchSentenceBuilderResults,
+        fetchSentenceBuilderShareLinks,
+        createSentenceBuilderShareLink,
+        deleteSentenceBuilderShareLink,
+        submitSentenceBuilderAttempt,
         createBattle,
         joinBattle,
         startBattle,
@@ -310,6 +472,30 @@ export const ArenaProvider = ({ children }) => {
           } catch (err) {
             console.error(err);
             return { success: false };
+          }
+        },
+        fetchSentenceBuilderDeck: async (deckId) => {
+          try {
+            return await arenaApi.fetchSentenceBuilderDeck(deckId);
+          } catch (err) {
+            console.error(err);
+            return null;
+          }
+        },
+        checkSentenceBuilderAnswer: async (
+          deckId,
+          questionIndex,
+          selectedTokens,
+        ) => {
+          try {
+            return await arenaApi.checkSentenceBuilderAnswer(
+              deckId,
+              questionIndex,
+              selectedTokens,
+            );
+          } catch (err) {
+            console.error(err);
+            throw err;
           }
         },
         guestName,

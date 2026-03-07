@@ -6,6 +6,7 @@ import useAuthStore from "../store/authStore";
 import InfiniteScroll from "react-infinite-scroll-component";
 import dayjs from "dayjs";
 import PremiumBadgeIcon from "./PremiumBadge";
+import { ButtonWrapper } from "./BlogsSidebar";
 
 /* ── Animations ── */
 const fadeIn = keyframes`from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); }`;
@@ -442,9 +443,9 @@ const PostComments = ({ post, onClose }) => {
       <Modal onClick={(e) => e.stopPropagation()}>
         <Header>
           <HeaderTitle>Izohlar</HeaderTitle>
-          <CloseBtn onClick={onClose}>
+          <ButtonWrapper onClick={onClose}>
             <X size={18} />
-          </CloseBtn>
+          </ButtonWrapper>
         </Header>
 
         <CommentsList id="scrollableComments">

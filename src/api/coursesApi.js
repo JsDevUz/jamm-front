@@ -70,3 +70,22 @@ export const removeUser = async ({ courseId, userId }) => {
 export const incrementViews = async ({ courseId, lessonId }) => {
   await axiosInstance.patch(`/courses/${courseId}/lessons/${lessonId}/views`);
 };
+
+export const toggleLessonLike = async ({ courseId, lessonId }) => {
+  const { data } = await axiosInstance.post(
+    `/courses/${courseId}/lessons/${lessonId}/like`,
+  );
+  return data;
+};
+
+export const fetchLikedLessons = async () => {
+  const { data } = await axiosInstance.get("/courses/liked-lessons");
+  return data;
+};
+
+export const getLessonPlaybackToken = async (courseId, lessonId) => {
+  const { data } = await axiosInstance.get(
+    `/courses/${courseId}/lessons/${lessonId}/playback-token`,
+  );
+  return data;
+};

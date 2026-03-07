@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import styled from "styled-components";
 import {
   Save,
@@ -14,6 +14,9 @@ import {
 import toast from "react-hot-toast";
 import { useArena } from "../../contexts/ArenaContext";
 import * as arenaApi from "../../api/arenaApi";
+import { ButtonWrapper } from "../BlogsSidebar";
+import { CloseBtnWrapper } from "./CreateSentenceBuilderDialog";
+import { APP_LIMITS } from "../../constants/appLimits";
 
 const DialogOverlay = styled.div`
   position: fixed;
@@ -258,27 +261,59 @@ const Hint = styled.div`
   }
 `;
 
-const CreateTestDialog = ({ isOpen, onClose }) => {
-  const { fetchMyTests } = useArena();
+const createEmptyQuestion = () => ({
+  questionText: "",
+  options: ["", ""],
+  correctOptionIndex: 0,
+});
+
+const CreateTestDialog = ({ isOpen, onClose, initialTest = null }) => {
+  const { fetchMyTests, updateTest } = useArena();
+  const isEditing = Boolean(initialTest?._id);
   const [mode, setMode] = useState("manual"); // 'manual' | 'template'
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [timeLimit, setTimeLimit] = useState(0);
-  const [showResults, setShowResults] = useState(true);
   const [displayMode, setDisplayMode] = useState("single");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Manual Mode State
   const [questions, setQuestions] = useState([
-    {
-      questionText: "",
-      options: ["", ""], // Min 2 options
-      correctOptionIndex: 0,
-    },
+    createEmptyQuestion(),
   ]);
 
   // Template Mode State
   const [templateText, setTemplateText] = useState("");
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    if (isEditing) {
+      setMode("manual");
+      setTitle(initialTest?.title || "");
+      setDescription(initialTest?.description || "");
+      setDisplayMode(initialTest?.displayMode || "single");
+      setQuestions(
+        (initialTest?.questions || []).length
+          ? initialTest.questions.map((question) => ({
+              questionText: question.questionText || "",
+              options: Array.isArray(question.options)
+                ? [...question.options]
+                : ["", ""],
+              correctOptionIndex: Number(question.correctOptionIndex) || 0,
+            }))
+          : [createEmptyQuestion()],
+      );
+      setTemplateText("");
+      return;
+    }
+
+    setMode("manual");
+    setTitle("");
+    setDescription("");
+    setDisplayMode("single");
+    setQuestions([createEmptyQuestion()]);
+    setTemplateText("");
+  }, [initialTest, isEditing, isOpen]);
 
   if (!isOpen) return null;
 
@@ -289,7 +324,7 @@ const CreateTestDialog = ({ isOpen, onClose }) => {
     }
     setQuestions([
       ...questions,
-      { questionText: "", options: ["", ""], correctOptionIndex: 0 },
+      createEmptyQuestion(),
     ]);
   };
 
@@ -300,7 +335,7 @@ const CreateTestDialog = ({ isOpen, onClose }) => {
 
   const updateQuestionText = (index, value) => {
     const newQs = [...questions];
-    newQs[index].questionText = value;
+    newQs[index].questionText = value.slice(0, APP_LIMITS.testQuestionChars);
     setQuestions(newQs);
   };
 
@@ -328,7 +363,7 @@ const CreateTestDialog = ({ isOpen, onClose }) => {
 
   const updateOptionText = (qIndex, oIndex, value) => {
     const newQs = [...questions];
-    newQs[qIndex].options[oIndex] = value;
+    newQs[qIndex].options[oIndex] = value.slice(0, APP_LIMITS.testOptionChars);
     setQuestions(newQs);
   };
 
@@ -436,13 +471,16 @@ const CreateTestDialog = ({ isOpen, onClose }) => {
         title: title.trim(),
         description: description.trim(),
         isPublic: true,
-        timeLimit: Number(timeLimit),
-        showResults,
         displayMode,
         questions: payloadQuestions,
       };
-      await arenaApi.createTest(payload);
+      if (isEditing) {
+        await updateTest(initialTest._id, payload);
+      } else {
+        await arenaApi.createTest(payload);
+      }
       await fetchMyTests();
+      toast.success(isEditing ? "Test yangilandi" : "Test yaratildi");
       onClose();
     } catch (error) {
       const msg =
@@ -459,10 +497,10 @@ const CreateTestDialog = ({ isOpen, onClose }) => {
     <DialogOverlay onClick={onClose}>
       <DialogContent onClick={(e) => e.stopPropagation()}>
         <Header>
-          <h2>Yangi Test Yaratish</h2>
-          <CloseButton onClick={onClose}>
-            <X size={20} />
-          </CloseButton>
+          <h2>{isEditing ? "Testni Tahrirlash" : "Yangi Test Yaratish"}</h2>
+          <ButtonWrapper onClick={onClose}>
+            <X size={18} />
+          </ButtonWrapper>
         </Header>
 
         <Body>
@@ -471,7 +509,10 @@ const CreateTestDialog = ({ isOpen, onClose }) => {
             <Input
               placeholder="Masalan: JavaScript Asoslari"
               value={title}
-              onChange={(e) => setTitle(e.target.value)}
+              onChange={(e) =>
+                setTitle(e.target.value.slice(0, APP_LIMITS.testTitleChars))
+              }
+              maxLength={APP_LIMITS.testTitleChars}
             />
           </InputGroup>
 
@@ -480,14 +521,19 @@ const CreateTestDialog = ({ isOpen, onClose }) => {
             <Input
               placeholder="Qisqacha tavsif..."
               value={description}
-              onChange={(e) => setDescription(e.target.value)}
+              onChange={(e) =>
+                setDescription(
+                  e.target.value.slice(0, APP_LIMITS.testDescriptionChars),
+                )
+              }
+              maxLength={APP_LIMITS.testDescriptionChars}
             />
           </InputGroup>
 
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "1fr 1fr",
+              gridTemplateColumns: "1fr",
               gap: "16px",
               padding: "16px",
               background: "rgba(0,0,0,0.1)",
@@ -495,36 +541,7 @@ const CreateTestDialog = ({ isOpen, onClose }) => {
               border: "1px solid var(--border-color)",
             }}
           >
-            <InputGroup>
-              <Label>Vaqt cheklovi (daqiqa)</Label>
-              <Input
-                type="number"
-                min="0"
-                placeholder="0 = Cheklanmagan"
-                value={timeLimit}
-                onChange={(e) => setTimeLimit(e.target.value)}
-              />
-            </InputGroup>
-            <InputGroup>
-              <Label>Natijalarni ko'rsatish</Label>
-              <select
-                style={{
-                  padding: "12px",
-                  borderRadius: "8px",
-                  border: "1px solid var(--border-color)",
-                  backgroundColor: "var(--input-color)",
-                  color: "var(--text-color)",
-                  fontSize: "14px",
-                  outline: "none",
-                }}
-                value={showResults ? "yes" : "no"}
-                onChange={(e) => setShowResults(e.target.value === "yes")}
-              >
-                <option value="yes">Ha, ko'rsatish</option>
-                <option value="no">Yo'q, yashirish</option>
-              </select>
-            </InputGroup>
-            <InputGroup style={{ gridColumn: "span 2" }}>
+            <InputGroup style={{ gridColumn: "span 1" }}>
               <Label>Test ko'rinishi</Label>
               <TabsContainer style={{ marginBottom: 0 }}>
                 <Tab
@@ -578,13 +595,13 @@ const CreateTestDialog = ({ isOpen, onClose }) => {
                     }}
                   >
                     <Label>{qIndex + 1} - Savol</Label>
-                    <CloseButton
+                    <ButtonWrapper
                       onClick={() => handleRemoveQuestion(qIndex)}
                       disabled={questions.length <= 1}
                       style={{ color: "var(--danger-color)" }}
                     >
-                      <Trash2 size={16} />
-                    </CloseButton>
+                      <Trash2 size={18} />
+                    </ButtonWrapper>
                   </div>
                   <Input
                     placeholder="Savol matni..."
@@ -623,12 +640,12 @@ const CreateTestDialog = ({ isOpen, onClose }) => {
                             updateOptionText(qIndex, oIndex, e.target.value)
                           }
                         />
-                        <CloseButton
+                        <ButtonWrapper
                           onClick={() => handleRemoveOption(qIndex, oIndex)}
                           disabled={q.options.length <= 2}
                         >
-                          <X size={16} />
-                        </CloseButton>
+                          <X size={18} />
+                        </ButtonWrapper>
                       </OptionRow>
                     ))}
                   </div>
@@ -686,7 +703,11 @@ const CreateTestDialog = ({ isOpen, onClose }) => {
             Bekor qilish
           </Button>
           <Button primary onClick={handleSubmit} disabled={isSubmitting}>
-            {isSubmitting ? "Yaratilmoqda..." : "Testni Yaratish"}
+            {isSubmitting
+              ? "Saqlanmoqda..."
+              : isEditing
+                ? "O'zgarishlarni saqlash"
+                : "Testni Yaratish"}
           </Button>
         </Footer>
       </DialogContent>

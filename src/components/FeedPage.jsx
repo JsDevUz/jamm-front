@@ -1,6 +1,15 @@
 import React, { useState, useEffect, useRef } from "react";
 import styled, { keyframes } from "styled-components";
-import { Heart, Eye, MessageCircle, Plus, Flame, Users } from "lucide-react";
+import {
+  Heart,
+  Eye,
+  MessageCircle,
+  Plus,
+  Flame,
+  Users,
+  Pencil,
+  Trash2,
+} from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import useAuthStore from "../store/authStore";
 import { usePosts } from "../contexts/PostsContext";
@@ -12,6 +21,8 @@ import { PlusBtn } from "./ProfilePage";
 import dayjs from "dayjs";
 import PremiumBadgeIcon from "./PremiumBadge";
 import { formatChatTime } from "../utils/dateUtils";
+import { ButtonWrapper } from "./BlogsSidebar";
+import ConfirmDialog from "./ConfirmDialog";
 
 /* ── Animations ── */
 const fadeSlide = keyframes`from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); }`;
@@ -270,6 +281,7 @@ const PostActions = styled.div`
   display: flex;
   align-items: center;
   gap: 24px;
+  flex-wrap: wrap;
 `;
 
 const ActionBtn = styled.button`
@@ -289,6 +301,13 @@ const ActionBtn = styled.button`
     color: ${(p) => p.activeColor || "var(--text-secondary-color)"};
     transform: scale(1.12);
   }
+`;
+
+const OwnerActions = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 10px;
 `;
 
 /* ── Empty State ── */
@@ -360,13 +379,17 @@ const FeedPage = () => {
     loading,
     fetchFeed,
     createPost,
+    editPost,
     likePost,
     viewPost,
+    deletePost,
   } = usePosts();
 
   const [activeTab, setActiveTab] = useState("foryou");
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [commentPost, setCommentPost] = useState(null);
+  const [editingPost, setEditingPost] = useState(null);
+  const [postToDelete, setPostToDelete] = useState(null);
 
   const activePosts = activeTab === "foryou" ? forYouPosts : followingPosts;
   const activeHasMore =
@@ -418,6 +441,18 @@ const FeedPage = () => {
     if (activeTab !== "foryou") setActiveTab("foryou");
   };
 
+  const handleEdit = async (text) => {
+    if (!editingPost?._id) return;
+    await editPost(editingPost._id, text);
+    setEditingPost(null);
+  };
+
+  const handleDelete = async () => {
+    if (!postToDelete?._id) return;
+    await deletePost(postToDelete._id);
+    setPostToDelete(null);
+  };
+
   const goToProfile = (author) => {
     const authorId = typeof author === "string" ? author : author?._id;
     const authorJammId = typeof author === "object" ? author?.jammId : null;
@@ -435,9 +470,9 @@ const FeedPage = () => {
         <FeedHeaderInner>
           <FeedTitle>
             <h1>Gurunglar</h1>
-            <PlusBtn onClick={() => setIsCreateOpen(true)}>
+            <ButtonWrapper onClick={() => setIsCreateOpen(true)}>
               <Plus size={14} />
-            </PlusBtn>
+            </ButtonWrapper>
           </FeedTitle>
           <TabsRow>
             <Tab
@@ -553,6 +588,9 @@ const FeedPage = () => {
                 const authorName =
                   author.nickname || author.username || "Foydalanuvchi";
                 const authorHandle = author.username || "user";
+                const isOwner =
+                  String(author._id || "") ===
+                  String(currentUser?._id || currentUser?.id || "");
 
                 return (
                   <PostCard key={post._id}>
@@ -616,6 +654,31 @@ const FeedPage = () => {
                           {post.views}
                         </ActionBtn>
                       </PostActions>
+
+                      {isOwner && (
+                        <OwnerActions>
+                          <ActionBtn
+                            activeColor="var(--primary-color)"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setEditingPost(post);
+                            }}
+                          >
+                            <Pencil size={16} />
+                            Tahrirlash
+                          </ActionBtn>
+                          <ActionBtn
+                            activeColor="#ed4245"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setPostToDelete(post);
+                            }}
+                          >
+                            <Trash2 size={16} />
+                            O'chirish
+                          </ActionBtn>
+                        </OwnerActions>
+                      )}
                     </PostBody>
                   </PostCard>
                 );
@@ -626,15 +689,32 @@ const FeedPage = () => {
       </FeedScroll>
 
       <CreatePostDialog
-        isOpen={isCreateOpen}
-        onClose={() => setIsCreateOpen(false)}
-        onSubmit={handleCreate}
+        isOpen={isCreateOpen || Boolean(editingPost)}
+        onClose={() => {
+          setIsCreateOpen(false);
+          setEditingPost(null);
+        }}
+        onSubmit={editingPost ? handleEdit : handleCreate}
         currentUser={currentUser}
+        initialContent={editingPost?.content || ""}
+        title={editingPost ? "Gurungni tahrirlash" : "Yangi Gurung"}
+        submitLabel={editingPost ? "Saqlash" : "Yuborish"}
       />
 
       {commentPost && (
         <PostComments post={commentPost} onClose={() => setCommentPost(null)} />
       )}
+
+      <ConfirmDialog
+        isOpen={Boolean(postToDelete)}
+        onClose={() => setPostToDelete(null)}
+        title="Gurungni o'chirish"
+        description="Bu gurung o'chirilsa, u qayta tiklanmaydi."
+        confirmText="O'chirish"
+        cancelText="Bekor qilish"
+        onConfirm={handleDelete}
+        isDanger
+      />
     </FeedContainer>
   );
 };

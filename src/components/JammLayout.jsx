@@ -12,7 +12,8 @@ import CoursePlayer from "./CoursePlayer";
 import ArenaDashboard from "./arena/ArenaDashboard";
 import ProfilePage from "./ProfilePage";
 import FeedPage from "./FeedPage";
-import SettingsDialog from "./SettingsDialog";
+import BlogsSidebar from "./BlogsSidebar";
+import BlogReaderPane from "./BlogReaderPane";
 import PremiumUpgradeModal from "./PremiumUpgradeModal";
 import UniversalDialog from "./UniversalDialog";
 import OnboardingModal from "./OnboardingModal";
@@ -72,8 +73,6 @@ const JammLayout = ({
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
   const [isCreateGroupOpen, setIsCreateGroupOpen] = useState(false);
   const [selectedCourse, setSelectedCourse] = useState(null);
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [isPremiumOpen, setIsPremiumOpen] = useState(false);
   const [viewMode, setViewMode] = useState("courses"); // "courses" | "arena"
   const [activeArenaTab, setActiveArenaTab] = useState(null);
   const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
@@ -108,17 +107,31 @@ const JammLayout = ({
         flashcard: "flashcards",
         falshcard: "flashcards",
         flashcards: "flashcards",
+        "sentence-builder": "sentenceBuilders",
+        "sentence-builders": "sentenceBuilders",
+        sentences: "sentenceBuilders",
+        gap: "sentenceBuilders",
+        "gap-tuzish": "sentenceBuilders",
         battle: "battles",
         battles: "battles",
       };
 
       let targetTab = null;
-      if (path.includes("/arena/quiz")) targetTab = "tests";
+      if (path.includes("/arena/quiz-link")) targetTab = "tests";
+      else if (path.includes("/arena/quiz")) targetTab = "tests";
       else if (path.includes("/arena/flashcard")) targetTab = "flashcards";
+      else if (path.includes("/arena/sentence-builder")) {
+        targetTab = "sentenceBuilders";
+      }
       else if (path.includes("/arena/battle")) targetTab = "battles";
       else targetTab = tabMap[initialChannel] || initialChannel;
 
-      if (targetTab && ["tests", "flashcards", "battles"].includes(targetTab)) {
+      if (
+        targetTab &&
+        ["tests", "flashcards", "sentenceBuilders", "battles"].includes(
+          targetTab,
+        )
+      ) {
         setActiveArenaTab(targetTab);
       } else if (path === "/arena") {
         setActiveArenaTab(null);
@@ -186,8 +199,6 @@ const JammLayout = ({
       <ServerSidebar
         selectedNav={selectedNav}
         onSelectNav={handleSelectNav}
-        onOpenSettings={() => setIsSettingsOpen(true)}
-        onOpenPremium={() => setIsPremiumOpen(true)}
       />
       <MainContent>
         {selectedNav === "courses" ||
@@ -215,9 +226,12 @@ const JammLayout = ({
                     ![
                       "tests",
                       "flashcards",
+                      "sentenceBuilders",
                       "battles",
                       "quiz",
+                      "quiz-link",
                       "flashcard",
+                      "sentence-builder",
                       "battle",
                       "0",
                     ].includes(initialChannel)
@@ -249,6 +263,21 @@ const JammLayout = ({
                 : null
             }
           />
+        ) : selectedNav === "blogs" ? (
+          <>
+            {!isMobile || !selectedChannel || selectedChannel === "0" ? (
+              <BlogsSidebar selectedChannel={selectedChannel} />
+            ) : null}
+            <ChatContainer>
+              <BlogReaderPane
+                blogIdentifier={selectedChannel}
+                onBack={() => {
+                  setSelectedChannel(0);
+                  navigate("/blogs");
+                }}
+              />
+            </ChatContainer>
+          </>
         ) : selectedNav === "feed" ? (
           <FeedPage />
         ) : (
@@ -312,23 +341,15 @@ const JammLayout = ({
           .filter((u) => u.id)}
       />
 
-      <SettingsDialog
-        isOpen={isSettingsOpen}
-        onClose={() => setIsSettingsOpen(false)}
-      />
-
-      <SettingsDialog
-        isOpen={isPremiumOpen}
-        onClose={() => setIsPremiumOpen(false)}
-        initialSection="premium"
-      />
-
       <PremiumUpgradeModal
         isOpen={isUpgradeModalOpen}
         onClose={() => setIsUpgradeModalOpen(false)}
         onUpgrade={() => {
           setIsUpgradeModalOpen(false);
-          setIsPremiumOpen(true);
+          sessionStorage.setItem("profile_initial_tab", "premium");
+          setSelectedNav("profile");
+          setSelectedChannel(0);
+          navigate("/profile");
         }}
       />
       <UniversalDialog

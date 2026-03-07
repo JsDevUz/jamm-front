@@ -2898,6 +2898,7 @@ const ChatArea = ({
                                       }
                                       onKeyDown={handleEditMessage}
                                       placeholder="Xabarni tahrirlang..."
+                                      maxLength={400}
                                       autoFocus
                                     />
                                   </EditContainer>
@@ -2957,6 +2958,7 @@ const ChatArea = ({
                                     }
                                     onKeyDown={handleEditMessage}
                                     placeholder="Xabarni tahrirlang..."
+                                    maxLength={400}
                                     autoFocus
                                   />
                                 </EditContainer>
@@ -3107,6 +3109,7 @@ const ChatArea = ({
                       onKeyDown={handleSendMessage}
                       placeholder="Xabar..."
                       rows={1}
+                      maxLength={400}
                     />
                   </InputWrapper>
 

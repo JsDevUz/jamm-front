@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import styled from "styled-components";
+import React, { useEffect, useState } from "react";
+import styled, { keyframes } from "styled-components";
 import { useArena } from "../../contexts/ArenaContext";
 import {
   Save,
@@ -11,6 +11,29 @@ import {
   Search,
 } from "lucide-react";
 import toast from "react-hot-toast";
+import { CloseBtnWrapper } from "./CreateSentenceBuilderDialog";
+import { ButtonWrapper } from "../BlogsSidebar";
+import { APP_LIMITS } from "../../constants/appLimits";
+
+const fadeIn = keyframes`
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+`;
+
+const dialogIn = keyframes`
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+`;
 
 const Overlay = styled.div`
   position: fixed;
@@ -24,6 +47,7 @@ const Overlay = styled.div`
   align-items: center;
   z-index: 1000;
   padding: 20px;
+  animation: ${fadeIn} 0.18s ease-out;
 `;
 
 const DialogBox = styled.div`
@@ -32,21 +56,38 @@ const DialogBox = styled.div`
   border-radius: 12px;
   width: 100%;
   max-width: 600px;
+  height: min(90vh, 860px);
   max-height: 90vh;
-  overflow-y: auto;
-  padding: 24px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  animation: ${dialogIn} 0.22s ease-out;
+
+  @media (max-width: 768px) {
+    height: 100%;
+    max-height: 100vh;
+    border-radius: 0;
+  }
 `;
 
 const HeaderRow = styled.div`
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 24px;
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--border-color);
 
   h2 {
     margin: 0;
     color: var(--text-color);
   }
+`;
+
+const Body = styled.div`
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 24px;
 `;
 
 const CloseBtn = styled.button`
@@ -197,7 +238,8 @@ const Footer = styled.div`
   display: flex;
   justify-content: flex-end;
   gap: 12px;
-  margin-top: 24px;
+  padding: 18px 24px 24px;
+  border-top: 1px solid var(--border-color);
 `;
 
 const Button = styled.button`
@@ -313,8 +355,9 @@ const GridImage = styled.img`
   }
 `;
 
-const CreateFlashcardDialog = ({ onClose }) => {
-  const { createFlashcardDeck } = useArena();
+const CreateFlashcardDialog = ({ onClose, initialDeck = null }) => {
+  const { createFlashcardDeck, updateFlashcardDeck } = useArena();
+  const isEditing = Boolean(initialDeck?._id);
   const [title, setTitle] = useState("");
   const [inputMode, setInputMode] = useState("manual"); // 'manual' | 'template'
 
@@ -335,6 +378,30 @@ const CreateFlashcardDialog = ({ onClose }) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
+
+  useEffect(() => {
+    if (isEditing) {
+      setTitle(initialDeck?.title || "");
+      setInputMode("manual");
+      setCards(
+        (initialDeck?.cards || []).length
+          ? initialDeck.cards.map((card) => ({
+              front: card.front || "",
+              back: card.back || "",
+              frontImage: card.frontImage || "",
+              backImage: card.backImage || "",
+            }))
+          : [{ front: "", back: "", frontImage: "", backImage: "" }],
+      );
+      setTemplateText("");
+      return;
+    }
+
+    setTitle("");
+    setInputMode("manual");
+    setCards([{ front: "", back: "", frontImage: "", backImage: "" }]);
+    setTemplateText("");
+  }, [initialDeck, isEditing]);
 
   const handleSearchImages = async (e) => {
     e?.preventDefault();
@@ -388,7 +455,10 @@ const CreateFlashcardDialog = ({ onClose }) => {
 
   const handleCardChange = (index, field, value) => {
     const newCards = [...cards];
-    newCards[index][field] = value;
+    newCards[index][field] =
+      field === "front" || field === "back"
+        ? value.slice(0, APP_LIMITS.flashcardSideChars)
+        : value;
     setCards(newCards);
   };
 
@@ -444,7 +514,14 @@ const CreateFlashcardDialog = ({ onClose }) => {
     };
 
     try {
-      await createFlashcardDeck(payload);
+      if (isEditing) {
+        await updateFlashcardDeck(initialDeck._id, payload);
+      } else {
+        await createFlashcardDeck(payload);
+      }
+      toast.success(
+        isEditing ? "Lug'at yangilandi" : "Lug'at muvaffaqiyatli yaratildi",
+      );
       onClose();
     } catch (err) {
       toast.error("Xatolik yuz berdi");
@@ -452,119 +529,128 @@ const CreateFlashcardDialog = ({ onClose }) => {
   };
 
   return (
-    <Overlay>
-      <DialogBox>
+    <Overlay onClick={onClose}>
+      <DialogBox onClick={(e) => e.stopPropagation()}>
         <HeaderRow>
-          <h2>Yangi Lug'at (Flashcards)</h2>
-          <CloseBtn onClick={onClose}>
-            <X size={24} />
-          </CloseBtn>
+          <h2>{isEditing ? "Lug'atni Tahrirlash" : "Yangi Lug'at (Flashcards)"}</h2>
+          <ButtonWrapper onClick={onClose}>
+            <X size={18} />
+          </ButtonWrapper>
         </HeaderRow>
 
-        <FormGroup>
-          <Label>To'plam nomi</Label>
-          <Input
-            placeholder="Masalan: Ingliz tili - 1-dars"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-          />
-        </FormGroup>
-
-        <Tabs>
-          <Tab
-            active={inputMode === "manual"}
-            onClick={() => setInputMode("manual")}
-          >
-            Qo'lda kiritish
-          </Tab>
-          <Tab
-            active={inputMode === "template"}
-            onClick={() => setInputMode("template")}
-          >
-            Andaza (Shablon)
-          </Tab>
-        </Tabs>
-
-        {inputMode === "manual" ? (
-          <>
-            <CardList>
-              {cards.map((c, idx) => (
-                <CardItem key={idx}>
-                  <CardInputs>
-                    <InputRow>
-                      {c.frontImage && <MiniThumb src={c.frontImage} alt="f" />}
-                      <FlexInput
-                        placeholder={`So'z (front) ${idx + 1}`}
-                        value={c.front}
-                        onChange={(e) =>
-                          handleCardChange(idx, "front", e.target.value)
-                        }
-                      />
-                      <ImgBtn
-                        onClick={() => openImageModal(idx, "frontImage")}
-                        title="Rasm qidirish"
-                      >
-                        <ImageIcon size={16} />
-                      </ImgBtn>
-                    </InputRow>
-                    <InputRow>
-                      {c.backImage && <MiniThumb src={c.backImage} alt="b" />}
-                      <FlexInput
-                        placeholder={`Ma'nosi (back) ${idx + 1}`}
-                        value={c.back}
-                        onChange={(e) =>
-                          handleCardChange(idx, "back", e.target.value)
-                        }
-                      />
-                      <ImgBtn
-                        onClick={() => openImageModal(idx, "backImage")}
-                        title="Rasm qidirish"
-                      >
-                        <ImageIcon size={16} />
-                      </ImgBtn>
-                    </InputRow>
-                  </CardInputs>
-                  {cards.length > 1 && (
-                    <DeleteBtn onClick={() => handleRemoveCard(idx)}>
-                      <Trash2 size={20} />
-                    </DeleteBtn>
-                  )}
-                </CardItem>
-              ))}
-            </CardList>
-            <AddCardBtn onClick={handleAddCard} disabled={cards.length >= 30}>
-              <Plus size={18} />{" "}
-              {cards.length >= 30
-                ? "Limitga yetildi (30/30)"
-                : "Yangi so'z qo'shish"}
-            </AddCardBtn>
-          </>
-        ) : (
+        <Body>
           <FormGroup>
-            <Label>Shablon matni</Label>
-            <TextArea
-              placeholder="Apple,Olma;Book,Kitob;"
-              value={templateText}
-              onChange={(e) => setTemplateText(e.target.value)}
+            <Label>To'plam nomi</Label>
+            <Input
+              placeholder="Masalan: Ingliz tili - 1-dars"
+              value={title}
+              onChange={(e) =>
+                setTitle(
+                  e.target.value.slice(0, APP_LIMITS.flashcardTitleChars),
+                )
+              }
+              maxLength={APP_LIMITS.flashcardTitleChars}
             />
-            <HelperText>
-              So'z va uning ma'nosini vergul (<b>,</b>) bilan ajrating. Har bir
-              so'z juftligini nuqtali-vergul (<b>;</b>) bilan ajrating.
-            </HelperText>
-            <PreBlock>
-              Apple,Olma;
-              <br />
-              Book,Kitob;
-              <br />
-              Car,Mashina;
-            </PreBlock>
           </FormGroup>
-        )}
+
+          <Tabs>
+            <Tab
+              active={inputMode === "manual"}
+              onClick={() => setInputMode("manual")}
+            >
+              Qo'lda kiritish
+            </Tab>
+            <Tab
+              active={inputMode === "template"}
+              onClick={() => setInputMode("template")}
+            >
+              Andaza (Shablon)
+            </Tab>
+          </Tabs>
+
+          {inputMode === "manual" ? (
+            <>
+              <CardList>
+                {cards.map((c, idx) => (
+                  <CardItem key={idx}>
+                    <CardInputs>
+                      <InputRow>
+                        {c.frontImage && (
+                          <MiniThumb src={c.frontImage} alt="f" />
+                        )}
+                        <FlexInput
+                          placeholder={`So'z (front) ${idx + 1}`}
+                          value={c.front}
+                          onChange={(e) =>
+                            handleCardChange(idx, "front", e.target.value)
+                          }
+                        />
+                        <ImgBtn
+                          onClick={() => openImageModal(idx, "frontImage")}
+                          title="Rasm qidirish"
+                        >
+                          <ImageIcon size={16} />
+                        </ImgBtn>
+                      </InputRow>
+                      <InputRow>
+                        {c.backImage && <MiniThumb src={c.backImage} alt="b" />}
+                        <FlexInput
+                          placeholder={`Ma'nosi (back) ${idx + 1}`}
+                          value={c.back}
+                          onChange={(e) =>
+                            handleCardChange(idx, "back", e.target.value)
+                          }
+                        />
+                        <ImgBtn
+                          onClick={() => openImageModal(idx, "backImage")}
+                          title="Rasm qidirish"
+                        >
+                          <ImageIcon size={16} />
+                        </ImgBtn>
+                      </InputRow>
+                    </CardInputs>
+                    {cards.length > 1 && (
+                      <DeleteBtn onClick={() => handleRemoveCard(idx)}>
+                        <Trash2 size={20} />
+                      </DeleteBtn>
+                    )}
+                  </CardItem>
+                ))}
+              </CardList>
+              <AddCardBtn onClick={handleAddCard} disabled={cards.length >= 30}>
+                <Plus size={18} />{" "}
+                {cards.length >= 30
+                  ? "Limitga yetildi (30/30)"
+                  : "Yangi so'z qo'shish"}
+              </AddCardBtn>
+            </>
+          ) : (
+            <FormGroup>
+              <Label>Shablon matni</Label>
+              <TextArea
+                placeholder="Apple,Olma;Book,Kitob;"
+                value={templateText}
+                onChange={(e) => setTemplateText(e.target.value)}
+              />
+              <HelperText>
+                So'z va uning ma'nosini vergul (<b>,</b>) bilan ajrating. Har
+                bir so'z juftligini nuqtali-vergul (<b>;</b>) bilan ajrating.
+              </HelperText>
+              <PreBlock>
+                Apple,Olma;
+                <br />
+                Book,Kitob;
+                <br />
+                Car,Mashina;
+              </PreBlock>
+            </FormGroup>
+          )}
+        </Body>
 
         <Footer>
           <Button onClick={onClose}>Bekor qilish</Button>
           <Button primary onClick={handleSave}>
-            Saqlash
+            {isEditing ? "O'zgarishlarni saqlash" : "Saqlash"}
           </Button>
         </Footer>
       </DialogBox>
@@ -580,13 +666,13 @@ const CreateFlashcardDialog = ({ onClose }) => {
           <SearchModalContent onClick={(e) => e.stopPropagation()}>
             <HeaderRow style={{ marginBottom: 8 }}>
               <h2>Rasm Qidirish</h2>
-              <CloseBtn
+              <ButtonWrapper
                 onClick={() =>
                   setImgModal({ isOpen: false, cardIndex: null, side: null })
                 }
               >
-                <X size={20} />
-              </CloseBtn>
+                <X size={28} />
+              </ButtonWrapper>
             </HeaderRow>
 
             <SearchForm onSubmit={handleSearchImages}>

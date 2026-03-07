@@ -212,6 +212,115 @@ const ScoreText = styled.div`
   color: var(--primary-color);
 `;
 
+const ResultBreakdown = styled.div`
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  text-align: left;
+`;
+
+const ResultQuestionCard = styled.div`
+  background-color: var(--bg-color);
+  border: 1px solid
+    ${(props) => (props.$correct ? "rgba(34, 197, 94, 0.3)" : "rgba(239, 68, 68, 0.28)")};
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+`;
+
+const ResultQuestionTitle = styled.div`
+  color: var(--text-color);
+  font-weight: 700;
+  line-height: 1.5;
+`;
+
+const ResultRow = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  color: var(--text-muted-color);
+  font-size: 0.95rem;
+`;
+
+const ResultBadge = styled.span`
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  background-color: ${(props) =>
+    props.$correct ? "rgba(34, 197, 94, 0.12)" : "rgba(239, 68, 68, 0.12)"};
+  color: ${(props) => (props.$correct ? "#22c55e" : "#ef4444")};
+`;
+
+const ResultOptionsList = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+`;
+
+const ResultOptionItem = styled.div`
+  border: 1px solid
+    ${(props) => {
+      if (props.$isCorrect) return "rgba(34, 197, 94, 0.3)";
+      if (props.$isSelected) return "rgba(239, 68, 68, 0.28)";
+      return "var(--border-color)";
+    }};
+  background-color: ${(props) => {
+    if (props.$isCorrect) return "rgba(34, 197, 94, 0.08)";
+    if (props.$isSelected) return "rgba(239, 68, 68, 0.08)";
+    return "var(--tertiary-color)";
+  }};
+  border-radius: 10px;
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+`;
+
+const ResultOptionText = styled.div`
+  color: var(--text-color);
+  line-height: 1.45;
+`;
+
+const ResultOptionMeta = styled.div`
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+`;
+
+const ResultOptionTag = styled.span`
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-size: 0.76rem;
+  font-weight: 700;
+  background-color: ${(props) => {
+    if (props.$tone === "correct") return "rgba(34, 197, 94, 0.12)";
+    if (props.$tone === "selected") return "rgba(239, 68, 68, 0.12)";
+    if (props.$tone === "selected-correct") return "rgba(59, 130, 246, 0.12)";
+    return "var(--secondary-color)";
+  }};
+  color: ${(props) => {
+    if (props.$tone === "correct") return "#22c55e";
+    if (props.$tone === "selected") return "#ef4444";
+    if (props.$tone === "selected-correct") return "#60a5fa";
+    return "var(--text-muted-color)";
+  }};
+`;
+
 const PrimaryBtn = styled.button`
   padding: 12px 24px;
   border-radius: 8px;
@@ -338,9 +447,9 @@ const ConfirmBtnDanger = styled(ConfirmBtn)`
   border: 1px solid rgba(240, 71, 71, 0.3);
 `;
 
-const SoloTestPlayer = ({ test, onClose }) => {
-  const timeLimit = test.timeLimit || 0;
-  const showResults = test.showResults ?? true;
+const SoloTestPlayer = ({ test, onClose, shareShortCode = null }) => {
+  const configuredTimeLimit = Number(test.timeLimit) || 0;
+  const configuredShowResults = test.showResults ?? true;
   const displayMode = test.displayMode || "single";
 
   const [currentIdx, setCurrentIdx] = useState(0);
@@ -353,9 +462,10 @@ const SoloTestPlayer = ({ test, onClose }) => {
   const [serverResults, setServerResults] = useState(null); // { score, total, results: [{questionIndex, correct, correctOptionIndex}] }
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showExitConfirm, setShowExitConfirm] = useState(false);
+  const [submittedAnswers, setSubmittedAnswers] = useState([]);
 
   // Timer State
-  const [timeLeft, setTimeLeft] = useState(timeLimit * 60);
+  const [timeLeft, setTimeLeft] = useState(configuredTimeLimit * 60);
 
   // Answers tracking (both modes)
   const [singleAnswers, setSingleAnswers] = useState([]);
@@ -392,7 +502,10 @@ const SoloTestPlayer = ({ test, onClose }) => {
       // Submit current answers via fetch with keepalive
       const answers = getCurrentAnswers();
       const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
-      const payload = JSON.stringify({ answers });
+      const payload = JSON.stringify({
+        answers,
+        shareShortCode: shareShortCode || null,
+      });
 
       const headers = { "Content-Type": "application/json" };
       if (token) {
@@ -414,8 +527,12 @@ const SoloTestPlayer = ({ test, onClose }) => {
   // Submit answers to server for validation
   const submitToServer = async (answers) => {
     setIsSubmitting(true);
+    setSubmittedAnswers(answers);
     try {
-      const result = await submitTestAnswers(test._id, answers);
+      const result = await submitTestAnswers(test._id, {
+        answers,
+        shareShortCode: shareShortCode || null,
+      });
       setServerResults(result);
       setScore(result.score);
     } catch (err) {
@@ -430,10 +547,10 @@ const SoloTestPlayer = ({ test, onClose }) => {
 
   // Timer Effect
   useEffect(() => {
-    if (timeLimit > 0 && !isFinished && timeLeft > 0) {
+    if (configuredTimeLimit > 0 && !isFinished && timeLeft > 0) {
       const timer = setInterval(() => setTimeLeft((t) => t - 1), 1000);
       return () => clearInterval(timer);
-    } else if (timeLimit > 0 && timeLeft <= 0 && !isFinished) {
+    } else if (configuredTimeLimit > 0 && timeLeft <= 0 && !isFinished) {
       if (displayMode === "list") {
         handleListSubmit();
       } else {
@@ -442,7 +559,7 @@ const SoloTestPlayer = ({ test, onClose }) => {
         submitToServer(answers);
       }
     }
-  }, [timeLimit, timeLeft, isFinished, displayMode]);
+  }, [configuredTimeLimit, timeLeft, isFinished, displayMode]);
 
   const formatTime = (seconds) => {
     const m = Math.floor(seconds / 60);
@@ -452,6 +569,9 @@ const SoloTestPlayer = ({ test, onClose }) => {
 
   useEffect(() => {
     if (isFinished && !hasSaved) {
+      const effectiveShowResults = serverResults?.showResults ?? configuredShowResults;
+      if (effectiveShowResults && !serverResults) return;
+
       const isUser = !!user;
       const canSave = isUser || guestName;
 
@@ -469,6 +589,9 @@ const SoloTestPlayer = ({ test, onClose }) => {
                 score: score,
                 totalQuestions: questions.length,
                 guestName: isUser ? null : guestName,
+                answers: submittedAnswers,
+                results: effectiveShowResults ? serverResults?.results || [] : [],
+                shareShortCode: shareShortCode || null,
               },
               {
                 headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -490,7 +613,17 @@ const SoloTestPlayer = ({ test, onClose }) => {
     test._id,
     score,
     questions.length,
+    submittedAnswers,
+    serverResults,
+    configuredShowResults,
+    shareShortCode,
   ]);
+
+  useEffect(() => {
+    setTimeLeft(configuredTimeLimit * 60);
+  }, [configuredTimeLimit, test._id]);
+
+  const showResults = serverResults?.showResults ?? configuredShowResults;
 
   const handleSelect = (idx) => {
     if (isRevealed) return;
@@ -587,6 +720,110 @@ const SoloTestPlayer = ({ test, onClose }) => {
               <p style={{ color: "var(--text-muted-color)" }}>
                 To'g'ri javoblar
               </p>
+              <ResultBreakdown>
+                {questions.map((question, index) => {
+                  const resultItem = serverResults.results?.find(
+                    (item) => item.questionIndex === index,
+                  );
+                  const selectedIndex = submittedAnswers[index];
+
+                  return (
+                    <ResultQuestionCard
+                      key={question._id || index}
+                      $correct={Boolean(resultItem?.correct)}
+                    >
+                      <ResultRow>
+                        <ResultQuestionTitle>
+                          {index + 1}. {question.questionText}
+                        </ResultQuestionTitle>
+                        <ResultBadge $correct={Boolean(resultItem?.correct)}>
+                          {resultItem?.correct ? (
+                            <>
+                              <CheckCircle size={14} /> To'g'ri
+                            </>
+                          ) : (
+                            <>
+                              <XCircle size={14} /> Xato
+                            </>
+                          )}
+                        </ResultBadge>
+                      </ResultRow>
+                      <ResultRow>
+                        <span>
+                          Sizning javobingiz:{" "}
+                          <strong style={{ color: "var(--text-color)" }}>
+                            {selectedIndex >= 0
+                              ? question.options?.[selectedIndex]
+                              : "Javob berilmagan"}
+                          </strong>
+                        </span>
+                      </ResultRow>
+                      <ResultRow>
+                        <span>
+                          To'g'ri javob:{" "}
+                          <strong style={{ color: "#22c55e" }}>
+                            {resultItem?.correctOptionIndex >= 0
+                              ? question.options?.[resultItem.correctOptionIndex]
+                              : "Ma'lumot yo'q"}
+                          </strong>
+                        </span>
+                      </ResultRow>
+                      <ResultOptionsList>
+                        {(question.options || []).map((option, optionIndex) => {
+                          const isSelected = selectedIndex === optionIndex;
+                          const isCorrect =
+                            resultItem?.correctOptionIndex === optionIndex;
+                          const tone =
+                            isSelected && isCorrect
+                              ? "selected-correct"
+                              : isCorrect
+                                ? "correct"
+                                : isSelected
+                                  ? "selected"
+                                  : "default";
+
+                          return (
+                            <ResultOptionItem
+                              key={`${question._id || index}-${optionIndex}`}
+                              $isSelected={isSelected}
+                              $isCorrect={isCorrect}
+                            >
+                              <ResultOptionText>
+                                {String.fromCharCode(65 + optionIndex)}. {option}
+                              </ResultOptionText>
+                              {(isSelected || isCorrect) && (
+                                <ResultOptionMeta>
+                                  {isSelected && isCorrect ? (
+                                    <ResultOptionTag $tone={tone}>
+                                      <CheckCircle size={12} />
+                                      Siz tanlagan va to'g'ri
+                                    </ResultOptionTag>
+                                  ) : (
+                                    <>
+                                      {isSelected && (
+                                        <ResultOptionTag $tone="selected">
+                                          <XCircle size={12} />
+                                          Siz tanlagan
+                                        </ResultOptionTag>
+                                      )}
+                                      {isCorrect && (
+                                        <ResultOptionTag $tone="correct">
+                                          <CheckCircle size={12} />
+                                          To'g'ri javob
+                                        </ResultOptionTag>
+                                      )}
+                                    </>
+                                  )}
+                                </ResultOptionMeta>
+                              )}
+                            </ResultOptionItem>
+                          );
+                        })}
+                      </ResultOptionsList>
+                    </ResultQuestionCard>
+                  );
+                })}
+              </ResultBreakdown>
             </>
           ) : (
             <>
@@ -621,7 +858,7 @@ const SoloTestPlayer = ({ test, onClose }) => {
             flexShrink: 0 /* prevent shrinking */,
           }}
         >
-          {timeLimit > 0 && (
+          {configuredTimeLimit > 0 && (
             <div
               style={{
                 display: "flex",

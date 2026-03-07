@@ -2,6 +2,7 @@ import React from "react";
 import styled from "styled-components";
 import { X, Star, Check, X as XIcon, Zap } from "lucide-react";
 import PremiumBadgeIcon from "./PremiumBadge";
+import { ButtonWrapper } from "./BlogsSidebar";
 
 const Overlay = styled.div`
   position: fixed;
@@ -164,9 +165,9 @@ const PremiumUpgradeModal = ({ isOpen, onClose, onUpgrade }) => {
     <Overlay onClick={onClose}>
       <ModalContainer onClick={(e) => e.stopPropagation()}>
         <Header>
-          <CloseButton onClick={onClose}>
-            <X size={20} />
-          </CloseButton>
+          <ButtonWrapper onClick={onClose}>
+            <X size={18} />
+          </ButtonWrapper>
           <Title>
             <PremiumBadgeIcon width={32} height={32} />
             Jamm Premium

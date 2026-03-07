@@ -8,6 +8,7 @@ import React, {
 } from "react";
 import { io } from "socket.io-client";
 import * as coursesApi from "../api/coursesApi";
+import useAuthStore from "../store/authStore";
 
 const CoursesContext = createContext(null);
 
@@ -30,9 +31,45 @@ export const CoursesProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [coursesPage, setCoursesPage] = useState(1);
   const [coursesHasMore, setCoursesHasMore] = useState(true);
+  const hasLoadedCoursesRef = useRef(false);
   const socketRef = useRef(null);
+  const authUser = useAuthStore((state) => state.user);
 
-  const currentUser = getCurrentUser();
+  const currentUser = authUser || getCurrentUser();
+
+  const getEntityId = useCallback((value) => {
+    if (!value) return null;
+    if (typeof value === "string") return value;
+    return value._id || value.id || value.userId || null;
+  }, []);
+
+  const findCourseByIdentifier = useCallback(
+    (courseId) =>
+      courses.find(
+        (course) =>
+          String(course._id || course.id) === String(courseId) ||
+          String(course.urlSlug || "") === String(courseId),
+      ),
+    [courses],
+  );
+
+  const updateCourseMembers = useCallback((courseId, updater) => {
+    setCourses((prev) =>
+      prev.map((course) => {
+        const matches =
+          String(course._id || course.id) === String(courseId) ||
+          String(course.urlSlug || "") === String(courseId);
+
+        if (!matches) return course;
+
+        const nextMembers = updater(Array.isArray(course.members) ? course.members : []);
+        return {
+          ...course,
+          members: nextMembers,
+        };
+      }),
+    );
+  }, []);
 
   // Fetch all courses from API
   const fetchCourses = useCallback(async (page = 1) => {
@@ -51,12 +88,20 @@ export const CoursesProvider = ({ children }) => {
       setCourses((prev) => (page === 1 ? mapped : [...prev, ...mapped]));
       setCoursesPage(page);
       setCoursesHasMore(page < totalPages);
+      if (page === 1) {
+        hasLoadedCoursesRef.current = true;
+      }
     } catch (err) {
       console.error("Error fetching courses:", err);
     } finally {
       if (page === 1) setLoading(false);
     }
   }, []);
+
+  const ensureCoursesLoaded = useCallback(async () => {
+    if (hasLoadedCoursesRef.current) return;
+    await fetchCourses(1);
+  }, [fetchCourses]);
 
   useEffect(() => {
     // Moved to CourseSidebar for lazy loading
@@ -155,6 +200,8 @@ export const CoursesProvider = ({ children }) => {
       fileUrl = "",
       fileName = "",
       fileSize = 0,
+      streamType = "direct",
+      streamAssets = [],
     ) => {
       try {
         await coursesApi.addLesson({
@@ -166,6 +213,8 @@ export const CoursesProvider = ({ children }) => {
           fileUrl,
           fileName,
           fileSize,
+          streamType,
+          streamAssets,
         });
         await fetchCourses();
       } catch (err) {
@@ -230,38 +279,89 @@ export const CoursesProvider = ({ children }) => {
 
   const enrollInCourse = useCallback(
     async (courseId) => {
+      const course = findCourseByIdentifier(courseId);
+      const currentUserId = getEntityId(currentUser);
+      if (!course || !currentUserId) return;
+
+      const optimisticStatus =
+        course.accessType === "free_open" ? "approved" : "pending";
+      const optimisticMember = {
+        userId: currentUserId,
+        name: currentUser.nickname || currentUser.username,
+        avatar:
+          currentUser.avatar ||
+          (currentUser.nickname || currentUser.username || "")
+            .substring(0, 2)
+            .toUpperCase(),
+        status: optimisticStatus,
+        joinedAt: new Date().toISOString(),
+      };
+
+      updateCourseMembers(courseId, (members) => {
+        const filtered = members.filter(
+          (member) =>
+            String(getEntityId(member.userId || member)) !==
+            String(currentUserId),
+        );
+        return [...filtered, optimisticMember];
+      });
+
       try {
         await coursesApi.enrollInCourse(courseId);
-        await fetchCourses();
       } catch (err) {
         console.error("Error enrolling:", err);
+        await fetchCourses();
+        throw err;
       }
     },
-    [fetchCourses],
+    [
+      currentUser,
+      fetchCourses,
+      findCourseByIdentifier,
+      getEntityId,
+      updateCourseMembers,
+    ],
   );
 
   const approveUser = useCallback(
     async (courseId, userId) => {
+      updateCourseMembers(courseId, (members) =>
+        members.map((member) =>
+          String(getEntityId(member.userId || member)) === String(userId)
+            ? { ...member, status: "approved" }
+            : member,
+        ),
+      );
+
       try {
         await coursesApi.approveUser({ courseId, userId });
-        await fetchCourses();
       } catch (err) {
         console.error("Error approving user:", err);
+        await fetchCourses();
+        throw err;
       }
     },
-    [fetchCourses],
+    [fetchCourses, getEntityId, updateCourseMembers],
   );
 
   const removeUser = useCallback(
     async (courseId, userId) => {
+      updateCourseMembers(courseId, (members) =>
+        members.filter(
+          (member) =>
+            String(getEntityId(member.userId || member)) !== String(userId),
+        ),
+      );
+
       try {
         await coursesApi.removeUser({ courseId, userId });
-        await fetchCourses();
       } catch (err) {
         console.error("Error removing user:", err);
+        await fetchCourses();
+        throw err;
       }
     },
-    [fetchCourses],
+    [fetchCourses, getEntityId, updateCourseMembers],
   );
 
   const incrementViews = useCallback(async (courseId, lessonId) => {
@@ -284,34 +384,79 @@ export const CoursesProvider = ({ children }) => {
     }
   }, []);
 
+  const toggleLessonLike = useCallback(async (courseId, lessonId) => {
+    try {
+      const { liked, likes } = await coursesApi.toggleLessonLike({
+        courseId,
+        lessonId,
+      });
+      setCourses((prev) =>
+        prev.map((course) => {
+          const matchesCourse =
+            String(course.id || course._id) === String(courseId) ||
+            String(course.urlSlug || "") === String(courseId);
+          if (!matchesCourse) return course;
+          return {
+            ...course,
+            lessons: (course.lessons || []).map((lesson) => {
+              const matchesLesson =
+                String(lesson.id || lesson._id) === String(lessonId) ||
+                String(lesson.urlSlug || "") === String(lessonId);
+              return matchesLesson ? { ...lesson, liked, likes } : lesson;
+            }),
+          };
+        }),
+      );
+      return { liked, likes };
+    } catch (err) {
+      console.error("Error toggling lesson like:", err);
+      throw err;
+    }
+  }, []);
+
+  const fetchLikedLessons = useCallback(async () => {
+    try {
+      return await coursesApi.fetchLikedLessons();
+    } catch (err) {
+      console.error("Error fetching liked lessons:", err);
+      return [];
+    }
+  }, []);
+
   const isAdmin = useCallback(
     (courseId) => {
       if (!currentUser) return false;
-      const course = courses.find((c) => (c._id || c.id) === courseId);
-      return course?.createdBy === currentUser._id;
+      const course = findCourseByIdentifier(courseId);
+      return (
+        String(getEntityId(course?.createdBy) || "") ===
+        String(getEntityId(currentUser) || "")
+      );
     },
-    [courses, currentUser],
+    [currentUser, findCourseByIdentifier, getEntityId],
   );
 
   const isEnrolled = useCallback(
     (courseId) => {
       if (!currentUser) return "none";
-      const course = courses.find((c) => (c._id || c.id) === courseId);
-      if (course?.createdBy === currentUser._id) return "admin";
+      const course = findCourseByIdentifier(courseId);
+      const currentUserId = String(getEntityId(currentUser) || "");
+      if (String(getEntityId(course?.createdBy) || "") === currentUserId) {
+        return "admin";
+      }
       const member = course?.members?.find(
-        (m) => (m._id || m.id || m.userId) === currentUser._id,
+        (m) => String(getEntityId(m.userId || m)) === currentUserId,
       );
       if (!member) return "none";
       return member.status;
     },
-    [courses, currentUser],
+    [currentUser, findCourseByIdentifier, getEntityId],
   );
 
   const value = {
     courses,
     currentUser: currentUser
       ? {
-          id: currentUser._id,
+          id: getEntityId(currentUser),
           name: currentUser.nickname || currentUser.username,
           avatar: (currentUser.nickname || currentUser.username || "")
             .substring(0, 2)
@@ -330,12 +475,15 @@ export const CoursesProvider = ({ children }) => {
     approveUser,
     removeUser,
     incrementViews,
+    toggleLessonLike,
+    fetchLikedLessons,
     isAdmin,
     isEnrolled,
     loading,
     coursesPage,
     coursesHasMore,
     fetchCourses,
+    ensureCoursesLoaded,
     joinCourseRoom,
     leaveCourseRoom,
   };

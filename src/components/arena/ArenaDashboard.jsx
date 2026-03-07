@@ -3,6 +3,7 @@ import styled from "styled-components";
 import TestList from "./TestList";
 import FlashcardList from "./FlashcardList";
 import BattleLobby from "./BattleLobby";
+import SentenceBuilderList from "./SentenceBuilderList";
 import { useArena } from "../../contexts/ArenaContext";
 import useAuthStore from "../../store/authStore";
 
@@ -38,6 +39,9 @@ const ArenaDashboard = ({ activeTab = "tests", initialId, onBack }) => {
         )}
         {activeTab === "flashcards" && (
           <FlashcardList initialDeckId={initialId} onBack={onBack} />
+        )}
+        {activeTab === "sentenceBuilders" && (
+          <SentenceBuilderList initialDeckId={initialId} onBack={onBack} />
         )}
         {activeTab === "battles" && (
           <BattleLobby initialRoomId={initialId} onBack={onBack} />

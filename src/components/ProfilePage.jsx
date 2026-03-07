@@ -3,6 +3,11 @@ import styled, { keyframes } from "styled-components";
 import {
   MessageSquare,
   GraduationCap,
+  BookOpen,
+  Palette,
+  Globe,
+  Shield,
+  Headphones,
   MessageCircle,
   ArrowLeft,
   Camera,
@@ -11,21 +16,28 @@ import {
   Plus,
   Heart,
   Eye,
+  Trash2,
   ChevronRight,
   Star,
   Store,
   Gift,
   Coins,
+  Edit2,
 } from "lucide-react";
 import PremiumBadgeIcon from "./PremiumBadge";
 import useAuthStore from "../store/authStore";
-import SettingsDialog from "./SettingsDialog";
 import CreatePostDialog from "./CreatePostDialog";
 import { usePosts } from "../contexts/PostsContext";
 import { useCourses } from "../contexts/CoursesContext";
 import { useNavigate } from "react-router-dom";
 import dayjs from "dayjs";
 import PremiumBadge from "./PremiumBadge";
+import ProfileBlogsPanel from "./ProfileBlogsPanel";
+import { fetchUserBlogs as fetchProfileBlogs } from "../api/blogsApi";
+import ProfileUtilityPanel from "./ProfileUtilityPanel";
+import ProfileEditDialog from "./ProfileEditDialog";
+import { ButtonWrapper } from "./BlogsSidebar";
+import ConfirmDialog from "./ConfirmDialog";
 
 const MobileBackBtn = styled.button`
   display: none;
@@ -396,16 +408,16 @@ const TabsContainer = styled.div`
   flex-direction: column;
   margin: 16px;
   background: var(--secondary-color, #2f3136);
+  border: 1px solid var(--border-color);
   border-radius: 12px;
   overflow: hidden;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
   animation: ${fadeIn} 0.35s ease 0.2s both;
 `;
 
 const TabItem = styled.button`
   width: 100%;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 12px;
   padding: 10px 16px;
   background: ${(p) => (p.active ? "var(--hover-color)" : "transparent")};
@@ -416,6 +428,7 @@ const TabItem = styled.button`
   font-weight: 500;
   transition: all 0.2s;
   position: relative;
+  min-height: 56px;
 
   &:hover {
     background: var(--hover-color);
@@ -447,11 +460,16 @@ const TabItem = styled.button`
   .label {
     flex: 1;
     text-align: left;
+    white-space: normal;
+    line-height: 1.35;
+    padding-top: 4px;
   }
 
   .chevron {
     color: var(--text-muted-color);
     opacity: 0.5;
+    flex-shrink: 0;
+    margin-top: 8px;
   }
 `;
 
@@ -487,11 +505,11 @@ const RightPanel = styled.div`
 `;
 
 const ContentHeader = styled.div`
-  padding: 24px 32px;
+  padding: 14px 18px;
   border-bottom: 1px solid var(--border-color);
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   background: var(--secondary-color);
   position: sticky;
   top: 0;
@@ -499,17 +517,17 @@ const ContentHeader = styled.div`
 
   h2 {
     margin: 0;
-    font-size: 20px;
+    font-size: 18px;
     font-weight: 700;
     color: var(--text-color);
   }
 `;
 
 const ContentBody = styled.div`
-  padding: 32px;
+  padding: 16px 18px 18px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
   flex: 1;
 `;
 
@@ -520,14 +538,14 @@ const EmptyStateContainer = styled.div`
   justify-content: center;
   height: 100%;
   color: var(--text-muted-color);
-  font-size: 14px;
-  gap: 12px;
-  margin-top: 100px;
+  font-size: 13px;
+  gap: 10px;
+  margin-top: 48px;
 `;
 
 const EmptyIcon = styled.div`
-  width: 64px;
-  height: 64px;
+  width: 48px;
+  height: 48px;
   border-radius: 50%;
   background: var(--input-color);
   display: flex;
@@ -540,7 +558,7 @@ const EmptyIcon = styled.div`
    Gurung (Post) Card
    ────────────────────────────────────────────────────────── */
 const PostCard = styled.div`
-  padding: 16px 20px;
+  padding: 12px 14px;
   border-bottom: 1px solid var(--border-color);
   cursor: pointer;
   transition: background 0.15s;
@@ -555,13 +573,13 @@ const PostCard = styled.div`
 const PostHeader = styled.div`
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin-bottom: 10px;
+  gap: 8px;
+  margin-bottom: 8px;
 `;
 
 const PostAvatar = styled.div`
-  width: 40px;
-  height: 40px;
+  width: 34px;
+  height: 34px;
   border-radius: 50%;
   background: linear-gradient(135deg, #5865f2, #9b59b6);
   display: flex;
@@ -583,20 +601,20 @@ const PostMeta = styled.div`
   display: flex;
   flex-direction: column;
   h4 {
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 700;
     color: var(--text-color);
     margin: 0 0 2px;
   }
   span {
-    font-size: 12px;
+    font-size: 11px;
     color: var(--text-muted-color);
   }
 `;
 
 const PostText = styled.div`
-  font-size: 15px;
-  line-height: 1.65;
+  font-size: 13px;
+  line-height: 1.55;
   color: var(--text-color);
   white-space: pre-wrap;
   word-break: break-word;
@@ -613,17 +631,18 @@ const PostText = styled.div`
 const PostActions = styled.div`
   display: flex;
   align-items: center;
-  gap: 20px;
-  margin-top: 12px;
+  gap: 14px;
+  margin-top: 10px;
+  flex-wrap: wrap;
 `;
 
 const ActionBtn = styled.button`
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 4px;
   color: ${(p) =>
     p.active ? p.activeColor || "#ed4245" : "var(--text-muted-color)"};
-  font-size: 13px;
+  font-size: 12px;
   background: transparent;
   border: none;
   cursor: pointer;
@@ -632,6 +651,14 @@ const ActionBtn = styled.button`
     color: ${(p) => p.activeColor || "var(--text-secondary-color)"};
     transform: scale(1.1);
   }
+`;
+
+const PostOwnerActions = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 10px;
+  flex-wrap: wrap;
 `;
 
 export const PlusBtn = styled.button`
@@ -654,6 +681,76 @@ export const PlusBtn = styled.button`
   }
 `;
 
+const CourseGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+`;
+
+const CourseCard = styled.button`
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--secondary-color);
+  cursor: pointer;
+  text-align: left;
+  padding: 0;
+  transition:
+    transform 0.16s ease,
+    border-color 0.16s ease,
+    background-color 0.16s ease;
+
+  &:hover {
+    transform: translateY(-1px);
+    border-color: var(--text-muted-color);
+  }
+`;
+
+const CourseThumb = styled.div`
+  height: 108px;
+  background: var(--primary-color);
+  background-image: ${(p) => (p.$image ? `url(${p.$image})` : "none")};
+  background-size: cover;
+  background-position: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 34px;
+  font-weight: 800;
+  position: relative;
+
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+  }
+`;
+
+const CourseContent = styled.div`
+  padding: 10px 12px 12px;
+`;
+
+const CourseTitle = styled.h4`
+  margin: 0 0 4px;
+  color: var(--text-color);
+  font-size: 14px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+`;
+
+const CourseMeta = styled.p`
+  margin: 0;
+  color: var(--text-muted-color);
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+`;
+
 /* ──────────────────────────────────────────────────────────
    Component
    ────────────────────────────────────────────────────────── */
@@ -663,6 +760,8 @@ const ProfilePage = ({ profileUserId }) => {
     userPosts,
     fetchUserPosts,
     createPost,
+    editPost,
+    deletePost,
     likePost,
     getPublicProfile,
     toggleFollow,
@@ -671,11 +770,21 @@ const ProfilePage = ({ profileUserId }) => {
   const navigate = useNavigate();
 
   const isMobile = window.innerWidth <= 768;
-  const [activeTab, setActiveTab] = useState(isMobile ? null : "groups");
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState(() => {
+    const storedTab = sessionStorage.getItem("profile_initial_tab");
+    if (storedTab) {
+      sessionStorage.removeItem("profile_initial_tab");
+      return storedTab;
+    }
+    return isMobile ? null : "groups";
+  });
   const [isCreatePostOpen, setIsCreatePostOpen] = useState(false);
+  const [isProfileEditOpen, setIsProfileEditOpen] = useState(false);
   const [otherUser, setOtherUser] = useState(null);
   const [isFollowing, setIsFollowing] = useState(false);
+  const [blogCount, setBlogCount] = useState(0);
+  const [editingPost, setEditingPost] = useState(null);
+  const [postToDelete, setPostToDelete] = useState(null);
 
   const myId = currentUser?._id || currentUser?.id;
   const isOwnProfile = !profileUserId || profileUserId === myId;
@@ -697,10 +806,34 @@ const ProfilePage = ({ profileUserId }) => {
     }
   }, [profileUserId, myId, isOwnProfile, fetchUserPosts, getPublicProfile]);
 
+  useEffect(() => {
+    const identifier = isOwnProfile ? myId : profileUserId;
+    if (!identifier) {
+      setBlogCount(0);
+      return;
+    }
+
+    fetchProfileBlogs(identifier)
+      .then((items) => setBlogCount(items?.length || 0))
+      .catch(() => setBlogCount(0));
+  }, [isOwnProfile, myId, profileUserId]);
+
   const handleCreatePost = async (text) => {
     await createPost(text);
     const userId = myId;
     if (userId) fetchUserPosts(userId);
+  };
+
+  const handleEditPost = async (text) => {
+    if (!editingPost?._id) return;
+    await editPost(editingPost._id, text);
+    setEditingPost(null);
+  };
+
+  const handleDeletePost = async () => {
+    if (!postToDelete?._id) return;
+    await deletePost(postToDelete._id);
+    setPostToDelete(null);
   };
 
   const handleToggleFollow = async () => {
@@ -773,9 +906,10 @@ const ProfilePage = ({ profileUserId }) => {
       value: isOwnProfile
         ? currentUser.followers?.length || "0"
         : String(targetUser.followersCount || 0),
-      label: "Obunachilar",
+      label: "A'zolar",
     },
     { value: String(userPosts.length), label: "Gurunglar" },
+    { value: String(blogCount), label: "Bloglar" },
     { value: String(userCourses.length), label: "Darslar" },
   ];
 
@@ -793,9 +927,9 @@ const ProfilePage = ({ profileUserId }) => {
               </CoverEditBtn>
               <SettingsBtn
                 title="Sozlamalar"
-                onClick={() => setIsSettingsOpen(true)}
+                onClick={() => setIsProfileEditOpen(true)}
               >
-                <Settings size={16} />
+                <Edit2 size={16} />
               </SettingsBtn>
             </>
           )}
@@ -904,31 +1038,112 @@ const ProfilePage = ({ profileUserId }) => {
             </StatCard>
           ))}
         </StatsGrid>
+        <div
+          style={{
+            width: "100%",
+            height: "100%",
+            overflow: "auto",
+            "::-webkit-scrollbar-thumb": {
+              display: "none",
+            },
+          }}
+        >
+          <TabsContainer>
+            <TabItem
+              active={activeTab === "groups"}
+              onClick={() => setActiveTab("groups")}
+              iconBg="linear-gradient(135deg, #3ba55d, #248147)"
+            >
+              <div className="icon-wrapper">
+                <MessageSquare size={16} />
+              </div>
+              <span className="label">Gurunglar</span>
+              <ChevronRight className="chevron" size={16} />
+            </TabItem>
+            <TabItem
+              active={activeTab === "blogs"}
+              onClick={() => setActiveTab("blogs")}
+              iconBg="linear-gradient(135deg, #2563eb, #0f9d8f)"
+            >
+              <div className="icon-wrapper">
+                <BookOpen size={16} />
+              </div>
+              <span className="label">Bloglar</span>
+              <ChevronRight className="chevron" size={16} />
+            </TabItem>
+            <TabItem
+              active={activeTab === "courses"}
+              onClick={() => setActiveTab("courses")}
+              iconBg="linear-gradient(135deg, #faa61a, #bd7b0a)"
+            >
+              <div className="icon-wrapper">
+                <GraduationCap size={16} />
+              </div>
+              <span className="label">Darslar</span>
+              <ChevronRight className="chevron" size={16} />
+            </TabItem>
+          </TabsContainer>
 
-        <TabsContainer>
-          <TabItem
-            active={activeTab === "groups"}
-            onClick={() => setActiveTab("groups")}
-            iconBg="linear-gradient(135deg, #3ba55d, #248147)"
-          >
-            <div className="icon-wrapper">
-              <MessageSquare size={16} />
-            </div>
-            <span className="label">Gurunglar</span>
-            <ChevronRight className="chevron" size={16} />
-          </TabItem>
-          <TabItem
-            active={activeTab === "courses"}
-            onClick={() => setActiveTab("courses")}
-            iconBg="linear-gradient(135deg, #faa61a, #bd7b0a)"
-          >
-            <div className="icon-wrapper">
-              <GraduationCap size={16} />
-            </div>
-            <span className="label">Darslar</span>
-            <ChevronRight className="chevron" size={16} />
-          </TabItem>
-        </TabsContainer>
+          {isOwnProfile && (
+            <TabsContainer>
+              <TabItem
+                active={activeTab === "appearance"}
+                onClick={() => setActiveTab("appearance")}
+                iconBg="linear-gradient(135deg, #5865f2, #7289da)"
+              >
+                <div className="icon-wrapper">
+                  <Palette size={16} />
+                </div>
+                <span className="label">Theme</span>
+                <ChevronRight className="chevron" size={16} />
+              </TabItem>
+              <TabItem
+                active={activeTab === "language"}
+                onClick={() => setActiveTab("language")}
+                iconBg="linear-gradient(135deg, #00b0f4, #2d6cdf)"
+              >
+                <div className="icon-wrapper">
+                  <Globe size={16} />
+                </div>
+                <span className="label">Language</span>
+                <ChevronRight className="chevron" size={16} />
+              </TabItem>
+              <TabItem
+                active={activeTab === "premium"}
+                onClick={() => setActiveTab("premium")}
+                iconBg="linear-gradient(135deg, #faa61a, #f57c00)"
+              >
+                <div className="icon-wrapper">
+                  <Shield size={16} />
+                </div>
+                <span className="label">Jamm Premium</span>
+                <ChevronRight className="chevron" size={16} />
+              </TabItem>
+              <TabItem
+                active={activeTab === "support"}
+                onClick={() => setActiveTab("support")}
+                iconBg="linear-gradient(135deg, #3ba55d, #248147)"
+              >
+                <div className="icon-wrapper">
+                  <Headphones size={16} />
+                </div>
+                <span className="label">Qo'llab-quvvatlash</span>
+                <ChevronRight className="chevron" size={16} />
+              </TabItem>
+              <TabItem
+                active={activeTab === "favorites"}
+                onClick={() => setActiveTab("favorites")}
+                iconBg="linear-gradient(135deg, #ec4899, #9b59b6)"
+              >
+                <div className="icon-wrapper">
+                  <Heart size={16} />
+                </div>
+                <span className="label">Sevimlilarim</span>
+                <ChevronRight className="chevron" size={16} />
+              </TabItem>
+            </TabsContainer>
+          )}
+        </div>
 
         {/* <TabsContainer>
           <TabItem iconBg="linear-gradient(135deg, #8E2DE2, #4A00E0)">
@@ -976,12 +1191,12 @@ const ProfilePage = ({ profileUserId }) => {
               <MessageSquare size={24} color="#3ba55d" />
               <h2>Gurunglar</h2>
               {isOwnProfile && (
-                <PlusBtn
+                <ButtonWrapper
                   onClick={() => setIsCreatePostOpen(true)}
                   title="Gurung yarating"
                 >
                   <Plus size={16} />
-                </PlusBtn>
+                </ButtonWrapper>
               )}
             </ContentHeader>
 
@@ -999,8 +1214,8 @@ const ProfilePage = ({ profileUserId }) => {
                 <PostCard key={post._id}>
                   <PostHeader>
                     <PostAvatar>
-                      {currentUser?.avatar ? (
-                        <img src={currentUser.avatar} alt={displayName} />
+                      {userAvatar ? (
+                        <img src={userAvatar} alt={displayName} />
                       ) : (
                         displayName.charAt(0).toUpperCase()
                       )}
@@ -1036,6 +1251,25 @@ const ProfilePage = ({ profileUserId }) => {
                       {post.views}
                     </ActionBtn>
                   </PostActions>
+
+                  {isOwnProfile && (
+                    <PostOwnerActions>
+                      <ActionBtn
+                        activeColor="var(--primary-color)"
+                        onClick={() => setEditingPost(post)}
+                      >
+                        <Edit2 size={16} />
+                        Tahrirlash
+                      </ActionBtn>
+                      <ActionBtn
+                        activeColor="#ed4245"
+                        onClick={() => setPostToDelete(post)}
+                      >
+                        <Trash2 size={16} />
+                        O'chirish
+                      </ActionBtn>
+                    </PostOwnerActions>
+                  )}
                 </PostCard>
               ))
             )}
@@ -1060,91 +1294,94 @@ const ProfilePage = ({ profileUserId }) => {
                   <span>Siz qo'shgan darslar yo'q</span>
                 </EmptyStateContainer>
               ) : (
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns:
-                      "repeat(auto-fill, minmax(250px, 1fr))",
-                    gap: "20px",
-                  }}
-                >
+                <CourseGrid>
                   {userCourses.map((course) => (
-                    <div
+                    <CourseCard
                       key={course._id || course.id}
                       onClick={() =>
                         navigate(
                           `/courses/${course.urlSlug || course.id || course._id}`,
                         )
                       }
-                      style={{
-                        background: "var(--input-color)",
-                        borderRadius: "12px",
-                        overflow: "hidden",
-                        cursor: "pointer",
-                        transition: "transform 0.2s",
-                      }}
-                      onMouseEnter={(e) =>
-                        (e.currentTarget.style.transform = "scale(1.03)")
-                      }
-                      onMouseLeave={(e) =>
-                        (e.currentTarget.style.transform = "scale(1)")
-                      }
                     >
-                      <div
+                      <CourseThumb
+                        $image={course.image}
                         style={{
-                          height: "140px",
-                          background: course.gradient || "var(--primary-color)",
-                          backgroundImage: course.image
-                            ? `url(${course.image})`
-                            : "none",
-                          backgroundSize: "cover",
-                          backgroundPosition: "center",
+                          background: course.image
+                            ? undefined
+                            : "var(--primary-color)",
                         }}
-                      />
-                      <div style={{ padding: "16px" }}>
-                        <h4
-                          style={{
-                            margin: "0 0 8px",
-                            color: "var(--text-color)",
-                            fontSize: "16px",
-                            fontWeight: "700",
-                          }}
-                        >
-                          {course.name}
-                        </h4>
-                        <p
-                          style={{
-                            margin: "0",
-                            color: "var(--text-muted-color)",
-                            fontSize: "13px",
-                            display: "-webkit-box",
-                            WebkitLineClamp: 2,
-                            WebkitBoxOrient: "vertical",
-                            overflow: "hidden",
-                          }}
-                        >
-                          {course.description || "Tavsif yo'q"}
-                        </p>
-                      </div>
-                    </div>
+                      >
+                        {!course.image && (course.name || "?").charAt(0)}
+                      </CourseThumb>
+                      <CourseContent>
+                        <CourseTitle>{course.name}</CourseTitle>
+                        <CourseMeta>
+                          {(course.lessons || []).length > 0
+                            ? `${course.lessons.length} ta dars`
+                            : "Hali dars yo'q"}
+                        </CourseMeta>
+                      </CourseContent>
+                    </CourseCard>
                   ))}
-                </div>
+                </CourseGrid>
               )}
             </ContentBody>
           </>
         )}
+
+        {activeTab === "blogs" && (
+          <ProfileBlogsPanel
+            profileUser={targetUser}
+            profileUserId={profileUserId}
+            isOwnProfile={isOwnProfile}
+            onBack={() => setActiveTab(null)}
+            onCountChange={setBlogCount}
+          />
+        )}
+
+        {isOwnProfile &&
+          [
+            "appearance",
+            "language",
+            "premium",
+            "support",
+            "favorites",
+          ].includes(activeTab) && (
+            <ProfileUtilityPanel
+              section={activeTab}
+              currentUser={currentUser}
+            />
+          )}
       </RightPanel>
 
-      <SettingsDialog
-        isOpen={isSettingsOpen}
-        onClose={() => setIsSettingsOpen(false)}
+      <CreatePostDialog
+        isOpen={isCreatePostOpen || Boolean(editingPost)}
+        onClose={() => {
+          setIsCreatePostOpen(false);
+          setEditingPost(null);
+        }}
+        onSubmit={editingPost ? handleEditPost : handleCreatePost}
+        currentUser={currentUser}
+        initialContent={editingPost?.content || ""}
+        title={editingPost ? "Gurungni tahrirlash" : "Yangi Gurung"}
+        submitLabel={editingPost ? "Saqlash" : "Yuborish"}
       />
 
-      <CreatePostDialog
-        isOpen={isCreatePostOpen}
-        onClose={() => setIsCreatePostOpen(false)}
-        onSubmit={handleCreatePost}
-        currentUser={currentUser}
+      <ProfileEditDialog
+        isOpen={isProfileEditOpen}
+        onClose={() => setIsProfileEditOpen(false)}
+      />
+
+      <ConfirmDialog
+        isOpen={Boolean(postToDelete)}
+        onClose={() => setPostToDelete(null)}
+        title="Gurungni o'chirish"
+        description="Bu gurung o'chirilsa, uni qayta tiklab bo'lmaydi."
+        confirmText="O'chirish"
+        cancelText="Bekor qilish"
+        onConfirm={handleDeletePost}
+        isDanger
       />
     </ProfileContainer>
   );

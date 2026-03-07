@@ -24,12 +24,14 @@ export const ChatsProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [chatsPage, setChatsPage] = useState(1);
   const [chatsHasMore, setChatsHasMore] = useState(true);
+  const hasLoadedChatsRef = React.useRef(false);
   const [selectedNav, setSelectedNav] = useState(() => {
     const parts = window.location.pathname.split("/").filter(Boolean);
     const first = parts[0] || "home";
     const knownNavs = [
       "home",
       "feed",
+      "blogs",
       "chats",
       "users",
       "groups",
@@ -45,6 +47,7 @@ export const ChatsProvider = ({ children }) => {
     const parts = window.location.pathname.split("/").filter(Boolean);
     if (
       (parts[0] === "a" ||
+        parts[0] === "blogs" ||
         parts[0] === "users" ||
         parts[0] === "groups" ||
         parts[0] === "chats") &&
@@ -318,12 +321,20 @@ export const ChatsProvider = ({ children }) => {
       setChats((prev) => (page === 1 ? formatted : [...prev, ...formatted]));
       setChatsPage(page);
       setChatsHasMore(page < totalPages);
+      if (page === 1) {
+        hasLoadedChatsRef.current = true;
+      }
     } catch (error) {
       console.error(error);
     } finally {
       if (page === 1) setLoading(false);
     }
   }, []);
+
+  const ensureChatsLoaded = useCallback(async () => {
+    if (hasLoadedChatsRef.current) return;
+    await fetchChats(1);
+  }, [fetchChats]);
 
   const createChat = async (dto) => {
     const data = await chatApi.createChat(dto);
@@ -444,9 +455,9 @@ export const ChatsProvider = ({ children }) => {
 
   useEffect(() => {
     if (["chats", "groups", "users"].includes(selectedNav)) {
-      fetchChats();
+      ensureChatsLoaded();
     }
-  }, [fetchChats, selectedNav]);
+  }, [ensureChatsLoaded, selectedNav]);
 
   useEffect(() => {
     if (!selectedChannel || selectedChannel === "0") return;
@@ -469,6 +480,7 @@ export const ChatsProvider = ({ children }) => {
     chatsPage,
     chatsHasMore,
     fetchChats,
+    ensureChatsLoaded,
     createChat,
     editChat,
     deleteChat,

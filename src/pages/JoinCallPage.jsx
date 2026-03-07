@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from "react";
 import styled, { keyframes } from "styled-components";
 import { useNavigate, useParams } from "react-router-dom";
-import GroupVideoCall from "../components/GroupVideoCall";
 import { getMeetById, saveMeet } from "../utils/meetStore";
 import { Loader, Mic, MicOff, Video, VideoOff } from "lucide-react";
 import useAuthStore from "../store/authStore";
+import useMeetCallStore from "../store/meetCallStore";
 
 const fadeIn = keyframes`
   from { opacity: 0; transform: translateY(16px); }
@@ -160,6 +160,8 @@ const JoinCallPage = () => {
   const [isCreator, setIsCreator] = useState(false);
   const navigate = useNavigate();
   const user = useAuthStore((state) => state.user);
+  const startCall = useMeetCallStore((state) => state.startCall);
+  const activeCall = useMeetCallStore((state) => state.activeCall);
 
   useEffect(() => {
     let active = true;
@@ -211,6 +213,32 @@ const JoinCallPage = () => {
     setStage("call");
   };
 
+  useEffect(() => {
+    if (stage !== "call" || !roomId) return;
+
+    const fallbackPath =
+      sessionStorage.getItem("meet_return_path") || "/chats";
+
+    startCall({
+      roomId,
+      chatTitle: meet?.title || "Meet",
+      isCreator,
+      isPrivate: meet?.isPrivate || false,
+      initialMicOn: initialMic,
+      initialCamOn: initialCam,
+      returnPath: fallbackPath,
+    });
+  }, [
+    stage,
+    roomId,
+    meet?.title,
+    meet?.isPrivate,
+    isCreator,
+    initialMic,
+    initialCam,
+    startCall,
+  ]);
+
   if (stage === "checking") {
     return (
       <Page>
@@ -222,18 +250,7 @@ const JoinCallPage = () => {
   }
 
   if (stage === "call") {
-    return (
-      <GroupVideoCall
-        isOpen
-        onClose={() => navigate("/meets")}
-        roomId={roomId}
-        chatTitle={meet?.title || "Meet"}
-        isCreator={isCreator}
-        isPrivate={meet?.isPrivate || false}
-        initialMicOn={initialMic}
-        initialCamOn={initialCam}
-      />
-    );
+    return <Page>{!activeCall && <Card><SpinLoader size={32} color="#7289da" /></Card>}</Page>;
   }
 
   // stage === "form"

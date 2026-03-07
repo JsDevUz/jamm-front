@@ -57,6 +57,21 @@ export const PostsProvider = ({ children }) => {
     }
   }, []);
 
+  const editPost = useCallback(async (postId, content) => {
+    try {
+      const post = await postsApi.updatePost(postId, content);
+      const updater = (prev) =>
+        prev.map((item) => (item._id === postId ? { ...item, ...post } : item));
+      setForYouPosts(updater);
+      setFollowingPosts(updater);
+      setUserPosts(updater);
+      return post;
+    } catch (e) {
+      console.error("editPost error:", e);
+      throw e;
+    }
+  }, []);
+
   /* ── Like post ── */
   const likePost = useCallback(async (postId) => {
     try {
@@ -152,6 +167,15 @@ export const PostsProvider = ({ children }) => {
     }
   }, []);
 
+  const fetchLikedPosts = useCallback(async () => {
+    try {
+      return await postsApi.fetchLikedPosts();
+    } catch (e) {
+      console.error("fetchLikedPosts error:", e);
+      return [];
+    }
+  }, []);
+
   /* ── Follow/Unfollow ── */
   const toggleFollow = useCallback(async (userId) => {
     try {
@@ -183,12 +207,14 @@ export const PostsProvider = ({ children }) => {
     loading,
     fetchFeed,
     createPost,
+    editPost,
     likePost,
     viewPost,
     addComment,
     getComments,
     addReply,
     fetchUserPosts,
+    fetchLikedPosts,
     deletePost,
     toggleFollow,
     getPublicProfile,

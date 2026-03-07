@@ -1,5 +1,6 @@
 import React, { useRef, useEffect, useState, useCallback } from "react";
 import styled, { keyframes, css } from "styled-components";
+import { createPortal } from "react-dom";
 import {
   Mic,
   MicOff,
@@ -27,6 +28,7 @@ import {
   CheckSquare,
   User,
   ShieldAlert,
+  Minimize2,
 } from "lucide-react";
 import { useWebRTC } from "../hooks/useWebRTC";
 import useAuthStore from "../store/authStore";
@@ -45,12 +47,50 @@ const pulse = keyframes`
 
 const Overlay = styled.div`
   position: fixed;
-  inset: 0;
+  inset: ${(p) => (p.$minimized ? "auto 20px 20px auto" : "0")};
+  width: ${(p) => (p.$minimized ? "320px" : "auto")};
+  height: ${(p) => (p.$minimized ? "180px" : "auto")};
   z-index: 10000;
   background: #0b0d0f;
   display: flex;
   flex-direction: column;
   animation: ${slideIn} 0.3s ease-out;
+  border-radius: ${(p) => (p.$minimized ? "18px" : "0")};
+  border: ${(p) => (p.$minimized ? "1px solid rgba(255,255,255,0.08)" : "none")};
+  box-shadow: ${(p) =>
+    p.$minimized ? "0 20px 50px rgba(0,0,0,0.45)" : "none"};
+  overflow: hidden;
+`;
+
+const FloatingActionBar = styled.div`
+  position: absolute;
+  bottom: 88px;
+  right: 14px;
+  z-index: 10020;
+  display: flex;
+  gap: 8px;
+  pointer-events: none;
+`;
+
+const FloatingActionBtn = styled.button`
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(11, 13, 15, 0.72);
+  backdrop-filter: blur(10px);
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  pointer-events: auto;
+  transition: background 0.16s ease, transform 0.16s ease;
+
+  &:hover {
+    background: rgba(24, 28, 34, 0.92);
+    transform: translateY(-1px);
+  }
 `;
 
 const TopBar = styled.div`
@@ -110,6 +150,48 @@ const Body = styled.div`
   display: flex;
   flex: 1;
   overflow: hidden;
+`;
+
+const PiPFrame = styled.div`
+  width: 100%;
+  height: 100%;
+  background: #0b0d0f;
+  display: flex;
+  flex-direction: column;
+`;
+
+const MinimizedBody = styled.button`
+  flex: 1;
+  border: none;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.04),
+    rgba(255, 255, 255, 0.02)
+  );
+  color: #fff;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  text-align: left;
+  cursor: pointer;
+`;
+
+const MiniTitle = styled.div`
+  font-size: 16px;
+  font-weight: 700;
+`;
+
+const MiniMeta = styled.div`
+  color: #9ca3af;
+  font-size: 12px;
+  line-height: 1.5;
+`;
+
+const MiniActions = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 10px;
 `;
 
 // ─── Video Grid ───────────────────────────────────────────────────────────────
@@ -556,6 +638,9 @@ const VideoEl = ({
 const GroupVideoCall = ({
   isOpen,
   onClose,
+  onMinimize,
+  onMaximize,
+  isMinimized = false,
   roomId,
   chatTitle,
   isCreator = true,
@@ -565,6 +650,9 @@ const GroupVideoCall = ({
 }) => {
   const [copied, setCopied] = useState(false);
   const [showDrawer, setShowDrawer] = useState(false);
+  const [pipWindow, setPipWindow] = useState(null);
+  const [pipContainer, setPipContainer] = useState(null);
+  const pipCloseIntentRef = useRef(false);
 
   const currentUser = useAuthStore((state) => state.user);
 
@@ -764,6 +852,108 @@ const GroupVideoCall = ({
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const closePiPWindow = useCallback(() => {
+    if (pipWindow && !pipWindow.closed) {
+      pipCloseIntentRef.current = true;
+      pipWindow.close();
+    }
+    setPipWindow(null);
+    setPipContainer(null);
+  }, [pipWindow]);
+
+  useEffect(() => {
+    if (!isMinimized || !pipWindow) return undefined;
+
+    const handlePageHide = () => {
+      setPipWindow(null);
+      setPipContainer(null);
+      if (pipCloseIntentRef.current) {
+        pipCloseIntentRef.current = false;
+        return;
+      }
+      onMaximize?.();
+    };
+
+    pipWindow.addEventListener("pagehide", handlePageHide);
+    return () => {
+      pipWindow.removeEventListener("pagehide", handlePageHide);
+    };
+  }, [isMinimized, onMaximize, pipWindow]);
+
+  useEffect(() => {
+    if (!isOpen && pipWindow) {
+      closePiPWindow();
+    }
+  }, [closePiPWindow, isOpen, pipWindow]);
+
+  useEffect(() => {
+    if (!isMinimized && pipWindow) {
+      closePiPWindow();
+    }
+  }, [closePiPWindow, isMinimized, pipWindow]);
+
+  const handleMinimizeToggle = useCallback(async () => {
+    if (isMinimized) {
+      onMaximize?.();
+      return;
+    }
+
+    const documentPiP = window?.documentPictureInPicture;
+    if (!documentPiP?.requestWindow) {
+      onMinimize?.();
+      return;
+    }
+
+    try {
+      const nextPipWindow = await documentPiP.requestWindow({
+        width: 360,
+        height: 220,
+      });
+
+      nextPipWindow.document.body.innerHTML = "";
+      nextPipWindow.document.body.style.margin = "0";
+      nextPipWindow.document.body.style.background = "#0b0d0f";
+      nextPipWindow.document.body.style.overflow = "hidden";
+
+      [...document.styleSheets].forEach((styleSheet) => {
+        try {
+          const cssRules = [...styleSheet.cssRules]
+            .map((rule) => rule.cssText)
+            .join("");
+          const style = document.createElement("style");
+          style.textContent = cssRules;
+          nextPipWindow.document.head.appendChild(style);
+        } catch {
+          if (styleSheet.href) {
+            const link = document.createElement("link");
+            link.rel = "stylesheet";
+            link.type = styleSheet.type;
+            link.media = styleSheet.media;
+            link.href = styleSheet.href;
+            nextPipWindow.document.head.appendChild(link);
+          }
+        }
+      });
+
+      const mountNode = nextPipWindow.document.createElement("div");
+      mountNode.style.width = "100%";
+      mountNode.style.height = "100%";
+      nextPipWindow.document.body.appendChild(mountNode);
+
+      pipCloseIntentRef.current = false;
+      setPipWindow(nextPipWindow);
+      setPipContainer(mountNode);
+      onMinimize?.();
+    } catch (error) {
+      console.error("Document PiP ochilmadi:", error);
+      onMinimize?.();
+    }
+  }, [isMinimized, onMaximize, onMinimize]);
+
+  const handleMaximizeFromPiP = useCallback(() => {
+    onMaximize?.();
+  }, [onMaximize]);
+
   if (!isOpen || !roomId) return null;
 
   const totalTiles =
@@ -772,8 +962,8 @@ const GroupVideoCall = ({
     (screenStream ? 1 : 0) +
     remoteScreenStreams.length;
 
-  return (
-    <Overlay>
+  const minimizedContent = (
+    <>
       <TopBar>
         <CallInfo>
           <CallTitle>
@@ -801,23 +991,83 @@ const GroupVideoCall = ({
               <Circle size={8} fill="#f04747" /> REC
             </RecBadge>
           )}
+          {(onMinimize || isMinimized) && (
+            <TinyBtn onClick={handleMinimizeToggle}>
+              {isMinimized ? <Maximize size={13} /> : <Minimize2 size={13} />}
+              {isMinimized ? "Ochish" : "Yig'ish"}
+            </TinyBtn>
+          )}
           <TinyBtn onClick={handleCopy}>
             {copied ? <Check size={13} /> : <Copy size={13} />}
             {copied ? "Nusxalandi!" : "Link"}
           </TinyBtn>
-          <TinyBtn
-            onClick={() => setShowDrawer((p) => !p)}
-            style={{ position: "relative" }}
-          >
-            <Users size={13} />
-            {totalTiles}
-            {isCreator && knockRequests.length > 0 && (
-              <NotifBadge>{knockRequests.length}</NotifBadge>
-            )}
-          </TinyBtn>
+          {!isMinimized && (
+            <TinyBtn
+              onClick={() => setShowDrawer((p) => !p)}
+              style={{ position: "relative" }}
+            >
+              <Users size={13} />
+              {totalTiles}
+              {isCreator && knockRequests.length > 0 && (
+                <NotifBadge>{knockRequests.length}</NotifBadge>
+              )}
+            </TinyBtn>
+          )}
         </TopActions>
       </TopBar>
 
+      <MinimizedBody
+        type="button"
+        onClick={pipContainer ? handleMaximizeFromPiP : onMaximize}
+      >
+        <div>
+          <MiniTitle>{roomTitle || chatTitle || "Meet"}</MiniTitle>
+          <MiniMeta>
+            {totalTiles} qatnashchi • {isPrivate ? "private xona" : "public xona"}
+          </MiniMeta>
+        </div>
+        <MiniActions>
+          <MiniMeta>{roomId}</MiniMeta>
+          {isMicOn ? <Mic size={16} color="#43b581" /> : <MicOff size={16} color="#f04747" />}
+          {isCamOn ? <Video size={16} color="#43b581" /> : <VideoOff size={16} color="#f04747" />}
+        </MiniActions>
+      </MinimizedBody>
+    </>
+  );
+
+  if (isMinimized && pipContainer) {
+    return createPortal(<PiPFrame>{minimizedContent}</PiPFrame>, pipContainer);
+  }
+
+  return (
+    <Overlay $minimized={isMinimized}>
+      {!isMinimized && (
+        <FloatingActionBar>
+          <FloatingActionBtn
+            type="button"
+            title="Meetni yig'ish"
+            aria-label="Meetni yig'ish"
+            onClick={handleMinimizeToggle}
+          >
+            <Minimize2 size={18} />
+          </FloatingActionBtn>
+        </FloatingActionBar>
+      )}
+      {isMinimized ? (
+        <MinimizedBody type="button" onClick={onMaximize}>
+          <div>
+            <MiniTitle>{roomTitle || chatTitle || "Meet"}</MiniTitle>
+            <MiniMeta>
+              {totalTiles} qatnashchi • {isPrivate ? "private xona" : "public xona"}
+            </MiniMeta>
+          </div>
+          <MiniActions>
+            <MiniMeta>{roomId}</MiniMeta>
+            {isMicOn ? <Mic size={16} color="#43b581" /> : <MicOff size={16} color="#f04747" />}
+            {isCamOn ? <Video size={16} color="#43b581" /> : <VideoOff size={16} color="#f04747" />}
+          </MiniActions>
+        </MinimizedBody>
+      ) : (
       <Body>
         {error ? (
           <CenterBox>
@@ -1057,8 +1307,9 @@ const GroupVideoCall = ({
           </WaitingPanel>
         )}
       </Body>
+        )}
 
-      <ControlBar>
+      {!isMinimized && <ControlBar>
         <CtrlBtn
           $active={isMicOn}
           onClick={toggleMic}
@@ -1145,7 +1396,7 @@ const GroupVideoCall = ({
         <CtrlBtn $danger onClick={handleLeave}>
           <PhoneOff size={21} />
         </CtrlBtn>
-      </ControlBar>
+      </ControlBar>}
     </Overlay>
   );
 };

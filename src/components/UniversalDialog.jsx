@@ -1,394 +1,604 @@
-import React, { useState } from "react";
-import styled from "styled-components";
-import { X, Video, Users, Calendar, Clock } from "lucide-react";
+import React, { useEffect, useMemo, useState } from "react";
+import styled, { css, keyframes } from "styled-components";
+import { Globe2, Lock, Video, X } from "lucide-react";
+import { ButtonWrapper } from "./BlogsSidebar";
+import { APP_LIMITS } from "../constants/appLimits";
 
-const DialogOverlay = styled.div`
+const overlayIn = keyframes`
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+`;
+
+const overlayOut = keyframes`
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+`;
+
+const dialogIn = keyframes`
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+`;
+
+const dialogOut = keyframes`
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(14px) scale(0.985);
+  }
+`;
+
+const Overlay = styled.div`
   position: fixed;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
-  background-color: rgba(0, 0, 0, 0.8);
+  inset: 0;
   z-index: 10000;
   display: flex;
   align-items: center;
   justify-content: center;
-`;
+  padding: 20px;
+  background: rgba(2, 6, 23, 0.78);
+  backdrop-filter: blur(12px);
+  animation: ${(props) => (props.$closing ? overlayOut : overlayIn)} 180ms ease
+    forwards;
 
-const DialogContainer = styled.div`
-  background-color: #36393f;
-  border-radius: 12px;
-  padding: 24px;
-  max-width: 500px;
-  width: 90%;
-  max-height: 90vh;
-  overflow-y: auto;
-  position: relative;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-
-  /* Mobile responsive */
-  @media (max-width: 768px) {
-    width: 95%;
-    max-width: 95%;
-    padding: 16px;
-    margin: 0 16px;
-  }
-
-  @media (max-width: 480px) {
-    width: 100%;
-    max-width: 100%;
-    padding: 12px;
-    margin: 0;
-    border-radius: 8px;
+  @media (max-width: 640px) {
+    padding: 0;
+    align-items: stretch;
   }
 `;
 
-const DialogHeader = styled.div`
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 24px;
-`;
+const Dialog = styled.div`
+  --meet-text: var(--text-color);
+  --meet-muted: var(--text-muted-color);
+  --meet-surface: color-mix(in srgb, var(--secondary-color) 82%, black 18%);
+  --meet-surface-2: color-mix(in srgb, var(--tertiary-color) 84%, black 16%);
+  --meet-surface-3: color-mix(in srgb, var(--input-color) 86%, black 14%);
+  --meet-border: color-mix(in srgb, var(--border-color) 82%, white 18%);
+  --meet-soft: color-mix(in srgb, var(--background-color) 72%, transparent);
+  --meet-primary: var(--primary-color);
+  --meet-primary-soft: color-mix(
+    in srgb,
+    var(--primary-color) 18%,
+    transparent
+  );
+  --meet-accent: #14b8a6;
 
-const DialogTitle = styled.h2`
-  color: #dcddde;
-  font-size: 24px;
-  font-weight: 600;
-  margin: 0;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-`;
-
-const CloseButton = styled.button`
-  background: none;
-  border: none;
-  color: #b9bbbe;
-  cursor: pointer;
-  padding: 8px;
-  border-radius: 4px;
-  transition: all 0.2s ease;
-
-  &:hover {
-    background-color: #4a4d52;
-    color: #dcddde;
-  }
-`;
-
-const DialogContent = styled.div`
-  color: #dcddde;
-  margin-bottom: 24px;
-`;
-
-const Description = styled.p`
-  color: #b9bbbe;
-  line-height: 1.6;
-  margin-bottom: 20px;
-`;
-
-const FeatureList = styled.div`
+  width: min(100%, 480px);
+  max-height: min(86vh, 640px);
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  margin-bottom: 20px;
+  overflow: hidden;
+  border-radius: 18px;
+  border: 1px solid var(--meet-border);
+  background: color-mix(
+    in srgb,
+    var(--meet-surface) 88%,
+    var(--meet-surface-2) 12%
+  );
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.34);
+  animation: ${(props) => (props.$closing ? dialogOut : dialogIn)} 180ms ease
+    forwards;
+
+  @media (max-width: 640px) {
+    width: 100%;
+    height: 100%;
+    border-radius: 0;
+  }
 `;
 
-const FeatureItem = styled.div`
+const Header = styled.div`
+  padding: 14px 16px 12px;
+  border-bottom: 1px solid var(--meet-border);
+  background: color-mix(in srgb, var(--meet-surface) 88%, transparent);
+  backdrop-filter: blur(16px);
   display: flex;
-  align-items: center;
-  gap: 12px;
-  color: #dcddde;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+
+  @media (max-width: 640px) {
+    padding: 14px 14px 10px;
+  }
 `;
 
-const FeatureIcon = styled.div`
+const HeaderMeta = styled.div`
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+`;
+
+const IconWrap = styled.div`
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--meet-primary) 82%, white 18%);
+  color: white;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
-  background-color: #4a4d52;
-  border-radius: 8px;
-  color: #7289da;
+  flex-shrink: 0;
+  box-shadow: 0 10px 24px rgba(20, 184, 166, 0.2);
+`;
+
+const TitleBlock = styled.div`
+  h2 {
+    margin: 0 0 4px;
+    color: var(--meet-text);
+    font-size: 18px;
+    line-height: 1.1;
+  }
+
+  p {
+    margin: 0;
+    color: var(--meet-muted);
+    font-size: 12px;
+    line-height: 1.45;
+    max-width: 320px;
+  }
+`;
+
+const CloseButton = styled.button`
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--meet-soft) 72%, transparent);
+  color: var(--meet-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
   flex-shrink: 0;
 `;
 
-const FeatureText = styled.div`
+const Body = styled.div`
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 14px 16px;
+  display: grid;
+  gap: 12px;
+
+  @media (max-width: 640px) {
+    padding: 12px 14px;
+    gap: 10px;
+  }
+`;
+
+const Hero = styled.div`
+  border-radius: 12px;
+  padding: 12px;
+  background: color-mix(
+    in srgb,
+    var(--meet-surface) 72%,
+    var(--meet-primary-soft) 28%
+  );
+  border: 1px solid
+    color-mix(in srgb, var(--meet-primary) 16%, var(--meet-border) 84%);
+
+`;
+
+const HeroTitle = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--meet-text);
   font-size: 14px;
+  font-weight: 800;
+  margin-bottom: 4px;
 `;
 
-const FeatureTitle = styled.div`
-  font-weight: 600;
-  margin-bottom: 2px;
-`;
-
-const FeatureDescription = styled.div`
-  color: #b9bbbe;
+const HeroText = styled.p`
+  margin: 0;
+  color: var(--meet-muted);
   font-size: 12px;
+  line-height: 1.45;
 `;
 
-const CallOptions = styled.div`
-  background-color: #2f3136;
-  border-radius: 8px;
-  padding: 16px;
-  margin-bottom: 24px;
+const Panel = styled.div`
+  border-radius: 12px;
+  padding: 12px;
+  background: color-mix(in srgb, var(--meet-surface) 76%, transparent);
+  border: 1px solid var(--meet-border);
 `;
 
-const OptionTitle = styled.h3`
-  color: #dcddde;
-  font-size: 16px;
-  font-weight: 600;
-  margin-bottom: 12px;
-`;
-
-const OptionDescription = styled.p`
-  color: #b9bbbe;
+const PanelTitle = styled.div`
+  color: var(--meet-text);
   font-size: 14px;
-  margin-bottom: 16px;
+  font-weight: 800;
+  margin-bottom: 4px;
 `;
 
-const InputGroup = styled.div`
-  margin-bottom: 16px;
+const PanelText = styled.div`
+  color: var(--meet-muted);
+  font-size: 12px;
+  line-height: 1.45;
+  margin-bottom: 10px;
 `;
 
-const InputLabel = styled.label`
-  display: block;
-  color: #b9bbbe;
-  font-size: 14px;
+const FormGrid = styled.div`
+  display: grid;
+  gap: 10px;
+`;
+
+const Field = styled.label`
+  display: grid;
+  gap: 6px;
+  color: var(--meet-muted);
+  font-size: 12px;
+  font-weight: 700;
+`;
+
+const sharedFieldStyles = css`
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid var(--meet-border);
+  border-radius: 10px;
+  background: var(--meet-surface-3);
+  color: var(--meet-text);
+  outline: none;
+  transition:
+    border-color 0.2s ease,
+    background 0.2s ease;
+
+  &:focus {
+    border-color: color-mix(in srgb, var(--meet-primary) 62%, white 38%);
+    background: color-mix(in srgb, var(--meet-surface) 86%, white 14%);
+  }
+`;
+
+const Input = styled.input`
+  ${sharedFieldStyles};
+  min-height: 40px;
+  padding: 0 12px;
+  font-size: 13px;
+`;
+
+const Textarea = styled.textarea`
+  ${sharedFieldStyles};
+  min-height: 84px;
+  padding: 10px 12px;
+  resize: vertical;
+  font-size: 13px;
+  line-height: 1.5;
+`;
+
+const PrivacyGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+
+  @media (max-width: 640px) {
+    grid-template-columns: 1fr;
+  }
+`;
+
+const PrivacyCard = styled.button`
+  border: 1px solid
+    ${(props) =>
+      props.$active
+        ? "color-mix(in srgb, var(--meet-primary) 55%, white 45%)"
+        : "var(--meet-border)"};
+  background: ${(props) =>
+    props.$active
+      ? "color-mix(in srgb, var(--meet-primary-soft) 70%, var(--meet-surface-2) 30%)"
+      : "color-mix(in srgb, var(--meet-surface-2) 90%, transparent)"};
+  border-radius: 10px;
+  padding: 10px;
+  text-align: left;
+  cursor: pointer;
+`;
+
+const PrivacyTop = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
   margin-bottom: 8px;
 `;
 
-const InputField = styled.input`
-  width: 100%;
-  padding: 12px;
-  background-color: #40444b;
-  border: 1px solid #202225;
-  border-radius: 6px;
-  color: #dcddde;
-  font-size: 14px;
-  outline: none;
-  transition: border-color 0.2s ease;
+const PrivacyIcon = styled.div`
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--meet-soft) 72%, transparent);
+  color: var(--meet-accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+`;
 
-  &:focus {
-    border-color: #7289da;
-  }
+const PrivacyBadge = styled.div`
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: ${(props) =>
+    props.$active
+      ? "var(--meet-primary-soft)"
+      : "color-mix(in srgb, var(--meet-soft) 72%, transparent)"};
+  color: ${(props) =>
+    props.$active
+      ? "color-mix(in srgb, var(--meet-primary) 78%, white 22%)"
+      : "var(--meet-muted)"};
+  font-size: 10px;
+  font-weight: 800;
+`;
 
-  &::placeholder {
-    color: #72767d;
+const PrivacyTitle = styled.div`
+  color: var(--meet-text);
+  font-size: 12px;
+  font-weight: 800;
+  margin-bottom: 3px;
+`;
+
+const PrivacyText = styled.div`
+  color: var(--meet-muted);
+  font-size: 11px;
+  line-height: 1.4;
+`;
+
+const Footer = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 16px 14px;
+  border-top: 1px solid var(--meet-border);
+  background: color-mix(in srgb, var(--meet-surface) 86%, transparent);
+
+  @media (max-width: 640px) {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 10px 14px 14px;
   }
 `;
 
-const DialogActions = styled.div`
+const FooterNote = styled.div`
+  color: var(--meet-muted);
+  font-size: 11px;
+  line-height: 1.4;
+`;
+
+const Actions = styled.div`
   display: flex;
-  gap: 12px;
-  justify-content: flex-end;
+  gap: 8px;
+
+  @media (max-width: 640px) {
+    width: 100%;
+  }
 `;
 
 const Button = styled.button`
-  padding: 12px 24px;
-  border-radius: 6px;
-  border: none;
-  font-size: 14px;
-  font-weight: 600;
+  min-width: 112px;
+  height: 38px;
+  padding: 0 12px;
+  border: 1px solid
+    ${(props) =>
+      props.$variant === "primary" ? "transparent" : "var(--meet-border)"};
+  border-radius: 10px;
+  background: ${(props) =>
+    props.$variant === "primary"
+      ? "var(--meet-primary)"
+      : "color-mix(in srgb, var(--meet-soft) 72%, transparent)"};
+  color: ${(props) =>
+    props.$variant === "primary" ? "white" : "var(--meet-text)"};
+  font-size: 12px;
+  font-weight: 800;
   cursor: pointer;
-  transition: all 0.2s ease;
+  opacity: ${(props) => (props.disabled ? 0.55 : 1)};
+  pointer-events: ${(props) => (props.disabled ? "none" : "auto")};
 
-  ${(props) =>
-    props.variant === "primary"
-      ? `
-    background-color: #7289da;
-    color: white;
-    
-    &:hover {
-      background-color: #677bc4;
-      transform: translateY(-1px);
-    }
-  `
-      : `
-    background-color: #4a4d52;
-    color: #dcddde;
-    
-    &:hover {
-      background-color: #5a5d62;
-    }
-  `}
-
-  &:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-    transform: none;
+  @media (max-width: 640px) {
+    flex: 1;
+    min-width: 0;
   }
 `;
+
+const EXIT_MS = 180;
 
 const UniversalDialog = ({ isOpen, onClose, onCreateCall }) => {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [isPrivate, setIsPrivate] = useState(false);
+  const [shouldRender, setShouldRender] = useState(isOpen);
+  const [isClosing, setIsClosing] = useState(false);
 
-  const handleCreateCall = () => {
-    if (title.trim()) {
-      onCreateCall({
-        title: title.trim(),
-        description: description.trim(),
-        isPrivate,
-      });
-      onClose();
-    }
-  };
-
-  const handleClose = () => {
+  const resetForm = () => {
     setTitle("");
     setDescription("");
-    onClose();
+    setIsPrivate(false);
   };
 
-  if (!isOpen) return null;
+  useEffect(() => {
+    if (isOpen) {
+      setShouldRender(true);
+      setIsClosing(false);
+      return;
+    }
+
+    if (!shouldRender) return;
+    setIsClosing(true);
+    const timeout = setTimeout(() => {
+      setShouldRender(false);
+      setIsClosing(false);
+      resetForm();
+    }, EXIT_MS);
+
+    return () => clearTimeout(timeout);
+  }, [isOpen, shouldRender]);
+
+  const handleClose = () => {
+    if (isClosing) return;
+    setIsClosing(true);
+    setTimeout(() => {
+      onClose?.();
+    }, EXIT_MS);
+  };
+
+  const handleCreateCall = () => {
+    if (!title.trim()) return;
+    onCreateCall({
+      title: title.trim(),
+      description: description.trim(),
+      isPrivate,
+    });
+    handleClose();
+  };
+
+  const privacyLabel = useMemo(
+    () =>
+      isPrivate
+        ? "Faqat siz tasdiqlaganlar kiradi"
+        : "Havolasi bor odamlar darhol qo'shiladi",
+    [isPrivate],
+  );
+
+  if (!shouldRender) return null;
 
   return (
-    <DialogOverlay onClick={handleClose}>
-      <DialogContainer onClick={(e) => e.stopPropagation()}>
-        <DialogHeader>
-          <DialogTitle>
-            <Video size={24} />
-            Create Group Video Call
-          </DialogTitle>
-          <CloseButton onClick={handleClose}>
-            <X size={20} />
-          </CloseButton>
-        </DialogHeader>
+    <Overlay $closing={isClosing} onClick={handleClose}>
+      <Dialog $closing={isClosing} onClick={(e) => e.stopPropagation()}>
+        <Header>
+          <HeaderMeta>
+            <IconWrap>
+              <Video size={26} />
+            </IconWrap>
+            <TitleBlock>
+              <h2>Create Group Video Call</h2>
+              <p>
+                Sarlavha yozing, maxfiylikni tanlang va tez meet yarating.
+              </p>
+            </TitleBlock>
+          </HeaderMeta>
 
-        <DialogContent>
-          <Description>
-            Create a group video call room where multiple participants can join
-            and collaborate.
-          </Description>
+          <ButtonWrapper onClick={handleClose}>
+            <X size={18} />
+          </ButtonWrapper>
+        </Header>
 
-          <FeatureList>
-            <FeatureItem>
-              <FeatureIcon>
-                <Users size={16} />
-              </FeatureIcon>
-              <FeatureText>
-                <FeatureTitle>Multiple Participants</FeatureTitle>
-                <FeatureDescription>
-                  Invite up to 50 people to join your video call
-                </FeatureDescription>
-              </FeatureText>
-            </FeatureItem>
-            <FeatureItem>
-              <FeatureIcon>
-                <Video size={16} />
-              </FeatureIcon>
-              <FeatureText>
-                <FeatureTitle>HD Video Quality</FeatureTitle>
-                <FeatureDescription>
-                  Crystal clear video with adaptive quality
-                </FeatureDescription>
-              </FeatureText>
-            </FeatureItem>
-            <FeatureItem>
-              <FeatureIcon>
-                <Clock size={16} />
-              </FeatureIcon>
-              <FeatureText>
-                <FeatureTitle>Unlimited Duration</FeatureTitle>
-                <FeatureDescription>
-                  No time limits on your group conversations
-                </FeatureDescription>
-              </FeatureText>
-            </FeatureItem>
-          </FeatureList>
+        <Body>
+          <Hero>
+            <HeroTitle>
+              <Video size={16} />
+              Tez meet yaratish
+            </HeroTitle>
+            <HeroText>
+              Meet yaratilgach link chiqadi. Public bo'lsa odamlar darhol,
+              private bo'lsa tasdiq bilan kiradi.
+            </HeroText>
+          </Hero>
 
-          <CallOptions>
-            <OptionTitle>Call Details</OptionTitle>
-            <OptionDescription>
-              Set up your video call room with a title and optional description.
-            </OptionDescription>
+          <Panel>
+            <PanelTitle>Meet tafsilotlari</PanelTitle>
+            <PanelText>
+              Xona nomi va izoh kiriting.
+            </PanelText>
 
-            <InputGroup>
-              <InputLabel>Call Title *</InputLabel>
-              <InputField
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="Enter call title..."
-                maxLength={100}
-              />
-            </InputGroup>
+            <FormGrid>
+              <Field>
+                Xona nomi
+                <Input
+                  value={title}
+                  onChange={(e) =>
+                    setTitle(e.target.value.slice(0, APP_LIMITS.meetTitleChars))
+                  }
+                  placeholder="Masalan: Frontend sprint review"
+                  maxLength={APP_LIMITS.meetTitleChars}
+                  autoFocus
+                />
+              </Field>
 
-            <InputGroup>
-              <InputLabel>Kimlar qo'shila oladi?</InputLabel>
-              <div style={{ display: "flex", gap: 10, marginBottom: 4 }}>
-                <label
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 8,
-                    cursor: "pointer",
-                    color: "#dcddde",
-                    fontSize: 14,
-                  }}
-                >
-                  <input
-                    type="radio"
-                    name="privacy"
-                    checked={!isPrivate}
-                    onChange={() => setIsPrivate(false)}
-                    style={{ accentColor: "#7289da" }}
-                  />
-                  🌐 Barcha — ruxsatsiz
-                </label>
-                <label
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 8,
-                    cursor: "pointer",
-                    color: "#dcddde",
-                    fontSize: 14,
-                  }}
-                >
-                  <input
-                    type="radio"
-                    name="privacy"
-                    checked={isPrivate}
-                    onChange={() => setIsPrivate(true)}
-                    style={{ accentColor: "#7289da" }}
-                  />
-                  🔒 Faqat mening ruxsatim bilan
-                </label>
-              </div>
-              {isPrivate && (
-                <p
-                  style={{ color: "#8e9297", fontSize: 12, margin: "4px 0 0" }}
-                >
-                  Mehmonlar siz ruxsat berguncha kutadi
-                </p>
-              )}
-            </InputGroup>
+              <Field>
+                Qisqa izoh
+                <Textarea
+                  value={description}
+                  onChange={(e) =>
+                    setDescription(
+                      e.target.value.slice(0, APP_LIMITS.meetDescriptionChars),
+                    )
+                  }
+                  placeholder="Bugungi call nima haqida?"
+                  maxLength={APP_LIMITS.meetDescriptionChars}
+                />
+              </Field>
+            </FormGrid>
+          </Panel>
 
-            <InputGroup>
-              <InputLabel>Description (Optional)</InputLabel>
-              <InputField
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="What's this call about?"
-                maxLength={500}
-              />
-            </InputGroup>
-          </CallOptions>
-        </DialogContent>
+          <Panel>
+            <PanelTitle>Kimlar qo'shila oladi?</PanelTitle>
+            <PanelText>{privacyLabel}</PanelText>
 
-        <DialogActions>
-          <Button onClick={handleClose}>Cancel</Button>
-          <Button
-            variant="primary"
-            onClick={handleCreateCall}
-            disabled={!title.trim()}
-          >
-            Create Call
-          </Button>
-        </DialogActions>
-      </DialogContainer>
-    </DialogOverlay>
+            <PrivacyGrid>
+              <PrivacyCard
+                type="button"
+                $active={!isPrivate}
+                onClick={() => setIsPrivate(false)}
+              >
+                <PrivacyTop>
+                  <PrivacyIcon>
+                    <Globe2 size={18} />
+                  </PrivacyIcon>
+                  <PrivacyBadge $active={!isPrivate}>Public</PrivacyBadge>
+                </PrivacyTop>
+                <PrivacyTitle>Barchaga ochiq</PrivacyTitle>
+                <PrivacyText>
+                  Havolasi borlar darhol kiradi.
+                </PrivacyText>
+              </PrivacyCard>
+
+              <PrivacyCard
+                type="button"
+                $active={isPrivate}
+                onClick={() => setIsPrivate(true)}
+              >
+                <PrivacyTop>
+                  <PrivacyIcon>
+                    <Lock size={18} />
+                  </PrivacyIcon>
+                  <PrivacyBadge $active={isPrivate}>Private</PrivacyBadge>
+                </PrivacyTop>
+                <PrivacyTitle>Faqat ruxsat bilan</PrivacyTitle>
+                <PrivacyText>
+                  Avval kutadi, keyin siz tasdiqlaysiz.
+                </PrivacyText>
+              </PrivacyCard>
+            </PrivacyGrid>
+          </Panel>
+        </Body>
+
+        <Footer>
+          <FooterNote>
+            Meet yaratilgach uni sidebar ichida ko'rasiz.
+          </FooterNote>
+
+          <Actions>
+            <Button onClick={handleClose}>Bekor qilish</Button>
+            <Button
+              $variant="primary"
+              onClick={handleCreateCall}
+              disabled={!title.trim()}
+            >
+              Meet yaratish
+            </Button>
+          </Actions>
+        </Footer>
+      </Dialog>
+    </Overlay>
   );
 };
 

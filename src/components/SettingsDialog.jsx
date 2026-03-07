@@ -25,6 +25,7 @@ import useAuthStore from "../store/authStore";
 import { getUserByUsername, createChat, fetchChats } from "../api/chatApi";
 import { Skeleton, SkeletonCircle } from "./Skeleton";
 import PremiumBadgeIcon from "./PremiumBadge";
+import { ButtonWrapper } from "./BlogsSidebar";
 
 const SettingsOverlay = styled.div`
   position: fixed;
@@ -1429,9 +1430,9 @@ const SettingsDialog = ({ isOpen, onClose, initialSection = "my-account" }) => {
       <SettingsDialogComponent onClick={(e) => e.stopPropagation()}>
         <SettingsHeader>
           <SettingsTitle>User Settings</SettingsTitle>
-          <CloseButton onClick={onClose}>
+          <ButtonWrapper onClick={onClose}>
             <X size={20} />
-          </CloseButton>
+          </ButtonWrapper>
         </SettingsHeader>
 
         <SettingsContent>

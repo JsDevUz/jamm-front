@@ -1,6 +1,8 @@
 import React, { useState, useRef, useEffect } from "react";
 import styled, { keyframes } from "styled-components";
 import { X, Send, Bold, Italic, Hash } from "lucide-react";
+import { ButtonWrapper } from "./BlogsSidebar";
+import { APP_LIMITS, countWords } from "../constants/appLimits";
 
 const overlayIn = keyframes`from { opacity: 0; } to { opacity: 1; }`;
 const slideUp = keyframes`from { opacity: 0; transform: translateY(24px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); }`;
@@ -189,28 +191,36 @@ const SubmitBtn = styled.button`
   }
 `;
 
-const MAX_CHARS = 500;
-
-const CreatePostDialog = ({ isOpen, onClose, onSubmit, currentUser }) => {
+const CreatePostDialog = ({
+  isOpen,
+  onClose,
+  onSubmit,
+  currentUser,
+  initialContent = "",
+  title = "Yangi Gurung",
+  submitLabel = "Yuborish",
+}) => {
   const [text, setText] = useState("");
   const ref = useRef(null);
 
   useEffect(() => {
     if (isOpen) {
+      setText(initialContent || "");
       setTimeout(() => ref.current?.focus(), 80);
     } else {
       setText("");
     }
-  }, [isOpen]);
+  }, [initialContent, isOpen]);
 
   const handleKeyDown = (e) => {
     if (e.key === "Escape") onClose();
     if ((e.metaKey || e.ctrlKey) && e.key === "Enter") handleSubmit();
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!text.trim()) return;
-    onSubmit(text.trim());
+    if (countWords(text) > APP_LIMITS.postWords) return;
+    await onSubmit(text.trim());
     onClose();
   };
 
@@ -223,7 +233,7 @@ const CreatePostDialog = ({ isOpen, onClose, onSubmit, currentUser }) => {
     const before = text.slice(0, start);
     const after = text.slice(end);
     const wrapped = `${before}${prefix}${selected}${suffix}${after}`;
-    if (wrapped.length <= MAX_CHARS) {
+    if (countWords(wrapped) <= APP_LIMITS.postWords) {
       setText(wrapped);
       setTimeout(() => {
         el.focus();
@@ -234,7 +244,7 @@ const CreatePostDialog = ({ isOpen, onClose, onSubmit, currentUser }) => {
 
   const displayName = currentUser?.nickname || currentUser?.username || "Siz";
   const avatarLetter = displayName.charAt(0).toUpperCase();
-  const remaining = MAX_CHARS - text.length;
+  const usedWords = countWords(text);
 
   if (!isOpen) return null;
 
@@ -242,10 +252,10 @@ const CreatePostDialog = ({ isOpen, onClose, onSubmit, currentUser }) => {
     <Overlay onClick={(e) => e.target === e.currentTarget && onClose()}>
       <Dialog>
         <DialogHeader>
-          <DialogTitle>Yangi Gurung</DialogTitle>
-          <CloseBtn onClick={onClose}>
-            <X size={16} />
-          </CloseBtn>
+          <DialogTitle>{title}</DialogTitle>
+          <ButtonWrapper onClick={onClose}>
+            <X size={18} />
+          </ButtonWrapper>
         </DialogHeader>
 
         <ComposerBody>
@@ -262,13 +272,17 @@ const CreatePostDialog = ({ isOpen, onClose, onSubmit, currentUser }) => {
               ref={ref}
               value={text}
               onChange={(e) => {
-                if (e.target.value.length <= MAX_CHARS) setText(e.target.value);
+                if (countWords(e.target.value) <= APP_LIMITS.postWords) {
+                  setText(e.target.value);
+                }
               }}
               onKeyDown={handleKeyDown}
               placeholder="Fikringizni yozing… markdown qo'llab-quvvatlanadi: **qalin**, _kursiv_, #teg"
               spellCheck={false}
             />
-            <CharCounter warn={remaining < 50}>{remaining}</CharCounter>
+            <CharCounter warn={usedWords > APP_LIMITS.postWords - 10}>
+              {usedWords}/{APP_LIMITS.postWords} so'z
+            </CharCounter>
           </TextareaWrapper>
         </ComposerBody>
 
@@ -295,7 +309,7 @@ const CreatePostDialog = ({ isOpen, onClose, onSubmit, currentUser }) => {
 
           <SubmitBtn disabled={!text.trim()} onClick={handleSubmit}>
             <Send size={14} />
-            Yuborish
+            {submitLabel}
           </SubmitBtn>
         </Toolbar>
       </Dialog>

@@ -14,6 +14,11 @@ export const createPost = async (content) => {
   return data;
 };
 
+export const updatePost = async (postId, content) => {
+  const { data } = await axiosInstance.patch(`/posts/${postId}`, { content });
+  return data;
+};
+
 export const deletePost = async (postId) => {
   await axiosInstance.delete(`/posts/${postId}`);
 };
@@ -55,6 +60,11 @@ export const getComments = async (postId, page = 1, limit = 10) => {
 // --- User posts ---
 export const fetchUserPosts = async (userId) => {
   const { data } = await axiosInstance.get(`/posts/user/${userId}`);
+  return data;
+};
+
+export const fetchLikedPosts = async () => {
+  const { data } = await axiosInstance.get("/posts/liked");
   return data;
 };
 

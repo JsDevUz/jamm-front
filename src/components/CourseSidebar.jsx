@@ -11,11 +11,14 @@ import {
   BookOpen,
   Swords,
   Layers,
+  Type,
 } from "lucide-react";
 import { useCourses } from "../contexts/CoursesContext";
 import InfiniteScroll from "react-infinite-scroll-component";
 import CreateCourseDialog from "./CreateCourseDialog";
 import ConfirmDialog from "./ConfirmDialog";
+import SidebarSearchField from "./SidebarSearchField";
+import { ButtonWrapper } from "./BlogsSidebar";
 
 const SidebarContainer = styled.div`
   width: 340px;
@@ -92,27 +95,10 @@ const NavTab = styled.button`
   }
 `;
 
-const SearchContainer = styled.div`
-  padding: 12px 16px;
-`;
-
-const SearchInput = styled.input`
-  width: 100%;
-  padding: 8px 12px;
-  background-color: var(--input-color);
-  border: none;
-  border-radius: 6px;
-  color: var(--text-color);
-  font-size: 14px;
-  outline: none;
-
-  &::placeholder {
-    color: var(--placeholder-color);
-  }
-
-  &:focus {
-    box-shadow: 0 0 0 2px rgba(88, 101, 242, 0.3);
-  }
+const HeaderSearch = styled(SidebarSearchField)`
+  flex: 1;
+  min-width: 0;
+  margin-right: 12px;
 `;
 
 const CourseList = styled.div`
@@ -288,25 +274,22 @@ const CourseSidebar = ({
   const navigate = useNavigate(); // Added this line
   const {
     courses,
+    loading,
     coursesPage,
     coursesHasMore,
     isAdmin,
     isEnrolled,
     removeCourse,
     fetchCourses,
+    ensureCoursesLoaded,
   } = useCourses();
   const [searchQuery, setSearchQuery] = useState("");
-  const coursesFetchedRef = React.useRef(false);
 
   React.useEffect(() => {
-    if (viewMode === "courses" && !coursesFetchedRef.current) {
-      coursesFetchedRef.current = true;
-      fetchCourses();
+    if (viewMode === "courses") {
+      ensureCoursesLoaded();
     }
-    if (viewMode !== "courses") {
-      coursesFetchedRef.current = false;
-    }
-  }, [fetchCourses, viewMode]);
+  }, [ensureCoursesLoaded, viewMode]);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [courseToDelete, setCourseToDelete] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -426,6 +409,22 @@ const CourseSidebar = ({
             </CourseItem>
 
             <CourseItem
+              active={activeArenaTab === "sentenceBuilders"}
+              onClick={() => {
+                if (setActiveArenaTab) setActiveArenaTab("sentenceBuilders");
+                navigate("/arena/sentence-builder");
+              }}
+            >
+              <CourseThumbnail gradient="linear-gradient(135deg, #22c55e 0%, #14b8a6 100%)">
+                <Type size={20} color="white" />
+              </CourseThumbnail>
+              <CourseInfo>
+                <CourseName>Gap tuzish</CourseName>
+                <CourseDescription>Bo'laklardan gap yig'ish</CourseDescription>
+              </CourseInfo>
+            </CourseItem>
+
+            <CourseItem
               active={activeArenaTab === "battles"}
               onClick={() => {
                 if (setActiveArenaTab) setActiveArenaTab("battles");
@@ -444,31 +443,22 @@ const CourseSidebar = ({
         ) : (
           <>
             <HeaderSection>
-              <input
+              <HeaderSearch
                 type="text"
                 placeholder="Kurslarni qidirish..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                style={{
-                  flex: 1,
-                  marginRight: "12px",
-                  padding: "8px 12px",
-                  borderRadius: "6px",
-                  border: "1px solid var(--border-color)",
-                  background: "var(--input-color)",
-                  color: "var(--text-color)",
-                }}
               />
-              <CreateButton
+              <ButtonWrapper
                 onClick={() => setIsCreateOpen(true)}
                 title="Yangi kurs yaratish"
               >
                 <Plus size={18} />
-              </CreateButton>
+              </ButtonWrapper>
             </HeaderSection>
 
             <CourseList id="sidebarCoursesArea">
-              {filteredCourses.length === 0 ? (
+              {loading ? null : filteredCourses.length === 0 ? (
                 <EmptyState>
                   <EmptyIcon>
                     <Lock size={24} />

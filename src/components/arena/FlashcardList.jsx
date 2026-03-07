@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import styled from "styled-components";
+import styled, { keyframes } from "styled-components";
 import toast from "react-hot-toast";
 import { useArena } from "../../contexts/ArenaContext";
 import {
@@ -12,13 +12,19 @@ import {
   LogOut,
   User,
   Download,
+  Eye,
+  X,
+  Pencil,
+  Trash2,
+  MoreHorizontal,
 } from "lucide-react";
 import InfiniteScroll from "react-infinite-scroll-component";
 import CreateFlashcardDialog from "./CreateFlashcardDialog";
 import useAuthStore from "../../store/authStore";
 import PremiumUpgradeModal from "../PremiumUpgradeModal";
 import ArenaHeader from "./ArenaHeader";
-import { PlusBtn } from "../ProfilePage";
+import { ButtonWrapper } from "../BlogsSidebar";
+import ConfirmDialog from "../ConfirmDialog";
 
 const Container = styled.div`
   display: flex;
@@ -49,6 +55,26 @@ const Container = styled.div`
   }
 `;
 
+const fadeIn = keyframes`
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+`;
+
+const dialogIn = keyframes`
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+`;
+
 const Overlay = styled.div`
   position: fixed;
   top: 0;
@@ -61,6 +87,7 @@ const Overlay = styled.div`
   justify-content: center;
   z-index: 1000;
   padding: 20px;
+  animation: ${fadeIn} 0.18s ease-out;
 `;
 
 const Dialog = styled.div`
@@ -69,10 +96,22 @@ const Dialog = styled.div`
   border-radius: 12px;
   width: 100%;
   max-width: 500px;
+  height: min(80vh, 720px);
   max-height: 80vh;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  animation: ${dialogIn} 0.22s ease-out;
+`;
+
+const DialogContent = styled.div`
+  flex: 1;
+  min-height: 0;
+  padding: 20px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
 `;
 
 const CreateBtn = styled.button`
@@ -98,12 +137,30 @@ const Grid = styled.div`
 `;
 
 const Card = styled.div`
+  position: relative;
+  z-index: ${(props) => (props.$raised ? 12 : 1)};
   background-color: var(--tertiary-color);
   border: 1px solid var(--border-color);
-  border-radius: 12px;
+  border-radius: 18px;
   padding: 20px;
   display: flex;
   flex-direction: column;
+  gap: 12px;
+  cursor: pointer;
+  transition:
+    border-color 0.18s ease,
+    transform 0.18s ease;
+
+  &:hover {
+    border-color: var(--text-muted-color);
+    transform: translateY(-2px);
+  }
+`;
+
+const CardTop = styled.div`
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
   gap: 12px;
 `;
 
@@ -116,6 +173,82 @@ const CardTitle = styled.h3`
 const CardMetaText = styled.span`
   font-size: 13px;
   color: var(--text-muted-color);
+`;
+
+const CardDesc = styled.p`
+  margin: 0;
+  color: var(--text-muted-color);
+  font-size: 14px;
+  line-height: 1.55;
+`;
+
+const CardHint = styled.div`
+  margin-top: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-muted-color);
+  font-size: 12px;
+  font-weight: 700;
+`;
+
+const MenuWrap = styled.div`
+  position: relative;
+  flex-shrink: 0;
+`;
+
+const MenuButton = styled.button`
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  border: 1px solid var(--border-color);
+  background: var(--secondary-color);
+  color: var(--text-muted-color);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+
+  &:hover {
+    color: var(--text-color);
+  }
+`;
+
+const MenuDropdown = styled.div`
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 180px;
+  padding: 8px;
+  border-radius: 14px;
+  border: 1px solid var(--border-color);
+  background: var(--secondary-color);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.24);
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+`;
+
+const MenuItem = styled.button`
+  min-height: 38px;
+  padding: 0 12px;
+  border: none;
+  border-radius: 10px;
+  background: ${(props) =>
+    props.$danger ? "rgba(239, 68, 68, 0.08)" : "transparent"};
+  color: ${(props) => (props.$danger ? "#ef4444" : "var(--text-color)")};
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+
+  &:hover {
+    background: ${(props) =>
+      props.$danger ? "rgba(239, 68, 68, 0.12)" : "var(--tertiary-color)"};
+  }
 `;
 
 const DeckPreviewList = styled.div`
@@ -297,6 +430,7 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
     fetchFlashcardDeck,
     joinFlashcardDeck,
     leaveFlashcardDeck,
+    deleteFlashcardDeck,
   } = useArena();
   const token = useAuthStore((state) => state.token);
   const user = useAuthStore((state) => state.user);
@@ -309,6 +443,10 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
   const [showMembersForDeck, setShowMembersForDeck] = useState(null);
   const [joiningDeck, setJoiningDeck] = useState(null);
   const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
+  const [editingDeck, setEditingDeck] = useState(null);
+  const [deckToDelete, setDeckToDelete] = useState(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [openMenuId, setOpenMenuId] = useState(null);
 
   const isPremium = user?.premiumStatus === "premium";
   const limit = isPremium ? 10 : 4;
@@ -356,6 +494,15 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
     checkDeepLink();
   }, [initialDeckId]);
 
+  useEffect(() => {
+    if (!openMenuId) return undefined;
+    const handleOutsideClick = () => setOpenMenuId(null);
+    document.addEventListener("click", handleOutsideClick);
+    return () => {
+      document.removeEventListener("click", handleOutsideClick);
+    };
+  }, [openMenuId]);
+
   const startStudy = async (deckMetadata, isRestart = false) => {
     // Fetch deck with personal progress
     const deck = await fetchFlashcardDeck(deckMetadata._id);
@@ -385,6 +532,28 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
     const url = `${window.location.origin}/arena/flashcards/${deckId}`;
     navigator.clipboard.writeText(url);
     toast.success("Lug'at havolasi nusxalandi!");
+  };
+
+  const handleDeleteDeck = async () => {
+    if (!deckToDelete || isDeleting) return;
+
+    setIsDeleting(true);
+    try {
+      await deleteFlashcardDeck(deckToDelete._id);
+      if (viewingDeck?._id === deckToDelete._id) setViewingDeck(null);
+      if (studyingDeck?._id === deckToDelete._id) setStudyingDeck(null);
+      if (showMembersForDeck?._id === deckToDelete._id) {
+        setShowMembersForDeck(null);
+      }
+      toast.success("Lug'at va unga tegishli progresslar o'chirildi.");
+      setDeckToDelete(null);
+    } catch (error) {
+      toast.error(
+        error?.response?.data?.message || "Lug'atni o'chirishda xatolik yuz berdi.",
+      );
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   const onJoin = async (deckId) => {
@@ -549,9 +718,9 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
         // limit={limit}
         onBack={() => onBack && onBack()}
         rightContent={
-          <PlusBtn onClick={handleCreateClick}>
+          <ButtonWrapper onClick={handleCreateClick}>
             <Plus size={18} />
-          </PlusBtn>
+          </ButtonWrapper>
         }
       />
 
@@ -577,69 +746,105 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
             const isOwner =
               (deck.createdBy?._id || deck.createdBy) ===
               (user?._id || user?.id);
+            const creatorName = deck.createdBy?.nickname || "Noma'lum";
 
             return (
               <Card
                 key={deck._id}
-                onClick={() => setViewingDeck(deck)}
-                style={{ cursor: "pointer" }}
+                $raised={openMenuId === deck._id}
+                onClick={() => {
+                  setOpenMenuId(null);
+                  startStudy(deck, true);
+                }}
               >
-                <div
-                  style={{ display: "flex", justifyContent: "space-between" }}
-                >
+                <CardTop>
                   <CardTitle>{deck.title}</CardTitle>
-                  <div
-                    style={{ display: "flex", gap: "8px" }}
-                    onClick={(e) => e.stopPropagation()}
+                  <MenuWrap
+                    onClick={(event) => {
+                      event.stopPropagation();
+                    }}
                   >
-                    {isOwner && (
-                      <button
-                        onClick={() => setShowMembersForDeck(deck)}
-                        style={{
-                          background: "none",
-                          border: "none",
-                          color: "var(--text-muted-color)",
-                          cursor: "pointer",
-                        }}
-                        title="A'zolar"
-                      >
-                        <Users size={18} />
-                      </button>
-                    )}
-                    <button
-                      onClick={() => handleCopyLink(deck._id)}
-                      style={{
-                        background: "none",
-                        border: "none",
-                        color: "var(--text-muted-color)",
-                        cursor: "pointer",
-                      }}
-                      title="Nusxalash"
+                    <MenuButton
+                      onClick={() =>
+                        setOpenMenuId((prev) => (prev === deck._id ? null : deck._id))
+                      }
                     >
-                      <Link2 size={18} />
-                    </button>
-                    {!isOwner && (
-                      <button
-                        onClick={() => onLeave(deck._id)}
-                        style={{
-                          background: "none",
-                          border: "none",
-                          color: "#e74c3c",
-                          cursor: "pointer",
-                        }}
-                        title="Chiqish"
-                      >
-                        <LogOut size={18} />
-                      </button>
+                      <MoreHorizontal size={16} />
+                    </MenuButton>
+                    {openMenuId === deck._id && (
+                      <MenuDropdown onClick={(event) => event.stopPropagation()}>
+                        <MenuItem
+                          onClick={() => {
+                            setViewingDeck(deck);
+                            setOpenMenuId(null);
+                          }}
+                        >
+                          <Eye size={14} />
+                          Ko'rish
+                        </MenuItem>
+                        <MenuItem
+                          onClick={() => {
+                            handleCopyLink(deck._id);
+                            setOpenMenuId(null);
+                          }}
+                        >
+                          <Link2 size={14} />
+                          Havola nusxalash
+                        </MenuItem>
+                        {isOwner ? (
+                          <>
+                            <MenuItem
+                              onClick={() => {
+                                setShowMembersForDeck(deck);
+                                setOpenMenuId(null);
+                              }}
+                            >
+                              <Users size={14} />
+                              A'zolar
+                            </MenuItem>
+                            <MenuItem
+                              onClick={() => {
+                                setEditingDeck(deck);
+                                setOpenMenuId(null);
+                              }}
+                            >
+                              <Pencil size={14} />
+                              Tahrirlash
+                            </MenuItem>
+                            <MenuItem
+                              $danger
+                              onClick={() => {
+                                setDeckToDelete(deck);
+                                setOpenMenuId(null);
+                              }}
+                            >
+                              <Trash2 size={14} />
+                              O'chirish
+                            </MenuItem>
+                          </>
+                        ) : (
+                          <MenuItem
+                            onClick={() => {
+                              onLeave(deck._id);
+                              setOpenMenuId(null);
+                            }}
+                          >
+                            <LogOut size={14} />
+                            Lug'atdan chiqish
+                          </MenuItem>
+                        )}
+                      </MenuDropdown>
                     )}
-                  </div>
-                </div>
+                  </MenuWrap>
+                </CardTop>
                 <Meta>Jami so'zlar: {deck.cards?.length || 0}</Meta>
                 <Meta>
-                  {isOwner
-                    ? "Siz yaratgan"
-                    : `Muallif: ${deck.createdBy?.nickname || "Noma'lum"}`}
+                  {isOwner ? "Siz yaratgan" : `Muallif: ${creatorName}`}
                 </Meta>
+                <CardHint>
+                  <PlayCircle size={14} />
+                  Boshlash uchun kartani bosing
+                </CardHint>
               </Card>
             );
           })}
@@ -659,26 +864,11 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
               }}
             >
               <Title>{viewingDeck.title}</Title>
-              <button
-                onClick={() => setViewingDeck(null)}
-                style={{
-                  background: "none",
-                  border: "none",
-                  color: "var(--text-muted-color)",
-                  cursor: "pointer",
-                }}
-              >
-                <ArrowLeft size={20} />
-              </button>
+              <ButtonWrapper onClick={() => setViewingDeck(null)}>
+                <X size={20} />
+              </ButtonWrapper>
             </HeaderRow>
-            <div
-              style={{
-                padding: "20px",
-                display: "flex",
-                flexDirection: "column",
-                gap: "20px",
-              }}
-            >
+            <DialogContent>
               <div
                 style={{ display: "flex", alignItems: "center", gap: "12px" }}
               >
@@ -827,7 +1017,7 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
                   ))}
                 </DeckPreviewList>
               </div>
-            </div>
+            </DialogContent>
           </Dialog>
         </Overlay>
       )}
@@ -842,21 +1032,12 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
               }}
             >
               <Title>A'zolar ro'yxati</Title>
-              <button
-                onClick={() => setShowMembersForDeck(null)}
-                style={{
-                  background: "none",
-                  border: "none",
-                  color: "var(--text-muted-color)",
-                  cursor: "pointer",
-                }}
-              >
-                <ArrowLeft size={20} />
-              </button>
+
+              <ButtonWrapper onClick={() => setShowMembersForDeck(null)}>
+                <X size={20} />
+              </ButtonWrapper>
             </HeaderRow>
-            <div
-              style={{ padding: "20px", maxHeight: "60vh", overflowY: "auto" }}
-            >
+            <DialogContent>
               {showMembersForDeck.members?.length > 0 ? (
                 showMembersForDeck.members.map((m, idx) => (
                   <div
@@ -906,13 +1087,19 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
                   Hozircha hech kim qo'shilmagan.
                 </p>
               )}
-            </div>
+            </DialogContent>
           </Dialog>
         </Overlay>
       )}
 
-      {isCreateOpen && (
-        <CreateFlashcardDialog onClose={() => setIsCreateOpen(false)} />
+      {(isCreateOpen || editingDeck) && (
+        <CreateFlashcardDialog
+          onClose={() => {
+            setIsCreateOpen(false);
+            setEditingDeck(null);
+          }}
+          initialDeck={editingDeck}
+        />
       )}
 
       <PremiumUpgradeModal
@@ -922,6 +1109,21 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
           setIsUpgradeModalOpen(false);
           window.location.href = "/premium";
         }}
+      />
+
+      <ConfirmDialog
+        isOpen={Boolean(deckToDelete)}
+        onClose={() => {
+          if (!isDeleting) setDeckToDelete(null);
+        }}
+        title="Lug'atni o'chirish"
+        description={`${
+          deckToDelete?.title || "Bu lug'at"
+        } o'chirilsa, unga tegishli barcha progresslar ham o'chadi. Bu amalni bekor qilib bo'lmaydi.`}
+        confirmText={isDeleting ? "O'chirilmoqda..." : "O'chirish"}
+        cancelText="Bekor qilish"
+        onConfirm={handleDeleteDeck}
+        isDanger
       />
     </Container>
   );

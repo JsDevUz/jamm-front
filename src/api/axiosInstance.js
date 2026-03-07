@@ -6,6 +6,7 @@ const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
 
 const axiosInstance = axios.create({
   baseURL: API_URL,
+  withCredentials: true,
 });
 
 axiosInstance.interceptors.request.use((config) => {
@@ -28,6 +29,16 @@ axiosInstance.interceptors.response.use(
       const { logout } = useAuthStore.getState();
       logout();
       window.location.href = "/login";
+    }
+
+    if (status === 423) {
+      const { logout } = useAuthStore.getState();
+      logout();
+      window.location.href = "/blocked";
+    }
+
+    if (status === 503 && window.location.pathname !== "/maintenance") {
+      window.location.href = "/maintenance";
     }
 
     if (status === 429) {

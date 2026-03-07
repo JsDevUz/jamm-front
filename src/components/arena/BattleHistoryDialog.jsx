@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import dayjs from "dayjs";
 import { useArena } from "../../contexts/ArenaContext";
+import { ButtonWrapper } from "../BlogsSidebar";
 
 const Overlay = styled.div`
   position: fixed;
@@ -260,9 +261,9 @@ const BattleHistoryDialog = ({ isOpen, onClose }) => {
           <h2>
             <History size={22} /> Bellashuvlar Tarixi
           </h2>
-          <CloseButton onClick={onClose}>
-            <X size={20} />
-          </CloseButton>
+          <ButtonWrapper onClick={onClose}>
+            <X size={18} />
+          </ButtonWrapper>
         </Header>
         <ListBody>
           {history.length > 0 ? (

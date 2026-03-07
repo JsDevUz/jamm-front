@@ -2,11 +2,9 @@ import React from "react";
 import styled from "styled-components";
 import {
   Flame,
+  BookOpen,
   MessagesSquare,
   GraduationCap,
-  Settings,
-  Video,
-  Star,
 } from "lucide-react";
 import { useChats } from "../contexts/ChatsContext";
 import useAuthStore from "../store/authStore";
@@ -151,8 +149,8 @@ const AvatarButton = styled.button`
 
 const navItems = [
   { id: "feed", icon: Flame, label: "Gurunglar" },
+  { id: "blogs", icon: BookOpen, label: "Bloglar" },
   { id: "chats", icon: MessagesSquare, label: "Chatlar" },
-  { id: "meets", icon: Video, label: "Video Meetlar" },
   { id: "courses", icon: GraduationCap, label: "Kurslar" },
 ];
 
@@ -178,7 +176,11 @@ const ServerSidebar = ({ onSelectNav, onOpenSettings, onOpenPremium }) => {
         {navItems.map((item) => (
           <NavButton
             key={item.id}
-            active={selectedNav === item.id}
+            active={
+              item.id === "chats"
+                ? ["chats", "users", "groups", "meets"].includes(selectedNav)
+                : selectedNav === item.id
+            }
             onClick={() => handleNav(item.id)}
             title={item.label}
           >

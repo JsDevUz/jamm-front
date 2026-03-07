@@ -1,7 +1,29 @@
 import React, { useState, useRef } from "react";
-import styled from "styled-components";
+import styled, { keyframes } from "styled-components";
 import { X, Upload, Check, Search, Loader } from "lucide-react";
 import useUploadAvatar from "../hooks/useUploadAvatar";
+import { ButtonWrapper } from "./BlogsSidebar";
+import { APP_LIMITS } from "../constants/appLimits";
+
+const fadeIn = keyframes`
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+`;
+
+const dialogIn = keyframes`
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+`;
 
 const Overlay = styled.div`
   position: fixed;
@@ -14,22 +36,34 @@ const Overlay = styled.div`
   align-items: center;
   justify-content: center;
   z-index: 9999;
+  padding: 20px;
+  animation: ${fadeIn} 0.18s ease-out;
 `;
 
 const Dialog = styled.div`
   background-color: var(--secondary-color);
-  width: 440px;
-  border-radius: 8px;
+  width: min(100%, 520px);
+  height: min(86vh, 760px);
+  border-radius: 18px;
   display: flex;
   flex-direction: column;
   overflow: hidden;
   box-shadow: 0 8px 16px rgba(0, 0, 0, 0.24);
+  animation: ${dialogIn} 0.22s ease-out;
+
+  @media (max-width: 640px) {
+    width: 100%;
+    height: 100%;
+    max-height: 100vh;
+    border-radius: 0;
+  }
 `;
 
 const Header = styled.div`
-  padding: 24px;
+  padding: 24px 24px 20px;
   text-align: center;
   position: relative;
+  border-bottom: 1px solid var(--border-color);
 `;
 
 const Title = styled.h2`
@@ -59,7 +93,10 @@ const CloseButton = styled.button`
 `;
 
 const Content = styled.div`
-  padding: 0 24px 24px;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 20px 24px 24px;
   display: flex;
   flex-direction: column;
   gap: 20px;
@@ -197,6 +234,7 @@ const Footer = styled.div`
   display: flex;
   justify-content: flex-end;
   gap: 12px;
+  border-top: 1px solid var(--border-color);
 `;
 
 const Button = styled.button`
@@ -296,9 +334,9 @@ const CreateGroupDialog = ({ isOpen, onClose, onCreate, users = [] }) => {
         <Header>
           <Title>Guruh yaratish</Title>
           <Subtitle>Do'stlaringiz bilan muloqot qiling</Subtitle>
-          <CloseButton onClick={onClose}>
-            <X size={24} />
-          </CloseButton>
+          <ButtonWrapper onClick={onClose}>
+            <X size={18} />
+          </ButtonWrapper>
         </Header>
 
         <Content>
@@ -336,7 +374,10 @@ const CreateGroupDialog = ({ isOpen, onClose, onCreate, users = [] }) => {
             <Input
               placeholder="Yangi guruh"
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) =>
+                setName(e.target.value.slice(0, APP_LIMITS.groupNameChars))
+              }
+              maxLength={APP_LIMITS.groupNameChars}
               autoFocus
             />
           </InputGroup>
@@ -346,7 +387,12 @@ const CreateGroupDialog = ({ isOpen, onClose, onCreate, users = [] }) => {
             <Input
               placeholder="Guruh maqsadini yozing..."
               value={description}
-              onChange={(e) => setDescription(e.target.value)}
+              onChange={(e) =>
+                setDescription(
+                  e.target.value.slice(0, APP_LIMITS.groupDescriptionChars),
+                )
+              }
+              maxLength={APP_LIMITS.groupDescriptionChars}
             />
           </InputGroup>
 

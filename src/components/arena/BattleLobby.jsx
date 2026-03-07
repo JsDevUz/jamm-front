@@ -22,6 +22,7 @@ import BattleHistoryDialog from "./BattleHistoryDialog";
 import CreateBattleDialog from "./CreateBattleDialog";
 import { History as HistoryIcon } from "lucide-react";
 import { PlusBtn } from "../ProfilePage";
+import { ButtonWrapper } from "../BlogsSidebar";
 
 const Container = styled.div`
   display: flex;
@@ -301,7 +302,10 @@ const BattleLobby = ({ initialRoomId, onBack }) => {
                   value={roomIdInput}
                   onChange={(e) => setRoomIdInput(e.target.value)}
                 />
-                <Button onClick={handleJoin} style={{ width: "auto" }}>
+                <Button
+                  onClick={handleJoin}
+                  style={{ width: "48px", flexShrink: 0 }}
+                >
                   <Plus size={20} />
                 </Button>
               </SingleLineJoin>
@@ -324,9 +328,9 @@ const BattleLobby = ({ initialRoomId, onBack }) => {
                   Bellashuvlar ({activeBattles?.length || 0})
                 </Label>
 
-                <PlusBtn onClick={() => setShowCreate(true)}>
+                <ButtonWrapper onClick={() => setShowCreate(true)}>
                   <Plus size={16} />
-                </PlusBtn>
+                </ButtonWrapper>
               </div>
 
               {activeBattles && activeBattles.length > 0 ? (

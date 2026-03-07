@@ -11,6 +11,9 @@ import {
 import { useCourses } from "../contexts/CoursesContext";
 import useAuthStore from "../store/authStore";
 import { toast } from "react-hot-toast";
+import { ButtonWrapper } from "./BlogsSidebar";
+import axiosInstance from "../api/axiosInstance";
+import { APP_LIMITS } from "../constants/appLimits";
 
 const Overlay = styled.div`
   position: fixed;
@@ -259,6 +262,46 @@ const RemoveFileButton = styled.button`
   }
 `;
 
+const UploadStatusCard = styled.div`
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: var(--input-color);
+  border: 1px solid var(--border-color);
+  display: grid;
+  gap: 8px;
+`;
+
+const UploadStatusTop = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--text-color);
+  font-size: 13px;
+  font-weight: 600;
+`;
+
+const UploadStatusMeta = styled.div`
+  color: var(--text-muted-color);
+  font-size: 12px;
+`;
+
+const ProgressTrack = styled.div`
+  width: 100%;
+  height: 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--border-color) 72%, transparent);
+  overflow: hidden;
+`;
+
+const ProgressFill = styled.div`
+  width: ${(props) => props.$width || "0%"};
+  height: 100%;
+  border-radius: inherit;
+  background: var(--primary-color);
+  transition: width 0.18s ease;
+`;
+
 const DialogFooter = styled.div`
   padding: 16px 24px;
   border-top: 1px solid var(--border-color);
@@ -318,6 +361,10 @@ const AddLessonDialog = ({ isOpen, onClose, courseId }) => {
   const [videoFile, setVideoFile] = useState(null);
   const [description, setDescription] = useState("");
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadedBytes, setUploadedBytes] = useState(0);
+  const [totalUploadBytes, setTotalUploadBytes] = useState(0);
+  const [uploadPhase, setUploadPhase] = useState("idle");
   const fileInputRef = useRef(null);
 
   const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
@@ -333,11 +380,19 @@ const AddLessonDialog = ({ isOpen, onClose, courseId }) => {
   const handleFileChange = (e) => {
     if (e.target.files && e.target.files[0]) {
       setVideoFile(e.target.files[0]);
+      setUploadProgress(0);
+      setUploadedBytes(0);
+      setTotalUploadBytes(e.target.files[0].size || 0);
+      setUploadPhase("idle");
     }
   };
 
   const handleRemoveFile = () => {
     setVideoFile(null);
+    setUploadProgress(0);
+    setUploadedBytes(0);
+    setTotalUploadBytes(0);
+    setUploadPhase("idle");
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
@@ -361,37 +416,53 @@ const AddLessonDialog = ({ isOpen, onClose, courseId }) => {
   const handleAdd = async () => {
     if (!isFormValid() || isUploading) return;
     setIsUploading(true);
+    setUploadPhase(uploadMethod === "upload" ? "uploading" : "saving");
+    setUploadProgress(0);
+    setUploadedBytes(0);
+    setTotalUploadBytes(videoFile?.size || 0);
 
     try {
       let finalFileUrl = "";
       let finalFileName = "";
       let finalFileSize = 0;
       let finalVideoUrl = "";
+      let finalStreamType = "direct";
+      let finalStreamAssets = [];
       let type = "video";
 
       if (uploadMethod === "upload" && videoFile && isPremium) {
         const formData = new FormData();
         formData.append("file", videoFile);
 
-        const token = useAuthStore.getState().token;
-        const res = await fetch(`${API_URL}/courses/upload-media`, {
-          method: "POST",
-          headers: { Authorization: `Bearer ${token}` },
-          body: formData,
+        const { data } = await axiosInstance.post("/courses/upload-media", formData, {
+          onUploadProgress: (event) => {
+            const total = event.total || videoFile.size || 0;
+            const loaded = event.loaded || 0;
+            const percent = total
+              ? Math.min(100, Math.round((loaded / total) * 100))
+              : 0;
+
+            setUploadPhase(percent >= 100 ? "processing" : "uploading");
+            setTotalUploadBytes(total);
+            setUploadedBytes(loaded);
+            setUploadProgress(percent);
+          },
         });
 
-        if (!res.ok) throw new Error("Upload failed");
-        const data = await res.json();
-
-        finalFileUrl = data.url;
+        finalStreamType = data.streamType || "direct";
+        finalFileUrl = data.url || "";
+        finalVideoUrl = data.manifestUrl || "";
         finalFileName = data.fileName;
         finalFileSize = data.fileSize;
+        finalStreamAssets = Array.isArray(data.assetKeys) ? data.assetKeys : [];
         type = "file";
       } else {
+        setUploadPhase("saving");
         finalVideoUrl = videoUrl.trim();
         type = "video";
       }
 
+      setUploadPhase("saving");
       await addLesson(
         courseId,
         title.trim(),
@@ -401,6 +472,8 @@ const AddLessonDialog = ({ isOpen, onClose, courseId }) => {
         finalFileUrl,
         finalFileName,
         finalFileSize,
+        finalStreamType,
+        finalStreamAssets,
       );
 
       setTitle("");
@@ -408,12 +481,19 @@ const AddLessonDialog = ({ isOpen, onClose, courseId }) => {
       setVideoFile(null);
       setDescription("");
       setUploadMethod(isPremium ? "upload" : "url");
+      setUploadProgress(0);
+      setUploadedBytes(0);
+      setTotalUploadBytes(0);
+      setUploadPhase("idle");
       onClose();
     } catch (err) {
       console.error(err);
       toast.error("Yuklashda xatolik yuz berdi");
     } finally {
       setIsUploading(false);
+      if (uploadPhase !== "idle") {
+        setUploadPhase("idle");
+      }
     }
   };
 
@@ -422,9 +502,9 @@ const AddLessonDialog = ({ isOpen, onClose, courseId }) => {
       <Dialog onClick={(e) => e.stopPropagation()}>
         <DialogHeader>
           <DialogTitle>Yangi dars qo'shish</DialogTitle>
-          <CloseButton onClick={onClose}>
+          <ButtonWrapper onClick={onClose}>
             <X size={18} />
-          </CloseButton>
+          </ButtonWrapper>
         </DialogHeader>
 
         <DialogBody>
@@ -434,7 +514,10 @@ const AddLessonDialog = ({ isOpen, onClose, courseId }) => {
               type="text"
               placeholder="Masalan: React Hooks asoslari"
               value={title}
-              onChange={(e) => setTitle(e.target.value)}
+              onChange={(e) =>
+                setTitle(e.target.value.slice(0, APP_LIMITS.lessonTitleChars))
+              }
+              maxLength={APP_LIMITS.lessonTitleChars}
               autoFocus
             />
           </InputGroup>
@@ -496,22 +579,65 @@ const AddLessonDialog = ({ isOpen, onClose, courseId }) => {
                     />
                   </FileInputLabel>
                 ) : (
-                  <FileInfo>
-                    <FileDetails>
-                      <FileVideo size={20} color="var(--primary-color)" />
-                      <div>
-                        {videoFile.name}
-                        <FileSize
-                          style={{ display: "block", marginTop: "2px" }}
-                        >
-                          {formatFileSize(videoFile.size)}
-                        </FileSize>
-                      </div>
-                    </FileDetails>
-                    <RemoveFileButton onClick={handleRemoveFile}>
-                      <X size={16} />
-                    </RemoveFileButton>
-                  </FileInfo>
+                  <>
+                    <FileInfo>
+                      <FileDetails>
+                        <FileVideo size={20} color="var(--primary-color)" />
+                        <div>
+                          {videoFile.name}
+                          <FileSize
+                            style={{ display: "block", marginTop: "2px" }}
+                          >
+                            {formatFileSize(videoFile.size)}
+                          </FileSize>
+                        </div>
+                      </FileDetails>
+                      <RemoveFileButton
+                        onClick={handleRemoveFile}
+                        disabled={isUploading}
+                      >
+                        <X size={16} />
+                      </RemoveFileButton>
+                    </FileInfo>
+
+                    {isUploading && (
+                      <UploadStatusCard>
+                        <UploadStatusTop>
+                          <span>
+                            {uploadPhase === "processing"
+                              ? "Video qayta ishlanmoqda..."
+                              : uploadPhase === "saving"
+                                ? "Dars saqlanmoqda..."
+                                : "Yuklanmoqda..."}
+                          </span>
+                          <span>
+                            {uploadPhase === "processing" || uploadPhase === "saving"
+                              ? "Tayyorlanmoqda"
+                              : `${uploadProgress}%`}
+                          </span>
+                        </UploadStatusTop>
+                        <ProgressTrack>
+                          <ProgressFill
+                            $width={
+                              uploadPhase === "processing" ||
+                              uploadPhase === "saving"
+                                ? "100%"
+                                : `${uploadProgress}%`
+                            }
+                          />
+                        </ProgressTrack>
+                        <UploadStatusMeta>
+                          {uploadPhase === "processing"
+                            ? "Fayl serverga bordi, endi HLS segmentlarga bo'linmoqda."
+                            : uploadPhase === "saving"
+                              ? "Oxirgi ma'lumotlar saqlanmoqda."
+                              : `${formatFileSize(uploadedBytes)} / ${formatFileSize(
+                                  totalUploadBytes || videoFile.size || 0,
+                                )}`}
+                        </UploadStatusMeta>
+                      </UploadStatusCard>
+                    )}
+                  </>
                 )}
               </FileInputContainer>
             </InputGroup>
@@ -532,7 +658,12 @@ const AddLessonDialog = ({ isOpen, onClose, courseId }) => {
             <TextArea
               placeholder="Dars haqida qisqacha..."
               value={description}
-              onChange={(e) => setDescription(e.target.value)}
+              onChange={(e) =>
+                setDescription(
+                  e.target.value.slice(0, APP_LIMITS.lessonDescriptionChars),
+                )
+              }
+              maxLength={APP_LIMITS.lessonDescriptionChars}
             />
           </InputGroup>
         </DialogBody>
@@ -550,7 +681,14 @@ const AddLessonDialog = ({ isOpen, onClose, courseId }) => {
               <span
                 style={{ display: "flex", alignItems: "center", gap: "8px" }}
               >
-                <Loader2 size={16} className="spin" /> Yuklanmoqda...
+                <Loader2 size={16} className="spin" />
+                {uploadPhase === "processing"
+                  ? "Qayta ishlanmoqda..."
+                  : uploadPhase === "saving"
+                    ? "Saqlanmoqda..."
+                    : uploadMethod === "upload"
+                      ? `${uploadProgress}%`
+                      : "Yuborilmoqda..."}
               </span>
             ) : (
               "Qo'shish"

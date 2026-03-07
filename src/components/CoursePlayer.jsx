@@ -11,6 +11,7 @@ import {
   SkipForward,
   Clock,
   Eye,
+  Heart,
   BookOpen,
   Plus,
   Users,
@@ -41,6 +42,7 @@ import InfiniteScroll from "react-infinite-scroll-component";
 import AddLessonDialog from "./AddLessonDialog";
 import ConfirmDialog from "./ConfirmDialog";
 import useAuthStore from "../store/authStore";
+import { getLessonPlaybackToken } from "../api/coursesApi";
 
 /* ============================
    LAYOUT CONTAINERS
@@ -1204,13 +1206,18 @@ function formatCommentTime(dateString) {
   return date.toLocaleDateString("uz-UZ");
 }
 
+function getEntityId(value) {
+  if (!value) return null;
+  if (typeof value === "string") return value;
+  return value._id || value.id || value.userId || null;
+}
+
 /* ============================
    MAIN COMPONENT
    ============================ */
 const CoursePlayer = ({ courseId, initialLessonSlug, onClose }) => {
   const navigate = useNavigate();
   const { createChat } = useChats();
-  const token = useAuthStore((s) => s.token);
   const {
     courses,
     currentUser,
@@ -1224,6 +1231,7 @@ const CoursePlayer = ({ courseId, initialLessonSlug, onClose }) => {
     getLessonComments,
     addComment,
     addReply,
+    toggleLessonLike,
     joinCourseRoom,
     leaveCourseRoom,
   } = useCourses();
@@ -1247,6 +1255,7 @@ const CoursePlayer = ({ courseId, initialLessonSlug, onClose }) => {
   // Video player state
   const videoRef = useRef(null);
   const videoWrapperRef = useRef(null);
+  const hlsRef = useRef(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -1259,7 +1268,8 @@ const CoursePlayer = ({ courseId, initialLessonSlug, onClose }) => {
   const [hasCountedView, setHasCountedView] = useState(false);
   const hideControlsTimer = useRef(null);
   // Secure streaming state
-  const [blobUrl, setBlobUrl] = useState(null);
+  const [playbackUrl, setPlaybackUrl] = useState(null);
+  const [playbackStreamType, setPlaybackStreamType] = useState("direct");
   const [isLoadingVideo, setIsLoadingVideo] = useState(false);
   // Player enhancements
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
@@ -1313,10 +1323,9 @@ const CoursePlayer = ({ courseId, initialLessonSlug, onClose }) => {
 
   const enrollmentStatus = isEnrolled(courseId);
   const admin = course ? isAdmin(courseId) : false;
-  console.log(admin);
-
-  const currentUserId = currentUser?._id || currentUser?.id;
-  const isOwner = course?.createdBy?._id === currentUserId;
+  const currentUserId = getEntityId(currentUser);
+  const ownerId = getEntityId(course?.createdBy);
+  const isOwner = String(ownerId || "") === String(currentUserId || "");
 
   const handleDeleteLessonConfirm = async () => {
     if (!lessonToDelete) return;
@@ -1349,12 +1358,7 @@ const CoursePlayer = ({ courseId, initialLessonSlug, onClose }) => {
       }
     }
   }, [course, initialLessonSlug]); // Intentionally not including activeLesson to avoid infinite loops if it changes via UI
-  const myMemberRecord = course?.members?.find((m) => {
-    const memId = m.userId?._id || m.userId || m._id || m.id;
-    return memId === currentUserId;
-  });
-
-  const enrollStatus = myMemberRecord ? myMemberRecord.status : "none";
+  const enrollStatus = enrollmentStatus;
   const canAccessLessons = isOwner || enrollStatus === "approved" || admin;
   const canAccessLesson = useCallback(
     (index) => canAccessLessons || index === 0,
@@ -1587,55 +1591,123 @@ const CoursePlayer = ({ courseId, initialLessonSlug, onClose }) => {
     }
   }, [course, activeLesson]);
 
-  // Derived values needed for Blob URL useEffect (must be before early return)
+  // Derived values needed for secure playback setup.
   const currentLessonData = course?.lessons?.[activeLesson];
   const isYouTube = currentLessonData?.videoUrl?.includes("youtu");
   const isLocalVideo = currentLessonData?.type === "file";
+  const isHlsVideo =
+    isLocalVideo &&
+    (currentLessonData?.streamType === "hls" ||
+      currentLessonData?.videoUrl?.endsWith(".m3u8") ||
+      playbackStreamType === "hls");
   const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
   const lessonIdentifier =
     currentLessonData?.urlSlug ||
     currentLessonData?._id ||
     currentLessonData?.id;
-  const streamEndpointUrl = `${API_URL}/courses/${courseId}/lessons/${lessonIdentifier}/stream`;
 
-  // Secure Blob URL: fetch with Authorization header so token is never in the DOM
-  // This MUST live before any early returns to satisfy React's rules of hooks.
+  // Secure stream URL: mint a short-lived playback token, then let the browser
+  // request byte ranges directly instead of downloading the full file as a Blob.
   useEffect(() => {
     if (!isLocalVideo || !lessonIdentifier || !canAccessLesson(activeLesson)) {
-      setBlobUrl(null);
+      setPlaybackUrl(null);
+      setPlaybackStreamType("direct");
       return;
     }
-    let objectUrl = null;
-    const controller = new AbortController();
-    const fetchVideo = async () => {
+    let cancelled = false;
+    const preparePlayback = async () => {
       setIsLoadingVideo(true);
-      setBlobUrl(null);
+      setPlaybackUrl(null);
+      setPlaybackStreamType("direct");
       setPlaybackError(null);
       try {
-        const res = await fetch(streamEndpointUrl, {
-          signal: controller.signal,
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-        if (!res.ok) throw new Error(`Stream error: ${res.status}`);
-        const blob = await res.blob();
-        objectUrl = URL.createObjectURL(blob);
-        setBlobUrl(objectUrl);
+        const { streamUrl, streamType } = await getLessonPlaybackToken(
+          courseId,
+          lessonIdentifier,
+        );
+        if (cancelled || !streamUrl) return;
+
+        const absoluteStreamUrl = streamUrl.startsWith("http")
+          ? streamUrl
+          : `${API_URL}${streamUrl}`;
+        setPlaybackStreamType(streamType || "direct");
+        setPlaybackUrl(absoluteStreamUrl);
       } catch (err) {
-        if (err.name !== "AbortError") {
-          setPlaybackError("Videoni yuklab olishda xatolik yuz berdi.");
-        }
+        if (!cancelled) setPlaybackError("Videoni yuklashga ruxsat olinmadi.");
       } finally {
-        setIsLoadingVideo(false);
+        if (!cancelled) setIsLoadingVideo(false);
       }
     };
-    fetchVideo();
+
+    preparePlayback();
+
     return () => {
-      controller.abort();
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
+      cancelled = true;
     };
-  }, [lessonIdentifier, activeLesson, isLocalVideo, token, streamEndpointUrl]);
+  }, [
+    activeLesson,
+    canAccessLesson,
+    courseId,
+    isLocalVideo,
+    lessonIdentifier,
+    API_URL,
+  ]);
+
+  useEffect(() => {
+    if (hlsRef.current) {
+      hlsRef.current.destroy();
+      hlsRef.current = null;
+    }
+
+    const video = videoRef.current;
+    if (!video || !playbackUrl || !isHlsVideo) return;
+
+    let cancelled = false;
+
+    const attachHls = async () => {
+      if (video.canPlayType("application/vnd.apple.mpegurl")) {
+        video.src = playbackUrl;
+        return;
+      }
+
+      const module = await import("hls.js");
+      if (cancelled) return;
+
+      const Hls = module.default;
+      if (!Hls.isSupported()) {
+        setPlaybackError("Brauzer HLS videoni qo'llab-quvvatlamaydi.");
+        return;
+      }
+
+      const hls = new Hls({
+        enableWorker: true,
+        lowLatencyMode: false,
+        xhrSetup: (xhr) => {
+          xhr.withCredentials = true;
+        },
+      });
+      hlsRef.current = hls;
+      hls.loadSource(playbackUrl);
+      hls.attachMedia(video);
+      hls.on(Hls.Events.ERROR, (_, data) => {
+        if (data?.fatal) {
+          setPlaybackError("HLS videoni ishga tushirishda xatolik yuz berdi.");
+          hls.destroy();
+          hlsRef.current = null;
+        }
+      });
+    };
+
+    attachHls();
+
+    return () => {
+      cancelled = true;
+      if (hlsRef.current) {
+        hlsRef.current.destroy();
+        hlsRef.current = null;
+      }
+    };
+  }, [isHlsVideo, playbackUrl]);
 
   if (!course) {
     return (
@@ -1744,9 +1816,13 @@ const CoursePlayer = ({ courseId, initialLessonSlug, onClose }) => {
                     ref={videoRef}
                     src={
                       isLocalVideo
-                        ? blobUrl || undefined
+                        ? isHlsVideo
+                          ? undefined
+                          : playbackUrl || undefined
                         : currentLessonData.videoUrl
                     }
+                    preload="metadata"
+                    crossOrigin="use-credentials"
                     controlsList="nodownload"
                     disablePictureInPicture
                     onContextMenu={(e) => e.preventDefault()}
@@ -2028,6 +2104,26 @@ const CoursePlayer = ({ courseId, initialLessonSlug, onClose }) => {
                   <ViewCount>
                     <Eye size={14} />
                     {formatViews(currentLessonData.views)} ko'rish
+                  </ViewCount>
+                  <ViewCount
+                    as="button"
+                    type="button"
+                    onClick={() =>
+                      toggleLessonLike(courseId, currentLessonData._id)
+                    }
+                    style={{
+                      border: "none",
+                      cursor: "pointer",
+                      color: currentLessonData.liked
+                        ? "#ed4245"
+                        : "var(--text-muted-color)",
+                    }}
+                  >
+                    <Heart
+                      size={14}
+                      fill={currentLessonData.liked ? "#ed4245" : "none"}
+                    />
+                    {currentLessonData.likes || 0} like
                   </ViewCount>
                   <MetaItem>
                     <BookOpen size={14} />
@@ -2456,9 +2552,7 @@ const CoursePlayer = ({ courseId, initialLessonSlug, onClose }) => {
                   </EnrollButton>
                   <EnrollButton
                     variant="admin"
-                    onClick={() =>
-                      removeUser(courseId, currentUser?.id || currentUser?._id)
-                    }
+                    onClick={() => removeUser(courseId, currentUserId)}
                     style={{ borderRadius: "20px" }}
                   >
                     Bekor qilish
@@ -2479,19 +2573,15 @@ const CoursePlayer = ({ courseId, initialLessonSlug, onClose }) => {
                   onClick={async () => {
                     try {
                       await enrollInCourse(courseId);
-                      const authorId = course.createdBy._id || course.createdBy;
+                      const authorId = ownerId;
                       const chatRes = await createChat({
                         isGroup: false,
                         memberIds: [authorId],
                       });
+                      console.log(chatRes);
+
                       if (chatRes) {
-                        const slug =
-                          chatRes.urlSlug ||
-                          chatRes.jammId ||
-                          chatRes._id ||
-                          chatRes.id ||
-                          chatRes;
-                        navigate(`/a/${slug}`);
+                        navigate(`/users/${chatRes?.jammId}`);
                       }
                     } catch (err) {
                       console.error(err);
