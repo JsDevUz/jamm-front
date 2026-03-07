@@ -43,7 +43,7 @@ export const ChatsProvider = ({ children }) => {
     if (first === "a") return "chats";
     return knownNavs.includes(first) ? first : "feed";
   });
-  const [selectedChannel, setSelectedChannel] = useState(() => {
+  const [selectedChatId, setSelectedChatId] = useState(() => {
     const parts = window.location.pathname.split("/").filter(Boolean);
     if (
       (parts[0] === "a" ||
@@ -97,8 +97,8 @@ export const ChatsProvider = ({ children }) => {
         const chat = { ...newChats[chatIndex] };
 
         const isCurrentChat =
-          String(chat.urlSlug) === String(selectedChannel) ||
-          String(chat.id) === String(selectedChannel);
+          String(chat.urlSlug) === String(selectedChatId) ||
+          String(chat.id) === String(selectedChatId);
 
         chat.lastMessage = rawMsg.content;
         chat.hasMessages = true;
@@ -184,8 +184,8 @@ export const ChatsProvider = ({ children }) => {
     const handleChatDeleted = ({ chatId }) => {
       setChats((prev) => prev.filter((c) => c.id !== chatId));
       if (
-        String(selectedChannel) === String(chatId) ||
-        String(selectedChannel) === "0"
+        String(selectedChatId) === String(chatId) ||
+        String(selectedChatId) === "0"
       ) {
         // Option: navigate back or clear selection if the deleted chat was active
         // But context doesn't have navigate easily here without passing it
@@ -206,7 +206,7 @@ export const ChatsProvider = ({ children }) => {
       chatSocket.off("user_typing");
       chatSocket.off("chat_deleted");
     };
-  }, [chatSocket, selectedChannel]);
+  }, [chatSocket, selectedChatId]);
 
   // Clean up stale typing indicators (older than 5 seconds)
   useEffect(() => {
@@ -460,19 +460,19 @@ export const ChatsProvider = ({ children }) => {
   }, [ensureChatsLoaded, selectedNav]);
 
   useEffect(() => {
-    if (!selectedChannel || selectedChannel === "0") return;
+    if (!selectedChatId || selectedChatId === "0") return;
     setChats((prev) =>
       prev.map((c) => {
         if (
-          String(c.urlSlug) === String(selectedChannel) ||
-          String(c.id) === String(selectedChannel)
+          String(c.urlSlug) === String(selectedChatId) ||
+          String(c.id) === String(selectedChatId)
         ) {
           return { ...c, unread: 0 };
         }
         return c;
       }),
     );
-  }, [selectedChannel]);
+  }, [selectedChatId]);
 
   const value = {
     chats,
@@ -494,8 +494,8 @@ export const ChatsProvider = ({ children }) => {
     getAllUsers,
     selectedNav,
     setSelectedNav,
-    selectedChannel,
-    setSelectedChannel,
+    selectedChatId,
+    setSelectedChatId,
     chatSocket,
     typingUsers,
     sendTypingStatus,

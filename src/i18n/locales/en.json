@@ -1,0 +1,501 @@
+{
+  "common": {
+    "back": "Back",
+    "loading": "Loading...",
+    "save": "Save",
+    "send": "Send",
+    "edit": "Edit",
+    "delete": "Delete",
+    "cancel": "Cancel",
+    "create": "Create",
+    "activate": "Activate",
+    "contact": "Contact",
+    "global": "Global",
+    "status": "Status",
+    "active": "Active",
+    "author": "Author",
+    "course": "Course",
+    "like": "like",
+    "views": "views",
+    "userFallback": "User",
+    "you": "You",
+    "message": "Message"
+  },
+  "navigation": {
+    "feed": "Posts",
+    "blogs": "Blogs",
+    "chats": "Chats",
+    "courses": "Courses",
+    "profile": "My profile"
+  },
+  "theme": {
+    "dark": "Dark",
+    "light": "Light"
+  },
+  "language": {
+    "uz": "Uzbek",
+    "en": "English (US)",
+    "ru": "Russian"
+  },
+  "layout": {
+    "selectMeet": "Select a meet",
+    "selectChat": "Select a chat"
+  },
+  "courseSidebar": {
+    "tabs": {
+      "courses": "Kurslar",
+      "arena": "Maydon"
+    },
+    "arena": {
+      "testsTitle": "Testlar",
+      "testsDescription": "Ochiq testlarni ishlash",
+      "flashcardsTitle": "Flashcards",
+      "flashcardsDescription": "Lug'atlarni yodlash",
+      "sentencesTitle": "Gap tuzish",
+      "sentencesDescription": "Bo'laklardan gap yig'ish",
+      "battlesTitle": "Bilimlar bellashuvi",
+      "battlesDescription": "Real vaqt musobaqa"
+    },
+    "searchPlaceholder": "Kurslarni qidirish...",
+    "createTitle": "Yangi kurs yaratish",
+    "emptyTitle": "Hozircha kurslar yo'q",
+    "emptyDescription": "Yangi kurs yaratish uchun + tugmasini bosing",
+    "allShown": "Barcha kurslar ko'rsatildi.",
+    "lessonCount": "{{count}} ta dars",
+    "noLessons": "Hali dars yo'q",
+    "deleteAction": "Kursni o'chirish",
+    "deleteError": "Kursni o'chirishda xatolik yuz berdi",
+    "deleteTitle": "Kursni o'chirish",
+    "deleteDescription": "Rostdan ham <bold>{{name}}</bold> kursni o'chirmoqchimisiz? Bu amalni keyin tiklab bo'lmaydi va kursga tegishli barcha videolar, fayllar va ma'lumotlar o'chib ketadi.",
+    "deleteConfirm": "Ha, o'chirish",
+    "deleteConfirmLoading": "O'chirilmoqda...",
+    "deleteCancel": "Yo'q, qolsin",
+    "status": {
+      "admin": "Admin",
+      "approved": "A'zo",
+      "pending": "Kutilmoqda"
+    }
+  },
+  "chatsSidebar": {
+    "searchPlaceholder": "Chat qidirish...",
+    "createGroup": "Guruh yaratish",
+    "createMeet": "Yangi meet",
+    "tabs": {
+      "private": "Shaxsiy",
+      "groups": "Guruhlar",
+      "video": "Video"
+    },
+    "filters": {
+      "all": "Barchasi",
+      "today": "Bugun",
+      "week": "Hafta"
+    },
+    "search": {
+      "startMessage": "Xabar yozishni boshlang..."
+    },
+    "meets": {
+      "untitled": "Nomsiz meet",
+      "notFound": "Meet topilmadi",
+      "empty": "Hali hech qanday meet yo'q",
+      "admin": "Admin",
+      "participant": "Ishtirokchi"
+    },
+    "delete": "O'chirish",
+    "allShown": "Barcha suhbatlar ko'rsatildi.",
+    "online": "{{count}} online",
+    "timeAgo": {
+      "now": "hozir",
+      "minutes": "{{count}} daq oldin",
+      "hours": "{{count}} soat oldin",
+      "days": "{{count}} kun oldin"
+    }
+  },
+  "blogs": {
+    "searchPlaceholder": "Blog qidirish...",
+    "createTitle": "Yangi blog",
+    "notFound": "Blog topilmadi.",
+    "selectToRead": "O‘qish uchun blog tanlang.",
+    "backToList": "Bloglar",
+    "noExcerpt": "Tavsif yo'q",
+    "author": "Muallif",
+    "comments": "izoh",
+    "coverClose": "Cover rasmni yopish"
+  },
+  "coursePlayer": {
+    "errors": {
+      "deleteLesson": "Darsni o'chirishda xatolik yuz berdi",
+      "formatNotSupported": "Bu video formatini brauzeringiz qo'llab-quvvatlamaydi (masalan .mov bevosita Chrome'da ishlamasligi mumkin).",
+      "playback": "Videoni ishga tushirishda xatolik yuz berdi.",
+      "playbackToken": "Videoni yuklashga ruxsat olinmadi.",
+      "hlsUnsupported": "Brauzer HLS videoni qo'llab-quvvatlamaydi.",
+      "hlsPlayback": "HLS videoni ishga tushirishda xatolik yuz berdi.",
+      "chatCreate": "Xatolik yuz berdi: Chat yaratib bo'lmadi"
+    },
+    "empty": {
+      "title": "Kursni tanlang",
+      "description": "Chap tarafdagi ro'yxatdan kursni tanlang yoki yangi kurs yarating."
+    },
+    "speed": {
+      "title": "Tezlik",
+      "normal": "Oddiy (1x)"
+    },
+    "meta": {
+      "lesson": "{{index}}-dars: {{title}}",
+      "views": "ko'rish",
+      "likes": "like"
+    },
+    "locked": {
+      "noLessonsTitle": "Hali darslar qo'shilmagan",
+      "noLessonsAdmin": "O'ng tarafdagi + tugmasini bosib dars qo'shing.",
+      "noLessonsUser": "Tez orada darslar qo'shiladi.",
+      "pendingTitle": "So'rov yuborildi",
+      "enrollTitle": "Kursga yoziling",
+      "pendingDescription": "Sizning so'rovingiz admin tomonidan ko'rib chiqilmoqda. Iltimos kuting.",
+      "enrollDescription": "Darslarni ko'rish uchun avval kursga yozilish kerak. Admin tasdiqlangandan keyin darslarni ko'rishingiz mumkin."
+    },
+    "creator": {
+      "author": "Muallif",
+      "students": "{{count}} talaba"
+    },
+    "actions": {
+      "manage": "Boshqarish",
+      "pending": "Kutilmoqda",
+      "cancel": "Bekor qilish",
+      "enrolled": "Obuna bo'lingan",
+      "buy": "Sotib olish: {{price}} so'm",
+      "enroll": "Obuna bo'lish",
+      "approve": "Tasdiqlash",
+      "reject": "Rad etish",
+      "remove": "Chiqarish"
+    },
+    "members": {
+      "pendingTitle": "Kutayotganlar ({{count}})",
+      "pending": "Kutmoqda",
+      "approvedTitle": "A'zolar ({{count}})",
+      "empty": "Hali a'zolar yo'q",
+      "approved": "Tasdiqlangan"
+    },
+    "deleteLesson": {
+      "title": "Darsni o'chirish",
+      "description": "Rostdan ham bu darsni o'chirmoqchimisiz? Agar unga video biriktirilgan bo'lsa, u ham o'chib ketadi.",
+      "confirm": "Ha, o'chirish",
+      "confirmLoading": "O'chirilmoqda...",
+      "cancel": "Beqor qilish"
+    }
+  },
+  "createCourse": {
+    "title": "Yangi kurs yaratish",
+    "imageChange": "Rasmni o'zgartirish",
+    "imagePrompt": "Kurs uchun rasm URL kiriting",
+    "imageUrl": "Rasm URL (ixtiyoriy)",
+    "name": "Kurs nomi *",
+    "namePlaceholder": "Masalan: React Asoslari",
+    "category": "Kategoriya",
+    "categories": {
+      "it": "IT & Dasturlash",
+      "smm": "SMM & Marketing",
+      "language": "Til o'rganish",
+      "mobile": "Mobil Dasturlash",
+      "design": "Dizayn"
+    },
+    "accessType": "Ruxsat turi",
+    "access": {
+      "freeRequest": "Ruxsat so'rab (Tekin)",
+      "freeOpen": "Ruxsatsiz ochiq (Tekin)",
+      "paid": "Pullik"
+    },
+    "price": "Narxi (UZS)",
+    "pricePlaceholder": "Masalan: 500000",
+    "description": "Tavsif",
+    "descriptionPlaceholder": "Kurs haqida qisqacha ma'lumot...",
+    "error": "Kurs yaratishda xatolik yuz berdi",
+    "creating": "Yaratilmoqda..."
+  },
+  "addLesson": {
+    "title": "Yangi dars qo'shish",
+    "lessonName": "Dars nomi *",
+    "lessonNamePlaceholder": "Masalan: React Hooks asoslari",
+    "source": "Video/Fayl manbasi *",
+    "uploadTab": "Fayl yuklash (Max 100MB)",
+    "youtubeTab": "YouTube URL",
+    "premiumNotice": "Fayl yuklash uchun Premium obuna talab qilinadi. Bepul tarifda faqat YouTube URL orqali video qo'shishingiz mumkin.",
+    "fileLabel": "Video/Fayl *",
+    "fileDropTitle": "Faylni yuklang yoki shu yerga tashlang",
+    "fileDropMeta": "MP4, WEBM, MOV (Max: 100MB)",
+    "processing": "Video qayta ishlanmoqda...",
+    "savingLesson": "Dars saqlanmoqda...",
+    "uploading": "Yuklanmoqda...",
+    "preparing": "Tayyorlanmoqda",
+    "processingMeta": "Fayl serverga bordi, endi HLS segmentlarga bo'linmoqda.",
+    "savingMeta": "Oxirgi ma'lumotlar saqlanmoqda.",
+    "youtubeLabel": "YouTube Video URL *",
+    "description": "Tavsif (ixtiyoriy)",
+    "descriptionPlaceholder": "Dars haqida qisqacha...",
+    "processingShort": "Qayta ishlanmoqda...",
+    "savingShort": "Saqlanmoqda...",
+    "sending": "Yuborilmoqda...",
+    "submit": "Qo'shish",
+    "uploadError": "Yuklashda xatolik yuz berdi"
+  },
+  "meetDialog": {
+    "title": "Create Group Video Call",
+    "subtitle": "Sarlavha yozing, maxfiylikni tanlang va tez meet yarating.",
+    "heroTitle": "Tez meet yaratish",
+    "heroDescription": "Meet yaratilgach link chiqadi. Public bo'lsa odamlar darhol, private bo'lsa tasdiq bilan kiradi.",
+    "detailsTitle": "Meet tafsilotlari",
+    "detailsDescription": "Xona nomi va izoh kiriting.",
+    "name": "Xona nomi",
+    "namePlaceholder": "Masalan: Frontend sprint review",
+    "description": "Qisqa izoh",
+    "descriptionPlaceholder": "Bugungi call nima haqida?",
+    "privacyTitle": "Kimlar qo'shila oladi?",
+    "privacyPrivateHint": "Faqat siz tasdiqlaganlar kiradi",
+    "privacyPublicHint": "Havolasi bor odamlar darhol qo'shiladi",
+    "publicBadge": "Public",
+    "publicTitle": "Barchaga ochiq",
+    "publicDescription": "Havolasi borlar darhol kiradi.",
+    "privateBadge": "Private",
+    "privateTitle": "Faqat ruxsat bilan",
+    "privateDescription": "Avval kutadi, keyin siz tasdiqlaysiz.",
+    "footerNote": "Meet yaratilgach uni sidebar ichida ko'rasiz.",
+    "create": "Meet yaratish"
+  },
+  "groupCall": {
+    "guest": "Mehmon",
+    "roomDefault": "Meet",
+    "localSuffix": " (Sen)",
+    "privateBadge": "Private",
+    "recording": "REC",
+    "open": "Ochish",
+    "minimize": "Yig'ish",
+    "copied": "Nusxalandi!",
+    "copyLink": "Link",
+    "participants": "{{count}} qatnashchi",
+    "privateRoom": "private xona",
+    "publicRoom": "public xona",
+    "minimizeTitle": "Meetni yig'ish",
+    "close": "Yopish",
+    "connecting": "Ulanmoqda…",
+    "waiting": "Ruxsat kutilmoqda…",
+    "waitingDescription": "Call yaratuvchisi sizga ruxsat berishini kuting",
+    "rejected": "Rad etildi",
+    "rejectedDescription": "Call yaratuvchisi so'rovingizni rad etdi",
+    "members": "A'zolar ({{count}})",
+    "waitingMembers": "Kutayotganlar ({{count}})",
+    "joinedMembers": "Qo'shilganlar ({{count}})"
+  },
+  "arenaShared": {
+    "shareLinks": {
+      "subtitle": "`{{itemTitle}}` uchun qisqa havolalar",
+      "limit": "Jami limit",
+      "persistLabel": "Natijani saqlash",
+      "persist": "Saqlansin",
+      "persistHint": "Ustozga boradi",
+      "ephemeral": "Saqlanmasin",
+      "ephemeralHint": "Faqat talabaga",
+      "groupName": "Guruh nomi",
+      "groupPlaceholder": "Masalan: g12",
+      "showResults": "Yakuniy natija",
+      "showResultsOn": "Ko'rsatilsin",
+      "showResultsOnHint": "Talaba ko'radi",
+      "showResultsOff": "Yashirilsin",
+      "showResultsOffHint": "Faqat ustozga",
+      "timeLimit": "Vaqt cheklovi",
+      "timeLimitPlaceholder": "0 = cheklanmagan",
+      "creating": "Yaratilmoqda...",
+      "limitReached": "Limitga yetdi",
+      "create": "Havola yaratish",
+      "previousLinks": "Oldingi havolalar",
+      "empty": "Hali havola yaratilmagan.",
+      "persistedDefault": "Natija saqlanadi",
+      "ephemeralDefault": "Natija saqlanmaydi",
+      "resultShown": "ko'rsatiladi",
+      "resultHidden": "yashiriladi",
+      "result": "Natija",
+      "time": "Vaqt",
+      "minutes": "{{count}} daqiqa",
+      "unlimited": "cheklanmagan"
+    },
+    "results": {
+      "searchPlaceholder": "Qidirish...",
+      "allGroups": "Barcha guruhlar",
+      "unknownUser": "Foydalanuvchi",
+      "noGroup": "-",
+      "reportTitle": "Hisobot",
+      "resultsSuffix": "natijalari",
+      "filteredReport": "Filtrlangan hisobot",
+      "submitted": "Topshirganlar",
+      "mastery": "O'zlashtirish",
+      "easiest": "Eng oson savol",
+      "hardest": "Eng qiyin savol",
+      "student": "Talaba",
+      "group": "Guruh",
+      "date": "Sana",
+      "total": "Jami",
+      "percent": "Foiz",
+      "filteredCount": "Filtrlangan ishlar soni",
+      "average": "O'rtacha natija",
+      "allResults": "Barcha natijalar",
+      "empty": "Filtr bo'yicha natija topilmadi.",
+      "questionCount": "{{count}} ta savol",
+      "yourSentence": "Siz tuzgan gap",
+      "correctAnswer": "To'g'ri javob",
+      "selectedAnswer": "Siz tanlagan javob",
+      "noData": "Hali ma'lumot yo'q",
+      "question": "Savol",
+      "correct": "To'g'ri",
+      "wrong": "Xato",
+      "nothing": "hech narsa",
+      "extraToken": "ortiqcha bo'lak",
+      "mistakeTemplate": "{{position}}-bo'lak: siz {{actual}} tanladingiz. To'g'risi {{expected}}.",
+      "noAnswer": "Javob berilmagan",
+      "noInfo": "Ma'lumot yo'q"
+    },
+    "createBattle": {
+      "title": "Yangi Bellashuv Xonasi",
+      "name": "Bellashuv nomi",
+      "namePlaceholder": "Masalan: Juma kungi bellashuv",
+      "testLabel": "Testni tanlang",
+      "testPlaceholder": "--- Test tanlang ---",
+      "visibility": "Ko'rinish",
+      "public": "Public",
+      "unlisted": "Unlisted",
+      "emptyTests": "Hali test topilmadi. Test yaratgan bo'lsangiz, ro'yxat yangilanmoqda.",
+      "publicInfo": "Ushbu xona barcha uchun ochiq va 'Aktiv Bellashuvlar' ro'yxatida ko'rinadi.",
+      "unlistedInfo": "Ushbu xona ro'yxatda ko'rinmaydi. Faqat xona ID sini bilganlargina qo'shila oladi.",
+      "create": "Xonani Yaratish"
+    }
+  },
+  "feed": {
+    "title": "Gurunglar",
+    "tabs": {
+      "forYou": "Siz uchun",
+      "following": "Obunachidan"
+    },
+    "composePlaceholder": "Fikringizni baham ko'ring…",
+    "emptyFollowing": "Obuna bo'lgan foydalanuvchilar gurunglarini ko'rasiz",
+    "emptyForYou": "Hali gurunglar yo'q. Birinchi bo'ling!",
+    "allShown": "Barcha xabarlar ko'rsatildi.",
+    "editPost": "Tahrirlash",
+    "deletePost": "O'chirish",
+    "editTitle": "Gurungni tahrirlash",
+    "createTitle": "Yangi Gurung",
+    "deleteTitle": "Gurungni o'chirish",
+    "deleteDescription": "Bu gurung o'chirilsa, u qayta tiklanmaydi."
+  },
+  "comments": {
+    "title": "Izohlar",
+    "allShown": "Barcha izohlar ko'rsatildi.",
+    "empty": "Hali izohlar yo'q. Birinchi bo'lib yozing!",
+    "reply": "Javob berish",
+    "replyingTo": "Javob",
+    "replyPlaceholder": "@{{name}} ga javob...",
+    "commentPlaceholder": "Izoh yozing..."
+  },
+  "profile": {
+    "avatarChange": "Change avatar",
+    "bioMissingOwn": "No bio yet. Complete your profile.",
+    "bioMissingOther": "No bio added.",
+    "following": "Following",
+    "follow": "Follow",
+    "settings": "Settings",
+    "tabs": {
+      "groups": "Posts",
+      "blogs": "Blogs",
+      "courses": "Lessons",
+      "appearance": "Theme",
+      "language": "Language",
+      "premium": "Jamm Premium",
+      "support": "Support",
+      "favorites": "Favorites"
+    },
+    "stats": {
+      "members": "Members",
+      "posts": "Posts",
+      "blogs": "Blogs",
+      "courses": "Lessons"
+    }
+  },
+  "profileUtility": {
+    "sections": {
+      "appearance": {
+        "title": "Theme",
+        "description": "Control the interface appearance."
+      },
+      "language": {
+        "title": "Language",
+        "description": "Manage language and region settings."
+      },
+      "premium": {
+        "title": "Jamm Premium",
+        "description": "Manage premium status, promo code and plans."
+      },
+      "support": {
+        "title": "Support",
+        "description": "Quick contact points for issues and questions."
+      },
+      "favorites": {
+        "title": "Favorites",
+        "description": "A separate section for saved content."
+      }
+    },
+    "appearance": {
+      "groupTitle": "Appearance",
+      "groupDescription": "For now, only the main theme switch is available.",
+      "themeLabel": "Theme",
+      "themeDescription": "The Jamm interface works in dark or light mode."
+    },
+    "language": {
+      "groupTitle": "Language and region",
+      "groupDescription": "Selected values are stored in local storage.",
+      "languageLabel": "Language",
+      "languageDescription": "Primary interface language.",
+      "regionLabel": "Region",
+      "regionDescription": "Global mode is currently used."
+    },
+    "premium": {
+      "statusTitle": "Premium holati",
+      "statusDescription": "Joriy obuna va promo-kod orqali faollashtirish.",
+      "statusLabel": "Status",
+      "statusMeta": "Profilingizdagi premium holati.",
+      "freeAccount": "Oddiy hisob",
+      "promoLabel": "Promo-kod",
+      "promoDescription": "Premium’ni tez yoqish uchun kod kiriting.",
+      "promoPlaceholder": "Kodni kiriting",
+      "checking": "Tekshirilmoqda...",
+      "activated": "Premium faollashtirildi",
+      "invalidPromo": "Promo-kod yaroqsiz",
+      "plansTitle": "Obuna rejalari",
+      "plansDescription": "Qo'shimcha imkoniyatlar uchun premium rejalari.",
+      "days": "kun",
+      "contactPremium": "Premium bilan bog'lanish",
+      "plansUnavailable": "Rejalar vaqtincha ko'rsatilmayapti."
+    },
+    "support": {
+      "premiumTitle": "Premium support",
+      "premiumDescription": "Obuna, promo-kod yoki limitlar bo'yicha savollar uchun.",
+      "premiumAction": "@premium ga yozish",
+      "jammTitle": "Jamm support",
+      "jammDescription": "Umumiy texnik muammo yoki account masalalari uchun.",
+      "jammAction": "@jamm ga yozish",
+      "chatError": "Chatni ochib bo'lmadi"
+    },
+    "favorites": {
+      "lessonsTitle": "Like bosgan darslar",
+      "lessonsDescription": "Sevimli lessonlar shu yerda jamlanadi.",
+      "lessonsEmpty": "Hozircha like bosilgan darslar yo'q.",
+      "postsTitle": "Like bosgan gurunglar",
+      "postsDescription": "Yoqtirgan gurunglaringiz ro'yxati.",
+      "postsEmpty": "Hozircha like bosilgan gurunglar yo'q.",
+      "blogsTitle": "Like bosgan bloglar",
+      "blogsDescription": "Yoqtirgan bloglaringiz shu yerda turadi.",
+      "blogsEmpty": "Hozircha like bosilgan bloglar yo'q."
+    }
+  },
+  "arena": {
+    "dashboard": {
+      "welcomeTitle": "Bilimlar maydoniga xush kelibsiz!",
+      "welcomeDescription": "Chap tomondagi menyudan o'zingizga kerakli bo'limni tanlang: testlar ishlash, lug'at yodlash yoki do'stlar bilan bellashuv."
+    }
+  }
+}

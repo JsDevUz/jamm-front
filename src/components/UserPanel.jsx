@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import styled from "styled-components";
 import { Mic, Headphones, Settings, Volume2, X, Star } from "lucide-react";
 import useAuthStore from "../store/authStore";
-import PremiumBadgeIcon from "./PremiumBadge";
+import PremiumBadgeIcon from "../shared/ui/badges/PremiumBadge";
 
 const PanelContainer = styled.div`
   width: 60px;

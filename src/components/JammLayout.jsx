@@ -1,64 +1,39 @@
 import React, { useState, useEffect } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
-import styled from "styled-components";
-import ServerSidebar from "./ServerSidebar";
-import ChannelSidebar from "./ChannelSidebar";
-import ChatArea from "./ChatArea";
-import CreateGroupDialog from "./CreateGroupDialog";
+import { useTranslation } from "react-i18next";
+import { useNavigate } from "react-router-dom";
 import { useChats } from "../contexts/ChatsContext";
-import CourseSidebar from "./CourseSidebar";
-import CoursePlayer from "./CoursePlayer";
+import {
+  ChatArea,
+  ChatsSidebar,
+  CreateGroupDialog,
+} from "../features/chats/components";
+import {
+  CoursePlayer,
+  CourseSidebar,
+} from "../features/courses/components";
 
-import ArenaDashboard from "./arena/ArenaDashboard";
-import ProfilePage from "./ProfilePage";
-import FeedPage from "./FeedPage";
-import BlogsSidebar from "./BlogsSidebar";
-import BlogReaderPane from "./BlogReaderPane";
-import PremiumUpgradeModal from "./PremiumUpgradeModal";
-import UniversalDialog from "./UniversalDialog";
-import OnboardingModal from "./OnboardingModal";
+import OnboardingModal from "../app/components/OnboardingModal";
+import PremiumUpgradeModal from "../app/components/PremiumUpgradeModal";
 import { saveMeet, getMeets } from "../utils/meetStore";
 import useAuthStore from "../store/authStore";
 import { toast } from "react-hot-toast";
-
-const AppContainer = styled.div`
-  display: flex;
-  width: 100%;
-  height: 100vh;
-  background-color: #36393f;
-  overflow: hidden;
-
-  @media (max-width: 700px) {
-    flex-direction: column;
-  }
-`;
-
-const MainContent = styled.div`
-  display: flex;
-  flex: 1;
-  height: 100%;
-  overflow: hidden;
-
-  @media (max-width: 700px) {
-    flex-direction: column;
-    width: 100%;
-    height: 100vh;
-    padding-bottom: 88px;
-    box-sizing: border-box;
-  }
-`;
-
-const ChatContainer = styled.div`
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  height: 100%;
-  overflow: hidden;
-`;
+import { ArenaDashboard } from "../features/arena/components";
+import { BlogReaderPane, BlogsSidebar } from "../features/blogs/components";
+import { UniversalDialog } from "../features/calls/components";
+import { ServerSidebar } from "../features/navigation/components";
+import { FeedPage } from "../features/posts/components";
+import { ProfilePage } from "../features/profile/components";
+import {
+  AppContainer,
+  ContentPane,
+  EmptyPane,
+  MainContent,
+  ScrollPane,
+} from "./JammLayout.styles";
 
 const JammLayout = ({
   initialNav = "home",
-  initialChannel = 0,
+  initialResourceId = 0,
   initialLesson,
 }) => {
   const {
@@ -66,9 +41,10 @@ const JammLayout = ({
     createChat,
     selectedNav,
     setSelectedNav,
-    selectedChannel,
-    setSelectedChannel,
+    selectedChatId,
+    setSelectedChatId,
   } = useChats();
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
   const [isCreateGroupOpen, setIsCreateGroupOpen] = useState(false);
@@ -85,11 +61,11 @@ const JammLayout = ({
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
-  // Sync URL params → state. When URL is /a/:channelId, auto-detect nav type
+  // Sync URL params → state. When URL is /a/:chatId, auto-detect nav type
   // from the current chat so selectedNav is ALWAYS meaningful (never "a").
   useEffect(() => {
-    if (initialChannel !== undefined && initialChannel !== selectedChannel) {
-      setSelectedChannel(initialChannel);
+    if (initialResourceId !== undefined && initialResourceId !== selectedChatId) {
+      setSelectedChatId(initialResourceId);
     }
     if (initialNav === "a" || initialNav === "chats") {
       // Direct message routing - always show chats
@@ -124,7 +100,7 @@ const JammLayout = ({
         targetTab = "sentenceBuilders";
       }
       else if (path.includes("/arena/battle")) targetTab = "battles";
-      else targetTab = tabMap[initialChannel] || initialChannel;
+      else targetTab = tabMap[initialResourceId] || initialResourceId;
 
       if (
         targetTab &&
@@ -142,21 +118,21 @@ const JammLayout = ({
     }
 
     if (initialNav === "courses" || initialNav === "arena") {
-      if (initialChannel && initialChannel !== "0" && initialNav !== "arena") {
-        setSelectedCourse(initialChannel);
+      if (initialResourceId && initialResourceId !== "0" && initialNav !== "arena") {
+        setSelectedCourse(initialResourceId);
       } else if (
         initialNav === "courses" &&
-        (!initialChannel || initialChannel === "0")
+        (!initialResourceId || initialResourceId === "0")
       ) {
         // If we are on /courses and no specific course is selected, clear it
         setSelectedCourse(null);
       }
     }
-  }, [initialNav, initialChannel, chats]);
+  }, [initialNav, initialResourceId, chats]);
 
   const handleSelectNav = (navId) => {
     setSelectedNav(navId);
-    setSelectedChannel(0);
+    setSelectedChatId(0);
     if (navId === "arena") {
       setViewMode("arena");
       setActiveArenaTab(null);
@@ -207,7 +183,7 @@ const JammLayout = ({
           <>
             <CourseSidebar
               onSelectCourse={setSelectedCourse}
-              onOpenPremium={() => setIsPremiumOpen(true)}
+              onOpenPremium={() => setIsUpgradeModalOpen(true)}
               viewMode={selectedNav === "arena" ? "arena" : viewMode}
               onToggleViewMode={setViewMode}
               selectedCourse={selectedCourse}
@@ -217,12 +193,12 @@ const JammLayout = ({
             {selectedNav === "arena" ||
             selectedNav === "home" ||
             viewMode === "arena" ? (
-              <div style={{ flex: 1, overflowY: "auto" }}>
+              <ScrollPane>
                 <ArenaDashboard
                   activeTab={activeArenaTab}
                   initialId={
                     initialNav === "arena" &&
-                    initialChannel &&
+                    initialResourceId &&
                     ![
                       "tests",
                       "flashcards",
@@ -234,8 +210,8 @@ const JammLayout = ({
                       "sentence-builder",
                       "battle",
                       "0",
-                    ].includes(initialChannel)
-                      ? initialChannel
+                    ].includes(initialResourceId)
+                      ? initialResourceId
                       : initialLesson
                   }
                   onBack={() => {
@@ -243,7 +219,7 @@ const JammLayout = ({
                     navigate("/arena");
                   }}
                 />
-              </div>
+              </ScrollPane>
             ) : (
               <CoursePlayer
                 courseId={selectedCourse}
@@ -258,67 +234,59 @@ const JammLayout = ({
         ) : selectedNav === "profile" ? (
           <ProfilePage
             profileUserId={
-              initialChannel && initialChannel !== 0 && initialChannel !== "0"
-                ? String(initialChannel)
+              initialResourceId && initialResourceId !== 0 && initialResourceId !== "0"
+                ? String(initialResourceId)
                 : null
             }
           />
         ) : selectedNav === "blogs" ? (
           <>
-            {!isMobile || !selectedChannel || selectedChannel === "0" ? (
-              <BlogsSidebar selectedChannel={selectedChannel} />
+            {!isMobile || !selectedChatId || selectedChatId === "0" ? (
+              <BlogsSidebar selectedBlogId={selectedChatId} />
             ) : null}
-            <ChatContainer>
+            <ContentPane>
               <BlogReaderPane
-                blogIdentifier={selectedChannel}
+                blogIdentifier={selectedChatId}
                 onBack={() => {
-                  setSelectedChannel(0);
+                  setSelectedChatId(0);
                   navigate("/blogs");
                 }}
               />
-            </ChatContainer>
+            </ContentPane>
           </>
         ) : selectedNav === "feed" ? (
           <FeedPage />
         ) : (
           <>
-            {!isMobile || !selectedChannel || selectedChannel === "0" ? (
-              <ChannelSidebar
-                selectedChannel={selectedChannel}
+            {!isMobile || !selectedChatId || selectedChatId === "0" ? (
+              <ChatsSidebar
+                selectedChatId={selectedChatId}
                 selectedNav={selectedNav}
                 chats={chats}
                 onOpenCreateGroup={() => setIsCreateGroupOpen(true)}
                 onOpenCreateMeet={() => setIsCreateMeetOpen(true)}
               />
             ) : null}
-            <ChatContainer>
-              {selectedChannel && selectedChannel !== "0" ? (
+            <ContentPane>
+              {selectedChatId && selectedChatId !== "0" ? (
                 <ChatArea
-                  selectedChannel={selectedChannel}
+                  selectedChatId={selectedChatId}
                   selectedNav={selectedNav}
                   chats={chats}
                   navigate={navigate}
                   onBack={() => {
-                    setSelectedChannel(0);
+                    setSelectedChatId(0);
                     navigate(`/${selectedNav}`);
                   }}
                 />
               ) : (
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    height: "100%",
-                    color: "#8e9297",
-                  }}
-                >
+                <EmptyPane>
                   {selectedNav === "meets"
-                    ? "Meet tanlang"
-                    : "Suhbatni tanlang"}
-                </div>
+                    ? t("layout.selectMeet")
+                    : t("layout.selectChat")}
+                </EmptyPane>
               )}
-            </ChatContainer>
+            </ContentPane>
           </>
         )}
       </MainContent>
@@ -348,7 +316,7 @@ const JammLayout = ({
           setIsUpgradeModalOpen(false);
           sessionStorage.setItem("profile_initial_tab", "premium");
           setSelectedNav("profile");
-          setSelectedChannel(0);
+          setSelectedChatId(0);
           navigate("/profile");
         }}
       />
