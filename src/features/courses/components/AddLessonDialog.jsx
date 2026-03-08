@@ -430,6 +430,7 @@ const AddLessonDialog = ({ isOpen, onClose, courseId }) => {
       let finalVideoUrl = "";
       let finalStreamType = "direct";
       let finalStreamAssets = [];
+      let finalHlsKeyAsset = "";
       let type = "video";
 
       if (uploadMethod === "upload" && videoFile && isPremium) {
@@ -457,6 +458,7 @@ const AddLessonDialog = ({ isOpen, onClose, courseId }) => {
         finalFileName = data.fileName;
         finalFileSize = data.fileSize;
         finalStreamAssets = Array.isArray(data.assetKeys) ? data.assetKeys : [];
+        finalHlsKeyAsset = data.hlsKeyAsset || "";
         type = "file";
       } else {
         setUploadPhase("saving");
@@ -476,6 +478,7 @@ const AddLessonDialog = ({ isOpen, onClose, courseId }) => {
         finalFileSize,
         finalStreamType,
         finalStreamAssets,
+        finalHlsKeyAsset,
       );
 
       setTitle("");

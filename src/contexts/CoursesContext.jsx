@@ -202,6 +202,7 @@ export const CoursesProvider = ({ children }) => {
       fileSize = 0,
       streamType = "direct",
       streamAssets = [],
+      hlsKeyAsset = "",
     ) => {
       try {
         await coursesApi.addLesson({
@@ -215,6 +216,7 @@ export const CoursesProvider = ({ children }) => {
           fileSize,
           streamType,
           streamAssets,
+          hlsKeyAsset,
         });
         await fetchCourses();
       } catch (err) {
