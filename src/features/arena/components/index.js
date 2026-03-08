@@ -9,6 +9,7 @@ export { default as CreateFlashcardDialog } from "./CreateFlashcardDialog";
 export { default as CreateSentenceBuilderDialog } from "./CreateSentenceBuilderDialog";
 export { default as CreateTestDialog } from "./CreateTestDialog";
 export { default as FlashcardList } from "./FlashcardList";
+export { default as MnemonicsPanel } from "./MnemonicsPanel";
 export { default as SentenceBuilderList } from "./SentenceBuilderList";
 export { default as ShareLinksDialog } from "./ShareLinksDialog";
 export { default as SoloTestPlayer } from "./SoloTestPlayer";

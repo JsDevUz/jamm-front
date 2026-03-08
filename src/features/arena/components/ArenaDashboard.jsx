@@ -4,6 +4,7 @@ import TestList from "./TestList";
 import FlashcardList from "./FlashcardList";
 import BattleLobby from "./BattleLobby";
 import SentenceBuilderList from "./SentenceBuilderList";
+import MnemonicsPanel from "./MnemonicsPanel";
 import {
   ArenaContainer,
   ContentArea,
@@ -31,6 +32,7 @@ const ArenaDashboard = ({ activeTab = "tests", initialId, onBack }) => {
         {activeTab === "battles" && (
           <BattleLobby initialRoomId={initialId} onBack={onBack} />
         )}
+        {activeTab === "mnemonics" && <MnemonicsPanel />}
 
         {!activeTab && (
           <EmptyState>

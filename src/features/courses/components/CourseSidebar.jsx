@@ -13,6 +13,7 @@ import {
   Swords,
   Layers,
   Type,
+  Brain,
 } from "lucide-react";
 import { useCourses } from "../../../contexts/CoursesContext";
 import InfiniteScroll from "react-infinite-scroll-component";
@@ -87,8 +88,8 @@ const NavTab = styled.button`
   font-weight: 600;
   cursor: pointer;
   background-color: ${(props) =>
-    props.active ? "var(--primary-color)" : "var(--background-color)"};
-  color: ${(props) => (props.active ? "white" : "var(--text-color)")};
+    props.$active ? "var(--primary-color)" : "var(--background-color)"};
+  color: ${(props) => (props.$active ? "white" : "var(--text-color)")};
   transition: all 0.2s;
 
   &:hover {
@@ -123,7 +124,7 @@ const CourseItem = styled.div`
   }
 
   ${(props) =>
-    props.active &&
+    props.$active &&
     `
     background-color: var(--active-color);
     
@@ -354,7 +355,7 @@ const CourseSidebar = ({
       <SidebarContainer>
         <TabsContainer>
           <NavTab
-            active={viewMode === "courses"}
+            $active={viewMode === "courses"}
             onClick={() => {
               if (onToggleViewMode) onToggleViewMode("courses");
               navigate("/courses");
@@ -363,7 +364,7 @@ const CourseSidebar = ({
             <BookOpen size={16} /> {t("courseSidebar.tabs.courses")}
           </NavTab>
           <NavTab
-            active={viewMode === "arena"}
+            $active={viewMode === "arena"}
             onClick={() => {
               if (onToggleViewMode) onToggleViewMode("arena");
               onSelectCourse(null);
@@ -377,7 +378,7 @@ const CourseSidebar = ({
         {viewMode === "arena" ? (
           <CourseList style={{ paddingTop: "16px" }}>
             <CourseItem
-              active={activeArenaTab === "tests"}
+              $active={activeArenaTab === "tests"}
               onClick={() => {
                 if (setActiveArenaTab) setActiveArenaTab("tests");
                 navigate("/arena/quiz");
@@ -395,7 +396,7 @@ const CourseSidebar = ({
             </CourseItem>
 
             <CourseItem
-              active={activeArenaTab === "flashcards"}
+              $active={activeArenaTab === "flashcards"}
               onClick={() => {
                 if (setActiveArenaTab) setActiveArenaTab("flashcards");
                 navigate("/arena/flashcard");
@@ -413,7 +414,7 @@ const CourseSidebar = ({
             </CourseItem>
 
             <CourseItem
-              active={activeArenaTab === "sentenceBuilders"}
+              $active={activeArenaTab === "sentenceBuilders"}
               onClick={() => {
                 if (setActiveArenaTab) setActiveArenaTab("sentenceBuilders");
                 navigate("/arena/sentence-builder");
@@ -431,7 +432,25 @@ const CourseSidebar = ({
             </CourseItem>
 
             <CourseItem
-              active={activeArenaTab === "battles"}
+              $active={activeArenaTab === "mnemonics"}
+              onClick={() => {
+                if (setActiveArenaTab) setActiveArenaTab("mnemonics");
+                navigate("/arena/minemonika");
+              }}
+            >
+              <CourseThumbnail>
+                <Brain size={20} color="white" />
+              </CourseThumbnail>
+              <CourseInfo>
+                <CourseName>{t("courseSidebar.arena.mnemonicsTitle")}</CourseName>
+                <CourseDescription>
+                  {t("courseSidebar.arena.mnemonicsDescription")}
+                </CourseDescription>
+              </CourseInfo>
+            </CourseItem>
+
+            <CourseItem
+              $active={activeArenaTab === "battles"}
               onClick={() => {
                 if (setActiveArenaTab) setActiveArenaTab("battles");
                 navigate("/arena/battle");
@@ -522,7 +541,7 @@ const CourseSidebar = ({
                     return (
                       <CourseItem
                         key={course._id}
-                        active={
+                        $active={
                           selectedCourse === course._id ||
                           selectedCourse === course.urlSlug
                         }

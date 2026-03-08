@@ -117,6 +117,7 @@ import {
 const CoursePlayer = ({ courseId, initialLessonSlug, onClose }) => {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const authToken = useAuthStore((state) => state.token);
   const { createChat } = useChats();
   const {
     courses,
@@ -582,8 +583,28 @@ const CoursePlayer = ({ courseId, initialLessonSlug, onClose }) => {
       const hls = new Hls({
         enableWorker: true,
         lowLatencyMode: false,
-        xhrSetup: (xhr) => {
-          xhr.withCredentials = true;
+        xhrSetup: (xhr, url) => {
+          const requestUrl = String(url || "");
+          const isCdnAsset = /^https?:\/\/files\.tayn\.uz\//i.test(requestUrl);
+          xhr.withCredentials = false;
+          if (!isCdnAsset && authToken) {
+            xhr.setRequestHeader("Authorization", `Bearer ${authToken}`);
+          }
+        },
+        fetchSetup: (context, initParams) => {
+          const requestUrl = String(context?.url || "");
+          const isCdnAsset = /^https?:\/\/files\.tayn\.uz\//i.test(requestUrl);
+          return new Request(requestUrl, {
+            ...initParams,
+            credentials: "omit",
+            headers:
+              !isCdnAsset && authToken
+                ? {
+                    ...(initParams?.headers || {}),
+                    Authorization: `Bearer ${authToken}`,
+                  }
+                : initParams?.headers,
+          });
         },
       });
       hlsRef.current = hls;
@@ -607,7 +628,7 @@ const CoursePlayer = ({ courseId, initialLessonSlug, onClose }) => {
         hlsRef.current = null;
       }
     };
-  }, [isHlsVideo, playbackUrl]);
+  }, [authToken, isHlsVideo, playbackUrl, t]);
 
   if (!course) {
     return (
@@ -711,7 +732,7 @@ const CoursePlayer = ({ courseId, initialLessonSlug, onClose }) => {
                         : currentLessonData.videoUrl
                     }
                     preload="metadata"
-                    crossOrigin="use-credentials"
+                    crossOrigin={isHlsVideo ? "anonymous" : undefined}
                     controlsList="nodownload"
                     disablePictureInPicture
                     onContextMenu={(e) => e.preventDefault()}

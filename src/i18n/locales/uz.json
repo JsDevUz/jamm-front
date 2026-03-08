@@ -53,6 +53,8 @@
       "flashcardsDescription": "Lug'atlarni yodlash",
       "sentencesTitle": "Gap tuzish",
       "sentencesDescription": "Bo'laklardan gap yig'ish",
+      "mnemonicsTitle": "Minemonika",
+      "mnemonicsDescription": "Raqamlarni eslab qolish",
       "battlesTitle": "Bilimlar bellashuvi",
       "battlesDescription": "Real vaqt musobaqa"
     },
@@ -283,6 +285,76 @@
     "members": "A'zolar ({{count}})",
     "waitingMembers": "Kutayotganlar ({{count}})",
     "joinedMembers": "Qo'shilganlar ({{count}})"
+  },
+  "mnemonics": {
+    "title": "Minemonika",
+    "description": "Frontend ichida generatsiya qilinadigan mashqlar. Natija faqat yakunda ko'rsatiladi va saqlanmaydi.",
+    "numberMemory": {
+      "title": "Raqam eslab qolish",
+      "description": "Berilgan raqam ketma-ketligini qisqa vaqt ichida eslab qoling va to'g'ri kiriting."
+    },
+    "sequenceMemory": {
+      "title": "Tartib bilan yodlash",
+      "description": "Berilgan oraliqdagi sonlar ketma-ketligini aynan ko'rsatilgan tartibda eslab qoling.",
+      "startFrom": "Nechdan boshlab",
+      "endAt": "Nechchigacha",
+      "totalNumbers": "Jami nechta son",
+      "totalOption": "{{count}} ta son",
+      "showTime": "Ko'rsatish vaqti",
+      "helper": "{{start}} dan {{end}} gacha bo'lgan oraliqdan {{count}} ta son tanlanadi.",
+      "countLabel": "{{count}} ta son",
+      "rangeLabel": "{{start}} - {{end}} oraliq",
+      "memorizePrompt": "Ketma-ketlikni aynan tartibi bilan yodlab oling.",
+      "answerPrompt": "Sonlarni tartibi bilan kiriting. Orasini bo'sh joy bilan ajrating.",
+      "answerPlaceholder": "Masalan: 14 27 39 52"
+    },
+    "fields": {
+      "digits": "Raqam soni",
+      "digitsOption": "{{count}} ta raqam",
+      "rounds": "Raundlar",
+      "roundsOption": "{{count}} ta raund",
+      "showTime": "Ko'rsatish vaqti",
+      "showTimeValue": "{{count}} soniya"
+    },
+    "stats": {
+      "round": "{{current}} / {{total}} raund",
+      "correct": "{{count}} / {{total}} to'g'ri"
+    },
+    "memorizePrompt": "Raqamni yodlab oling.",
+    "countdown": "{{count}} soniyadan keyin yopiladi",
+    "answerPrompt": "Eslab qolgan raqamni kiriting.",
+    "answerPlaceholder": "Masalan: 4827519",
+    "review": {
+      "correct": "To'g'ri",
+      "wrong": "Xato",
+      "yourAnswer": "Sizning javobingiz",
+      "correctAnswer": "To'g'ri javob",
+      "empty": "Javob yo'q"
+    },
+    "summary": {
+      "title": "Mashq yakunlandi",
+      "score": "{{correct}} / {{total}} to'g'ri • {{percent}}%",
+      "roundLabel": "{{count}}-raund"
+    },
+    "actions": {
+      "start": "Boshlash",
+      "check": "Tekshirish",
+      "next": "Keyingi raund",
+      "finish": "Yakunlash",
+      "retry": "Qayta boshlash",
+      "reset": "Sozlamalarga qaytish"
+    },
+    "howItWorks": {
+      "title": "Qanday ishlaydi",
+      "step1": "Raqam soni va raundlar miqdorini tanlang.",
+      "step2": "Har raundda raqam bir necha soniya ko'rinadi.",
+      "step3": "Raqam yashirilgach, uni eslab yozasiz.",
+      "step4": "Oxirida umumiy natija chiqadi, lekin saqlanmaydi."
+    },
+    "tags": {
+      "frontOnly": "Faqat frontend",
+      "notSaved": "Natija saqlanmaydi"
+    }
   },
   "arenaShared": {
     "shareLinks": {

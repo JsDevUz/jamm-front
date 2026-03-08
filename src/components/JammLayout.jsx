@@ -88,6 +88,10 @@ const JammLayout = ({
         sentences: "sentenceBuilders",
         gap: "sentenceBuilders",
         "gap-tuzish": "sentenceBuilders",
+        minemonika: "mnemonics",
+        mnemonika: "mnemonics",
+        mnemonic: "mnemonics",
+        mnemonics: "mnemonics",
         battle: "battles",
         battles: "battles",
       };
@@ -99,12 +103,13 @@ const JammLayout = ({
       else if (path.includes("/arena/sentence-builder")) {
         targetTab = "sentenceBuilders";
       }
+      else if (path.includes("/arena/minemonika")) targetTab = "mnemonics";
       else if (path.includes("/arena/battle")) targetTab = "battles";
       else targetTab = tabMap[initialResourceId] || initialResourceId;
 
       if (
         targetTab &&
-        ["tests", "flashcards", "sentenceBuilders", "battles"].includes(
+        ["tests", "flashcards", "sentenceBuilders", "mnemonics", "battles"].includes(
           targetTab,
         )
       ) {
@@ -203,11 +208,13 @@ const JammLayout = ({
                       "tests",
                       "flashcards",
                       "sentenceBuilders",
+                      "mnemonics",
                       "battles",
                       "quiz",
                       "quiz-link",
                       "flashcard",
                       "sentence-builder",
+                      "minemonika",
                       "battle",
                       "0",
                     ].includes(initialResourceId)
