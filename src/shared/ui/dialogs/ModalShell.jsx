@@ -31,6 +31,10 @@ export const ModalOverlay = styled.div`
   background: ${(props) => props.$overlay || "var(--overlay-color, rgba(0, 0, 0, 0.7))"};
   backdrop-filter: ${(props) => props.$backdrop || "blur(4px)"};
   animation: ${overlayIn} 0.18s ease-out;
+
+  @media (max-width: 768px) {
+    padding: ${(props) => props.$paddingMobile || "12px"};
+  }
 `;
 
 export const ModalPanel = styled.div`
@@ -41,18 +45,20 @@ export const ModalPanel = styled.div`
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  background: var(--secondary-color);
+  background: ${(props) => props.$glass ? "var(--secondary-color-with-opacity)": "var(--secondary-color)"};
+  backdrop-filter: ${(props) => props.$glass ? "blur(5px) saturate(150%)": "none"};
   border: 1px solid var(--border-color);
   border-radius: ${(props) => props.$radius || "18px"};
   box-shadow: 0 16px 48px var(--shadow-color-strong, rgba(0, 0, 0, 0.28));
   animation: ${panelIn} 0.22s ease-out;
-
   @media (max-width: 768px) {
     width: ${(props) => (props.$mobileFull ? "100%" : props.$width || "100%")};
     max-width: 100%;
-    max-height: ${(props) => (props.$mobileFull ? "100vh" : props.$maxHeight || "90vh")};
-    height: ${(props) => (props.$mobileFull ? "100%" : "auto")};
-    border-radius: ${(props) => (props.$mobileFull ? "0" : props.$radius || "18px")};
+    max-height: ${(props) =>
+      props.$mobileFull ? "calc(100vh - 24px)" : props.$maxHeight || "90vh"};
+    height: auto;
+    min-height: 0;
+    border-radius: ${(props) => props.$radius || "18px"};
   }
 `;
 

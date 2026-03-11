@@ -1,11 +1,9 @@
-import React from "react";
+import React, { Suspense, lazy } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useChats } from "../../contexts/ChatsContext";
-import { SystemLoadingScreen } from "../components/SystemStateScreen";
-import AppWrapper from "./AppWrapper";
+const AppWrapper = lazy(() => import("./AppWrapper"));
 
 const knownRoutes = [
-  "home",
   "feed",
   "blogs",
   "chats",
@@ -15,6 +13,7 @@ const knownRoutes = [
   "arena",
   "meets",
   "profile",
+  "admin",
   "login",
   "register",
   "join",
@@ -50,18 +49,22 @@ export default function SlugResolver() {
           return;
         }
 
-        navigate("/home", { replace: true });
+        navigate("/chats", { replace: true });
         setIsResolving(false);
       })
       .catch(() => {
-        navigate("/home", { replace: true });
+        navigate("/chats", { replace: true });
         setIsResolving(false);
       });
   }, [chatId, nav, navigate, resolveChatSlug]);
 
   if (isResolving) {
-    return <SystemLoadingScreen />;
+    return null;
   }
 
-  return <AppWrapper />;
+  return (
+    <Suspense fallback={null}>
+      <AppWrapper />
+    </Suspense>
+  );
 }

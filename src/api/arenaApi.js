@@ -229,3 +229,16 @@ export const fetchActiveBattles = async (page = 1, limit = 15) => {
   );
   return data;
 };
+
+// --- Mnemonics ---
+export const fetchMnemonicLeaderboard = async (mode = "digits") => {
+  const { data } = await axiosInstance.get("/arena/mnemonics/leaderboard", {
+    params: { mode },
+  });
+  return data;
+};
+
+export const saveMnemonicBestResult = async (payload) => {
+  const { data } = await axiosInstance.post("/arena/mnemonics/result", payload);
+  return data;
+};

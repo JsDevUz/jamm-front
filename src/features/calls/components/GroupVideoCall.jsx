@@ -33,6 +33,7 @@ import {
 } from "lucide-react";
 import { useWebRTC } from "../../../hooks/useWebRTC";
 import useAuthStore from "../../../store/authStore";
+import { RESOLVED_APP_BASE_URL } from "../../../config/env";
 
 const slideIn = keyframes`
   from { opacity: 0; transform: translateY(24px); }
@@ -47,17 +48,27 @@ const pulse = keyframes`
 // ─── Layout ───────────────────────────────────────────────────────────────────
 
 const Overlay = styled.div`
+  --call-bg: var(--background-color);
+  --call-surface: color-mix(in srgb, var(--secondary-color) 92%, black 8%);
+  --call-panel: color-mix(in srgb, var(--input-color) 90%, black 10%);
+  --call-border: color-mix(in srgb, var(--border-color) 80%, transparent);
+  --call-text: var(--text-color);
+  --call-muted: var(--text-muted-color);
+  --call-success: var(--success-color);
+  --call-warning: var(--warning-color);
+  --call-danger: var(--danger-color);
+  --call-primary: var(--primary-color);
   position: fixed;
   inset: ${(p) => (p.$minimized ? "auto 20px 20px auto" : "0")};
   width: ${(p) => (p.$minimized ? "320px" : "auto")};
   height: ${(p) => (p.$minimized ? "180px" : "auto")};
   z-index: 10000;
-  background: #0b0d0f;
+  background: var(--call-bg);
   display: flex;
   flex-direction: column;
   animation: ${slideIn} 0.3s ease-out;
   border-radius: ${(p) => (p.$minimized ? "18px" : "0")};
-  border: ${(p) => (p.$minimized ? "1px solid rgba(255,255,255,0.08)" : "none")};
+  border: ${(p) => (p.$minimized ? "1px solid var(--call-border)" : "none")};
   box-shadow: ${(p) =>
     p.$minimized ? "0 20px 50px rgba(0,0,0,0.45)" : "none"};
   overflow: hidden;
@@ -77,10 +88,10 @@ const FloatingActionBtn = styled.button`
   width: 40px;
   height: 40px;
   border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(11, 13, 15, 0.72);
+  border: 1px solid var(--call-border);
+  background: color-mix(in srgb, var(--call-surface) 74%, transparent);
   backdrop-filter: blur(10px);
-  color: #fff;
+  color: var(--call-text);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -89,7 +100,7 @@ const FloatingActionBtn = styled.button`
   transition: background 0.16s ease, transform 0.16s ease;
 
   &:hover {
-    background: rgba(24, 28, 34, 0.92);
+    background: color-mix(in srgb, var(--call-panel) 92%, transparent);
     transform: translateY(-1px);
   }
 `;
@@ -99,8 +110,8 @@ const TopBar = styled.div`
   align-items: center;
   justify-content: space-between;
   padding: 10px 18px;
-  background: rgba(0, 0, 0, 0.5);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  background: color-mix(in srgb, var(--call-bg) 78%, transparent);
+  border-bottom: 1px solid var(--call-border);
   backdrop-filter: blur(10px);
   flex-shrink: 0;
 `;
@@ -110,12 +121,12 @@ const CallInfo = styled.div`
   flex-direction: column;
 `;
 const CallTitle = styled.span`
-  color: #fff;
+  color: var(--call-text);
   font-size: 15px;
   font-weight: 700;
 `;
 const CallSub = styled.span`
-  color: #72767d;
+  color: var(--call-muted);
   font-size: 11px;
   font-family: monospace;
 `;
@@ -132,18 +143,25 @@ const TinyBtn = styled.button`
   padding: 7px 13px;
   border-radius: 8px;
   border: 1px solid
-    ${(p) => (p.$danger ? "rgba(240,71,71,0.3)" : "rgba(255,255,255,0.1)")};
+    ${(p) =>
+      p.$danger
+        ? "color-mix(in srgb, var(--call-danger) 30%, transparent)"
+        : "var(--call-border)"};
   background: ${(p) =>
-    p.$danger ? "rgba(240,71,71,0.1)" : "rgba(255,255,255,0.06)"};
-  color: ${(p) => (p.$danger ? "#f04747" : "#b9bbbe")};
+    p.$danger
+      ? "color-mix(in srgb, var(--call-danger) 10%, transparent)"
+      : "color-mix(in srgb, var(--call-panel) 88%, transparent)"};
+  color: ${(p) => (p.$danger ? "var(--call-danger)" : "var(--call-text)")};
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.18s ease;
   &:hover {
     background: ${(p) =>
-      p.$danger ? "rgba(240,71,71,0.2)" : "rgba(255,255,255,0.12)"};
-    color: ${(p) => (p.$danger ? "#ff6060" : "#fff")};
+      p.$danger
+        ? "color-mix(in srgb, var(--call-danger) 18%, transparent)"
+        : "color-mix(in srgb, var(--call-panel) 96%, transparent)"};
+    color: ${(p) => (p.$danger ? "var(--call-danger)" : "var(--call-text)")};
   }
 `;
 
@@ -156,7 +174,7 @@ const Body = styled.div`
 const PiPFrame = styled.div`
   width: 100%;
   height: 100%;
-  background: #0b0d0f;
+  background: var(--call-bg);
   display: flex;
   flex-direction: column;
 `;
@@ -166,10 +184,10 @@ const MinimizedBody = styled.button`
   border: none;
   background: linear-gradient(
     180deg,
-    rgba(255, 255, 255, 0.04),
-    rgba(255, 255, 255, 0.02)
+    color-mix(in srgb, var(--call-surface) 84%, transparent),
+    color-mix(in srgb, var(--call-panel) 90%, transparent)
   );
-  color: #fff;
+  color: var(--call-text);
   padding: 16px;
   display: flex;
   flex-direction: column;
@@ -184,7 +202,7 @@ const MiniTitle = styled.div`
 `;
 
 const MiniMeta = styled.div`
-  color: #9ca3af;
+  color: var(--call-muted);
   font-size: 12px;
   line-height: 1.5;
 `;
@@ -228,9 +246,12 @@ const VideoTile = styled.div`
   position: relative;
   border-radius: 14px;
   overflow: hidden;
-  background: #1e2124;
+  background: var(--call-panel);
   border: 2px solid
-    ${(p) => (p.$isLocal ? "rgba(114,137,218,0.4)" : "rgba(255,255,255,0.05)")};
+    ${(p) =>
+      p.$isLocal
+        ? "color-mix(in srgb, var(--call-primary) 44%, transparent)"
+        : "var(--call-border)"};
   video {
     width: 100%;
     height: 100%;
@@ -246,7 +267,7 @@ const TileLabel = styled.div`
   left: 10px;
   background: rgba(0, 0, 0, 0.55);
   backdrop-filter: blur(6px);
-  color: #fff;
+  color: white;
   font-size: 12px;
   font-weight: 600;
   padding: 3px 10px;
@@ -265,37 +286,41 @@ const NoCamera = styled.div`
   justify-content: center;
   flex-direction: column;
   gap: 10px;
-  color: #4f545c;
+  color: var(--call-muted);
 `;
 
 const Avatar = styled.div`
   width: 60px;
   height: 60px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #7289da, #5e73bc);
+  background: var(--call-panel);
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 26px;
   font-weight: 700;
-  color: white;
+  color: var(--call-text);
 `;
 
 // ─── Waiting Room Panel ───────────────────────────────────────────────────────
 
 const WaitingPanel = styled.div`
-  width: 280px;
+  width: 304px;
   flex-shrink: 0;
-  background: #18191c;
-  border-left: 1px solid rgba(255, 255, 255, 0.07);
+  margin: 12px 12px 12px 0;
+  background: color-mix(in srgb, var(--call-surface) 96%, transparent);
+  border: 1px solid var(--call-border);
+  border-radius: 18px;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
 `;
 
 const PanelHead = styled.div`
   padding: 14px 16px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
-  color: #fff;
+  border-bottom: 1px solid var(--call-border);
+  background: color-mix(in srgb, var(--call-panel) 92%, transparent);
+  color: var(--call-text);
   font-size: 13px;
   font-weight: 700;
   display: flex;
@@ -313,15 +338,15 @@ const PanelBody = styled.div`
 `;
 
 const KnockCard = styled.div`
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: color-mix(in srgb, var(--call-panel) 88%, transparent);
+  border: 1px solid var(--call-border);
   border-radius: 10px;
   padding: 12px;
   animation: ${slideIn} 0.2s ease;
 `;
 
 const KnockName = styled.div`
-  color: #fff;
+  color: var(--call-text);
   font-size: 14px;
   font-weight: 600;
   margin-bottom: 8px;
@@ -347,13 +372,13 @@ const KnockBtn = styled.button`
   transition: all 0.15s;
   ${(p) =>
     p.$approve
-      ? `background: rgba(67,181,129,0.14); color: #43b581; border: 1px solid rgba(67,181,129,0.3); &:hover { background: rgba(67,181,129,0.24); }`
-      : `background: rgba(240,71,71,0.12); color: #f04747; border: 1px solid rgba(240,71,71,0.25); &:hover { background: rgba(240,71,71,0.22); }`}
+      ? `background: color-mix(in srgb, var(--call-success) 14%, transparent); color: var(--call-success); border: 1px solid color-mix(in srgb, var(--call-success) 30%, transparent); &:hover { background: color-mix(in srgb, var(--call-success) 24%, transparent); }`
+      : `background: color-mix(in srgb, var(--call-danger) 12%, transparent); color: var(--call-danger); border: 1px solid color-mix(in srgb, var(--call-danger) 25%, transparent); &:hover { background: color-mix(in srgb, var(--call-danger) 22%, transparent); }`}
 `;
 
 const EmptyWaiting = styled.div`
   text-align: center;
-  color: #4f545c;
+  color: var(--call-muted);
   font-size: 13px;
   padding: 28px 12px;
   display: flex;
@@ -364,13 +389,13 @@ const EmptyWaiting = styled.div`
 
 const MemberRow = styled.div`
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 10px;
-  padding: 8px 12px;
-  border-radius: 8px;
+  padding: 10px 12px;
+  border-radius: 12px;
   transition: background 0.12s;
   &:hover {
-    background: rgba(255, 255, 255, 0.04);
+    background: color-mix(in srgb, var(--call-panel) 88%, transparent);
   }
 `;
 
@@ -379,35 +404,116 @@ const MemberAvatar = styled.div`
   height: 32px;
   border-radius: 50%;
   flex-shrink: 0;
-  background: linear-gradient(135deg, #7289da, #5e73bc);
+  background: var(--call-panel);
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 14px;
   font-weight: 700;
-  color: #fff;
+  color: var(--call-text);
 `;
 
 const MemberInfo = styled.div`
   flex: 1;
   min-width: 0;
-  color: #dcddde;
+  color: var(--call-text);
   font-size: 13px;
   font-weight: 500;
+  display: grid;
+  gap: 6px;
+`;
+
+const MemberName = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 `;
 
+const MemberStatusRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  color: var(--call-muted);
+  font-size: 11px;
+`;
+
+const MemberStatusBadge = styled.div`
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 7px;
+  border-radius: 999px;
+  border: 1px solid
+    ${(props) =>
+      props.$tone === "danger"
+        ? "color-mix(in srgb, var(--call-danger) 30%, transparent)"
+        : "color-mix(in srgb, var(--call-success) 30%, transparent)"};
+  background: ${(props) =>
+    props.$tone === "danger"
+      ? "color-mix(in srgb, var(--call-danger) 12%, transparent)"
+      : "color-mix(in srgb, var(--call-success) 12%, transparent)"};
+  color: ${(props) =>
+    props.$tone === "danger"
+      ? "var(--call-danger)"
+      : "var(--call-success)"};
+`;
+
 const MemberIcons = styled.div`
   display: flex;
-  gap: 4px;
-  color: #4f545c;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  color: var(--call-muted);
   flex-shrink: 0;
 `;
 
+const MemberActionBtn = styled.button`
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  border: 1px solid
+    ${(props) =>
+      props.$danger
+        ? "color-mix(in srgb, var(--call-danger) 32%, transparent)"
+        : props.$success
+          ? "color-mix(in srgb, var(--call-success) 32%, transparent)"
+          : "var(--call-border)"};
+  background: ${(props) =>
+    props.$danger
+      ? "color-mix(in srgb, var(--call-danger) 14%, transparent)"
+      : props.$success
+        ? "color-mix(in srgb, var(--call-success) 14%, transparent)"
+        : "color-mix(in srgb, var(--call-panel) 92%, transparent)"};
+  color: ${(props) =>
+    props.$danger
+      ? "var(--call-danger)"
+      : props.$success
+        ? "var(--call-success)"
+        : "var(--call-text)"};
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform 0.16s ease, background 0.16s ease;
+
+  &:hover {
+    transform: translateY(-1px);
+    background: ${(props) =>
+      props.$danger
+        ? "color-mix(in srgb, var(--call-danger) 20%, transparent)"
+        : props.$success
+          ? "color-mix(in srgb, var(--call-success) 20%, transparent)"
+          : "color-mix(in srgb, var(--call-panel) 100%, transparent)"};
+  }
+`;
+
 const SectionLabel = styled.div`
-  color: #72767d;
+  color: var(--call-muted);
   font-size: 10px;
   font-weight: 700;
   text-transform: uppercase;
@@ -422,8 +528,8 @@ const NotifBadge = styled.span`
   width: 16px;
   height: 16px;
   border-radius: 50%;
-  background: #f04747;
-  color: #fff;
+  background: var(--call-danger);
+  color: white;
   font-size: 9px;
   font-weight: 800;
   display: flex;
@@ -435,13 +541,13 @@ const NotifBadge = styled.span`
 const DrawerClose = styled.button`
   background: none;
   border: none;
-  color: #72767d;
+  color: var(--call-muted);
   cursor: pointer;
   padding: 4px;
   border-radius: 4px;
   transition: color 0.15s;
   &:hover {
-    color: #fff;
+    color: var(--call-text);
   }
 `;
 
@@ -453,8 +559,8 @@ const ControlBar = styled.div`
   justify-content: center;
   gap: 14px;
   padding: 16px;
-  background: rgba(0, 0, 0, 0.4);
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  background: color-mix(in srgb, var(--call-bg) 76%, transparent);
+  border-top: 1px solid var(--call-border);
   flex-shrink: 0;
 `;
 
@@ -470,10 +576,10 @@ const CtrlBtn = styled.button`
   transition: all 0.18s ease;
   ${(p) =>
     p.$danger
-      ? `background: #f04747; color: white; &:hover { background: #d84040; transform: scale(1.08); }`
+      ? `background: var(--call-danger); color: white; &:hover { background: color-mix(in srgb, var(--call-danger) 88%, black); transform: scale(1.08); }`
       : p.$active
-        ? `background: rgba(255,255,255,0.09); color: #fff; &:hover { background: rgba(255,255,255,0.15); }`
-        : `background: rgba(240,71,71,0.15); color: #f04747; border: 1px solid rgba(240,71,71,0.3); &:hover { background: rgba(240,71,71,0.25); }`}
+        ? `background: color-mix(in srgb, var(--call-panel) 88%, transparent); color: var(--call-text); border: 1px solid var(--call-border); &:hover { background: color-mix(in srgb, var(--call-panel) 96%, transparent); }`
+        : `background: color-mix(in srgb, var(--call-danger) 15%, transparent); color: var(--call-danger); border: 1px solid color-mix(in srgb, var(--call-danger) 30%, transparent); &:hover { background: color-mix(in srgb, var(--call-danger) 25%, transparent); }`}
 `;
 
 const CenterBox = styled.div`
@@ -483,7 +589,7 @@ const CenterBox = styled.div`
   align-items: center;
   justify-content: center;
   gap: 14px;
-  color: #b9bbbe;
+  color: var(--call-muted);
   font-size: 15px;
 `;
 
@@ -645,6 +751,7 @@ const GroupVideoCall = ({
   isMinimized = false,
   roomId,
   chatTitle,
+  displayName: preferredDisplayName,
   isCreator = true,
   isPrivate = false,
   initialMicOn = true,
@@ -660,11 +767,15 @@ const GroupVideoCall = ({
   const currentUser = useAuthStore((state) => state.user);
 
   const displayName =
-    currentUser?.nickname || currentUser?.username || t("groupCall.guest");
+    preferredDisplayName?.trim() ||
+    currentUser?.nickname ||
+    currentUser?.username ||
+    t("groupCall.guest");
 
   const {
     localStream,
     remoteStreams,
+    remotePeerStates,
     screenStream,
     remoteScreenStreams,
     isScreenSharing,
@@ -692,6 +803,8 @@ const GroupVideoCall = ({
     raisedHands,
     toggleHandRaise,
     kickPeer,
+    networkQuality,
+    qualityProfile,
   } = useWebRTC({
     roomId,
     displayName,
@@ -850,7 +963,7 @@ const GroupVideoCall = ({
   };
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(`${window.location.origin}/join/${roomId}`);
+    navigator.clipboard.writeText(`${RESOLVED_APP_BASE_URL}/join/${roomId}`);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -965,59 +1078,80 @@ const GroupVideoCall = ({
     (screenStream ? 1 : 0) +
     remoteScreenStreams.length;
 
+  const qualityTone =
+    networkQuality === "poor"
+      ? "var(--call-warning)"
+      : networkQuality === "limited"
+        ? "var(--call-primary)"
+        : "var(--call-success)";
+
+  const topBarContent = (
+    <TopBar>
+      <CallInfo>
+        <CallTitle>
+          {roomTitle || chatTitle || "Meet"}
+          {isPrivate && (
+            <span
+              style={{
+                fontSize: 11,
+                color: "#faa61a",
+                marginLeft: 8,
+                display: "flex",
+                alignItems: "center",
+                gap: "4px",
+              }}
+            >
+              <ShieldAlert size={12} /> {t("groupCall.privateBadge")}
+            </span>
+          )}
+        </CallTitle>
+        <CallSub>{roomId}</CallSub>
+      </CallInfo>
+      <TopActions>
+        {(isRecording || remoteIsRecording) && (
+          <RecBadge>
+            <Circle size={8} fill="#f04747" /> {t("groupCall.recording")}
+          </RecBadge>
+        )}
+        <TinyBtn
+          as="div"
+          style={{
+            cursor: "default",
+            color: qualityTone,
+            borderColor: qualityTone,
+          }}
+        >
+          {qualityProfile.label}
+        </TinyBtn>
+        {(onMinimize || isMinimized) && (
+          <TinyBtn onClick={handleMinimizeToggle}>
+            {isMinimized ? <Maximize size={13} /> : <Minimize2 size={13} />}
+            {isMinimized ? t("groupCall.open") : t("groupCall.minimize")}
+          </TinyBtn>
+        )}
+        <TinyBtn onClick={handleCopy}>
+          {copied ? <Check size={13} /> : <Copy size={13} />}
+          {copied ? t("groupCall.copied") : t("groupCall.copyLink")}
+        </TinyBtn>
+        {!isMinimized && (
+          <TinyBtn
+            onClick={() => setShowDrawer((p) => !p)}
+            style={{ position: "relative" }}
+          >
+            <Users size={13} />
+            {totalTiles}
+            {isCreator && knockRequests.length > 0 && (
+              <NotifBadge>{knockRequests.length}</NotifBadge>
+            )}
+          </TinyBtn>
+        )}
+      </TopActions>
+    </TopBar>
+  );
+
   const minimizedContent = (
     <>
-      <TopBar>
-        <CallInfo>
-          <CallTitle>
-            {roomTitle || chatTitle || "Meet"}
-            {isPrivate && (
-              <span
-                style={{
-                  fontSize: 11,
-                  color: "#faa61a",
-                  marginLeft: 8,
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "4px",
-                }}
-              >
-                <ShieldAlert size={12} /> {t("groupCall.privateBadge")}
-              </span>
-            )}
-          </CallTitle>
-          <CallSub>{roomId}</CallSub>
-        </CallInfo>
-        <TopActions>
-          {(isRecording || remoteIsRecording) && (
-            <RecBadge>
-              <Circle size={8} fill="#f04747" /> {t("groupCall.recording")}
-            </RecBadge>
-          )}
-          {(onMinimize || isMinimized) && (
-            <TinyBtn onClick={handleMinimizeToggle}>
-              {isMinimized ? <Maximize size={13} /> : <Minimize2 size={13} />}
-              {isMinimized ? t("groupCall.open") : t("groupCall.minimize")}
-            </TinyBtn>
-          )}
-          <TinyBtn onClick={handleCopy}>
-            {copied ? <Check size={13} /> : <Copy size={13} />}
-            {copied ? t("groupCall.copied") : t("groupCall.copyLink")}
-          </TinyBtn>
-          {!isMinimized && (
-            <TinyBtn
-              onClick={() => setShowDrawer((p) => !p)}
-              style={{ position: "relative" }}
-            >
-              <Users size={13} />
-              {totalTiles}
-              {isCreator && knockRequests.length > 0 && (
-                <NotifBadge>{knockRequests.length}</NotifBadge>
-              )}
-            </TinyBtn>
-          )}
-        </TopActions>
-      </TopBar>
+      {topBarContent}
 
       <MinimizedBody
         type="button"
@@ -1045,18 +1179,6 @@ const GroupVideoCall = ({
 
   return (
     <Overlay $minimized={isMinimized}>
-      {!isMinimized && (
-        <FloatingActionBar>
-          <FloatingActionBtn
-            type="button"
-            title={t("groupCall.minimizeTitle")}
-            aria-label={t("groupCall.minimizeTitle")}
-            onClick={handleMinimizeToggle}
-          >
-            <Minimize2 size={18} />
-          </FloatingActionBtn>
-        </FloatingActionBar>
-      )}
       {isMinimized ? (
         <MinimizedBody type="button" onClick={onMaximize}>
           <div>
@@ -1073,6 +1195,8 @@ const GroupVideoCall = ({
           </MiniActions>
         </MinimizedBody>
       ) : (
+      <>
+      {topBarContent}
       <Body>
         {error ? (
           <CenterBox>
@@ -1121,9 +1245,13 @@ const GroupVideoCall = ({
                 isCamOn
               />
             )}
-            {remoteStreams.map(({ peerId, stream, displayName: n }) => (
+            {remoteStreams.map(({ peerId, stream, displayName: n }) => {
+              const peerState = remotePeerStates[peerId];
+              const isRemoteCamOn =
+                peerState?.hasVideo !== false && peerState?.videoMuted !== true;
+              return (
               <div key={peerId} style={{ position: "relative" }}>
-                <VideoEl stream={stream} label={n} isCamOn />
+                <VideoEl stream={stream} label={n} isCamOn={isRemoteCamOn} />
                 {raisedHands.has(peerId) && (
                   <span
                     style={{
@@ -1138,8 +1266,26 @@ const GroupVideoCall = ({
                     <Hand size={20} color="#faa61a" fill="#faa61a" />
                   </span>
                 )}
+                {!isRemoteCamOn && (
+                  <span
+                    style={{
+                      position: "absolute",
+                      top: 8,
+                      right: 8,
+                      fontSize: 12,
+                      zIndex: 5,
+                      padding: "4px 8px",
+                      borderRadius: 999,
+                      background: "rgba(0,0,0,0.5)",
+                      color: "white",
+                    }}
+                  >
+                    {t("groupCall.cameraOff")}
+                  </span>
+                )}
               </div>
-            ))}
+              );
+            })}
             {/* Remote screen share tiles */}
             {remoteScreenStreams.map(({ peerId, stream, displayName: n }) => (
               <VideoEl
@@ -1231,90 +1377,141 @@ const GroupVideoCall = ({
                 <MemberAvatar>
                   {displayName?.charAt(0)?.toUpperCase() || "?"}
                 </MemberAvatar>
-                <MemberInfo>{displayName} (Sen)</MemberInfo>
+                <MemberInfo>
+                  <MemberName>{displayName} (Sen)</MemberName>
+                  <MemberStatusRow>
+                    <MemberStatusBadge $tone={isMicOn ? "success" : "danger"}>
+                      {isMicOn ? (
+                        <Mic size={11} />
+                      ) : (
+                        <MicOff size={11} />
+                      )}
+                      {isMicOn ? "Mikrofon on" : "Mikrofon off"}
+                    </MemberStatusBadge>
+                    <MemberStatusBadge $tone={isCamOn ? "success" : "danger"}>
+                      {isCamOn ? (
+                        <Video size={11} />
+                      ) : (
+                        <VideoOff size={11} />
+                      )}
+                      {isCamOn ? "Kamera on" : "Kamera off"}
+                    </MemberStatusBadge>
+                  </MemberStatusRow>
+                </MemberInfo>
                 <MemberIcons>
                   {isMicOn ? (
-                    <Mic size={13} color="#43b581" />
+                    <Mic size={13} color="var(--call-success)" />
                   ) : (
-                    <MicOff size={13} color="#f04747" />
+                    <MicOff size={13} color="var(--call-danger)" />
                   )}
                   {isCamOn ? (
-                    <Video size={13} color="#43b581" />
+                    <Video size={13} color="var(--call-success)" />
                   ) : (
-                    <VideoOff size={13} color="#f04747" />
+                    <VideoOff size={13} color="var(--call-danger)" />
                   )}
                 </MemberIcons>
               </MemberRow>
               {/* Remote peers */}
-              {remoteStreams.map(({ peerId, displayName: n }) => (
+              {remoteStreams.map(({ peerId, displayName: n }) => {
+                const peerState = remotePeerStates[peerId] || {};
+                const isPeerMicOn =
+                  peerState.hasAudio !== false && peerState.audioMuted !== true;
+                const isPeerCamOn =
+                  peerState.hasVideo !== false && peerState.videoMuted !== true;
+
+                return (
                 <MemberRow key={peerId}>
                   <MemberAvatar>
                     {n?.charAt(0)?.toUpperCase() || "?"}
                   </MemberAvatar>
-                  <MemberInfo
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "4px",
-                    }}
-                  >
-                    {raisedHands.has(peerId) && (
-                      <Hand size={14} color="#faa61a" fill="#faa61a" />
-                    )}
-                    {n}
+                  <MemberInfo>
+                    <MemberName>
+                      {raisedHands.has(peerId) && (
+                        <Hand size={14} color="#faa61a" fill="#faa61a" />
+                      )}
+                      {n}
+                    </MemberName>
+                    <MemberStatusRow>
+                      <MemberStatusBadge
+                        $tone={isPeerMicOn ? "success" : "danger"}
+                      >
+                        {isPeerMicOn ? (
+                          <Mic size={11} />
+                        ) : (
+                          <MicOff size={11} />
+                        )}
+                        {isPeerMicOn ? "Mikrofon on" : "Mikrofon off"}
+                      </MemberStatusBadge>
+                      <MemberStatusBadge
+                        $tone={isPeerCamOn ? "success" : "danger"}
+                      >
+                        {isPeerCamOn ? (
+                          <Video size={11} />
+                        ) : (
+                          <VideoOff size={11} />
+                        )}
+                        {isPeerCamOn ? "Kamera on" : "Kamera off"}
+                      </MemberStatusBadge>
+                    </MemberStatusRow>
                   </MemberInfo>
                   <MemberIcons>
                     {isCreator ? (
                       <>
-                        <span
-                          onClick={() => forceMuteMic(peerId)}
-                          style={{ cursor: "pointer" }}
-                          title="Mic o'chirish"
+                        <MemberActionBtn
+                          onClick={() =>
+                            isPeerMicOn ? forceMuteMic(peerId) : allowMic(peerId)
+                          }
+                          title={isPeerMicOn ? "Mic o'chirish" : "Mic ruxsat"}
+                          $danger={isPeerMicOn}
+                          $success={!isPeerMicOn}
                         >
-                          <MicOff size={13} color="#f04747" />
-                        </span>
-                        <span
-                          onClick={() => allowMic(peerId)}
-                          style={{ cursor: "pointer" }}
-                          title="Mic ruxsat"
+                          {isPeerMicOn ? <MicOff size={16} /> : <Mic size={16} />}
+                        </MemberActionBtn>
+                        <MemberActionBtn
+                          onClick={() =>
+                            isPeerCamOn ? forceMuteCam(peerId) : allowCam(peerId)
+                          }
+                          title={isPeerCamOn ? "Cam o'chirish" : "Cam ruxsat"}
+                          $danger={isPeerCamOn}
+                          $success={!isPeerCamOn}
                         >
-                          <Mic size={13} color="#43b581" />
-                        </span>
-                        <span
-                          onClick={() => forceMuteCam(peerId)}
-                          style={{ cursor: "pointer" }}
-                          title="Cam o'chirish"
-                        >
-                          <VideoOff size={13} color="#f04747" />
-                        </span>
-                        <span
-                          onClick={() => allowCam(peerId)}
-                          style={{ cursor: "pointer" }}
-                          title="Cam ruxsat"
-                        >
-                          <Video size={13} color="#43b581" />
-                        </span>
-                        <span
+                          {isPeerCamOn ? (
+                            <VideoOff size={16} />
+                          ) : (
+                            <Video size={16} />
+                          )}
+                        </MemberActionBtn>
+                        <MemberActionBtn
                           onClick={() => kickPeer(peerId)}
-                          style={{ cursor: "pointer", marginLeft: 8 }}
                           title="Chiqarib yuborish"
+                          $danger
                         >
-                          <UserMinus size={13} color="#f04747" />
-                        </span>
+                          <UserMinus size={16} />
+                        </MemberActionBtn>
                       </>
                     ) : (
                       <>
-                        <Mic size={13} color="#43b581" />
-                        <Video size={13} color="#43b581" />
+                        {isPeerMicOn ? (
+                          <Mic size={13} color="var(--call-success)" />
+                        ) : (
+                          <MicOff size={13} color="var(--call-danger)" />
+                        )}
+                        {isPeerCamOn ? (
+                          <Video size={13} color="var(--call-success)" />
+                        ) : (
+                          <VideoOff size={13} color="var(--call-danger)" />
+                        )}
                       </>
                     )}
                   </MemberIcons>
                 </MemberRow>
-              ))}
+                );
+              })}
             </PanelBody>
           </WaitingPanel>
         )}
       </Body>
+      </>
         )}
 
       {!isMinimized && <ControlBar>

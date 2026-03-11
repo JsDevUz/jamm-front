@@ -1,14 +1,106 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { io } from "socket.io-client";
 import useAuthStore from "../store/authStore";
+import { API_BASE_URL } from "../config/env";
 
-const SIGNAL_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
+const SIGNAL_URL = API_BASE_URL;
+
+const TURN_URLS = import.meta.env.VITE_TURN_URLS
+  ? import.meta.env.VITE_TURN_URLS.split(",").map((item) => item.trim())
+  : [];
 
 const ICE_SERVERS = {
   iceServers: [
     { urls: "stun:stun.l.google.com:19302" },
     { urls: "stun:stun1.l.google.com:19302" },
+    ...(TURN_URLS.length > 0
+      ? [
+          {
+            urls: TURN_URLS,
+            username: import.meta.env.VITE_TURN_USERNAME || "",
+            credential: import.meta.env.VITE_TURN_CREDENTIAL || "",
+          },
+        ]
+      : []),
   ],
+};
+
+const CALL_QUALITY_PROFILES = {
+  balanced: {
+    key: "balanced",
+    label: "balanced",
+    width: 640,
+    height: 360,
+    frameRate: 18,
+    videoBitrate: 380_000,
+    audioBitrate: 32_000,
+    scaleResolutionDownBy: 1,
+  },
+  crowded: {
+    key: "crowded",
+    label: "crowded",
+    width: 480,
+    height: 270,
+    frameRate: 15,
+    videoBitrate: 220_000,
+    audioBitrate: 32_000,
+    scaleResolutionDownBy: 1.2,
+  },
+  poor: {
+    key: "poor",
+    label: "audio-priority",
+    width: 320,
+    height: 180,
+    frameRate: 10,
+    videoBitrate: 110_000,
+    audioBitrate: 40_000,
+    scaleResolutionDownBy: 1.6,
+  },
+  screen: {
+    key: "screen",
+    label: "screen-share",
+    width: 854,
+    height: 480,
+    frameRate: 12,
+    videoBitrate: 350_000,
+    audioBitrate: 32_000,
+    scaleResolutionDownBy: 1,
+  },
+};
+
+const getNavigatorConnectionState = () => {
+  const connection =
+    navigator.connection ||
+    navigator.mozConnection ||
+    navigator.webkitConnection;
+
+  return {
+    saveData: Boolean(connection?.saveData),
+    effectiveType: connection?.effectiveType || "unknown",
+    downlink: Number(connection?.downlink || 0),
+  };
+};
+
+const resolveCallQualityProfile = ({
+  peerCount,
+  isScreenSharing,
+  networkQuality,
+  navigatorState,
+}) => {
+  if (isScreenSharing) return CALL_QUALITY_PROFILES.screen;
+
+  const isVeryWeakNetwork =
+    networkQuality === "poor" ||
+    navigatorState.saveData ||
+    navigatorState.effectiveType === "slow-2g" ||
+    navigatorState.effectiveType === "2g" ||
+    (navigatorState.downlink > 0 && navigatorState.downlink < 1);
+
+  if (isVeryWeakNetwork) return CALL_QUALITY_PROFILES.poor;
+  if (peerCount >= 6 || networkQuality === "limited") {
+    return CALL_QUALITY_PROFILES.crowded;
+  }
+  return CALL_QUALITY_PROFILES.balanced;
 };
 
 /**
@@ -48,6 +140,7 @@ export function useWebRTC({
 
   const [localStream, setLocalStream] = useState(null);
   const [remoteStreams, setRemoteStreams] = useState([]);
+  const [remotePeerStates, setRemotePeerStates] = useState({});
   const [screenStream, setScreenStream] = useState(null);
   const [remoteScreenStreams, setRemoteScreenStreams] = useState([]);
   const [isScreenSharing, setIsScreenSharing] = useState(false);
@@ -62,10 +155,16 @@ export function useWebRTC({
   const [error, setError] = useState(null);
   const [roomTitle, setRoomTitle] = useState(chatTitle || "");
   const [remoteIsRecording, setRemoteIsRecording] = useState(false);
+  const [networkQuality, setNetworkQuality] = useState("good");
+  const [qualityProfile, setQualityProfile] = useState(
+    CALL_QUALITY_PROFILES.balanced,
+  );
   const screenStreamRef = useRef(null);
   const screenSendersRef = useRef({});
   const knownStreamsRef = useRef({});
   const candidateQueuesRef = useRef({}); // Store candidates until remote sdp is set
+  const statsIntervalRef = useRef(null);
+  const qualityProfileRef = useRef(CALL_QUALITY_PROFILES.balanced);
 
   // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -76,11 +175,37 @@ export function useWebRTC({
       }
       return [...prev, { peerId, stream, displayName: name || peerId }];
     });
+    setRemotePeerStates((prev) => ({
+      ...prev,
+      [peerId]: {
+        hasVideo: Boolean(stream?.getVideoTracks?.().length),
+        hasAudio: Boolean(stream?.getAudioTracks?.().length),
+        videoMuted: false,
+        audioMuted: false,
+        connectionState: prev[peerId]?.connectionState || "connecting",
+        displayName: name || prev[peerId]?.displayName || peerId,
+      },
+    }));
+  }, []);
+
+  const updateRemotePeerState = useCallback((peerId, patch) => {
+    setRemotePeerStates((prev) => ({
+      ...prev,
+      [peerId]: {
+        ...(prev[peerId] || {}),
+        ...patch,
+      },
+    }));
   }, []);
 
   const removeRemoteStream = useCallback((peerId) => {
     setRemoteStreams((prev) => prev.filter((r) => r.peerId !== peerId));
     setRemoteScreenStreams((prev) => prev.filter((r) => r.peerId !== peerId));
+    setRemotePeerStates((prev) => {
+      const next = { ...prev };
+      delete next[peerId];
+      return next;
+    });
     delete knownStreamsRef.current[peerId];
     if (peerConnectionsRef.current[peerId]) {
       peerConnectionsRef.current[peerId].close();
@@ -88,11 +213,152 @@ export function useWebRTC({
     }
   }, []);
 
+  const applyMediaOptimization = useCallback(async (profile) => {
+    const stream = localStreamRef.current;
+    if (!stream) return;
+
+    const audioTrack = stream.getAudioTracks()[0];
+    if (audioTrack) {
+      try {
+        audioTrack.contentHint = "speech";
+        await audioTrack.applyConstraints({
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+          channelCount: 1,
+        });
+      } catch {}
+    }
+
+    const videoTrack = stream.getVideoTracks()[0];
+    if (videoTrack) {
+      try {
+        videoTrack.contentHint = isScreenSharing ? "detail" : "motion";
+        await videoTrack.applyConstraints({
+          width: { ideal: profile.width, max: profile.width },
+          height: { ideal: profile.height, max: profile.height },
+          frameRate: { ideal: profile.frameRate, max: profile.frameRate },
+        });
+      } catch {}
+    }
+
+    const senderTasks = [];
+
+    Object.values(peerConnectionsRef.current).forEach((pc) => {
+      pc.getSenders().forEach((sender) => {
+        if (!sender.track) return;
+        senderTasks.push(
+          (async () => {
+            const params = sender.getParameters();
+            const encodings =
+              params.encodings && params.encodings.length > 0
+                ? [...params.encodings]
+                : [{}];
+
+            if (sender.track.kind === "audio") {
+              encodings[0] = {
+                ...encodings[0],
+                maxBitrate: profile.audioBitrate,
+                networkPriority: "high",
+              };
+              params.encodings = encodings;
+            }
+
+            if (sender.track.kind === "video") {
+              encodings[0] = {
+                ...encodings[0],
+                maxBitrate: profile.videoBitrate,
+                maxFramerate: profile.frameRate,
+                scaleResolutionDownBy: profile.scaleResolutionDownBy,
+                networkPriority: "medium",
+              };
+              params.encodings = encodings;
+              params.degradationPreference = "maintain-framerate";
+            }
+
+            try {
+              await sender.setParameters(params);
+            } catch {}
+          })(),
+        );
+      });
+    });
+
+    await Promise.all(senderTasks);
+  }, [isScreenSharing]);
+
+  const refreshQualityProfile = useCallback(async () => {
+    const peerCount =
+      remoteStreams.length + remoteScreenStreams.length + (isScreenSharing ? 1 : 0);
+    const navigatorState = getNavigatorConnectionState();
+    const nextProfile = resolveCallQualityProfile({
+      peerCount,
+      isScreenSharing,
+      networkQuality,
+      navigatorState,
+    });
+
+    if (qualityProfileRef.current.key === nextProfile.key) return;
+    qualityProfileRef.current = nextProfile;
+    setQualityProfile(nextProfile);
+    await applyMediaOptimization(nextProfile);
+  }, [
+    applyMediaOptimization,
+    isScreenSharing,
+    networkQuality,
+    remoteScreenStreams.length,
+    remoteStreams.length,
+  ]);
+
+  const evaluateConnectionHealth = useCallback(async () => {
+    let nextQuality = "good";
+
+    for (const pc of Object.values(peerConnectionsRef.current)) {
+      try {
+        const stats = await pc.getStats();
+        let rtt = 0;
+        let availableBitrate = 0;
+
+        stats.forEach((report) => {
+          if (
+            report.type === "candidate-pair" &&
+            report.state === "succeeded" &&
+            report.nominated
+          ) {
+            rtt = Math.max(rtt, Number(report.currentRoundTripTime || 0));
+            availableBitrate = Math.max(
+              availableBitrate,
+              Number(report.availableOutgoingBitrate || 0),
+            );
+          }
+        });
+
+        if (rtt > 0.45 || (availableBitrate > 0 && availableBitrate < 180_000)) {
+          nextQuality = "poor";
+          break;
+        }
+
+        if (
+          nextQuality !== "poor" &&
+          (rtt > 0.25 || (availableBitrate > 0 && availableBitrate < 420_000))
+        ) {
+          nextQuality = "limited";
+        }
+      } catch {}
+    }
+
+    setNetworkQuality((prev) => (prev === nextQuality ? prev : nextQuality));
+  }, []);
+
   // ─── Peer connection factory ──────────────────────────────────────────────────
 
   const createPeerConnection = useCallback(
     (peerId, peerDisplayName) => {
       const pc = new RTCPeerConnection(ICE_SERVERS);
+      updateRemotePeerState(peerId, {
+        displayName: peerDisplayName || peerId,
+        connectionState: "connecting",
+      });
 
       if (localStreamRef.current) {
         localStreamRef.current
@@ -110,6 +376,37 @@ export function useWebRTC({
       pc.ontrack = (e) => {
         const [s] = e.streams;
         if (!s) return;
+
+        const syncTrackState = () => {
+          const videoTracks = s.getVideoTracks();
+          const audioTracks = s.getAudioTracks();
+
+          updateRemotePeerState(peerId, {
+            hasVideo: videoTracks.length > 0,
+            hasAudio: audioTracks.length > 0,
+            videoMuted:
+              videoTracks.length > 0
+                ? videoTracks.every(
+                    (track) =>
+                      track.readyState !== "live" || track.muted === true,
+                  )
+                : true,
+            audioMuted:
+              audioTracks.length > 0
+                ? audioTracks.every(
+                    (track) =>
+                      track.readyState !== "live" || track.muted === true,
+                  )
+                : true,
+          });
+        };
+
+        [...s.getVideoTracks(), ...s.getAudioTracks()].forEach((track) => {
+          track.onmute = syncTrackState;
+          track.onunmute = syncTrackState;
+          track.onended = syncTrackState;
+        });
+        syncTrackState();
 
         const known = knownStreamsRef.current[peerId];
 
@@ -146,6 +443,9 @@ export function useWebRTC({
       };
 
       pc.onconnectionstatechange = () => {
+        updateRemotePeerState(peerId, {
+          connectionState: pc.connectionState,
+        });
         if (["failed", "disconnected"].includes(pc.connectionState)) {
           removeRemoteStream(peerId);
         }
@@ -154,7 +454,7 @@ export function useWebRTC({
       peerConnectionsRef.current[peerId] = pc;
       return pc;
     },
-    [addRemoteStream, removeRemoteStream],
+    [addRemoteStream, removeRemoteStream, updateRemotePeerState],
   );
 
   // ─── Socket signaling listeners ──────────────────────────────────────────────
@@ -240,8 +540,17 @@ export function useWebRTC({
       try {
         // 1. Get local media
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: true,
-          audio: true,
+          video: {
+            width: { ideal: 640, max: 640 },
+            height: { ideal: 360, max: 360 },
+            frameRate: { ideal: 18, max: 18 },
+          },
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+            channelCount: 1,
+          },
         });
         if (!isMounted) {
           stream.getTracks().forEach((t) => t.stop());
@@ -249,6 +558,7 @@ export function useWebRTC({
         }
         localStreamRef.current = stream;
         setLocalStream(stream);
+        await applyMediaOptimization(qualityProfileRef.current);
 
         // Apply initial mic/cam state
         const audioTrack = stream.getAudioTracks()[0];
@@ -257,10 +567,9 @@ export function useWebRTC({
         if (videoTrack) videoTrack.enabled = initialCamOn;
 
         // 2. Connect to signaling server
-        const token = useAuthStore.getState().token;
         const socket = io(`${SIGNAL_URL}/video`, {
           transports: ["websocket"],
-          auth: { token },
+          withCredentials: true,
         });
         socketRef.current = socket;
 
@@ -443,7 +752,15 @@ export function useWebRTC({
       }
       setLocalStream(null);
       setRemoteStreams([]);
+      setRemotePeerStates({});
+      setNetworkQuality("good");
+      setQualityProfile(CALL_QUALITY_PROFILES.balanced);
+      qualityProfileRef.current = CALL_QUALITY_PROFILES.balanced;
       setKnockRequests([]);
+      if (statsIntervalRef.current) {
+        clearInterval(statsIntervalRef.current);
+        statsIntervalRef.current = null;
+      }
       if (socketRef.current) {
         socketRef.current.emit("leave-room", { roomId });
         socketRef.current.disconnect();
@@ -518,7 +835,15 @@ export function useWebRTC({
       setIsScreenSharing(false);
       setRemoteStreams([]);
       setRemoteScreenStreams([]);
+      setRemotePeerStates({});
       setJoinStatus("idle");
+      setNetworkQuality("good");
+      setQualityProfile(CALL_QUALITY_PROFILES.balanced);
+      qualityProfileRef.current = CALL_QUALITY_PROFILES.balanced;
+      if (statsIntervalRef.current) {
+        clearInterval(statsIntervalRef.current);
+        statsIntervalRef.current = null;
+      }
     }
   }, [roomId]);
 
@@ -595,6 +920,24 @@ export function useWebRTC({
     }
   }, [isScreenSharing, roomId]);
 
+  useEffect(() => {
+    refreshQualityProfile();
+  }, [refreshQualityProfile]);
+
+  useEffect(() => {
+    if (!enabled || joinStatus !== "joined") return undefined;
+
+    evaluateConnectionHealth();
+    statsIntervalRef.current = setInterval(evaluateConnectionHealth, 5000);
+
+    return () => {
+      if (statsIntervalRef.current) {
+        clearInterval(statsIntervalRef.current);
+        statsIntervalRef.current = null;
+      }
+    };
+  }, [enabled, evaluateConnectionHealth, joinStatus]);
+
   // ─── Recording signal ─────────────────────────────────────────────────────────
 
   const emitRecording = useCallback(
@@ -657,6 +1000,7 @@ export function useWebRTC({
   return {
     localStream,
     remoteStreams,
+    remotePeerStates,
     screenStream,
     remoteScreenStreams,
     isScreenSharing,
@@ -684,5 +1028,7 @@ export function useWebRTC({
     raisedHands,
     toggleHandRaise,
     kickPeer,
+    networkQuality,
+    qualityProfile,
   };
 }

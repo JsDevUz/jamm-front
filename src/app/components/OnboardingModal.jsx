@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import useAuthStore from "../../store/authStore";
 import toast from "react-hot-toast";
+import { API_BASE_URL } from "../../config/env";
 
 const fadeIn = keyframes`
   from { opacity: 0; transform: scale(0.95); }
@@ -233,7 +234,6 @@ const OnboardingModal = () => {
   const [usernameAvailable, setUsernameAvailable] = useState(false);
 
   const updateUser = useAuthStore((state) => state.updateUser);
-  const token = useAuthStore((state) => state.token);
 
   const totalSteps = 5;
   const progress = (step / totalSteps) * 100;
@@ -258,9 +258,9 @@ const OnboardingModal = () => {
       setIsCheckingUsername(true);
       try {
         const res = await fetch(
-          `http://localhost:3000/users/check-username/${u}`,
+          `${API_BASE_URL}/users/check-username/${u}`,
           {
-            headers: { Authorization: `Bearer ${token}` },
+            credentials: "include",
           },
         );
         const d = await res.json();
@@ -307,13 +307,13 @@ const OnboardingModal = () => {
 
     try {
       const res = await fetch(
-        "http://localhost:3000/users/complete-onboarding",
+        `${API_BASE_URL}/users/complete-onboarding`,
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
           },
+          credentials: "include",
           body: JSON.stringify(data),
         },
       );

@@ -1,177 +1,277 @@
-import React, { useState, useRef, useEffect, useCallback } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { useTranslation } from "react-i18next";
 import styled from "styled-components";
 import {
-  Phone,
-  PhoneOff,
+  Maximize2,
   Mic,
   MicOff,
-  Video,
-  VideoOff,
+  Minimize2,
   Monitor,
   MonitorOff,
-  X,
-  Maximize2,
-  Minimize2,
+  PhoneOff,
+  Video,
+  VideoOff,
 } from "lucide-react";
 import { useWebRTC } from "../../../hooks/useWebRTC";
 import useAuthStore from "../../../store/authStore";
 
-const VideoCallContainer = styled.div`
+const Overlay = styled.div`
+  --call-bg: var(--background-color);
+  --call-surface: color-mix(in srgb, var(--secondary-color) 92%, black 8%);
+  --call-panel: color-mix(in srgb, var(--input-color) 88%, black 12%);
+  --call-border: color-mix(in srgb, var(--border-color) 82%, transparent);
+  --call-text: var(--text-color);
+  --call-muted: var(--text-muted-color);
+  --call-tint: color-mix(in srgb, var(--primary-color) 16%, transparent);
+  --call-danger: var(--danger-color);
   position: fixed;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
-  background-color: #202225;
+  inset: ${(props) => (props.$minimized ? "auto 16px 16px auto" : "0")};
+  width: ${(props) => (props.$minimized ? "320px" : "auto")};
+  height: ${(props) => (props.$minimized ? "180px" : "auto")};
   z-index: 10000;
+  background: ${(props) =>
+    props.$minimized ? "var(--call-surface)" : "var(--call-bg)"};
+  border: ${(props) =>
+    props.$minimized ? "1px solid var(--call-border)" : "none"};
+  border-radius: ${(props) => (props.$minimized ? "16px" : "0")};
+  box-shadow: ${(props) =>
+    props.$minimized ? "0 16px 40px rgba(0, 0, 0, 0.35)" : "none"};
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+`;
+
+const PiPFrame = styled.div`
+  width: 100%;
+  height: 100%;
+  background: var(--background-color);
   display: flex;
   flex-direction: column;
 `;
 
-const VideoCallMain = styled.div`
-  flex: 1;
+const Header = styled.div`
   display: flex;
-  position: relative;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--call-border);
+  background: color-mix(in srgb, var(--call-surface) 90%, transparent);
+  backdrop-filter: blur(10px);
+`;
+
+const HeaderText = styled.div`
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+`;
+
+const Title = styled.div`
+  color: var(--call-text);
+  font-size: 14px;
+  font-weight: 700;
+  white-space: nowrap;
   overflow: hidden;
+  text-overflow: ellipsis;
 `;
 
-const FullVideoContainer = styled.div`
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background-color: #000;
-  position: relative;
-`;
-
-const SmallVideoContainer = styled.div`
-  position: absolute;
-  width: 200px;
-  height: 150px;
-  background-color: #2f3136;
-  border-radius: 16px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+const Subtitle = styled.div`
+  color: var(--call-muted);
+  font-size: 12px;
+  white-space: nowrap;
   overflow: hidden;
-  cursor: pointer;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  z-index: 10001;
-
-  ${(props) => {
-    const positions = {
-      "top-left": { top: "20px", left: "20px" },
-      "top-right": { top: "20px", right: "20px" },
-      "bottom-left": { bottom: "80px", left: "20px" },
-      "bottom-right": { bottom: "80px", right: "20px" },
-    };
-    return positions[props.position] || positions["bottom-right"];
-  }}
-
-  &:hover {
-    transform: scale(1.05);
-    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
-  }
+  text-overflow: ellipsis;
 `;
 
-const VideoElement = styled.video`
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  background-color: #2f3136;
-`;
-
-const NoVideoPlaceholder = styled.div`
-  width: 100%;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  background-color: #2f3136;
-  color: #dcddde;
-`;
-
-const UserAvatar = styled.div`
-  width: 64px;
-  height: 64px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: white;
-  font-size: 24px;
-  font-weight: 600;
-  margin-bottom: 12px;
-`;
-
-const UserName = styled.div`
-  font-size: 18px;
-  font-weight: 600;
-  color: #dcddde;
-  margin-bottom: 8px;
-`;
-
-const UserStatus = styled.div`
+const HeaderActions = styled.div`
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 14px;
-  color: #b9bbbe;
+`;
+
+const ActionButton = styled.button`
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  border: 1px solid var(--call-border);
+  background: var(--call-panel);
+  color: var(--call-text);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+`;
+
+const Body = styled.div`
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  background: color-mix(in srgb, var(--call-bg) 88%, black 12%);
+`;
+
+const MainStage = styled.div`
+  width: 100%;
+  height: 100%;
+  position: relative;
+  overflow: hidden;
+`;
+
+const VideoStage = styled.video`
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background: black;
+  transform: ${(props) => (props.$mirror ? "scaleX(-1)" : "none")};
+`;
+
+const Placeholder = styled.div`
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, var(--call-panel) 88%, black 12%);
+  color: var(--call-muted);
+  padding: 20px;
+  text-align: center;
+`;
+
+const PlaceholderInner = styled.div`
+  display: grid;
+  gap: 10px;
+  justify-items: center;
+`;
+
+const Avatar = styled.div`
+  width: ${(props) => (props.$small ? "44px" : "72px")};
+  height: ${(props) => (props.$small ? "44px" : "72px")};
+  border-radius: 50%;
+  border: 1px solid var(--call-border);
+  background: var(--call-panel);
+  color: var(--call-text);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: ${(props) => (props.$small ? "16px" : "24px")};
+  font-weight: 800;
+`;
+
+const Label = styled.div`
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--call-border);
+  background: rgba(0, 0, 0, 0.46);
+  color: white;
+  font-size: 12px;
+  font-weight: 700;
+`;
+
+const RemoteState = styled.div`
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--call-border);
+  background: rgba(0, 0, 0, 0.42);
+  color: white;
+  font-size: 12px;
+  font-weight: 600;
+`;
+
+const LocalTile = styled.button`
+  position: absolute;
+  right: 16px;
+  bottom: 84px;
+  width: 188px;
+  height: 132px;
+  border-radius: 14px;
+  border: 1px solid var(--call-border);
+  background: var(--call-panel);
+  overflow: hidden;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.28);
+  cursor: pointer;
+  padding: 0;
+
+  @media (max-width: 768px) {
+    width: 144px;
+    height: 104px;
+    right: 12px;
+    bottom: 78px;
+  }
 `;
 
 const ControlBar = styled.div`
   position: absolute;
-  bottom: 0;
   left: 0;
   right: 0;
-  background: linear-gradient(
-    180deg,
-    transparent 0%,
-    rgba(32, 34, 37, 0.9) 20%,
-    rgba(32, 34, 37, 0.95) 100%
-  );
-  padding: 24px;
-  display: flex;
-  justify-content: center;
-  gap: 16px;
-  backdrop-filter: blur(10px);
-`;
-
-const ControlButton = styled.button`
-  width: 56px;
-  height: 56px;
-  border-radius: 50%;
-  border: none;
+  bottom: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  font-size: 24px;
+  gap: 12px;
+  padding: 14px 18px 18px;
+  background: linear-gradient(
+    180deg,
+    transparent 0%,
+    rgba(0, 0, 0, 0.28) 24%,
+    rgba(0, 0, 0, 0.64) 100%
+  );
+`;
 
-  ${(props) =>
-    props.variant === "primary"
-      ? `
-    background-color: #dc3545;
-    color: white;
-    
-    &:hover {
-      background-color: #c82333;
-      transform: scale(1.1);
-    }
-  `
-      : `
-    background-color: ${
-      props.$active ? "rgba(255, 255, 255, 0.2)" : "rgba(255, 255, 255, 0.1)"
-    };
-    color: white;
-    backdrop-filter: blur(10px);
-    
-    &:hover {
-      background-color: rgba(255, 255, 255, 0.2);
-      transform: scale(1.1);
-    }
-  `}
+const ControlButton = styled.button`
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  border: 1px solid
+    ${(props) =>
+      props.$danger ? "transparent" : "color-mix(in srgb, white 12%, transparent)"};
+  background: ${(props) =>
+    props.$danger
+      ? "var(--call-danger)"
+      : props.$active
+        ? "rgba(255, 255, 255, 0.16)"
+        : "rgba(0, 0, 0, 0.38)"};
+  color: white;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+`;
+
+const MiniBody = styled.button`
+  flex: 1;
+  border: none;
+  background: var(--call-surface);
+  padding: 14px;
+  color: var(--call-text);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  text-align: left;
+  cursor: pointer;
+`;
+
+const MiniMeta = styled.div`
+  color: var(--call-muted);
+  font-size: 12px;
+  line-height: 1.45;
+`;
+
+const MiniStatus = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--call-muted);
 `;
 
 const PrivateVideoCall = ({
@@ -181,12 +281,18 @@ const PrivateVideoCall = ({
   remoteUser,
   isCaller,
 }) => {
+  const { t } = useTranslation();
   const currentUser = useAuthStore((state) => state.user);
-  const displayName = currentUser?.nickname || currentUser?.username || "You";
+  const displayName = currentUser?.nickname || currentUser?.username || t("privateCall.localLabel");
+  const [isMinimized, setIsMinimized] = useState(false);
+  const [pipWindow, setPipWindow] = useState(null);
+  const [pipContainer, setPipContainer] = useState(null);
+  const pipCloseIntentRef = useRef(false);
 
   const {
     localStream,
     remoteStreams,
+    remotePeerStates,
     isMicOn,
     isCamOn,
     toggleMic,
@@ -197,6 +303,7 @@ const PrivateVideoCall = ({
     toggleScreenShare,
     screenStream,
     remoteScreenStreams,
+    joinStatus,
   } = useWebRTC({
     roomId,
     displayName,
@@ -205,21 +312,11 @@ const PrivateVideoCall = ({
     isPrivate: false,
   });
 
-  const [isFullscreen, setIsFullscreen] = useState(false);
-  const [smallVideoPosition, setSmallVideoPosition] = useState("bottom-right");
-
   const remotePeer = remoteStreams[0];
-  const hasRemoteVideo = !!remotePeer?.stream;
-
-  const localVideoRef = useCallback(
-    (node) => {
-      if (node && localStream) {
-        node.srcObject = localStream;
-      }
-    },
-    [localStream],
-  );
-
+  const remotePeerState = remotePeer ? remotePeerStates[remotePeer.peerId] : null;
+  const remoteName = remotePeer?.displayName || remoteUser?.name || t("privateCall.remoteLabel");
+  const remoteCameraVisible =
+    Boolean(remotePeer?.stream) && remotePeerState?.hasVideo !== false && remotePeerState?.videoMuted !== true;
   const remoteVideoRef = useCallback(
     (node) => {
       if (node && remotePeer?.stream) {
@@ -228,99 +325,263 @@ const PrivateVideoCall = ({
     },
     [remotePeer?.stream],
   );
-
+  const localVideoRef = useCallback(
+    (node) => {
+      if (node && localStream) {
+        node.srcObject = localStream;
+      }
+    },
+    [localStream],
+  );
   const remoteScreenRef = useCallback(
     (node) => {
-      if (node && remoteScreenStreams.length > 0) {
+      if (node && remoteScreenStreams[0]?.stream) {
         node.srcObject = remoteScreenStreams[0].stream;
       }
     },
     [remoteScreenStreams],
   );
 
-  // Auto-close call when remote peer leaves (1:1 specific)
-  const hasJoinedRef = useRef(false);
-  useEffect(() => {
-    if (remoteStreams.length > 0) {
-      hasJoinedRef.current = true;
-    } else if (hasJoinedRef.current) {
-      // Remote peer was here but now gone
-      onClose();
-    }
-  }, [remoteStreams, onClose]);
-
-  const handleSmallVideoClick = () => {
-    setIsFullscreen(!isFullscreen);
-  };
-
   const handleLeave = useCallback(() => {
     leaveCall();
     onClose();
   }, [leaveCall, onClose]);
 
-  if (!isOpen) return null;
+  const closePiPWindow = useCallback(() => {
+    if (pipWindow && !pipWindow.closed) {
+      pipCloseIntentRef.current = true;
+      pipWindow.close();
+    }
+    setPipWindow(null);
+    setPipContainer(null);
+  }, [pipWindow]);
 
-  const isRemoteCamOff = false; // We can add this to useWebRTC later if needed
+  useEffect(() => {
+    if (!isOpen && pipWindow) {
+      closePiPWindow();
+    }
+  }, [closePiPWindow, isOpen, pipWindow]);
+
+  useEffect(() => {
+    if (!isMinimized && pipWindow) {
+      closePiPWindow();
+    }
+  }, [closePiPWindow, isMinimized, pipWindow]);
+
+  useEffect(() => {
+    if (!isMinimized || !pipWindow) return undefined;
+    const handlePageHide = () => {
+      setPipWindow(null);
+      setPipContainer(null);
+      if (pipCloseIntentRef.current) {
+        pipCloseIntentRef.current = false;
+        return;
+      }
+      setIsMinimized(false);
+    };
+    pipWindow.addEventListener("pagehide", handlePageHide);
+    return () => pipWindow.removeEventListener("pagehide", handlePageHide);
+  }, [isMinimized, pipWindow]);
+
+  const handleMinimize = useCallback(async () => {
+    if (isMinimized) {
+      setIsMinimized(false);
+      return;
+    }
+
+    const documentPiP = window?.documentPictureInPicture;
+    if (!documentPiP?.requestWindow) {
+      setIsMinimized(true);
+      return;
+    }
+
+    try {
+      const nextPipWindow = await documentPiP.requestWindow({
+        width: 340,
+        height: 210,
+      });
+
+      nextPipWindow.document.body.innerHTML = "";
+      nextPipWindow.document.body.style.margin = "0";
+      nextPipWindow.document.body.style.background = "var(--background-color)";
+      nextPipWindow.document.body.style.overflow = "hidden";
+
+      [...document.styleSheets].forEach((styleSheet) => {
+        try {
+          const cssRules = [...styleSheet.cssRules].map((rule) => rule.cssText).join("");
+          const style = document.createElement("style");
+          style.textContent = cssRules;
+          nextPipWindow.document.head.appendChild(style);
+        } catch {
+          if (styleSheet.href) {
+            const link = document.createElement("link");
+            link.rel = "stylesheet";
+            link.href = styleSheet.href;
+            nextPipWindow.document.head.appendChild(link);
+          }
+        }
+      });
+
+      const mountNode = nextPipWindow.document.createElement("div");
+      mountNode.style.width = "100%";
+      mountNode.style.height = "100%";
+      nextPipWindow.document.body.appendChild(mountNode);
+
+      pipCloseIntentRef.current = false;
+      setPipWindow(nextPipWindow);
+      setPipContainer(mountNode);
+      setIsMinimized(true);
+    } catch {
+      setIsMinimized(true);
+    }
+  }, [isMinimized]);
+
+  const miniContent = (
+    <>
+      <Header>
+        <HeaderText>
+          <Title>{remoteName}</Title>
+          <Subtitle>{joinStatus === "joined" ? roomId : t("groupCall.connecting")}</Subtitle>
+        </HeaderText>
+        <HeaderActions>
+          <ActionButton type="button" onClick={() => setIsMinimized(false)}>
+            <Maximize2 size={16} />
+          </ActionButton>
+          <ActionButton type="button" onClick={handleLeave}>
+            <PhoneOff size={16} />
+          </ActionButton>
+        </HeaderActions>
+      </Header>
+      <MiniBody type="button" onClick={() => setIsMinimized(false)}>
+        <div>
+          <Title>{remoteName}</Title>
+          <MiniMeta>
+            {remotePeerState?.connectionState || joinStatus || t("privateCall.calling")}
+          </MiniMeta>
+        </div>
+        <MiniStatus>
+          {isMicOn ? <Mic size={16} color="#43b581" /> : <MicOff size={16} color="#f04747" />}
+          {isCamOn ? <Video size={16} color="#43b581" /> : <VideoOff size={16} color="#f04747" />}
+          {isScreenSharing ? <Monitor size={16} color="var(--primary-color)" /> : null}
+        </MiniStatus>
+      </MiniBody>
+    </>
+  );
+
+  if (!isOpen) return null;
+  if (isMinimized && pipContainer) {
+    return createPortal(<PiPFrame>{miniContent}</PiPFrame>, pipContainer);
+  }
 
   return (
-    <VideoCallContainer>
-      <VideoCallMain>
-        {/* Full Screen Video (Remote) */}
-        <FullVideoContainer>
-          {remoteScreenStreams.length > 0 ? (
-            <VideoElement ref={remoteScreenRef} autoPlay playsInline />
-          ) : hasRemoteVideo ? (
-            <VideoElement ref={remoteVideoRef} autoPlay playsInline />
-          ) : (
-            <NoVideoPlaceholder>
-              <UserAvatar>{remoteUser?.name?.[0] || "?"}</UserAvatar>
-              <UserName>{remoteUser?.name || "User"}</UserName>
-              <UserStatus>Qo'ng'iroqqa ulanmoqda...</UserStatus>
-            </NoVideoPlaceholder>
-          )}
-        </FullVideoContainer>
+    <Overlay $minimized={isMinimized}>
+      {isMinimized ? (
+        miniContent
+      ) : (
+        <>
+          <Header>
+            <HeaderText>
+              <Title>{remoteName || t("privateCall.titleFallback")}</Title>
+              <Subtitle>
+                {error
+                  ? error
+                  : joinStatus === "joined"
+                    ? roomId
+                    : t("groupCall.connecting")}
+              </Subtitle>
+            </HeaderText>
+            <HeaderActions>
+              <ActionButton type="button" onClick={handleMinimize}>
+                <Minimize2 size={16} />
+              </ActionButton>
+              <ActionButton type="button" onClick={handleLeave}>
+                <PhoneOff size={16} />
+              </ActionButton>
+            </HeaderActions>
+          </Header>
 
-        {/* Small Video (Local) */}
-        <SmallVideoContainer
-          position={smallVideoPosition}
-          onClick={handleSmallVideoClick}
-        >
-          {isCamOn && localStream ? (
-            <VideoElement
-              ref={localVideoRef}
-              autoPlay
-              muted
-              playsInline
-              style={{ transform: "scaleX(-1)" }}
-            />
-          ) : (
-            <NoVideoPlaceholder>
-              <UserAvatar style={{ width: 40, height: 40, fontSize: 16 }}>
-                Siz
-              </UserAvatar>
-            </NoVideoPlaceholder>
-          )}
-        </SmallVideoContainer>
+          <Body>
+            <MainStage>
+              {remoteScreenStreams.length > 0 ? (
+                <VideoStage ref={remoteScreenRef} autoPlay playsInline />
+              ) : remoteCameraVisible ? (
+                <VideoStage ref={remoteVideoRef} autoPlay playsInline />
+              ) : (
+                <Placeholder>
+                  <PlaceholderInner>
+                    <Avatar>{remoteName?.charAt(0)?.toUpperCase() || "?"}</Avatar>
+                    <Title>{remoteName}</Title>
+                    <Subtitle>
+                      {error ||
+                        (joinStatus === "joined"
+                          ? t("privateCall.calling")
+                          : t("groupCall.connecting"))}
+                    </Subtitle>
+                  </PlaceholderInner>
+                </Placeholder>
+              )}
 
-        <ControlBar>
-          <ControlButton onClick={toggleMic} $active={isMicOn}>
-            {isMicOn ? <Mic size={24} /> : <MicOff size={24} />}
-          </ControlButton>
+              <RemoteState>
+                {remotePeerState?.audioMuted ? <MicOff size={14} /> : <Mic size={14} />}
+                {remotePeerState?.videoMuted || remotePeerState?.hasVideo === false ? (
+                  <VideoOff size={14} />
+                ) : (
+                  <Video size={14} />
+                )}
+                <span>{remoteName}</span>
+              </RemoteState>
 
-          <ControlButton onClick={toggleCam} $active={isCamOn}>
-            {isCamOn ? <Video size={24} /> : <VideoOff size={24} />}
-          </ControlButton>
+              <Label>
+                {remoteScreenStreams.length > 0 ? (
+                  <>
+                    <Monitor size={14} />
+                    {t("privateCall.screenShareLabel")}
+                  </>
+                ) : null}
+              </Label>
 
-          <ControlButton onClick={toggleScreenShare} $active={isScreenSharing}>
-            {isScreenSharing ? <MonitorOff size={24} /> : <Monitor size={24} />}
-          </ControlButton>
+              <LocalTile type="button" onClick={handleMinimize}>
+                {isCamOn && localStream ? (
+                  <VideoStage
+                    ref={localVideoRef}
+                    autoPlay
+                    muted
+                    playsInline
+                    $mirror
+                  />
+                ) : (
+                  <Placeholder>
+                    <PlaceholderInner>
+                      <Avatar $small>{displayName?.charAt(0)?.toUpperCase() || "?"}</Avatar>
+                      <MiniMeta>{t("privateCall.localLabel")}</MiniMeta>
+                    </PlaceholderInner>
+                  </Placeholder>
+                )}
+              </LocalTile>
 
-          <ControlButton variant="primary" onClick={handleLeave}>
-            <PhoneOff size={24} />
-          </ControlButton>
-        </ControlBar>
-      </VideoCallMain>
-    </VideoCallContainer>
+              <ControlBar>
+                <ControlButton type="button" $active={isMicOn} onClick={toggleMic}>
+                  {isMicOn ? <Mic size={22} /> : <MicOff size={22} />}
+                </ControlButton>
+                <ControlButton type="button" $active={isCamOn} onClick={toggleCam}>
+                  {isCamOn ? <Video size={22} /> : <VideoOff size={22} />}
+                </ControlButton>
+                <ControlButton
+                  type="button"
+                  $active={isScreenSharing}
+                  onClick={toggleScreenShare}
+                >
+                  {isScreenSharing ? <MonitorOff size={22} /> : <Monitor size={22} />}
+                </ControlButton>
+                <ControlButton type="button" $danger onClick={handleLeave}>
+                  <PhoneOff size={22} />
+                </ControlButton>
+              </ControlBar>
+            </MainStage>
+          </Body>
+        </>
+      )}
+    </Overlay>
   );
 };
 

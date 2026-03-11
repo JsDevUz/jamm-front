@@ -25,8 +25,8 @@ export const SidebarContainer = styled.div`
     padding: 10px 12px;
     border-radius: 20px;
     background: rgba(var(--tertiary-color-rgb, 32, 34, 37), 0.7);
-    backdrop-filter: blur(20px) saturate(160%);
-    -webkit-backdrop-filter: blur(20px) saturate(160%);
+    backdrop-filter: blur(4px) saturate(160%);
+    -webkit-backdrop-filter: blur(4px) saturate(160%);
     border: 1px solid rgba(255, 255, 255, 0.08);
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
     z-index: 100;
@@ -41,7 +41,8 @@ export const NavButton = styled.button`
   border: none;
   background-color: ${(props) =>
     props.$active ? "var(--primary-color)" : "transparent"};
-  color: ${(props) => (props.$active ? "white" : "var(--text-secondary-color)")};
+  color: ${(props) =>
+    props.$active ? "white" : "var(--text-secondary-color)"};
   cursor: pointer;
   transition: all 0.2s ease;
   display: flex;

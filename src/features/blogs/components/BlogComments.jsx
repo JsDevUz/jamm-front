@@ -4,13 +4,13 @@ import { CornerDownRight, Send, X } from "lucide-react";
 import InfiniteScroll from "react-infinite-scroll-component";
 import dayjs from "dayjs";
 import useAuthStore from "../../../store/authStore";
-import PremiumBadgeIcon from "../../../shared/ui/badges/PremiumBadge";
 import {
   addBlogComment,
   addBlogReply,
   getBlogComments,
 } from "../../../api/blogsApi";
 import { SidebarIconButton as ButtonWrapper } from "../../../shared/ui/buttons/IconButton";
+import UserNameWithDecoration from "../../../shared/ui/users/UserNameWithDecoration";
 
 const fadeIn = keyframes`from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); }`;
 
@@ -247,17 +247,22 @@ const BlogComments = ({ blog, onClose, onCommentsCountChange }) => {
   const [replyingTo, setReplyingTo] = useState(null);
   const inputRef = useRef(null);
 
+  const loadComments = async (nextPage = 1) => {
+    const response = await getBlogComments(blog._id, nextPage, 10);
+    const items = response?.data || [];
+    setComments(items);
+    setPage(nextPage);
+    setHasMore(nextPage < (response?.totalPages || 1));
+    return response;
+  };
+
   useEffect(() => {
     if (!blog?._id) return;
 
     const load = async () => {
       setLoading(true);
       try {
-        const response = await getBlogComments(blog._id, 1, 10);
-        const items = response?.data || [];
-        setComments(items);
-        setPage(1);
-        setHasMore((response?.totalPages || 1) > 1);
+        await loadComments(1);
       } finally {
         setLoading(false);
       }
@@ -287,55 +292,14 @@ const BlogComments = ({ blog, onClose, onCommentsCountChange }) => {
           content: text.trim(),
           replyToUser: replyingTo.nickname,
         });
-
-        setComments((prev) =>
-          prev.map((comment) =>
-            comment._id === replyingTo.commentId
-              ? {
-                  ...comment,
-                  replies: [
-                    ...(comment.replies || []),
-                    {
-                      _id: Date.now().toString(),
-                      user: {
-                        _id: currentUser?._id,
-                        username: currentUser?.username,
-                        nickname: currentUser?.nickname,
-                        avatar: currentUser?.avatar,
-                        premiumStatus: currentUser?.premiumStatus,
-                      },
-                      content: text.trim(),
-                      replyToUser: replyingTo.nickname,
-                      createdAt: new Date().toISOString(),
-                    },
-                  ],
-                }
-              : comment,
-          ),
-        );
+        await loadComments(1);
         setReplyingTo(null);
       } else {
         const response = await addBlogComment({
           blogId: blog._id,
           content: text.trim(),
         });
-
-        setComments((prev) => [
-          {
-            _id: Date.now().toString(),
-            user: {
-              _id: currentUser?._id,
-              username: currentUser?.username,
-              nickname: currentUser?.nickname,
-              avatar: currentUser?.avatar,
-              premiumStatus: currentUser?.premiumStatus,
-            },
-            content: text.trim(),
-            createdAt: new Date().toISOString(),
-            replies: [],
-          },
-          ...prev,
-        ]);
+        await loadComments(1);
         onCommentsCountChange?.(response?.comments || comments.length + 1);
       }
 
@@ -388,10 +352,7 @@ const BlogComments = ({ blog, onClose, onCommentsCountChange }) => {
                       <Bubble>
                         <AuthorRow>
                           <Author>
-                            {name}
-                            {user.premiumStatus === "active" && (
-                              <PremiumBadgeIcon width={14} height={14} />
-                            )}
+                            <UserNameWithDecoration user={user} fallback="Foydalanuvchi" />
                           </Author>
                           <Meta>{timeAgo(comment.createdAt)}</Meta>
                         </AuthorRow>

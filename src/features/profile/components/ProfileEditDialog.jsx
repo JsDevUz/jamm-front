@@ -187,7 +187,6 @@ const Skeleton = styled.div`
 
 const ProfileEditDialog = ({ isOpen, onClose }) => {
   const user = useAuthStore((state) => state.user);
-  const token = useAuthStore((state) => state.token);
   const setAuth = useAuthStore((state) => state.setAuth);
   const [profile, setProfile] = useState({
     nickname: "",
@@ -220,7 +219,7 @@ const ProfileEditDialog = ({ isOpen, onClose }) => {
           premiumStatus: data.premiumStatus || "none",
           premiumExpiresAt: data.premiumExpiresAt,
         });
-        setAuth({ ...(user || {}), ...data }, token);
+        setAuth({ ...(user || {}), ...data });
       } catch {
         setProfile({
           nickname: user?.nickname || "",
@@ -283,7 +282,7 @@ const ProfileEditDialog = ({ isOpen, onClose }) => {
         ...rest,
         phone: (phone || "").replace(/\s/g, ""),
       });
-      setAuth({ ...(user || {}), ...data }, token);
+      setAuth({ ...(user || {}), ...data });
       setProfile((prev) => ({ ...prev, ...data }));
       setSaveStatus("ok");
       setTimeout(() => {
@@ -317,7 +316,7 @@ const ProfileEditDialog = ({ isOpen, onClose }) => {
     try {
       const { data } = await axiosInstance.post("/users/avatar", formData);
       setProfile((prev) => ({ ...prev, avatar: data.avatar }));
-      setAuth({ ...(user || {}), ...data }, token);
+      setAuth({ ...(user || {}), ...data });
       toast.success("Avatar yangilandi");
     } catch {
       toast.error("Avatar yuklashda xatolik");
@@ -338,6 +337,7 @@ const ProfileEditDialog = ({ isOpen, onClose }) => {
         $maxHeight="min(88vh, 760px)"
         $radius="22px"
         $mobileFull
+        data-tour="profile-edit-dialog"
         onClick={(event) => event.stopPropagation()}
       >
         <ModalHeader $padding="18px 20px">

@@ -1,0 +1,22 @@
+{
+  "name": "Jamm",
+  "short_name": "Jamm",
+  "description": "Chatlar, kurslar, arena mashqlari, bloglar va video uchrashuvlar uchun yagona platforma.",
+  "start_url": "/chats",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#111827",
+  "theme_color": "#111827",
+  "icons": [
+    {
+      "src": "/fav.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/fav.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

@@ -37,6 +37,10 @@ const Overlay = styled.div`
   padding: 20px;
   z-index: 10000;
   animation: ${fadeIn} 0.18s ease-out;
+
+  @media (max-width: 768px) {
+    padding: 12px;
+  }
 `;
 
 const DialogBox = styled.div`
@@ -52,9 +56,8 @@ const DialogBox = styled.div`
 
   @media (max-width: 768px) {
     width: 100%;
-    height: 100%;
-    max-height: 100vh;
-    border-radius: 0;
+    max-height: calc(100vh - 24px);
+    border-radius: 18px;
   }
 `;
 
@@ -62,7 +65,7 @@ const Header = styled.div`
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 18px 20px;
+  padding: 16px 18px;
   border-bottom: 1px solid var(--border-color);
 
   h2 {
@@ -88,7 +91,11 @@ export const CloseBtnWrapper = styled.button`
 const Body = styled.div`
   flex: 1;
   overflow-y: auto;
-  padding: 20px;
+  padding: 16px 18px;
+
+  @media (max-width: 768px) {
+    padding: 14px 16px;
+  }
 `;
 
 const FormGroup = styled.div`
@@ -219,11 +226,12 @@ const Footer = styled.div`
   display: flex;
   justify-content: space-between;
   gap: 12px;
-  padding: 18px 20px;
+  padding: 14px 18px 18px;
   border-top: 1px solid var(--border-color);
 
   @media (max-width: 768px) {
     flex-direction: column;
+    padding: 12px 16px 16px;
   }
 `;
 
@@ -287,7 +295,9 @@ const parsePatternToItems = (pattern = "") =>
           (line.startsWith("'") && line.endsWith("'")),
       );
       const extraLine = lines.find(
-        (line) => line.startsWith("`") && line.endsWith("`"),
+        (line) =>
+          (line.startsWith("+") && line.endsWith("+")) ||
+          (line.startsWith("`") && line.endsWith("`")),
       );
 
       return {
@@ -476,7 +486,7 @@ const CreateSentenceBuilderDialog = ({ onClose, initialDeck = null }) => {
             <Label>Pattern orqali qo'shish</Label>
             <Textarea
               $minHeight="180px"
-              placeholder={`$Men kecha maktabga bordim.\n"I went to school yesterday"\n\`my,are,today,tomorrow,go,will\`\n\n$U bugun ishlayapti.\n"She is working today"\n\`was,were,tomorrow,goes\``}
+              placeholder={`$Men kecha maktabga bordim.\n"I went to school yesterday"\n+my,are,today,tomorrow,go,will+\n\n$U bugun ishlayapti.\n"She is working today"\n+was,were,tomorrow,goes+`}
               value={pattern}
               onChange={(event) =>
                 setPattern(
@@ -489,7 +499,8 @@ const CreateSentenceBuilderDialog = ({ onClose, initialDeck = null }) => {
             />
             <Helper>
               Pattern to'ldirilsa, shu formatdagi bloklardan savollar avtomatik
-              olinadi.
+              olinadi. Chalg'ituvchi bo'laklar qatori `+token1,token2+`
+              ko'rinishida yoziladi.
             </Helper>
           </FormGroup>
 

@@ -48,6 +48,10 @@ const Overlay = styled.div`
   z-index: 1000;
   padding: 20px;
   animation: ${fadeIn} 0.18s ease-out;
+
+  @media (max-width: 768px) {
+    padding: 12px;
+  }
 `;
 
 const DialogBox = styled.div`
@@ -64,9 +68,8 @@ const DialogBox = styled.div`
   animation: ${dialogIn} 0.22s ease-out;
 
   @media (max-width: 768px) {
-    height: 100%;
-    max-height: 100vh;
-    border-radius: 0;
+    max-height: calc(100vh - 24px);
+    border-radius: 18px;
   }
 `;
 
@@ -74,7 +77,7 @@ const HeaderRow = styled.div`
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 20px 24px;
+  padding: 16px 18px;
   border-bottom: 1px solid var(--border-color);
 
   h2 {
@@ -87,7 +90,11 @@ const Body = styled.div`
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 24px;
+  padding: 16px 18px;
+
+  @media (max-width: 768px) {
+    padding: 14px 16px;
+  }
 `;
 
 const CloseBtn = styled.button`
@@ -238,8 +245,12 @@ const Footer = styled.div`
   display: flex;
   justify-content: flex-end;
   gap: 12px;
-  padding: 18px 24px 24px;
+  padding: 14px 18px 18px;
   border-top: 1px solid var(--border-color);
+
+  @media (max-width: 768px) {
+    padding: 12px 16px 16px;
+  }
 `;
 
 const Button = styled.button`
@@ -266,6 +277,11 @@ const InputRow = styled.div`
   border: 1px solid var(--border-color);
   border-radius: 8px;
   padding: 4px 8px;
+
+  &:focus-within {
+    border-color: var(--primary-color);
+    box-shadow: none;
+  }
 `;
 
 const FlexInput = styled.input`
@@ -277,6 +293,12 @@ const FlexInput = styled.input`
   outline: none;
   font-size: 0.95rem;
   width: 100%;
+
+  &:focus,
+  &:focus-visible {
+    outline: none;
+    box-shadow: none;
+  }
 `;
 
 const ImgBtn = styled.button`
@@ -407,17 +429,48 @@ const CreateFlashcardDialog = ({ onClose, initialDeck = null }) => {
     e?.preventDefault();
     if (!searchQuery.trim()) return;
     setIsSearching(true);
-    // Add artificial delay for realism
-    await new Promise((res) => setTimeout(res, 600));
+    try {
+      const params = new URLSearchParams({
+        action: "query",
+        format: "json",
+        origin: "*",
+        generator: "search",
+        gsrsearch: searchQuery.trim(),
+        gsrnamespace: "6",
+        gsrlimit: "9",
+        prop: "imageinfo",
+        iiprop: "url",
+        iiurlwidth: "320",
+        iiurlheight: "240",
+      });
 
-    // Using loremflickr to simulate search
-    const query = encodeURIComponent(searchQuery.trim());
-    const results = Array.from({ length: 9 }).map(
-      (_, i) =>
-        `https://loremflickr.com/320/240/${query}?lock=${i + Math.floor(Math.random() * 1000)}`,
-    );
-    setSearchResults(results);
-    setIsSearching(false);
+      const response = await fetch(
+        `https://commons.wikimedia.org/w/api.php?${params.toString()}`,
+      );
+
+      if (!response.ok) {
+        throw new Error("Image search request failed");
+      }
+
+      const data = await response.json();
+      const pages = Object.values(data?.query?.pages || {});
+      const results = pages
+        .map((page) => page?.imageinfo?.[0]?.thumburl || page?.imageinfo?.[0]?.url || "")
+        .filter(Boolean)
+        .slice(0, 9);
+
+      setSearchResults(results);
+
+      if (!results.length) {
+        toast.error("Mos rasm topilmadi");
+      }
+    } catch (error) {
+      console.error("Image search error:", error);
+      toast.error("Rasm qidirib bo'lmadi");
+      setSearchResults([]);
+    } finally {
+      setIsSearching(false);
+    }
   };
 
   const handleSelectImage = (url) => {

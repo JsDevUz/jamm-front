@@ -15,7 +15,7 @@ import {
   Palette,
   Shield,
 } from "lucide-react";
-import PremiumBadgeIcon from "../../../shared/ui/badges/PremiumBadge";
+import UserNameWithDecoration from "../../../shared/ui/users/UserNameWithDecoration";
 
 const fadeIn = keyframes`
   from {
@@ -35,7 +35,7 @@ const Sidebar = styled.aside`
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
-  overflow-y: auto;
+  overflow: hidden;
   animation: ${fadeIn} 0.3s ease;
 
   &::-webkit-scrollbar {
@@ -158,6 +158,7 @@ const MetaRow = styled.div`
   align-items: center;
   gap: 6px;
   color: var(--text-muted-color);
+  margin-bottom: 14px;
   font-size: 12px;
 `;
 
@@ -225,9 +226,19 @@ const StatLabel = styled.div`
 `;
 
 const NavScroll = styled.div`
+  flex: 1;
+  min-height: 0;
   width: 100%;
-  height: 100%;
-  overflow: auto;
+  overflow-y: auto;
+  padding-bottom: 18px;
+
+  &::-webkit-scrollbar {
+    width: 0;
+  }
+
+  @media (max-width: 768px) {
+    padding-bottom: 80px; /* Space for mobile bottom navigation */
+  }
 `;
 
 const Tabs = styled.div`
@@ -245,7 +256,8 @@ const Tab = styled.button`
   min-height: 52px;
   padding: 10px 14px;
   border: none;
-  background: ${(props) => (props.$active ? "var(--hover-color)" : "transparent")};
+  background: ${(props) =>
+    props.$active ? "var(--hover-color)" : "transparent"};
   color: var(--text-color);
   display: flex;
   align-items: flex-start;
@@ -273,8 +285,11 @@ const TabIcon = styled.div`
   width: 28px;
   height: 28px;
   border-radius: 8px;
-  background: ${(props) => props.$color || "var(--primary-color)"};
-  color: white;
+  border: 1px solid var(--border-color);
+  background: ${(props) =>
+    props.$active ? "var(--hover-color)" : "var(--input-color)"};
+  color: ${(props) =>
+    props.$active ? "var(--text-color)" : "var(--text-secondary-color)"};
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -299,17 +314,57 @@ const TabChevron = styled(ChevronRight)`
 `;
 
 const primaryTabs = [
-  { key: "groups", labelKey: "profile.tabs.groups", icon: MessageSquare, color: "#3ba55d" },
-  { key: "blogs", labelKey: "profile.tabs.blogs", icon: BookOpen, color: "#2563eb" },
-  { key: "courses", labelKey: "profile.tabs.courses", icon: GraduationCap, color: "#f59e0b" },
+  {
+    key: "groups",
+    labelKey: "profile.tabs.groups",
+    icon: MessageSquare,
+    color: "#3ba55d",
+  },
+  {
+    key: "blogs",
+    labelKey: "profile.tabs.blogs",
+    icon: BookOpen,
+    color: "#2563eb",
+  },
+  {
+    key: "courses",
+    labelKey: "profile.tabs.courses",
+    icon: GraduationCap,
+    color: "#f59e0b",
+  },
 ];
 
 const ownTabs = [
-  { key: "appearance", labelKey: "profile.tabs.appearance", icon: Palette, color: "#5865f2" },
-  { key: "language", labelKey: "profile.tabs.language", icon: Globe, color: "#0ea5e9" },
-  { key: "premium", labelKey: "profile.tabs.premium", icon: Shield, color: "#f59e0b" },
-  { key: "support", labelKey: "profile.tabs.support", icon: Headphones, color: "#16a34a" },
-  { key: "favorites", labelKey: "profile.tabs.favorites", icon: Heart, color: "#ec4899" },
+  {
+    key: "appearance",
+    labelKey: "profile.tabs.appearance",
+    icon: Palette,
+    color: "#5865f2",
+  },
+  {
+    key: "language",
+    labelKey: "profile.tabs.language",
+    icon: Globe,
+    color: "#0ea5e9",
+  },
+  {
+    key: "premium",
+    labelKey: "profile.tabs.premium",
+    icon: Shield,
+    color: "#f59e0b",
+  },
+  {
+    key: "support",
+    labelKey: "profile.tabs.support",
+    icon: Headphones,
+    color: "#16a34a",
+  },
+  {
+    key: "favorites",
+    labelKey: "profile.tabs.favorites",
+    icon: Heart,
+    color: "#ec4899",
+  },
 ];
 
 const ProfileSidebar = ({
@@ -330,7 +385,6 @@ const ProfileSidebar = ({
     targetUser?.nickname || targetUser?.username || t("common.userFallback");
   const handle = `@${(targetUser?.username || "user").toLowerCase()}`;
   const avatarLetter = displayName.charAt(0).toUpperCase();
-  const isPremium = targetUser?.premiumStatus === "active";
   const userAvatar = targetUser?.avatar;
   const stats = [
     {
@@ -345,11 +399,15 @@ const ProfileSidebar = ({
   ];
 
   return (
-    <Sidebar>
+    <Sidebar data-tour="profile-overview">
       <Cover>
         <CoverShade />
         {isOwnProfile ? (
-          <SettingsBtn title={t("profile.settings")} onClick={onOpenProfileEdit}>
+          <SettingsBtn
+            title={t("profile.settings")}
+            onClick={onOpenProfileEdit}
+            data-tour="profile-edit-trigger"
+          >
             <Edit2 size={16} />
           </SettingsBtn>
         ) : null}
@@ -357,7 +415,11 @@ const ProfileSidebar = ({
 
       <AvatarWrap>
         <Avatar>
-          {userAvatar ? <img src={userAvatar} alt={displayName} /> : avatarLetter}
+          {userAvatar ? (
+            <img src={userAvatar} alt={displayName} />
+          ) : (
+            avatarLetter
+          )}
         </Avatar>
         {isOwnProfile ? (
           <AvatarEditBadge title={t("profile.avatarChange")}>
@@ -368,8 +430,13 @@ const ProfileSidebar = ({
 
       <Info>
         <NameRow>
-          <Name>{displayName}</Name>
-          {isPremium ? <PremiumBadgeIcon /> : null}
+          <Name as="div">
+            <UserNameWithDecoration
+              user={targetUser}
+              fallback={t("common.userFallback")}
+              size="lg"
+            />
+          </Name>
         </NameRow>
         <Handle>{handle}</Handle>
         <Bio>
@@ -420,8 +487,9 @@ const ProfileSidebar = ({
                 key={item.key}
                 $active={activeTab === item.key}
                 onClick={() => onTabChange(item.key)}
+                data-tour={`profile-tab-${item.key}`}
               >
-                <TabIcon $color={item.color}>
+                <TabIcon $active={activeTab === item.key}>
                   <Icon size={15} />
                 </TabIcon>
                 <TabLabel>{t(item.labelKey)}</TabLabel>
@@ -440,8 +508,9 @@ const ProfileSidebar = ({
                   key={item.key}
                   $active={activeTab === item.key}
                   onClick={() => onTabChange(item.key)}
+                  data-tour={`profile-tab-${item.key}`}
                 >
-                  <TabIcon $color={item.color}>
+                  <TabIcon $active={activeTab === item.key}>
                     <Icon size={15} />
                   </TabIcon>
                   <TabLabel>{t(item.labelKey)}</TabLabel>

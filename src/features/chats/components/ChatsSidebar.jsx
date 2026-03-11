@@ -7,7 +7,7 @@ import {
   SkeletonCircle,
   SkeletonRow,
 } from "../../../shared/ui/feedback/Skeleton";
-import PremiumBadgeIcon from "../../../shared/ui/badges/PremiumBadge";
+import UserNameWithDecoration from "../../../shared/ui/users/UserNameWithDecoration";
 import { useChats } from "../../../contexts/ChatsContext";
 import { usePresence } from "../../../contexts/PresenceContext";
 import { getMeets, removeMeet } from "../../../utils/meetStore";
@@ -61,6 +61,7 @@ const ChatsSidebar = ({
     chatsHasMore,
     fetchChats,
     searchUsers,
+    searchGroups,
     createChat,
     selectedNav,
     previewChat,
@@ -122,7 +123,16 @@ const ChatsSidebar = ({
   }, [chats, fetchBulkStatuses, isVideoTab]);
 
   useEffect(() => {
-    if (isVideoTab || (selectedNav !== "users" && selectedNav !== "chats")) {
+    const supportsRemoteSearch =
+      selectedNav === "users" ||
+      selectedNav === "groups" ||
+      selectedNav === "chats";
+
+    if (
+      isVideoTab ||
+      !supportsRemoteSearch ||
+      !["private", "group"].includes(effectiveChatTab)
+    ) {
       setSearchResults([]);
       return;
     }
@@ -134,21 +144,49 @@ const ChatsSidebar = ({
 
     const timer = setTimeout(async () => {
       setLoadingSearch(true);
-      const results = await searchUsers(searchQuery);
-      setSearchResults(
-        results.map((user) => ({
-          id: user.id || user._id,
-          name: user.name,
-          username: user.username,
-          avatar: user.avatar,
-          premiumStatus: user.premiumStatus,
-        })),
-      );
-      setLoadingSearch(false);
+      try {
+        if (effectiveChatTab === "group") {
+          const results = await searchGroups(searchQuery);
+          setSearchResults(
+            results.map((group) => ({
+              resultType: "group",
+              id: group.id,
+              urlSlug: group.urlSlug,
+              name: group.name,
+              avatar: group.avatar,
+              membersCount: group.membersCount,
+              lastMessage: group.lastMessage,
+            })),
+          );
+        } else {
+          const results = await searchUsers(searchQuery);
+          setSearchResults(
+            results.map((user) => ({
+              resultType: "user",
+              id: user.id || user._id,
+              name: user.name,
+              username: user.username,
+              avatar: user.avatar,
+              premiumStatus: user.premiumStatus,
+              selectedProfileDecorationId: user.selectedProfileDecorationId,
+              customProfileDecorationImage: user.customProfileDecorationImage,
+            })),
+          );
+        }
+      } finally {
+        setLoadingSearch(false);
+      }
     }, 500);
 
     return () => clearTimeout(timer);
-  }, [isVideoTab, searchQuery, searchUsers, selectedNav]);
+  }, [
+    effectiveChatTab,
+    isVideoTab,
+    searchGroups,
+    searchQuery,
+    searchUsers,
+    selectedNav,
+  ]);
 
   useEffect(() => {
     if (!isVideoTab || meetsFetchedRef.current) return;
@@ -173,11 +211,14 @@ const ChatsSidebar = ({
 
       return (
         !chat.isSavedMessages &&
-        chat.members.some((member) => (member._id || member.id) === targetUserId)
+        chat.members.some(
+          (member) => (member._id || member.id) === targetUserId,
+        )
       );
     });
 
     if (existingChat) {
+      setSearchQuery("");
       navigate(
         `/${existingChat.type === "group" ? "groups" : "users"}/${existingChat.urlSlug}`,
       );
@@ -230,14 +271,23 @@ const ChatsSidebar = ({
       );
     }
 
-    if (searchQuery) {
+    if (
+      searchQuery &&
+      !(
+        selectedNav === "users" ||
+        selectedNav === "groups" ||
+        selectedNav === "chats"
+      )
+    ) {
       result = result.filter((chat) =>
         chat.name.toLowerCase().includes(searchQuery.toLowerCase()),
       );
     }
 
     if (activeFilter === "today") {
-      result = result.filter((chat) => chat.time.includes(":") || chat.time === "Kecha");
+      result = result.filter(
+        (chat) => chat.time.includes(":") || chat.time === "Kecha",
+      );
     } else if (activeFilter === "week") {
       result = result.filter(
         (chat) => chat.time.includes("Dushanba") || chat.time.includes("Kecha"),
@@ -310,12 +360,12 @@ const ChatsSidebar = ({
         <SkeletonCircle size="40px" />
         <SidebarItemSkeletonBody>
           <Skeleton
-            height="14px"
+            height="15px"
             width={index % 2 === 0 ? "56%" : "48%"}
-            mb="8px"
+            mb="4px"
           />
           <Skeleton
-            height="12px"
+            height="13px"
             width={index % 3 === 0 ? "72%" : "64%"}
             mb="0"
           />
@@ -352,7 +402,19 @@ const ChatsSidebar = ({
   };
 
   const timeAgo = (timestamp) => {
-    const diff = (Date.now() - timestamp) / 1000;
+    if (!timestamp) return t("chatsSidebar.timeAgo.now");
+    const parsedTimestamp =
+      typeof timestamp === "number" ? timestamp : new Date(timestamp).getTime();
+
+    if (!Number.isFinite(parsedTimestamp)) {
+      return t("chatsSidebar.timeAgo.now");
+    }
+
+    const diff = (Date.now() - parsedTimestamp) / 1000;
+    if (!Number.isFinite(diff) || diff < 0) {
+      return t("chatsSidebar.timeAgo.now");
+    }
+
     if (diff < 60) return t("chatsSidebar.timeAgo.now");
     if (diff < 3600) {
       return t("chatsSidebar.timeAgo.minutes", {
@@ -373,6 +435,7 @@ const ChatsSidebar = ({
     <SidebarContainer>
       <TopHeader>
         <HeaderSearch
+          data-tour="chats-search"
           $hasAction={hasHeaderAction}
           type="text"
           placeholder={t("chatsSidebar.searchPlaceholder")}
@@ -381,12 +444,18 @@ const ChatsSidebar = ({
         />
         {(selectedNav === "groups" ||
           (selectedNav === "chats" && effectiveChatTab === "group")) && (
-          <ButtonWrapper onClick={onOpenCreateGroup} title={t("chatsSidebar.createGroup")}>
+          <ButtonWrapper
+            onClick={onOpenCreateGroup}
+            title={t("chatsSidebar.createGroup")}
+          >
             <Plus size={18} />
           </ButtonWrapper>
         )}
         {isVideoTab && (
-          <ButtonWrapper onClick={onOpenCreateMeet} title={t("chatsSidebar.createMeet")}>
+          <ButtonWrapper
+            onClick={onOpenCreateMeet}
+            title={t("chatsSidebar.createMeet")}
+          >
             <Plus size={18} />
           </ButtonWrapper>
         )}
@@ -396,8 +465,9 @@ const ChatsSidebar = ({
         selectedNav === "users" ||
         selectedNav === "groups" ||
         selectedNav === "meets") && (
-        <ChatsTabsRow>
+        <ChatsTabsRow data-tour="chats-tabs">
           <ChatsTab
+            data-tour="chats-tab-private"
             $active={effectiveChatTab === "private"}
             onClick={() => {
               setChatTab("private");
@@ -407,6 +477,7 @@ const ChatsSidebar = ({
             {t("chatsSidebar.tabs.private")}
           </ChatsTab>
           <ChatsTab
+            data-tour="chats-tab-groups"
             $active={effectiveChatTab === "group"}
             onClick={() => {
               setChatTab("group");
@@ -416,6 +487,7 @@ const ChatsSidebar = ({
             {t("chatsSidebar.tabs.groups")}
           </ChatsTab>
           <ChatsTab
+            data-tour="chats-tab-video"
             $active={effectiveChatTab === "video"}
             onClick={() => {
               setChatTab("video");
@@ -450,10 +522,10 @@ const ChatsSidebar = ({
         </FilterContainer>
       )}
 
-      <ChatList id="sidebarScrollArea">
+      <ChatList id="sidebarScrollArea" data-tour="chats-list">
         {isVideoTab ? (
           loadingMeets ? (
-            <>{renderSidebarSkeleton(6)}</>
+            <>{renderSidebarSkeleton(1)}</>
           ) : filteredMeets.length === 0 ? (
             <EmptyState>
               <EmptyStateIcon>
@@ -475,9 +547,15 @@ const ChatsSidebar = ({
                     </ChatAvatar>
                   </AvatarWrapper>
                   <ChatInfo>
-                    <ChatName>{meet.title || t("chatsSidebar.meets.untitled")}</ChatName>
+                    <ChatName>
+                      {meet.title || t("chatsSidebar.meets.untitled")}
+                    </ChatName>
                     <ChatMessage>
-                      {meet.isPrivate ? <Lock size={12} /> : <Globe size={12} />}
+                      {meet.isPrivate ? (
+                        <Lock size={12} />
+                      ) : (
+                        <Globe size={12} />
+                      )}
                       <span>
                         {meet.isCreator
                           ? t("chatsSidebar.meets.admin")
@@ -500,13 +578,104 @@ const ChatsSidebar = ({
           )
         ) : (
           <>
-            {loading && !searchQuery ? (
+            {searchQuery &&
+            ["private", "group"].includes(effectiveChatTab) &&
+            (selectedNav === "users" ||
+              selectedNav === "groups" ||
+              selectedNav === "chats") ? (
+              loadingSearch ? (
+                <SearchLoadingContainer>
+                  {[...Array(3)].map((_, index) => (
+                    <SkeletonRow key={index}>
+                      <SkeletonCircle size="40px" />
+                      <SearchLoadingBody>
+                        <Skeleton height="14px" width="60%" mb="6px" />
+                        <Skeleton height="12px" width="40%" mb="0" />
+                      </SearchLoadingBody>
+                    </SkeletonRow>
+                  ))}
+                </SearchLoadingContainer>
+              ) : searchResults.length ? (
+                searchResults.map((result) => {
+                  if (result.resultType === "group") {
+                    return (
+                      <ChatLink
+                        key={result.id}
+                        to={`/groups/${result.urlSlug}`}
+                        onClick={() => setSearchQuery("")}
+                      >
+                        <SearchResultItem>
+                          <AvatarWrapper>
+                            <ChatAvatar $isGroup>
+                              {result.avatar?.length > 1 ? (
+                                <AvatarImage
+                                  src={result.avatar}
+                                  alt={result.name}
+                                />
+                              ) : (
+                                result.name?.charAt(0)
+                              )}
+                            </ChatAvatar>
+                          </AvatarWrapper>
+                          <ChatInfo>
+                            <ChatName>{result.name}</ChatName>
+                            <ChatMessage>
+                              {result.lastMessage ||
+                                t("chatsSidebar.search.groupMeta", {
+                                  count: result.membersCount || 0,
+                                })}
+                            </ChatMessage>
+                          </ChatInfo>
+                        </SearchResultItem>
+                      </ChatLink>
+                    );
+                  }
+
+                  return (
+                    <SearchResultItem
+                      key={result.id}
+                      onClick={() => handleStartPrivateChat(result)}
+                    >
+                      <AvatarWrapper>
+                        <ChatAvatar>
+                          {result.avatar?.length > 1 ? (
+                            <AvatarImage
+                              src={result.avatar}
+                              alt={result.name}
+                            />
+                          ) : (
+                            result.name
+                              ?.split(" ")
+                              ?.map((part) => part[0])
+                              ?.join("")
+                          )}
+                        </ChatAvatar>
+                      </AvatarWrapper>
+                      <ChatInfo>
+                        <ChatName>
+                          <UserNameWithDecoration
+                            user={result}
+                            fallback={t("common.userFallback")}
+                            size="sm"
+                          />
+                        </ChatName>
+                        <ChatMessage>@{result.username}</ChatMessage>
+                      </ChatInfo>
+                    </SearchResultItem>
+                  );
+                })
+              ) : (
+                <EmptyState>{t("chatsSidebar.search.notFound")}</EmptyState>
+              )
+            ) : loading && !searchQuery ? (
               <>{renderSidebarSkeleton(1)}</>
             ) : (
               <StyledInfiniteScroll
                 dataLength={filteredChats.length}
                 next={() => fetchChats(chatsPage + 1)}
-                hasMore={chatsHasMore && activeFilter === "all" && searchQuery === ""}
+                hasMore={
+                  chatsHasMore && activeFilter === "all" && searchQuery === ""
+                }
                 loader={<>{renderSidebarSkeleton(2)}</>}
                 endMessage={
                   filteredChats.length > 0 &&
@@ -522,11 +691,15 @@ const ChatsSidebar = ({
                   const otherMember =
                     !chat.isGroup && chat.members
                       ? chat.members.find(
-                          (member) => (member._id || member.id) !== currentUserId,
+                          (member) =>
+                            (member._id || member.id) !== currentUserId,
                         )
                       : null;
                   const otherUserId = otherMember?._id;
-                  const isOnline = otherUserId ? isUserOnline(otherUserId) : false;
+                  const isOnline = otherUserId
+                    ? isUserOnline(otherUserId)
+                    : false;
+                  const isOfficialUser = Boolean(chat.isOfficialProfile);
                   const onlineCount = chat.isGroup
                     ? getOnlineCount(chat.members)
                     : 0;
@@ -544,16 +717,17 @@ const ChatsSidebar = ({
                           >
                             {renderAvatarContent(chat)}
                           </ChatAvatar>
-                          {!chat.isGroup && !chat.isSavedMessages && (
-                            <OnlineDot $online={isOnline} />
-                          )}
+                          {!chat.isGroup &&
+                            !chat.isSavedMessages &&
+                            !isOfficialUser && <OnlineDot $online={isOnline} />}
                         </AvatarWrapper>
                         <ChatInfo>
                           <ChatName>
-                            {chat.name}
-                            {chat.premiumStatus === "active" && (
-                              <PremiumBadgeIcon width={14} height={14} />
-                            )}
+                            <UserNameWithDecoration
+                              user={otherMember || chat}
+                              fallback={t("common.userFallback")}
+                              size="sm"
+                            />
                           </ChatName>
                           <ChatMessage>
                             {chat.isGroup && onlineCount > 0 ? (
@@ -561,7 +735,9 @@ const ChatsSidebar = ({
                                 {chat.lastMessage}
                                 {" · "}
                                 <OnlineSubtext>
-                                  {t("chatsSidebar.online", { count: onlineCount })}
+                                  {t("chatsSidebar.online", {
+                                    count: onlineCount,
+                                  })}
                                 </OnlineSubtext>
                               </>
                             ) : (
@@ -582,64 +758,68 @@ const ChatsSidebar = ({
               </StyledInfiniteScroll>
             )}
 
-            {searchQuery && (
-              <>
-                {loadingSearch ? (
-                  <SearchLoadingContainer>
-                    {[...Array(3)].map((_, index) => (
-                      <SkeletonRow key={index}>
-                        <SkeletonCircle size="40px" />
-                        <SearchLoadingBody>
-                          <Skeleton height="14px" width="60%" mb="6px" />
-                          <Skeleton height="12px" width="40%" mb="0" />
-                        </SearchLoadingBody>
-                      </SkeletonRow>
-                    ))}
-                  </SearchLoadingContainer>
-                ) : (
-                  searchResults
-                    .filter((user) => {
-                      const targetUserId = user.id || user._id;
-                      const currentUserId = currentUser?._id || currentUser?.id;
-                      if (targetUserId === currentUserId) return false;
+            {searchQuery &&
+              !["private", "group"].includes(effectiveChatTab) && (
+                <>
+                  {loadingSearch ? (
+                    <SearchLoadingContainer>
+                      {[...Array(3)].map((_, index) => (
+                        <SkeletonRow key={index}>
+                          <SkeletonCircle size="40px" />
+                          <SearchLoadingBody>
+                            <Skeleton height="14px" width="60%" mb="6px" />
+                            <Skeleton height="12px" width="40%" mb="0" />
+                          </SearchLoadingBody>
+                        </SkeletonRow>
+                      ))}
+                    </SearchLoadingContainer>
+                  ) : (
+                    searchResults
+                      .filter((user) => {
+                        const targetUserId = user.id || user._id;
+                        const currentUserId =
+                          currentUser?._id || currentUser?.id;
+                        if (targetUserId === currentUserId) return false;
 
-                      const alreadyInList = filteredChats.some(
-                        (chat) =>
-                          !chat.isGroup &&
-                          !chat.isSavedMessages &&
-                          chat.members?.some(
-                            (member) => (member._id || member.id) === targetUserId,
-                          ),
-                      );
+                        const alreadyInList = filteredChats.some(
+                          (chat) =>
+                            !chat.isGroup &&
+                            !chat.isSavedMessages &&
+                            chat.members?.some(
+                              (member) =>
+                                (member._id || member.id) === targetUserId,
+                            ),
+                        );
 
-                      return !alreadyInList;
-                    })
-                    .map((user) => (
-                      <SearchResultItem
-                        key={user.id}
-                        onClick={() => handleStartPrivateChat(user)}
-                      >
-                        <ChatAvatar>
-                          {user.avatar?.length > 1 ? (
-                            <AvatarImage src={user.avatar} alt={user.name} />
-                          ) : (
-                            (user.name || "?").charAt(0)
-                          )}
-                        </ChatAvatar>
-                        <ChatInfo>
-                          <ChatName>
-                            {user.name}
-                            {user.premiumStatus === "active" && (
-                              <PremiumBadgeIcon width={14} height={14} />
+                        return !alreadyInList;
+                      })
+                      .map((user) => (
+                        <SearchResultItem
+                          key={user.id}
+                          onClick={() => handleStartPrivateChat(user)}
+                        >
+                          <ChatAvatar>
+                            {user.avatar?.length > 1 ? (
+                              <AvatarImage src={user.avatar} alt={user.name} />
+                            ) : (
+                              (user.name || "?").charAt(0)
                             )}
-                          </ChatName>
-                          <ChatMessage>@{user.username}</ChatMessage>
-                        </ChatInfo>
-                      </SearchResultItem>
-                    ))
-                )}
-              </>
-            )}
+                          </ChatAvatar>
+                          <ChatInfo>
+                            <ChatName>
+                              <UserNameWithDecoration
+                                user={user}
+                                fallback={t("common.userFallback")}
+                                size="sm"
+                              />
+                            </ChatName>
+                            <ChatMessage>@{user.username}</ChatMessage>
+                          </ChatInfo>
+                        </SearchResultItem>
+                      ))
+                  )}
+                </>
+              )}
           </>
         )}
       </ChatList>

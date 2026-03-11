@@ -22,6 +22,7 @@ import {
 import { toast } from "react-hot-toast";
 import { useTheme } from "../../contexts/ThemeContext";
 import useAuthStore from "../../store/authStore";
+import { API_BASE_URL } from "../../config/env";
 import { getUserByUsername, createChat, fetchChats } from "../../api/chatApi";
 import {
   Skeleton,
@@ -703,7 +704,7 @@ const SettingsDialog = ({ isOpen, onClose, initialSection = "my-account" }) => {
   });
 
   // ── My Account state ──────────────────────────────────────────────────────
-  const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
+  const API_URL = API_BASE_URL;
 
   // Initialize from Zustand store for immediate accurate rendering
   const initialUser = useAuthStore((state) => state.user) || {};
@@ -731,13 +732,15 @@ const SettingsDialog = ({ isOpen, onClose, initialSection = "my-account" }) => {
 
   const getHeaders = () => ({
     "Content-Type": "application/json",
-    Authorization: `Bearer ${useAuthStore.getState().token}`,
   });
 
   const loadProfile = async () => {
     setProfileLoading(true);
     try {
-      const res = await fetch(`${API_URL}/users/me`, { headers: getHeaders() });
+      const res = await fetch(`${API_URL}/users/me`, {
+        headers: getHeaders(),
+        credentials: "include",
+      });
       if (res.ok) {
         const data = await res.json();
         setProfile({
@@ -750,12 +753,8 @@ const SettingsDialog = ({ isOpen, onClose, initialSection = "my-account" }) => {
           premiumExpiresAt: data.premiumExpiresAt,
         });
         // Sync to Zustand store
-        const {
-          user: storedUser,
-          token: storedToken,
-          setAuth,
-        } = useAuthStore.getState();
-        setAuth({ ...storedUser, ...data }, storedToken);
+        const { user: storedUser, setAuth } = useAuthStore.getState();
+        setAuth({ ...storedUser, ...data });
       }
     } catch {}
     setProfileLoading(false);
@@ -804,16 +803,13 @@ const SettingsDialog = ({ isOpen, onClose, initialSection = "my-account" }) => {
       const res = await fetch(`${API_URL}/users/me`, {
         method: "PATCH",
         headers: getHeaders(),
+        credentials: "include",
         body: JSON.stringify({ ...rest, phone: phone.replace(/\s/g, "") }),
       });
       if (res.ok) {
         const updated = await res.json();
-        const {
-          user: storedUser,
-          token: storedToken,
-          setAuth,
-        } = useAuthStore.getState();
-        setAuth({ ...storedUser, ...updated }, storedToken);
+        const { user: storedUser, setAuth } = useAuthStore.getState();
+        setAuth({ ...storedUser, ...updated });
         setSaveStatus("ok");
       } else {
         const errorData = await res.json().catch(() => null);
@@ -856,9 +852,7 @@ const SettingsDialog = ({ isOpen, onClose, initialSection = "my-account" }) => {
     try {
       const res = await fetch(`${API_URL}/users/avatar`, {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${useAuthStore.getState().token}`,
-        },
+        credentials: "include",
         body: formData,
       });
 
@@ -867,12 +861,8 @@ const SettingsDialog = ({ isOpen, onClose, initialSection = "my-account" }) => {
         setProfile((p) => ({ ...p, avatar: updatedUser.avatar }));
 
         // Update Zustand store
-        const {
-          user: storedUser,
-          token: storedToken,
-          setAuth,
-        } = useAuthStore.getState();
-        setAuth({ ...storedUser, ...updatedUser }, storedToken);
+        const { user: storedUser, setAuth } = useAuthStore.getState();
+        setAuth({ ...storedUser, ...updatedUser });
 
         setSaveStatus("Avatar yuklandi!");
         setTimeout(() => setSaveStatus(null), 3000);

@@ -10,9 +10,9 @@ import { io } from "socket.io-client";
 import useAuthStore from "../store/authStore";
 import * as arenaApi from "../api/arenaApi";
 import { toast } from "react-hot-toast";
+import { buildSocketNamespaceUrl } from "../config/env";
 
 const ArenaContext = createContext(null);
-const API_URL = "http://localhost:3000";
 
 export const ArenaProvider = ({ children }) => {
   const [tests, setTests] = useState([]);
@@ -37,7 +37,7 @@ export const ArenaProvider = ({ children }) => {
     localStorage.getItem("jamm_guest_name") || null,
   );
   const socketRef = useRef(null);
-  const token = useAuthStore((state) => state.token);
+  const authUser = useAuthStore((state) => state.user);
 
   // --- API Methods: Tests ---
   const fetchTests = useCallback(async () => {
@@ -94,22 +94,18 @@ export const ArenaProvider = ({ children }) => {
     }
   };
 
-  const fetchMyTests = useCallback(
-    async (page = 1) => {
-      if (!token) return;
-      try {
-        const res = await arenaApi.fetchMyTests(page, 15);
-        const data = res.data || [];
-        const totalPages = res.totalPages || 1;
-        setMyTests((prev) => (page === 1 ? data : [...prev, ...data]));
-        setMyTestsPage(page);
-        setMyTestsHasMore(page < totalPages);
-      } catch (err) {
-        console.error("Error fetching my tests:", err);
-      }
-    },
-    [token],
-  );
+  const fetchMyTests = useCallback(async (page = 1) => {
+    try {
+      const res = await arenaApi.fetchMyTests(page, 15);
+      const data = res.data || [];
+      const totalPages = res.totalPages || 1;
+      setMyTests((prev) => (page === 1 ? data : [...prev, ...data]));
+      setMyTestsPage(page);
+      setMyTestsHasMore(page < totalPages);
+    } catch (err) {
+      console.error("Error fetching my tests:", err);
+    }
+  }, []);
 
   // --- API Methods: Flashcards (Anki) ---
   const fetchFlashcards = useCallback(async (page = 1) => {
@@ -286,14 +282,15 @@ export const ArenaProvider = ({ children }) => {
   }, []);
 
   useEffect(() => {
-    if (!token && !guestName) {
-      if (socketRef.current) socketRef.current.disconnect();
-      return;
-    }
+      if ((!authUser?._id && !authUser?.id) && !guestName) {
+        if (socketRef.current) socketRef.current.disconnect();
+        return;
+      }
 
-    const socketUrl = API_URL.replace("http", "ws") + "/arena";
-    socketRef.current = io(socketUrl, {
-      auth: { token, guestName },
+      const socketUrl = buildSocketNamespaceUrl("/arena");
+      socketRef.current = io(socketUrl, {
+      auth: guestName ? { guestName } : undefined,
+      withCredentials: true,
       transports: ["websocket"],
       forceNew: true,
     });
@@ -334,7 +331,7 @@ export const ArenaProvider = ({ children }) => {
     return () => {
       if (socketRef.current) socketRef.current.disconnect();
     };
-  }, [token, guestName]);
+  }, [authUser, guestName]);
 
   const setGuestSession = (name) => {
     localStorage.setItem("jamm_guest_name", name);
@@ -436,8 +433,6 @@ export const ArenaProvider = ({ children }) => {
         fetchActiveBattles,
         fetchTestResults: async (testId, params = {}) => {
           try {
-            const token = useAuthStore.getState().token;
-            if (!token) return { data: [], total: 0 };
             return await arenaApi.fetchTestResults(testId, params);
           } catch (err) {
             console.error(err);
@@ -454,8 +449,6 @@ export const ArenaProvider = ({ children }) => {
         },
         joinFlashcardDeck: async (deckId) => {
           try {
-            const token = useAuthStore.getState().token;
-            if (!token) return { success: false };
             await arenaApi.joinFlashcardDeck(deckId);
             return { success: true };
           } catch (err) {
@@ -465,8 +458,6 @@ export const ArenaProvider = ({ children }) => {
         },
         leaveFlashcardDeck: async (deckId) => {
           try {
-            const token = useAuthStore.getState().token;
-            if (!token) return { success: false };
             await arenaApi.leaveFlashcardDeck(deckId);
             return { success: true };
           } catch (err) {

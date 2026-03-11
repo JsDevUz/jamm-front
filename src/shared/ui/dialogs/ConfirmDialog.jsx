@@ -13,7 +13,7 @@ import {
 } from "./ModalShell";
 
 const Content = styled.div`
-  color: var(--text-muted-color);
+  color: var(--text-color);
   font-size: 14px;
   line-height: 1.55;
 `;
@@ -43,7 +43,7 @@ const ConfirmDialog = ({
   if (!isOpen) return null;
 
   return (
-    <ModalOverlay onClick={onClose} $overlay="rgba(0, 0, 0, 0.8)" $zIndex={10000}>
+    <ModalOverlay onClick={onClose} $overlay="rgba(0, 0, 0, 0.8)" $zIndex={10050}>
       <ModalPanel
         $width="min(100%, 450px)"
         $maxWidth="95vw"

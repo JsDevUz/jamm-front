@@ -1,10 +1,21 @@
-import React from "react";
-import {
-  IncomingCallRequest,
-  OutgoingCallRequest,
-  PrivateVideoCall,
-} from "../../features/calls/components";
+import React, { Suspense, lazy } from "react";
 import { useCall } from "../../contexts/CallContext";
+
+const IncomingCallRequest = lazy(() =>
+  import("../../features/calls/components").then((module) => ({
+    default: module.IncomingCallRequest,
+  })),
+);
+const OutgoingCallRequest = lazy(() =>
+  import("../../features/calls/components").then((module) => ({
+    default: module.OutgoingCallRequest,
+  })),
+);
+const PrivateVideoCall = lazy(() =>
+  import("../../features/calls/components").then((module) => ({
+    default: module.PrivateVideoCall,
+  })),
+);
 
 export default function CallOverlays() {
   const {
@@ -18,7 +29,7 @@ export default function CallOverlays() {
   } = useCall();
 
   return (
-    <>
+    <Suspense fallback={null}>
       {incomingCall && (
         <IncomingCallRequest
           isOpen={Boolean(incomingCall)}
@@ -43,6 +54,6 @@ export default function CallOverlays() {
           onClose={endActiveCall}
         />
       )}
-    </>
+    </Suspense>
   );
 }

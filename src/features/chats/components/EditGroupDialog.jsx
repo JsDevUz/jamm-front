@@ -27,6 +27,7 @@ const Overlay = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: 10px;
   z-index: 9999;
 `;
 
@@ -208,6 +209,18 @@ const UserName = styled.span`
   font-weight: 500;
 `;
 
+const UserBadge = styled.span`
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border-color);
+  background: var(--secondary-color);
+  color: var(--text-muted-color);
+  font-size: 11px;
+  font-weight: 700;
+`;
+
 const Footer = styled.div`
   background-color: var(--tertiary-color, #36393f);
   padding: 16px 24px;
@@ -300,7 +313,7 @@ const AdminRightsDialog = ({
       <Dialog onClick={(e) => e.stopPropagation()} style={{ width: "380px" }}>
         <Header style={{ padding: "20px" }}>
           <Title style={{ fontSize: "18px" }}>Admin huquqlari</Title>
-          <ButtonWrapper onClick={onClose}>
+          <ButtonWrapper absolute onClick={onClose}>
             <X size={18} />
           </ButtonWrapper>
         </Header>
@@ -438,7 +451,7 @@ const AddMemberDialog = ({
           <Title style={{ fontSize: "20px" }}>
             A'zo qo'shish ({selectedUsers.length}/40)
           </Title>
-          <ButtonWrapper onClick={onClose}>
+          <ButtonWrapper absolute onClick={onClose}>
             <X size={18} />
           </ButtonWrapper>
         </Header>
@@ -493,7 +506,14 @@ const AddMemberDialog = ({
               </div>
             ) : (
               filteredUsers.map((user) => (
-                <UserItem key={user.id} onClick={() => onSelect(user.id)}>
+                <UserItem
+                  key={user.id}
+                  style={{
+                    opacity: user.disableGroupInvites ? 0.55 : 1,
+                    pointerEvents: user.disableGroupInvites ? "none" : "auto",
+                  }}
+                  onClick={() => onSelect(user.id)}
+                >
                   <UserInfo>
                     <Avatar>
                       {user.avatar?.length > 1 ? (
@@ -516,6 +536,9 @@ const AddMemberDialog = ({
                       <div style={{ fontSize: 11, color: "#b9bbbe" }}>
                         @{user.username}
                       </div>
+                      {user.isOfficialProfile ? (
+                        <UserBadge>{user.officialBadgeLabel || "Rasmiy"}</UserBadge>
+                      ) : null}
                     </div>
                   </UserInfo>
                   {isFull ? (
@@ -604,6 +627,10 @@ const EditGroupDialog = ({
   /* Old debounced search effects moved to AddMemberDialog */
 
   const toggleUser = (userId) => {
+    const targetUser = allUsersMap.get(userId);
+    if (targetUser?.disableGroupInvites || targetUser?.isOfficialProfile) {
+      return;
+    }
     if (selectedUsers.includes(userId)) {
       setSelectedUsers(selectedUsers.filter((id) => id !== userId));
       // Also remove from admins if removed from members
@@ -695,7 +722,7 @@ const EditGroupDialog = ({
         <Header>
           <Title>Guruhni tahrirlash</Title>
           <Subtitle>Guruh ma'lumotlarini o'zgartirish</Subtitle>
-          <ButtonWrapper onClick={onClose}>
+          <ButtonWrapper absolute onClick={onClose}>
             <X size={18} />
           </ButtonWrapper>
         </Header>

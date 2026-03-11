@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import dayjs from "dayjs";
+import { ChevronLeft, ChevronRight } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import useAuthStore from "../../../store/authStore";
 import { usePosts } from "../../../contexts/PostsContext";
 import { useCourses } from "../../../contexts/CoursesContext";
@@ -19,11 +21,15 @@ import {
 } from ".";
 import { renderInlineMarkup } from "../../../shared/utils/renderInlineMarkup";
 import {
+  PaneDivider,
+  PaneDividerButton,
   ProfileContainer,
   RightPanel,
 } from "../styles/ProfilePage.styles";
+import FeatureTour from "../../../app/components/tours/FeatureTour";
 
-const ProfilePage = ({ profileUserId }) => {
+const ProfilePage = ({ profileUserId, isFocused = false, onToggleFocus }) => {
+  const { t } = useTranslation();
   const currentUser = useAuthStore((state) => state.user);
   const {
     userPosts,
@@ -54,6 +60,7 @@ const ProfilePage = ({ profileUserId }) => {
   const [blogCount, setBlogCount] = useState(0);
   const [editingPost, setEditingPost] = useState(null);
   const [postToDelete, setPostToDelete] = useState(null);
+  const [isProfileTourOpen, setIsProfileTourOpen] = useState(false);
 
   const myId = currentUser?._id || currentUser?.id;
   const isOwnProfile = !profileUserId || profileUserId === myId;
@@ -84,6 +91,27 @@ const ProfilePage = ({ profileUserId }) => {
       .then((items) => setBlogCount(items?.length || 0))
       .catch(() => setBlogCount(0));
   }, [isOwnProfile, myId, profileUserId]);
+
+  useEffect(() => {
+    if (!isOwnProfile) return;
+
+    const shouldAutostart =
+      sessionStorage.getItem("jamm-tour-profile-autostart") === "1";
+    if (!shouldAutostart && localStorage.getItem("jamm-tour-profile-v1") === "done") {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      setActiveTab(null);
+      setIsProfileTourOpen(true);
+    }, 450);
+
+    if (shouldAutostart) {
+      sessionStorage.removeItem("jamm-tour-profile-autostart");
+    }
+
+    return () => window.clearTimeout(timer);
+  }, [isOwnProfile]);
 
   const handleCreatePost = async (text) => {
     await createPost(text);
@@ -157,7 +185,20 @@ const ProfilePage = ({ profileUserId }) => {
         }}
       />
 
-      <RightPanel $visible={Boolean(activeTab)}>
+      {activeTab ? (
+        <PaneDivider $focused={isFocused}>
+          <PaneDividerButton
+            type="button"
+            onClick={onToggleFocus}
+            title={isFocused ? t("layout.minimizePane") : t("layout.maximizePane")}
+            aria-label={isFocused ? t("layout.minimizePane") : t("layout.maximizePane")}
+          >
+            {isFocused ? <ChevronLeft size={18} /> : <ChevronRight size={18} />}
+          </PaneDividerButton>
+        </PaneDivider>
+      ) : null}
+
+      <RightPanel $visible={Boolean(activeTab)} $focused={isFocused}>
         {activeTab === "groups" ? (
           <ProfilePostsPane
             posts={userPosts}
@@ -202,6 +243,7 @@ const ProfilePage = ({ profileUserId }) => {
           <ProfileUtilityPanel
             section={activeTab}
             currentUser={currentUser}
+            onBack={() => setActiveTab(null)}
           />
         ) : null}
       </RightPanel>
@@ -233,6 +275,86 @@ const ProfilePage = ({ profileUserId }) => {
         cancelText="Bekor qilish"
         onConfirm={handleDeletePost}
         isDanger
+      />
+
+      <FeatureTour
+        isOpen={isProfileTourOpen}
+        onClose={() => {
+          setIsProfileTourOpen(false);
+          setIsProfileEditOpen(false);
+        }}
+        storageKey="jamm-tour-profile-v1"
+        onStepChange={(stepIndex) => {
+          setActiveTab(null);
+          if (stepIndex === 10) {
+            setIsProfileEditOpen(true);
+            return;
+          }
+          setIsProfileEditOpen(false);
+        }}
+        steps={[
+          {
+            selector: '[data-tour="profile-overview"]',
+            title: t("featureTour.profile.overviewTitle"),
+            description: t("featureTour.profile.overviewDescription"),
+          },
+          {
+            selector: '[data-tour="profile-tab-groups"]',
+            title: t("featureTour.profile.groupsTabTitle"),
+            description: t("featureTour.profile.groupsTabDescription"),
+          },
+          {
+            selector: '[data-tour="profile-tab-courses"]',
+            title: t("featureTour.profile.coursesTabTitle"),
+            description: t("featureTour.profile.coursesTabDescription"),
+          },
+          {
+            selector: '[data-tour="profile-tab-blogs"]',
+            title: t("featureTour.profile.blogsTabTitle"),
+            description: t("featureTour.profile.blogsTabDescription"),
+          },
+          {
+            selector: '[data-tour="profile-tab-appearance"]',
+            title: t("featureTour.profile.appearanceTabTitle"),
+            description: t("featureTour.profile.appearanceTabDescription"),
+          },
+          {
+            selector: '[data-tour="profile-tab-language"]',
+            title: t("featureTour.profile.languageTabTitle"),
+            description: t("featureTour.profile.languageTabDescription"),
+          },
+          {
+            selector: '[data-tour="profile-tab-premium"]',
+            title: t("featureTour.profile.premiumTabTitle"),
+            description: t("featureTour.profile.premiumTabDescription"),
+          },
+          {
+            selector: '[data-tour="profile-tab-support"]',
+            title: t("featureTour.profile.supportTabTitle"),
+            description: t("featureTour.profile.supportTabDescription"),
+          },
+          {
+            selector: '[data-tour="profile-tab-favorites"]',
+            title: t("featureTour.profile.favoritesTabTitle"),
+            description: t("featureTour.profile.favoritesTabDescription"),
+          },
+          {
+            selector: '[data-tour="profile-edit-trigger"]',
+            title: t("featureTour.profile.editTriggerTitle"),
+            description: t("featureTour.profile.editTriggerDescription"),
+            onNext: async () => {
+              setIsProfileEditOpen(true);
+            },
+          },
+          {
+            selector: '[data-tour="profile-edit-dialog"]',
+            title: t("featureTour.profile.editDialogTitle"),
+            description: t("featureTour.profile.editDialogDescription"),
+            onNext: async () => {
+              setIsProfileEditOpen(false);
+            },
+          },
+        ]}
       />
     </ProfileContainer>
   );

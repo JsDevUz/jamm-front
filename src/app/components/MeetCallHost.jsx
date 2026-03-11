@@ -1,8 +1,13 @@
-import React from "react";
+import React, { Suspense, lazy } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { GroupVideoCall } from "../../features/calls/components";
 import useAuthStore from "../../store/authStore";
 import useMeetCallStore from "../../store/meetCallStore";
+
+const GroupVideoCall = lazy(() =>
+  import("../../features/calls/components").then((module) => ({
+    default: module.GroupVideoCall,
+  })),
+);
 
 export default function MeetCallHost() {
   const navigate = useNavigate();
@@ -43,18 +48,21 @@ export default function MeetCallHost() {
   };
 
   return (
-    <GroupVideoCall
-      isOpen
-      roomId={activeCall.roomId}
-      chatTitle={activeCall.chatTitle}
-      isCreator={activeCall.isCreator}
-      isPrivate={activeCall.isPrivate}
-      initialMicOn={activeCall.initialMicOn}
-      initialCamOn={activeCall.initialCamOn}
-      isMinimized={isMinimized}
-      onMinimize={handleMinimize}
-      onMaximize={maximizeCall}
-      onClose={handleClose}
-    />
+    <Suspense fallback={null}>
+      <GroupVideoCall
+        isOpen
+        roomId={activeCall.roomId}
+        chatTitle={activeCall.chatTitle}
+        displayName={activeCall.displayName}
+        isCreator={activeCall.isCreator}
+        isPrivate={activeCall.isPrivate}
+        initialMicOn={activeCall.initialMicOn}
+        initialCamOn={activeCall.initialCamOn}
+        isMinimized={isMinimized}
+        onMinimize={handleMinimize}
+        onMaximize={maximizeCall}
+        onClose={handleClose}
+      />
+    </Suspense>
   );
 }

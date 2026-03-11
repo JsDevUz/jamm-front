@@ -5,6 +5,7 @@ import useAuthStore from "../../../store/authStore";
 import { useArena } from "../../../contexts/ArenaContext";
 import { submitTestAnswers } from "../../../api/arenaApi";
 import axios from "axios";
+import { API_BASE_URL } from "../../../config/env";
 
 const Container = styled.div`
   max-width: 800px;
@@ -89,7 +90,7 @@ const Title = styled.h2`
 const QuestionBox = styled.div`
   background: var(--bg-color);
   padding: 24px;
-  border-radius: 12px;
+  border-radius: 30px;
   border: 1px solid var(--border-color);
   margin-bottom: 24px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
@@ -116,7 +117,7 @@ const OptionsGrid = styled.div`
 
 const OptionBtn = styled.button`
   padding: 14px 20px;
-  border-radius: 8px;
+  border-radius: 30px;
   border: 1px solid
     ${(props) => {
       if (props.isRevealed && props.showResults) {
@@ -447,7 +448,12 @@ const ConfirmBtnDanger = styled(ConfirmBtn)`
   border: 1px solid rgba(240, 71, 71, 0.3);
 `;
 
-const SoloTestPlayer = ({ test, onClose, shareShortCode = null }) => {
+const SoloTestPlayer = ({
+  test,
+  onClose,
+  shareShortCode = null,
+  onFinishedResult = null,
+}) => {
   const configuredTimeLimit = Number(test.timeLimit) || 0;
   const configuredShowResults = test.showResults ?? true;
   const displayMode = test.displayMode || "single";
@@ -471,8 +477,9 @@ const SoloTestPlayer = ({ test, onClose, shareShortCode = null }) => {
   const [singleAnswers, setSingleAnswers] = useState([]);
   const [listAnswers, setListAnswers] = useState({});
 
-  const { user, token } = useAuthStore();
+  const { user } = useAuthStore();
   const { guestName, setGuestSession } = useArena();
+  const isAuthenticatedUser = Boolean(user?._id || user?.id);
 
   const questions = test.questions || [];
   const currentQ = questions[currentIdx];
@@ -501,28 +508,22 @@ const SoloTestPlayer = ({ test, onClose, shareShortCode = null }) => {
       e.returnValue = "";
       // Submit current answers via fetch with keepalive
       const answers = getCurrentAnswers();
-      const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
       const payload = JSON.stringify({
         answers,
         shareShortCode: shareShortCode || null,
       });
 
-      const headers = { "Content-Type": "application/json" };
-      if (token) {
-        headers["Authorization"] = `Bearer ${token}`;
-      }
-      console.log(test);
-
-      fetch(`${API_URL}/arena/tests/${test._id}/submit`, {
+      fetch(`${API_BASE_URL}/arena/tests/${test._id}/submit`, {
         method: "POST",
-        headers,
+        headers: { "Content-Type": "application/json" },
         body: payload,
         keepalive: true,
+        credentials: "include",
       }).catch(() => {});
     };
     window.addEventListener("beforeunload", handleBeforeUnload);
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
-  }, [isFinished, getCurrentAnswers, test._id, token]);
+  }, [isFinished, getCurrentAnswers, test._id]);
 
   // Submit answers to server for validation
   const submitToServer = async (answers) => {
@@ -535,6 +536,14 @@ const SoloTestPlayer = ({ test, onClose, shareShortCode = null }) => {
       });
       setServerResults(result);
       setScore(result.score);
+      if (typeof onFinishedResult === "function") {
+        await Promise.resolve(
+          onFinishedResult({
+            answers,
+            result,
+          }),
+        );
+      }
     } catch (err) {
       console.error("Failed to submit answers:", err);
       // Fallback: just show finished without score details
@@ -572,18 +581,15 @@ const SoloTestPlayer = ({ test, onClose, shareShortCode = null }) => {
       const effectiveShowResults = serverResults?.showResults ?? configuredShowResults;
       if (effectiveShowResults && !serverResults) return;
 
-      const isUser = !!user;
+      const isUser = isAuthenticatedUser;
       const canSave = isUser || guestName;
 
       if (canSave) {
         setHasSaved(true);
         const saveHistory = async () => {
           try {
-            const API_URL =
-              import.meta.env.VITE_API_URL || "http://localhost:3000";
-
             await axios.post(
-              `${API_URL}/arena/battles/save-solo`,
+              `${API_BASE_URL}/arena/battles/save-solo`,
               {
                 testId: test._id,
                 score: score,
@@ -594,7 +600,7 @@ const SoloTestPlayer = ({ test, onClose, shareShortCode = null }) => {
                 shareShortCode: shareShortCode || null,
               },
               {
-                headers: token ? { Authorization: `Bearer ${token}` } : {},
+                withCredentials: true,
               },
             );
           } catch (error) {
@@ -608,7 +614,7 @@ const SoloTestPlayer = ({ test, onClose, shareShortCode = null }) => {
     isFinished,
     hasSaved,
     user,
-    token,
+    isAuthenticatedUser,
     guestName,
     test._id,
     score,
@@ -661,7 +667,7 @@ const SoloTestPlayer = ({ test, onClose, shareShortCode = null }) => {
     submitToServer(answers);
   };
 
-  if (!token && !guestName) {
+  if (!isAuthenticatedUser && !guestName) {
     return (
       <Container>
         <JoinBox>

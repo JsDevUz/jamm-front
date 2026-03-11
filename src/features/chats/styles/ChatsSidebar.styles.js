@@ -73,7 +73,8 @@ export const FilterButton = styled.button`
   padding: 4px 12px;
   background-color: ${(props) =>
     props.$active ? "var(--primary-color)" : "var(--input-color)"};
-  color: ${(props) => (props.$active ? "white" : "var(--text-secondary-color)")};
+  color: ${(props) =>
+    props.$active ? "white" : "var(--text-secondary-color)"};
   border: none;
   border-radius: 12px;
   font-size: 12px;
@@ -202,6 +203,10 @@ export const ChatMessage = styled.div`
   display: flex;
   align-items: center;
   gap: 4px;
+  span {
+    font-size: 10px;
+    color: var(--text-color);
+  }
 `;
 
 export const ChatMeta = styled.div`
@@ -233,8 +238,6 @@ export const SidebarItemSkeleton = styled.div`
   align-items: center;
   gap: 12px;
   padding: 12px 16px;
-  border-bottom: 1px solid
-    color-mix(in srgb, var(--border-color) 68%, transparent);
 `;
 
 export const SidebarItemSkeletonBody = styled.div`

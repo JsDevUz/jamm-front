@@ -7,16 +7,16 @@ const ContextMenu = styled.div`
   position: fixed;
   left: ${(props) => `${props.$x}px`};
   top: ${(props) => `${props.$y}px`};
-  background-color: var(--secondary-color);
-  backdrop-filter: blur(5px) saturate(200%);
-  -webkit-backdrop-filter: blur(40px) saturate(200%);
-  border: 1px solid var(--border-color);
+    background:var(--secondary-color-with-opacity);
+  backdrop-filter: blur(5px) saturate(150%);
+  -webkit-backdrop-filter: blur(18px) saturate(170%);
+  border: 1px solid color-mix(in srgb, var(--border-color) 78%, transparent);
   border-radius: 14px;
   padding: 8px;
   min-width: 180px;
   box-shadow:
-    0 24px 48px var(--shadow-color-strong, rgba(0, 0, 0, 0.4)),
-    0 0 0 1px var(--border-color) inset;
+    0 20px 48px rgba(0, 0, 0, 0.22),
+    0 0 0 1px rgba(255, 255, 255, 0.05) inset;
   z-index: 1000;
   max-height: 300px;
   overflow-y: auto;
@@ -45,12 +45,12 @@ const ContextMenuItem = styled.button`
   }
 
   &:hover {
-    background-color: ${(props) =>
+    background: ${(props) =>
       props.$danger
-        ? "var(--danger-color, var(--primary-color))"
-        : "var(--primary-color)"};
-    color: white;
-    transform: translateX(4px);
+        ? "color-mix(in srgb, var(--danger-color, var(--primary-color)) 18%, transparent)"
+        : "color-mix(in srgb, var(--text-color) 8%, transparent)"};
+    color: ${(props) =>
+      props.$danger ? "var(--danger-color, var(--primary-color))" : "var(--text-color)"};
   }
 `;
 

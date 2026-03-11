@@ -1,5 +1,11 @@
 import React from "react";
-import { BookOpen, Flame, GraduationCap, MessagesSquare } from "lucide-react";
+import {
+  BookOpen,
+  Flame,
+  GraduationCap,
+  LayoutDashboard,
+  MessagesSquare,
+} from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useChats } from "../../../contexts/ChatsContext";
 import useAuthStore from "../../../store/authStore";
@@ -12,14 +18,14 @@ import {
   Spacer,
 } from "../styles/ServerSidebar.styles";
 
-const navItems = [
+const baseNavItems = [
   { id: "feed", icon: Flame, labelKey: "navigation.feed" },
-  { id: "blogs", icon: BookOpen, labelKey: "navigation.blogs" },
   { id: "chats", icon: MessagesSquare, labelKey: "navigation.chats" },
+  { id: "blogs", icon: BookOpen, labelKey: "navigation.blogs" },
   { id: "courses", icon: GraduationCap, labelKey: "navigation.courses" },
 ];
 
-export default function ServerSidebar({ onSelectNav }) {
+export default function ServerSidebar({ onSelectNav, onPreloadNav }) {
   const { t } = useTranslation();
   const { selectedNav, setSelectedNav } = useChats();
   const currentUser = useAuthStore((state) => state.user);
@@ -36,6 +42,13 @@ export default function ServerSidebar({ onSelectNav }) {
   const displayName = currentUser?.nickname || currentUser?.username || "U";
   const avatarLetter = displayName.charAt(0).toUpperCase();
   const isPremium = currentUser?.premiumStatus === "active";
+  const navItems =
+    currentUser?.officialBadgeKey === "ceo"
+      ? [
+          ...baseNavItems,
+          { id: "admin", icon: LayoutDashboard, labelKey: "navigation.admin" },
+        ]
+      : baseNavItems;
 
   return (
     <SidebarContainer>
@@ -48,6 +61,7 @@ export default function ServerSidebar({ onSelectNav }) {
               : selectedNav === item.id
           }
           onClick={() => handleNav(item.id)}
+          onMouseEnter={() => onPreloadNav && onPreloadNav(item.id)}
           title={t(item.labelKey)}
         >
           <item.icon size={20} />
@@ -57,9 +71,11 @@ export default function ServerSidebar({ onSelectNav }) {
       <Spacer />
 
       <AvatarButton
+        data-tour="nav-profile"
         $active={selectedNav === "profile"}
         $premium={isPremium}
         onClick={() => handleNav("profile")}
+        onMouseEnter={() => onPreloadNav && onPreloadNav("profile")}
         title={`${displayName} — ${t("navigation.profile")}`}
       >
         {currentUser?.avatar ? (

@@ -142,12 +142,11 @@ const ProfilePostsPane = ({
   onBack,
 }) => {
   return (
-    <>
+    <div data-tour="profile-pane-groups" style={{ display: "contents" }}>
       <ProfilePaneHeader>
         <MobileBackBtn onClick={onBack}>
           <ArrowLeft size={20} />
         </MobileBackBtn>
-        <MessageSquare size={24} color="#3ba55d" />
         <ProfilePaneTitle>Gurunglar</ProfilePaneTitle>
         {isOwnProfile ? (
           <ButtonWrapper onClick={onCreatePost} title="Gurung yarating">
@@ -229,7 +228,7 @@ const ProfilePostsPane = ({
           </PostCard>
         ))
       )}
-    </>
+    </div>
   );
 };
 

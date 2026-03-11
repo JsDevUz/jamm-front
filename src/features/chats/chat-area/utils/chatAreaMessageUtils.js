@@ -60,6 +60,7 @@ export const mapIncomingMessage = (rawMessage) => ({
         content: rawMessage.replayTo.content,
       }
     : null,
+  createdAt: rawMessage.createdAt,
 });
 
 export const getUserAvatarInitials = (username) => {
@@ -71,4 +72,3 @@ export const getUserAvatarInitials = (username) => {
 
   return names[0].substring(0, 2).toUpperCase();
 };
-

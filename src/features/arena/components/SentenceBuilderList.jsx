@@ -25,6 +25,7 @@ import ArenaResultsPane from "./ArenaResultsPane";
 import ShareLinksDialog from "./ShareLinksDialog";
 import { SidebarIconButton as ButtonWrapper } from "../../../shared/ui/buttons/IconButton";
 import ConfirmDialog from "../../../shared/ui/dialogs/ConfirmDialog";
+import { RESOLVED_APP_BASE_URL } from "../../../config/env";
 
 const Container = styled.div`
   display: flex;
@@ -599,7 +600,6 @@ const SentenceBuilderList = ({ initialDeckId, onBack }) => {
     submitSentenceBuilderAttempt,
     guestName,
   } = useArena();
-  const token = useAuthStore((state) => state.token);
   const user = useAuthStore((state) => state.user);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
@@ -645,11 +645,15 @@ const SentenceBuilderList = ({ initialDeckId, onBack }) => {
   ).length;
 
   useEffect(() => {
-    if (token && !hasFetched.current && sentenceBuilderDecks.length === 0) {
-      fetchSentenceBuilders(1);
+    if (hasFetched.current) return;
+    if (sentenceBuilderDecks.length > 0) {
       hasFetched.current = true;
+      return;
     }
-  }, [fetchSentenceBuilders, sentenceBuilderDecks.length, token]);
+    fetchSentenceBuilders(1).finally(() => {
+      hasFetched.current = true;
+    });
+  }, [fetchSentenceBuilders, sentenceBuilderDecks.length]);
 
   useEffect(() => {
     if (!openMenuId) return undefined;
@@ -871,7 +875,7 @@ const SentenceBuilderList = ({ initialDeckId, onBack }) => {
       }));
       const result = await submitSentenceBuilderAttempt(practicingDeck._id, {
         answers,
-        guestName: token ? null : guestName,
+        guestName: user ? null : guestName,
         shareShortCode: activeShareShortCode || null,
       });
       setAttemptSummary(result);
@@ -925,7 +929,7 @@ const SentenceBuilderList = ({ initialDeckId, onBack }) => {
         timeLimit: Number(shareTimeLimit) || 0,
       });
       setShareLinks((prev) => [created, ...prev]);
-      const url = `${window.location.origin}/arena/sentence-builder/${created.shortCode}`;
+      const url = `${RESOLVED_APP_BASE_URL}/arena/sentence-builder/${created.shortCode}`;
       await navigator.clipboard.writeText(url);
       toast.success("Havola yaratildi va nusxalandi.");
       setShareGroupName("");
@@ -943,7 +947,7 @@ const SentenceBuilderList = ({ initialDeckId, onBack }) => {
   const handleCopyShareLink = async (shortCode) => {
     try {
       await navigator.clipboard.writeText(
-        `${window.location.origin}/arena/sentence-builder/${shortCode}`,
+        `${RESOLVED_APP_BASE_URL}/arena/sentence-builder/${shortCode}`,
       );
       toast.success("Havola nusxalandi.");
     } catch {

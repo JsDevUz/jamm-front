@@ -1,641 +1,877 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Brain, Hash, ListOrdered, RotateCcw, Timer } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, Play, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import useAuthStore from "../../../store/authStore";
+import UserNameWithDecoration from "../../../shared/ui/users/UserNameWithDecoration";
 import {
-  Actions,
-  Card,
-  CardText,
-  CardTitle,
+  fetchMnemonicLeaderboard,
+  saveMnemonicBestResult,
+} from "../../../api/arenaApi";
+import ArenaHeader from "./ArenaHeader";
+import   {SidebarIconButton}  from "../../../shared/ui/buttons/IconButton";
+import { getMnemonicWords, MNEMONIC_WORD_POOL_SIZE } from "../data/mnemonicWordPool";
+import {
+  DialogActionButton,
+  ModalBody,
+  ModalCloseButton,
+  ModalHeader,
+  ModalOverlay,
+  ModalPanel,
+  ModalSubtitle,
+  ModalTitle,
+  ModalTitleBlock,
+} from "../../../shared/ui/dialogs/ModalShell";
+import {
+  ConfigActions,
+  ConfigGrid,
+  ConfigHint,
   ConfigInput,
-  Countdown,
-  Description,
-  ExerciseTab,
-  ExerciseTabs,
-  Field,
-  FieldLabel,
-  Grid,
-  Hero,
-  HintList,
-  Input,
-  NumberBox,
-  OptionGrid,
-  Panel,
-  PrimaryButton,
-  ResultBanner,
-  ResultLine,
-  ResultTitle,
-  SecondaryButton,
-  Select,
-  Stage,
-  StatChip,
-  StatsRow,
-  StatusPill,
-  SummaryList,
-  SummaryRow,
-  SummaryValue,
-  Title,
+  ConfigLabel,
+  ConfigRow,
+  DigitCell,
+  DigitGrid,
+  DigitIndex,
+  FinishedButton,
+  Keypad,
+  KeypadButton,
+  LeaderboardAvatar,
+  LeaderboardCard,
+  LeaderboardEmpty,
+  LeaderboardHeader,
+  LeaderboardHint,
+  LeaderboardList,
+  LeaderboardMetric,
+  LeaderboardName,
+  LeaderboardRank,
+  LeaderboardRow,
+  LeaderboardTitle,
+  LeaderboardUser,
+  MnemonicsPanelShell,
+  ModeTab,
+  ModeTabs,
+  NumberStage,
+  NumberValue,
+  ResultCell,
+  ResultGrid,
+  ResultPanel,
+  SecondaryAction,
+  SetupCard,
+  SetupTitle,
+  StageHeader,
+  StageMeta,
+  StageMetaValue,
+  StagePanel,
+  StageTitle,
+  TopActionButton,
+  TrainingCanvas,
+  WordInput,
+  WordInputGrid,
+  WordInputRow,
+  WordPreviewColumn,
+  WordPreviewItem,
+  WordStage,
 } from "../styles/MnemonicsPanel.styles";
 
-const DIGIT_OPTIONS = [5, 7, 9, 12];
-const ROUND_OPTIONS = [3, 5, 7];
-const SEQUENCE_COUNT_OPTIONS = [4, 5, 6, 8];
-const SEQUENCE_TIME_OPTIONS = [5, 8, 10, 12];
+const MAX_ITEMS = 40;
+const PREPARE_SECONDS = 10;
 
-const randomDigits = (length) =>
-  Array.from({ length }, () => Math.floor(Math.random() * 10)).join("");
+const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 
-const createExerciseSet = (digits, rounds) =>
-  Array.from({ length: rounds }, () => randomDigits(digits));
-
-const getRevealSeconds = (digits) =>
-  Math.max(3, Math.min(8, Math.ceil(digits / 2)));
-
-const createSequenceSet = (start, end, count) => {
-  const min = Math.min(start, end);
-  const max = Math.max(start, end);
-  const pool = Array.from({ length: max - min + 1 }, (_, index) => min + index);
-
-  for (let index = pool.length - 1; index > 0; index -= 1) {
-    const swapIndex = Math.floor(Math.random() * (index + 1));
-    [pool[index], pool[swapIndex]] = [pool[swapIndex], pool[index]];
-  }
-
-  return pool.slice(0, Math.min(count, pool.length));
+const formatCountdown = (value) => {
+  const safeValue = Math.max(0, value);
+  const minutes = Math.floor(safeValue / 60);
+  const seconds = safeValue % 60;
+  return `${minutes}:${String(seconds).padStart(2, "0")}`;
 };
 
-const normalizeSequenceAnswer = (value) =>
-  value
-    .split(/[\s,;-]+/)
-    .map((item) => item.trim())
-    .filter(Boolean)
-    .join(" ");
+const formatMemorizeSeconds = (value, t) =>
+  `${(Math.max(0, value) / 1000).toFixed(2)} ${t("mnemonics.secondsShort")}`;
 
-const MnemonicsPanel = () => {
-  const { t } = useTranslation();
+const createDigits = (count) =>
+  Array.from({ length: count }, () => String(Math.floor(Math.random() * 10)));
 
-  const [exerciseType, setExerciseType] = useState("digits");
+const normalizeWord = (value) => value.trim().replace(/\s+/g, " ").toLowerCase();
 
-  const [digitCount, setDigitCount] = useState(7);
-  const [roundCount, setRoundCount] = useState(5);
-  const [phase, setPhase] = useState("idle");
+const chunkItems = (items, size) => {
+  const chunks = [];
+  for (let index = 0; index < items.length; index += size) {
+    chunks.push(items.slice(index, index + size));
+  }
+  return chunks;
+};
+
+const MnemonicsPanel = ({ onBack }) => {
+  const { t, i18n } = useTranslation();
+  const authToken = useAuthStore((state) => state.token);
+  const currentUser = useAuthStore((state) => state.user);
+  const digitCellRefs = useRef([]);
+  const [mode, setMode] = useState("digits");
+  const [itemCount, setItemCount] = useState(8);
+  const [memorizeSeconds, setMemorizeSeconds] = useState(60);
+  const [recallSeconds, setRecallSeconds] = useState(240);
+  const [autoAdvanceSeconds, setAutoAdvanceSeconds] = useState("");
+
+  const [phase, setPhase] = useState("setup");
   const [items, setItems] = useState([]);
-  const [currentRound, setCurrentRound] = useState(0);
-  const [remainingSeconds, setRemainingSeconds] = useState(0);
-  const [answer, setAnswer] = useState("");
-  const [results, setResults] = useState([]);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [enteredItems, setEnteredItems] = useState([]);
+  const [stageSeconds, setStageSeconds] = useState(PREPARE_SECONDS);
+  const [elapsedMemorizeMs, setElapsedMemorizeMs] = useState(0);
+  const [result, setResult] = useState(null);
+  const [leaderboard, setLeaderboard] = useState([]);
+  const [currentUserBest, setCurrentUserBest] = useState(null);
+  const [leaderboardLoading, setLeaderboardLoading] = useState(false);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
 
-  const [sequenceStart, setSequenceStart] = useState(10);
-  const [sequenceEnd, setSequenceEnd] = useState(99);
-  const [sequenceCount, setSequenceCount] = useState(5);
-  const [sequenceRevealSeconds, setSequenceRevealSeconds] = useState(8);
-  const [sequencePhase, setSequencePhase] = useState("idle");
-  const [sequenceItems, setSequenceItems] = useState([]);
-  const [sequenceRemainingSeconds, setSequenceRemainingSeconds] = useState(0);
-  const [sequenceAnswer, setSequenceAnswer] = useState("");
-  const [sequenceResult, setSequenceResult] = useState(null);
+  const parsedAutoAdvance = useMemo(() => {
+    if (!autoAdvanceSeconds) return null;
+    const numeric = Number(autoAdvanceSeconds);
+    if (!Number.isFinite(numeric) || numeric <= 0) return null;
+    return numeric;
+  }, [autoAdvanceSeconds]);
 
-  const answerInputRef = useRef(null);
-  const sequenceInputRef = useRef(null);
-
-  const currentValue = items[currentRound] || "";
-  const revealSeconds = useMemo(
-    () => getRevealSeconds(digitCount),
-    [digitCount],
+  const normalizedLanguage = useMemo(
+    () => (i18n.resolvedLanguage || i18n.language || "en").split("-")[0],
+    [i18n.language, i18n.resolvedLanguage],
   );
-  const currentSequenceValue = sequenceItems.join(" ");
-  const rangeSize = Math.abs(sequenceEnd - sequenceStart) + 1;
-  const sequenceCountLimit = Math.max(1, Math.min(sequenceCount, rangeSize));
+
+  const currentItem = items[currentIndex] || "";
+  const wordColumns = useMemo(() => chunkItems(items, 10), [items]);
+  const recallColumns = useMemo(() => chunkItems(enteredItems, 10), [enteredItems]);
+
+  const loadLeaderboard = async (nextMode = mode) => {
+    try {
+      setLeaderboardLoading(true);
+      const data = await fetchMnemonicLeaderboard(nextMode);
+      setLeaderboard(Array.isArray(data?.leaderboard) ? data.leaderboard : []);
+      setCurrentUserBest(data?.currentUserBest || null);
+    } catch {
+      setLeaderboard([]);
+      setCurrentUserBest(null);
+    } finally {
+      setLeaderboardLoading(false);
+    }
+  };
 
   useEffect(() => {
-    if (phase !== "memorize" || remainingSeconds <= 0) return undefined;
-
-    const timeoutId = window.setTimeout(() => {
-      setRemainingSeconds((prev) => {
-        if (prev <= 1) {
-          setPhase("answer");
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-
-    return () => window.clearTimeout(timeoutId);
-  }, [phase, remainingSeconds]);
-
-  useEffect(() => {
-    if (sequencePhase !== "memorize" || sequenceRemainingSeconds <= 0) {
+    if (
+      phase !== "prepare-memorize" &&
+      phase !== "memorize" &&
+      phase !== "prepare-recall" &&
+      phase !== "recall"
+    ) {
       return undefined;
     }
 
-    const timeoutId = window.setTimeout(() => {
-      setSequenceRemainingSeconds((prev) => {
+    const timer = window.setInterval(() => {
+      setStageSeconds((prev) => {
         if (prev <= 1) {
-          setSequencePhase("answer");
-          return 0;
+          window.clearInterval(timer);
+
+          if (phase === "prepare-memorize") {
+            setPhase("memorize");
+            return memorizeSeconds;
+          }
+
+          if (phase === "memorize") {
+            setPhase("prepare-recall");
+            setCurrentIndex(0);
+            return PREPARE_SECONDS;
+          }
+
+          if (phase === "prepare-recall") {
+            setPhase("recall");
+            setCurrentIndex(0);
+            return recallSeconds;
+          }
+
+          if (phase === "recall") {
+            finishRecall();
+            return 0;
+          }
         }
+
         return prev - 1;
       });
     }, 1000);
 
-    return () => window.clearTimeout(timeoutId);
-  }, [sequencePhase, sequenceRemainingSeconds]);
+    return () => window.clearInterval(timer);
+  }, [phase, memorizeSeconds, recallSeconds]);
 
   useEffect(() => {
-    if (phase === "answer") {
-      answerInputRef.current?.focus();
-    }
+    if (phase !== "memorize") return undefined;
+
+    const startedAt = Date.now();
+    const interval = window.setInterval(() => {
+      setElapsedMemorizeMs(Date.now() - startedAt);
+    }, 100);
+
+    return () => window.clearInterval(interval);
   }, [phase]);
 
   useEffect(() => {
-    if (sequencePhase === "answer") {
-      sequenceInputRef.current?.focus();
+    if (phase !== "memorize" || !parsedAutoAdvance || items.length <= 1) {
+      return undefined;
     }
-  }, [sequencePhase]);
 
-  const startDigitsExercise = () => {
-    setItems(createExerciseSet(digitCount, roundCount));
-    setResults([]);
-    setCurrentRound(0);
-    setAnswer("");
-    setRemainingSeconds(revealSeconds);
-    setPhase("memorize");
-  };
-
-  const startSequenceExercise = () => {
-    const nextItems = createSequenceSet(
-      sequenceStart,
-      sequenceEnd,
-      sequenceCountLimit,
+    const perItemMs = Math.max(
+      500,
+      Math.round((parsedAutoAdvance * 1000) / items.length),
     );
-    setSequenceItems(nextItems);
-    setSequenceAnswer("");
-    setSequenceResult(null);
-    setSequenceRemainingSeconds(sequenceRevealSeconds);
-    setSequencePhase("memorize");
-  };
 
-  const handleCheck = () => {
-    const normalizedAnswer = answer.replace(/\s+/g, "");
-    const isCorrect = normalizedAnswer === currentValue;
-    const nextResults = [
-      ...results,
-      {
-        round: currentRound + 1,
-        expected: currentValue,
-        actual: normalizedAnswer,
-        correct: isCorrect,
-      },
-    ];
+    const interval = window.setInterval(() => {
+      setCurrentIndex((prev) => (prev + 1) % items.length);
+    }, perItemMs);
 
-    setResults(nextResults);
-    setPhase("review");
-  };
+    return () => window.clearInterval(interval);
+  }, [phase, parsedAutoAdvance, items.length]);
 
-  const handleSequenceCheck = () => {
-    const actual = normalizeSequenceAnswer(sequenceAnswer);
-    const expected = sequenceItems.join(" ");
-    setSequenceResult({
-      expected,
-      actual,
-      correct: actual === expected,
+  useEffect(() => {
+    if (mode !== "digits") return;
+    if (phase !== "memorize" && phase !== "recall") return;
+
+    const activeNode = digitCellRefs.current[currentIndex];
+    if (!activeNode) return;
+
+    activeNode.scrollIntoView({
+      block: "center",
+      inline: "center",
+      behavior: "smooth",
     });
-    setSequencePhase("finished");
+  }, [currentIndex, mode, phase]);
+
+  useEffect(() => {
+    loadLeaderboard(mode);
+  }, [mode]);
+
+  const createTrainingItems = (count) => {
+    if (mode === "words") {
+      return getMnemonicWords(normalizedLanguage, count);
+    }
+    return createDigits(count);
   };
 
-  const handleNext = () => {
-    const isLastRound = currentRound >= items.length - 1;
-    if (isLastRound) {
-      setPhase("finished");
+  const startTraining = () => {
+    const safeCount = clamp(Number(itemCount) || 8, 1, MAX_ITEMS);
+    const safeMemorize = clamp(Number(memorizeSeconds) || 60, 5, 3600);
+    const safeRecall = clamp(Number(recallSeconds) || 240, 5, 3600);
+    const nextItems = createTrainingItems(safeCount);
+
+    setItemCount(safeCount);
+    setMemorizeSeconds(safeMemorize);
+    setRecallSeconds(safeRecall);
+    setItems(nextItems);
+    setEnteredItems(Array.from({ length: safeCount }, () => ""));
+    setCurrentIndex(0);
+    setElapsedMemorizeMs(0);
+    setResult(null);
+    setStageSeconds(PREPARE_SECONDS);
+    setPhase("prepare-memorize");
+    setIsDialogOpen(true);
+  };
+
+  const finishMemorize = () => {
+    setPhase("prepare-recall");
+    setCurrentIndex(0);
+    setStageSeconds(PREPARE_SECONDS);
+  };
+
+  const finishRecall = () => {
+    const score = items.reduce((acc, item, index) => {
+      if (mode === "words") {
+        return acc + (normalizeWord(enteredItems[index]) === normalizeWord(item) ? 1 : 0);
+      }
+      return acc + (enteredItems[index] === item ? 1 : 0);
+    }, 0);
+
+    const nextResult = {
+      score,
+      total: items.length,
+      expected: items,
+      actual: enteredItems,
+      elapsedMemorizeMs,
+    };
+
+    setResult(nextResult);
+    setPhase("result");
+
+    if (authToken) {
+      saveMnemonicBestResult({
+        mode,
+        score: nextResult.score,
+        total: nextResult.total,
+        elapsedMemorizeMs: nextResult.elapsedMemorizeMs,
+      })
+        .then(() => loadLeaderboard(mode))
+        .catch(() => undefined);
+    }
+  };
+
+  const resetTraining = () => {
+    setPhase("setup");
+    setItems([]);
+    setEnteredItems([]);
+    setCurrentIndex(0);
+    setStageSeconds(PREPARE_SECONDS);
+    setElapsedMemorizeMs(0);
+    setResult(null);
+    setIsDialogOpen(false);
+  };
+
+  const closeDialog = () => {
+    setIsDialogOpen(false);
+    setPhase("setup");
+    setItems([]);
+    setEnteredItems([]);
+    setCurrentIndex(0);
+    setStageSeconds(PREPARE_SECONDS);
+    setElapsedMemorizeMs(0);
+    setResult(null);
+  };
+
+  const moveCurrentIndex = (direction) => {
+    setCurrentIndex((prev) => clamp(prev + direction, 0, items.length - 1));
+  };
+
+  const handleDigitInput = (digit) => {
+    if (phase !== "recall" || mode !== "digits") return;
+
+    setEnteredItems((prev) => {
+      const next = [...prev];
+      next[currentIndex] = String(digit);
+      return next;
+    });
+
+    setCurrentIndex((prev) => Math.min(prev + 1, items.length - 1));
+  };
+
+  const clearCurrentItem = () => {
+    if (phase !== "recall") return;
+
+    setEnteredItems((prev) => {
+      const next = [...prev];
+      next[currentIndex] = "";
+      return next;
+    });
+  };
+
+  const skipToNextPhase = () => {
+    if (phase === "prepare-memorize") {
+      setPhase("memorize");
+      setStageSeconds(memorizeSeconds);
       return;
     }
 
-    setCurrentRound((prev) => prev + 1);
-    setAnswer("");
-    setRemainingSeconds(revealSeconds);
-    setPhase("memorize");
+    if (phase === "prepare-recall") {
+      setPhase("recall");
+      setCurrentIndex(0);
+      setStageSeconds(recallSeconds);
+    }
   };
 
-  const handleDigitsReset = () => {
-    setPhase("idle");
-    setItems([]);
-    setCurrentRound(0);
-    setRemainingSeconds(0);
-    setAnswer("");
-    setResults([]);
+  const renderModeTabs = () => (
+    <ModeTabs>
+      <ModeTab
+        type="button"
+        $active={mode === "digits"}
+        onClick={() => setMode("digits")}
+      >
+        {t("mnemonics.modes.digits")}
+      </ModeTab>
+      <ModeTab
+        type="button"
+        $active={mode === "words"}
+        onClick={() => setMode("words")}
+      >
+        {t("mnemonics.modes.words")}
+      </ModeTab>
+    </ModeTabs>
+  );
+
+  const renderLeaderboard = () => (
+    <LeaderboardCard>
+      <LeaderboardHeader>
+        <LeaderboardTitle>{t("mnemonics.leaderboard.title")}</LeaderboardTitle>
+        <LeaderboardHint>{t("mnemonics.leaderboard.sorting")}</LeaderboardHint>
+      </LeaderboardHeader>
+
+      {currentUserBest ? (
+        <LeaderboardRow $highlight>
+          <LeaderboardRank>#{currentUserBest.rank}</LeaderboardRank>
+          <LeaderboardUser>
+            <LeaderboardAvatar>
+              {(currentUserBest.user?.avatar || currentUser?.avatar) ? (
+                <img
+                  src={currentUserBest.user?.avatar || currentUser?.avatar}
+                  alt={
+                    currentUserBest.user?.nickname ||
+                    currentUserBest.user?.username ||
+                    currentUser?.nickname ||
+                    currentUser?.username ||
+                    "You"
+                  }
+                />
+              ) : (
+                (
+                  currentUserBest.user?.nickname ||
+                  currentUserBest.user?.username ||
+                  currentUser?.nickname ||
+                  currentUser?.username ||
+                  "Y"
+                )
+                  .slice(0, 1)
+                  .toUpperCase()
+              )}
+            </LeaderboardAvatar>
+            <LeaderboardName>
+              <UserNameWithDecoration
+                user={currentUserBest.user || currentUser}
+                fallback={t("common.you")}
+                size="sm"
+              />
+              <span>{t("mnemonics.leaderboard.yourBest")}</span>
+            </LeaderboardName>
+          </LeaderboardUser>
+          <LeaderboardMetric>
+            {currentUserBest.score}/{currentUserBest.total}
+          </LeaderboardMetric>
+          <LeaderboardMetric>
+            {formatMemorizeSeconds(currentUserBest.elapsedMemorizeMs, t)}
+          </LeaderboardMetric>
+        </LeaderboardRow>
+      ) : null}
+
+      {leaderboardLoading ? (
+        <LeaderboardEmpty>{t("mnemonics.leaderboard.loading")}</LeaderboardEmpty>
+      ) : leaderboard.length ? (
+        <LeaderboardList>
+          {leaderboard.slice(0, 10).map((item) => {
+            const user = item.user || {};
+            const isCurrent =
+              String(user?._id || "") === String(currentUser?._id || currentUser?.id || "");
+
+            return (
+              <LeaderboardRow key={`${item.rank}-${user?._id || "guest"}`} $highlight={isCurrent}>
+                <LeaderboardRank>#{item.rank}</LeaderboardRank>
+                <LeaderboardUser>
+                  <LeaderboardAvatar>
+                    {user?.avatar ? (
+                      <img
+                        src={user.avatar}
+                        alt={user.nickname || user.username || "U"}
+                      />
+                    ) : (
+                      (user?.nickname || user?.username || "U").slice(0, 1).toUpperCase()
+                    )}
+                  </LeaderboardAvatar>
+                  <LeaderboardName>
+                    <UserNameWithDecoration
+                      user={user}
+                      fallback="User"
+                      size="sm"
+                    />
+                    <span>{item.accuracy}%</span>
+                  </LeaderboardName>
+                </LeaderboardUser>
+                <LeaderboardMetric>
+                  {item.score}/{item.total}
+                </LeaderboardMetric>
+                <LeaderboardMetric>
+                  {formatMemorizeSeconds(item.elapsedMemorizeMs, t)}
+                </LeaderboardMetric>
+              </LeaderboardRow>
+            );
+          })}
+        </LeaderboardList>
+      ) : (
+        <LeaderboardEmpty>{t("mnemonics.leaderboard.empty")}</LeaderboardEmpty>
+      )}
+    </LeaderboardCard>
+  );
+
+  const renderSetup = () => (
+    <SetupCard>
+      {renderModeTabs()}
+
+      <SetupTitle>
+        {mode === "digits"
+          ? t("mnemonics.numbers.title")
+          : t("mnemonics.words.title")}
+      </SetupTitle>
+
+      <ConfigGrid>
+        <ConfigRow>
+          <ConfigLabel>
+            {mode === "digits"
+              ? t("mnemonics.fields.digitsToMemorize")
+              : t("mnemonics.fields.wordsToMemorize")}
+          </ConfigLabel>
+          <ConfigInput
+            type="number"
+            min="1"
+            max={MAX_ITEMS}
+            value={itemCount}
+            onChange={(event) => setItemCount(event.target.value)}
+          />
+        </ConfigRow>
+
+        <ConfigRow>
+          <ConfigLabel>{t("mnemonics.fields.maxMemorizationTime")}</ConfigLabel>
+          <ConfigInput
+            type="number"
+            min="5"
+            max="3600"
+            value={memorizeSeconds}
+            onChange={(event) => setMemorizeSeconds(event.target.value)}
+          />
+        </ConfigRow>
+
+        <ConfigRow>
+          <ConfigLabel>{t("mnemonics.fields.maxRecallTime")}</ConfigLabel>
+          <ConfigInput
+            type="number"
+            min="5"
+            max="3600"
+            value={recallSeconds}
+            onChange={(event) => setRecallSeconds(event.target.value)}
+          />
+        </ConfigRow>
+
+        <ConfigRow>
+          <ConfigLabel>{t("mnemonics.fields.autoAdvanceTotalTime")}</ConfigLabel>
+          <ConfigInput
+            type="number"
+            min="1"
+            max="3600"
+            placeholder={t("mnemonics.fields.optional")}
+            value={autoAdvanceSeconds}
+            onChange={(event) => setAutoAdvanceSeconds(event.target.value)}
+          />
+        </ConfigRow>
+      </ConfigGrid>
+
+      <ConfigHint>
+        {mode === "digits"
+          ? t("mnemonics.setupHintDigits", { count: MAX_ITEMS })
+          : t("mnemonics.setupHintWords", {
+              count: MAX_ITEMS,
+              total: MNEMONIC_WORD_POOL_SIZE,
+            })}
+      </ConfigHint>
+
+      <ConfigActions>
+        <TopActionButton type="button" onClick={startTraining}>
+          {t("mnemonics.actions.start")}
+        </TopActionButton>
+      </ConfigActions>
+    </SetupCard>
+  );
+
+  const renderDigitMemorize = () => (
+    <>
+      <DigitGrid>
+        {items.map((item, index) => (
+          <div
+            key={`digit-memorize-${index}`}
+            ref={(node) => {
+              digitCellRefs.current[index] = node;
+            }}
+          >
+            <DigitIndex>{index + 1}</DigitIndex>
+            <DigitCell $active={index === currentIndex}>{item}</DigitCell>
+          </div>
+        ))}
+      </DigitGrid>
+
+      <NumberStage>
+        <NumberValue>{currentItem}</NumberValue>
+      </NumberStage>
+    </>
+  );
+
+  const renderWordMemorize = () => (
+    <WordStage>
+      {wordColumns.map((column, columnIndex) => (
+        <WordPreviewColumn key={`word-column-${columnIndex}`}>
+          {column.map((item, itemIndex) => {
+            const absoluteIndex = columnIndex * 10 + itemIndex;
+            return (
+              <WordPreviewItem
+                key={`${item}-${absoluteIndex}`}
+                $active={absoluteIndex === currentIndex}
+              >
+                <span>{absoluteIndex + 1}.</span>
+                <strong>{item}</strong>
+              </WordPreviewItem>
+            );
+          })}
+        </WordPreviewColumn>
+      ))}
+    </WordStage>
+  );
+
+  const renderRecallInputs = () => (
+    <WordInputGrid>
+      {recallColumns.map((column, columnIndex) => (
+        <div key={`recall-column-${columnIndex}`}>
+          {column.map((value, itemIndex) => {
+            const absoluteIndex = columnIndex * 10 + itemIndex;
+            return (
+              <WordInputRow key={`word-input-${absoluteIndex}`}>
+                <DigitIndex>{absoluteIndex + 1}.</DigitIndex>
+                <WordInput
+                  type="text"
+                  value={value}
+                  $active={absoluteIndex === currentIndex}
+                  onFocus={() => setCurrentIndex(absoluteIndex)}
+                  onChange={(event) => {
+                    const nextValue = event.target.value;
+                    setEnteredItems((prev) => {
+                      const next = [...prev];
+                      next[absoluteIndex] = nextValue;
+                      return next;
+                    });
+                  }}
+                />
+              </WordInputRow>
+            );
+          })}
+        </div>
+      ))}
+    </WordInputGrid>
+  );
+
+  const renderRecallContent = () => {
+    if (mode === "digits") {
+      return (
+        <>
+          <DigitGrid>
+            {enteredItems.map((item, index) => (
+              <div
+                key={`digit-recall-${index}`}
+                ref={(node) => {
+                  digitCellRefs.current[index] = node;
+                }}
+              >
+                <DigitIndex>{index + 1}</DigitIndex>
+                <DigitCell $active={index === currentIndex}>{item || ""}</DigitCell>
+              </div>
+            ))}
+          </DigitGrid>
+
+          <Keypad>
+            {Array.from({ length: 10 }, (_, index) => (
+              <KeypadButton
+                key={index}
+                type="button"
+                onClick={() => handleDigitInput(index)}
+              >
+                {index}
+              </KeypadButton>
+            ))}
+            <KeypadButton type="button" onClick={() => moveCurrentIndex(-1)}>
+              <ChevronLeft size={22} />
+            </KeypadButton>
+            <KeypadButton type="button" onClick={() => moveCurrentIndex(1)}>
+              <ChevronRight size={22} />
+            </KeypadButton>
+            <KeypadButton type="button" onClick={clearCurrentItem}>
+              {t("mnemonics.actions.clear")}
+            </KeypadButton>
+          </Keypad>
+        </>
+      );
+    }
+
+    return renderRecallInputs();
   };
 
-  const handleSequenceReset = () => {
-    setSequencePhase("idle");
-    setSequenceItems([]);
-    setSequenceRemainingSeconds(0);
-    setSequenceAnswer("");
-    setSequenceResult(null);
-  };
+  const renderResult = () => (
+    <ResultPanel>
+      <ResultGrid $wide={mode === "words"}>
+        {result.expected.map((item, index) => {
+          const isCorrect =
+            mode === "words"
+              ? normalizeWord(result.actual[index]) === normalizeWord(item)
+              : result.actual[index] === item;
 
-  const correctCount = results.filter((item) => item.correct).length;
-  const percent = results.length
-    ? Math.round((correctCount / results.length) * 100)
-    : 0;
-  const latestResult = results[results.length - 1];
+          return (
+            <ResultCell key={`result-${index}`} $correct={isCorrect} $wide={mode === "words"}>
+              <span>{item}</span>
+              <span>{result.actual[index] || ""}</span>
+            </ResultCell>
+          );
+        })}
+      </ResultGrid>
+
+      <ConfigActions>
+        <TopActionButton type="button" onClick={resetTraining}>
+          {t("mnemonics.actions.continue")}
+        </TopActionButton>
+      </ConfigActions>
+    </ResultPanel>
+  );
+
+  const renderStage = () => {
+    const elapsedSeconds = (elapsedMemorizeMs / 1000).toFixed(2);
+    const headerMeta =
+      phase === "prepare-memorize"
+        ? [
+            {
+              label: t("mnemonics.stage.memorizationStartsIn"),
+              value: formatCountdown(stageSeconds),
+            },
+          ]
+        : phase === "memorize"
+          ? [
+              {
+                label: t("mnemonics.stage.memorizationEndsIn"),
+                value: formatCountdown(stageSeconds),
+              },
+            ]
+          : phase === "prepare-recall"
+            ? [
+                {
+                  label: t("mnemonics.stage.time"),
+                  value: `${elapsedSeconds} ${t("mnemonics.secondsShort")}`,
+                },
+                {
+                  label: t("mnemonics.stage.recallStartsIn"),
+                  value: formatCountdown(stageSeconds),
+                },
+              ]
+            : phase === "recall"
+              ? [
+                  {
+                    label: t("mnemonics.stage.time"),
+                    value: `${elapsedSeconds} ${t("mnemonics.secondsShort")}`,
+                  },
+                  {
+                    label: t("mnemonics.stage.recallEndsIn"),
+                    value: formatCountdown(stageSeconds),
+                  },
+                ]
+              : [
+                  { label: t("mnemonics.stage.score"), value: result?.score ?? 0 },
+                  {
+                    label: t("mnemonics.stage.time"),
+                    value: `${elapsedSeconds} ${t("mnemonics.secondsShort")}`,
+                  },
+                  {
+                    label: t("mnemonics.stage.completed"),
+                    value: t("mnemonics.stage.done"),
+                  },
+                ];
+
+    return (
+      <StagePanel>
+        <StageHeader>
+          <StageTitle>
+            {mode === "digits"
+              ? t("mnemonics.modes.digits")
+              : t("mnemonics.modes.words")}
+          </StageTitle>
+          <StageMeta>
+            {headerMeta.map((item) => (
+              <div key={item.label}>
+                {item.label}: <StageMetaValue>{item.value}</StageMetaValue>
+              </div>
+            ))}
+          </StageMeta>
+          {phase === "prepare-memorize" || phase === "prepare-recall" ? (
+            <TopActionButton type="button" onClick={skipToNextPhase}>
+              {t("mnemonics.actions.skip")}
+            </TopActionButton>
+          ) : phase === "result" ? (
+            <TopActionButton type="button" onClick={resetTraining}>
+              {t("mnemonics.actions.continue")}
+            </TopActionButton>
+          ) : (
+            <FinishedButton
+              type="button"
+              onClick={phase === "recall" ? finishRecall : finishMemorize}
+            >
+              <Check size={18} />
+              {t("mnemonics.actions.finished")}
+            </FinishedButton>
+          )}
+        </StageHeader>
+
+        <TrainingCanvas>
+          {phase === "memorize" &&
+            (mode === "digits" ? renderDigitMemorize() : renderWordMemorize())}
+          {phase === "recall" && renderRecallContent()}
+          {phase === "result" && renderResult()}
+        </TrainingCanvas>
+
+        {phase === "memorize" && (
+          <Keypad>
+            <KeypadButton
+              type="button"
+              onClick={() => moveCurrentIndex(-1)}
+              disabled={currentIndex === 0}
+            >
+              <ChevronLeft size={22} />
+            </KeypadButton>
+            <KeypadButton
+              type="button"
+              onClick={() => moveCurrentIndex(1)}
+              disabled={currentIndex === items.length - 1}
+            >
+              <ChevronRight size={22} />
+            </KeypadButton>
+          </Keypad>
+        )}
+      </StagePanel>
+    );
+  };
 
   return (
-    <Panel>
-      <Hero>
-        <Title>{t("mnemonics.title")}</Title>
-        <Description>{t("mnemonics.description")}</Description>
-      </Hero>
+    <MnemonicsPanelShell>
+      <ArenaHeader
+        title={t("mnemonics.title")}
+        onBack={onBack}
+        rightContent={
+          <SidebarIconButton type="button" onClick={() => setIsDialogOpen(true)}>
+            <Play size={16} />
+          </SidebarIconButton>
+        }
+      />
+      {renderModeTabs()}
+      {renderLeaderboard()}
 
-      <Grid>
-        <Card>
-          <ExerciseTabs>
-            <ExerciseTab
-              type="button"
-              $active={exerciseType === "digits"}
-              onClick={() => setExerciseType("digits")}
-            >
-              <Hash size={14} />
-              {t("mnemonics.numberMemory.title")}
-            </ExerciseTab>
-            <ExerciseTab
-              type="button"
-              $active={exerciseType === "sequence"}
-              onClick={() => setExerciseType("sequence")}
-            >
-              <ListOrdered size={14} />
-              {t("mnemonics.sequenceMemory.title")}
-            </ExerciseTab>
-          </ExerciseTabs>
-
-          {exerciseType === "digits" ? (
-            <>
-              <CardTitle>{t("mnemonics.numberMemory.title")}</CardTitle>
-              <CardText>{t("mnemonics.numberMemory.description")}</CardText>
-
-              {phase === "idle" && (
-                <>
-                  <OptionGrid>
-                    <Field>
-                      <FieldLabel>{t("mnemonics.fields.digits")}</FieldLabel>
-                      <Select
-                        value={digitCount}
-                        onChange={(e) => setDigitCount(Number(e.target.value))}
-                      >
-                        {DIGIT_OPTIONS.map((option) => (
-                          <option key={option} value={option}>
-                            {t("mnemonics.fields.digitsOption", { count: option })}
-                          </option>
-                        ))}
-                      </Select>
-                    </Field>
-
-                    <Field>
-                      <FieldLabel>{t("mnemonics.fields.rounds")}</FieldLabel>
-                      <Select
-                        value={roundCount}
-                        onChange={(e) => setRoundCount(Number(e.target.value))}
-                      >
-                        {ROUND_OPTIONS.map((option) => (
-                          <option key={option} value={option}>
-                            {t("mnemonics.fields.roundsOption", { count: option })}
-                          </option>
-                        ))}
-                      </Select>
-                    </Field>
-
-                    <Field>
-                      <FieldLabel>{t("mnemonics.fields.showTime")}</FieldLabel>
-                      <Select value={revealSeconds} disabled>
-                        <option value={revealSeconds}>
-                          {t("mnemonics.fields.showTimeValue", {
-                            count: revealSeconds,
-                          })}
-                        </option>
-                      </Select>
-                    </Field>
-                  </OptionGrid>
-
-                  <PrimaryButton onClick={startDigitsExercise}>
-                    {t("mnemonics.actions.start")}
-                  </PrimaryButton>
-                </>
-              )}
-
-              {phase !== "idle" && (
-                <Stage>
-                  <StatsRow>
-                    <StatChip>
-                      <Hash size={14} />
-                      {t("mnemonics.stats.round", {
-                        current: Math.min(currentRound + 1, items.length || 1),
-                        total: items.length || roundCount,
-                      })}
-                    </StatChip>
-                    <StatChip>
-                      <Timer size={14} />
-                      {t("mnemonics.stats.correct", {
-                        count: correctCount,
-                        total: results.length,
-                      })}
-                    </StatChip>
-                  </StatsRow>
-
-                  {phase === "memorize" && (
-                    <>
-                      <CardText>{t("mnemonics.memorizePrompt")}</CardText>
-                      <NumberBox>{currentValue}</NumberBox>
-                      <Countdown>
-                        {t("mnemonics.countdown", { count: remainingSeconds })}
-                      </Countdown>
-                    </>
-                  )}
-
-                  {phase === "answer" && (
-                    <>
-                      <CardText>{t("mnemonics.answerPrompt")}</CardText>
-                      <Input
-                        ref={answerInputRef}
-                        value={answer}
-                        onChange={(e) =>
-                          setAnswer(e.target.value.replace(/[^\d\s]/g, ""))
-                        }
-                        placeholder={t("mnemonics.answerPlaceholder")}
-                        inputMode="numeric"
-                      />
-                      <Actions>
-                        <PrimaryButton
-                          onClick={handleCheck}
-                          disabled={!answer.trim()}
-                        >
-                          {t("mnemonics.actions.check")}
-                        </PrimaryButton>
-                      </Actions>
-                    </>
-                  )}
-
-                  {phase === "review" && latestResult && (
-                    <>
-                      <ResultBanner $correct={latestResult.correct}>
-                        <ResultTitle $correct={latestResult.correct}>
-                          {latestResult.correct
-                            ? t("mnemonics.review.correct")
-                            : t("mnemonics.review.wrong")}
-                        </ResultTitle>
-                        <ResultLine>
-                          {t("mnemonics.review.yourAnswer")}:{" "}
-                          {latestResult.actual || t("mnemonics.review.empty")}
-                        </ResultLine>
-                        <ResultLine>
-                          {t("mnemonics.review.correctAnswer")}:{" "}
-                          {latestResult.expected}
-                        </ResultLine>
-                      </ResultBanner>
-
-                      <Actions>
-                        <PrimaryButton onClick={handleNext}>
-                          {currentRound >= items.length - 1
-                            ? t("mnemonics.actions.finish")
-                            : t("mnemonics.actions.next")}
-                        </PrimaryButton>
-                      </Actions>
-                    </>
-                  )}
-
-                  {phase === "finished" && (
-                    <>
-                      <ResultBanner $correct={percent >= 60}>
-                        <ResultTitle $correct={percent >= 60}>
-                          {t("mnemonics.summary.title")}
-                        </ResultTitle>
-                        <ResultLine>
-                          {t("mnemonics.summary.score", {
-                            correct: correctCount,
-                            total: results.length,
-                            percent,
-                          })}
-                        </ResultLine>
-                      </ResultBanner>
-
-                      <SummaryList>
-                        {results.map((item) => (
-                          <SummaryRow key={item.round}>
-                            <SummaryValue>
-                              {t("mnemonics.summary.roundLabel", {
-                                count: item.round,
-                              })}
-                            </SummaryValue>
-                            <SummaryValue>{item.expected}</SummaryValue>
-                            <SummaryValue>
-                              {item.actual || t("mnemonics.review.empty")}
-                            </SummaryValue>
-                            <StatusPill $correct={item.correct}>
-                              {item.correct
-                                ? t("mnemonics.review.correct")
-                                : t("mnemonics.review.wrong")}
-                            </StatusPill>
-                          </SummaryRow>
-                        ))}
-                      </SummaryList>
-
-                      <Actions>
-                        <PrimaryButton onClick={startDigitsExercise}>
-                          {t("mnemonics.actions.retry")}
-                        </PrimaryButton>
-                        <SecondaryButton onClick={handleDigitsReset}>
-                          <RotateCcw size={14} />
-                          {t("mnemonics.actions.reset")}
-                        </SecondaryButton>
-                      </Actions>
-                    </>
-                  )}
-                </Stage>
-              )}
-            </>
-          ) : (
-            <>
-              <CardTitle>{t("mnemonics.sequenceMemory.title")}</CardTitle>
-              <CardText>{t("mnemonics.sequenceMemory.description")}</CardText>
-
-              {sequencePhase === "idle" && (
-                <>
-                  <OptionGrid>
-                    <Field>
-                      <FieldLabel>{t("mnemonics.sequenceMemory.startFrom")}</FieldLabel>
-                      <ConfigInput
-                        type="number"
-                        value={sequenceStart}
-                        onChange={(e) => setSequenceStart(Number(e.target.value))}
-                      />
-                    </Field>
-                    <Field>
-                      <FieldLabel>{t("mnemonics.sequenceMemory.endAt")}</FieldLabel>
-                      <ConfigInput
-                        type="number"
-                        value={sequenceEnd}
-                        onChange={(e) => setSequenceEnd(Number(e.target.value))}
-                      />
-                    </Field>
-                    <Field>
-                      <FieldLabel>{t("mnemonics.sequenceMemory.totalNumbers")}</FieldLabel>
-                      <Select
-                        value={sequenceCount}
-                        onChange={(e) => setSequenceCount(Number(e.target.value))}
-                      >
-                        {SEQUENCE_COUNT_OPTIONS.map((option) => (
-                          <option key={option} value={option}>
-                            {t("mnemonics.sequenceMemory.totalOption", {
-                              count: option,
-                            })}
-                          </option>
-                        ))}
-                      </Select>
-                    </Field>
-                    <Field>
-                      <FieldLabel>{t("mnemonics.sequenceMemory.showTime")}</FieldLabel>
-                      <Select
-                        value={sequenceRevealSeconds}
-                        onChange={(e) =>
-                          setSequenceRevealSeconds(Number(e.target.value))
-                        }
-                      >
-                        {SEQUENCE_TIME_OPTIONS.map((option) => (
-                          <option key={option} value={option}>
-                            {t("mnemonics.fields.showTimeValue", { count: option })}
-                          </option>
-                        ))}
-                      </Select>
-                    </Field>
-                  </OptionGrid>
-
-                  <CardText>
-                    {t("mnemonics.sequenceMemory.helper", {
-                      count: sequenceCountLimit,
-                      start: Math.min(sequenceStart, sequenceEnd),
-                      end: Math.max(sequenceStart, sequenceEnd),
-                    })}
-                  </CardText>
-
-                  <PrimaryButton onClick={startSequenceExercise}>
-                    {t("mnemonics.actions.start")}
-                  </PrimaryButton>
-                </>
-              )}
-
-              {sequencePhase !== "idle" && (
-                <Stage>
-                  <StatsRow>
-                    <StatChip>
-                      <ListOrdered size={14} />
-                      {t("mnemonics.sequenceMemory.countLabel", {
-                        count: sequenceItems.length,
-                      })}
-                    </StatChip>
-                    <StatChip>
-                      <Brain size={14} />
-                      {t("mnemonics.sequenceMemory.rangeLabel", {
-                        start: Math.min(sequenceStart, sequenceEnd),
-                        end: Math.max(sequenceStart, sequenceEnd),
-                      })}
-                    </StatChip>
-                  </StatsRow>
-
-                  {sequencePhase === "memorize" && (
-                    <>
-                      <CardText>
-                        {t("mnemonics.sequenceMemory.memorizePrompt")}
-                      </CardText>
-                      <NumberBox>{currentSequenceValue}</NumberBox>
-                      <Countdown>
-                        {t("mnemonics.countdown", {
-                          count: sequenceRemainingSeconds,
-                        })}
-                      </Countdown>
-                    </>
-                  )}
-
-                  {sequencePhase === "answer" && (
-                    <>
-                      <CardText>
-                        {t("mnemonics.sequenceMemory.answerPrompt")}
-                      </CardText>
-                      <Input
-                        ref={sequenceInputRef}
-                        value={sequenceAnswer}
-                        onChange={(e) =>
-                          setSequenceAnswer(e.target.value.replace(/[^\d\s,;-]/g, ""))
-                        }
-                        placeholder={t(
-                          "mnemonics.sequenceMemory.answerPlaceholder",
-                        )}
-                        inputMode="numeric"
-                      />
-                      <Actions>
-                        <PrimaryButton
-                          onClick={handleSequenceCheck}
-                          disabled={!sequenceAnswer.trim()}
-                        >
-                          {t("mnemonics.actions.check")}
-                        </PrimaryButton>
-                      </Actions>
-                    </>
-                  )}
-
-                  {sequencePhase === "finished" && sequenceResult && (
-                    <>
-                      <ResultBanner $correct={sequenceResult.correct}>
-                        <ResultTitle $correct={sequenceResult.correct}>
-                          {sequenceResult.correct
-                            ? t("mnemonics.review.correct")
-                            : t("mnemonics.review.wrong")}
-                        </ResultTitle>
-                        <ResultLine>
-                          {t("mnemonics.review.yourAnswer")}:{" "}
-                          {sequenceResult.actual || t("mnemonics.review.empty")}
-                        </ResultLine>
-                        <ResultLine>
-                          {t("mnemonics.review.correctAnswer")}:{" "}
-                          {sequenceResult.expected}
-                        </ResultLine>
-                      </ResultBanner>
-
-                      <Actions>
-                        <PrimaryButton onClick={startSequenceExercise}>
-                          {t("mnemonics.actions.retry")}
-                        </PrimaryButton>
-                        <SecondaryButton onClick={handleSequenceReset}>
-                          <RotateCcw size={14} />
-                          {t("mnemonics.actions.reset")}
-                        </SecondaryButton>
-                      </Actions>
-                    </>
-                  )}
-                </Stage>
-              )}
-            </>
-          )}
-        </Card>
-
-        <Card>
-          <CardTitle>{t("mnemonics.howItWorks.title")}</CardTitle>
-          <HintList>
-            <li>{t("mnemonics.howItWorks.step1")}</li>
-            <li>{t("mnemonics.howItWorks.step2")}</li>
-            <li>{t("mnemonics.howItWorks.step3")}</li>
-            <li>{t("mnemonics.howItWorks.step4")}</li>
-          </HintList>
-
-          <StatsRow>
-            <StatChip>
-              <Brain size={14} />
-              {t("mnemonics.tags.frontOnly")}
-            </StatChip>
-            <StatChip>
-              <Timer size={14} />
-              {t("mnemonics.tags.notSaved")}
-            </StatChip>
-          </StatsRow>
-        </Card>
-      </Grid>
-    </Panel>
+      {isDialogOpen && (
+        <ModalOverlay onClick={closeDialog} $zIndex={10030}>
+          <ModalPanel
+            role="dialog"
+            aria-modal="true"
+            $width={phase === "setup" ? "min(100%, 760px)" : "min(100%, 1320px)"}
+            $maxHeight="92vh"
+            $mobileFull
+            onClick={(event) => event.stopPropagation()}
+          >
+            <ModalHeader>
+              <ModalTitleBlock>
+                <ModalTitle>{t("mnemonics.title")}</ModalTitle>
+                <ModalSubtitle>
+                  {phase === "setup"
+                    ? t("mnemonics.description")
+                    : mode === "digits"
+                      ? t("mnemonics.numbers.title")
+                      : t("mnemonics.words.title")}
+                </ModalSubtitle>
+              </ModalTitleBlock>
+              <ModalCloseButton type="button" onClick={closeDialog}>
+                <X size={18} />
+              </ModalCloseButton>
+            </ModalHeader>
+            <ModalBody $padding={phase === "setup" ? "16px" : "16px 16px 20px"}>
+              {phase === "setup" ? renderSetup() : renderStage()}
+            </ModalBody>
+          </ModalPanel>
+        </ModalOverlay>
+      )}
+    </MnemonicsPanelShell>
   );
 };
 

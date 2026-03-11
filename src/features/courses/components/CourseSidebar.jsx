@@ -37,10 +37,9 @@ const SidebarContainer = styled.div`
 `;
 
 const HeaderSection = styled.div`
-  padding: 16px;
+  padding: 12px 16px;
   border-bottom: 1px solid var(--border-color);
   display: flex;
-  height: 56ppx;
   align-items: center;
   justify-content: space-between;
 `;
@@ -71,8 +70,9 @@ const CreateButton = styled.button`
 
 const TabsContainer = styled.div`
   display: flex;
-  padding: 16px 16px 0 16px;
+  padding: 0 16px;
   gap: 8px;
+  border-bottom: 1px solid var(--border-color);
 `;
 
 const NavTab = styled.button`
@@ -81,19 +81,32 @@ const NavTab = styled.button`
   align-items: center;
   justify-content: center;
   gap: 8px;
-  padding: 10px;
-  border-radius: 8px;
+  padding: 12px 10px;
+  border-radius: 0;
   border: none;
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
-  background-color: ${(props) =>
-    props.$active ? "var(--primary-color)" : "var(--background-color)"};
-  color: ${(props) => (props.$active ? "white" : "var(--text-color)")};
-  transition: all 0.2s;
+  background-color: transparent;
+  color: ${(props) =>
+    props.$active ? "var(--text-color)" : "var(--text-muted-color)"};
+  transition: color 0.2s ease;
+  position: relative;
 
   &:hover {
-    filter: brightness(1.1);
+    color: var(--text-color);
+  }
+
+  &::after {
+    content: "";
+    position: absolute;
+    left: 12px;
+    right: 12px;
+    bottom: 0;
+    height: 2px;
+    border-radius: 999px;
+    background: ${(props) =>
+      props.$active ? "var(--primary-color)" : "transparent"};
   }
 `;
 
@@ -272,7 +285,7 @@ const CourseSidebar = ({
   setActiveArenaTab,
 }) => {
   const { t } = useTranslation();
-  const navigate = useNavigate(); // Added this line
+  const navigate = useNavigate();
   const {
     courses,
     loading,
@@ -294,6 +307,51 @@ const CourseSidebar = ({
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [courseToDelete, setCourseToDelete] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const arenaItems = React.useMemo(
+    () => [
+      {
+        key: "tests",
+        title: t("courseSidebar.arena.testsTitle"),
+        description: t("courseSidebar.arena.testsDescription"),
+        icon: <BookOpen size={20} color="white" />,
+        gradient: "linear-gradient(135deg, #FF6B6B 0%, #FF8E53 100%)",
+        path: "/arena/quiz",
+      },
+      {
+        key: "flashcards",
+        title: t("courseSidebar.arena.flashcardsTitle"),
+        description: t("courseSidebar.arena.flashcardsDescription"),
+        icon: <Layers size={20} color="white" />,
+        gradient: "linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)",
+        path: "/arena/flashcard",
+      },
+      {
+        key: "sentenceBuilders",
+        title: t("courseSidebar.arena.sentencesTitle"),
+        description: t("courseSidebar.arena.sentencesDescription"),
+        icon: <Type size={20} color="white" />,
+        gradient: "linear-gradient(135deg, #22c55e 0%, #14b8a6 100%)",
+        path: "/arena/sentence-builder",
+      },
+      {
+        key: "mnemonics",
+        title: t("courseSidebar.arena.mnemonicsTitle"),
+        description: t("courseSidebar.arena.mnemonicsDescription"),
+        icon: <Brain size={20} color="white" />,
+        gradient: "linear-gradient(135deg, #64748b 0%, #334155 100%)",
+        path: "/arena/minemonika",
+      },
+      {
+        key: "battles",
+        title: t("courseSidebar.arena.battlesTitle"),
+        description: t("courseSidebar.arena.battlesDescription"),
+        icon: <Swords size={20} color="white" />,
+        gradient: "linear-gradient(135deg, #a18cd1 0%, #fbc2eb 100%)",
+        path: "/arena/battle",
+      },
+    ],
+    [t],
+  );
 
   const filteredCourses = React.useMemo(() => {
     if (!searchQuery) {
@@ -311,15 +369,25 @@ const CourseSidebar = ({
     );
   }, [courses, searchQuery, isEnrolled]);
 
+  const filteredArenaItems = React.useMemo(() => {
+    const normalizedQuery = searchQuery.trim().toLowerCase();
+    if (!normalizedQuery) return arenaItems;
+
+    return arenaItems.filter((item) => {
+      const haystack = `${item.title} ${item.description}`.toLowerCase();
+      return haystack.includes(normalizedQuery);
+    });
+  }, [arenaItems, searchQuery]);
+
   const getStatusLabel = (courseId) => {
     const status = isEnrolled(courseId);
     switch (status) {
       case "admin":
         return { text: t("courseSidebar.status.admin"), icon: null };
       case "approved":
-        return { text: t("courseSidebar.status.approved"), icon: <CheckCircle size={10} /> };
+        return { text: t("courseSidebar.status.approved"), icon: null };
       case "pending":
-        return { text: t("courseSidebar.status.pending"), icon: <Clock size={10} /> };
+        return { text: t("courseSidebar.status.pending"), icon: null };
       default:
         return null;
     }
@@ -353,7 +421,37 @@ const CourseSidebar = ({
   return (
     <>
       <SidebarContainer>
-        <TabsContainer>
+        <HeaderSection>
+          <div
+            data-tour="courses-search"
+            style={{ display: "flex", flex: 1, minWidth: 0 }}
+          >
+            <HeaderSearch
+              type="text"
+              placeholder={
+                viewMode === "arena"
+                  ? t("courseSidebar.arena.searchPlaceholder", {
+                      defaultValue: "Arena qidirish...",
+                    })
+                  : t("courseSidebar.searchPlaceholder")
+              }
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
+          {viewMode === "courses" && (
+            <div data-tour="courses-create">
+              <ButtonWrapper
+                onClick={() => setIsCreateOpen(true)}
+                title={t("courseSidebar.createTitle")}
+              >
+                <Plus size={18} />
+              </ButtonWrapper>
+            </div>
+          )}
+        </HeaderSection>
+
+        <TabsContainer data-tour="courses-tabs">
           <NavTab
             $active={viewMode === "courses"}
             onClick={() => {
@@ -376,115 +474,29 @@ const CourseSidebar = ({
         </TabsContainer>
 
         {viewMode === "arena" ? (
-          <CourseList style={{ paddingTop: "16px" }}>
-            <CourseItem
-              $active={activeArenaTab === "tests"}
-              onClick={() => {
-                if (setActiveArenaTab) setActiveArenaTab("tests");
-                navigate("/arena/quiz");
-              }}
-            >
-              <CourseThumbnail gradient="linear-gradient(135deg, #FF6B6B 0%, #FF8E53 100%)">
-                <BookOpen size={20} color="white" />
-              </CourseThumbnail>
-              <CourseInfo>
-                <CourseName>{t("courseSidebar.arena.testsTitle")}</CourseName>
-                <CourseDescription>
-                  {t("courseSidebar.arena.testsDescription")}
-                </CourseDescription>
-              </CourseInfo>
-            </CourseItem>
-
-            <CourseItem
-              $active={activeArenaTab === "flashcards"}
-              onClick={() => {
-                if (setActiveArenaTab) setActiveArenaTab("flashcards");
-                navigate("/arena/flashcard");
-              }}
-            >
-              <CourseThumbnail gradient="linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)">
-                <Layers size={20} color="white" />
-              </CourseThumbnail>
-              <CourseInfo>
-                <CourseName>{t("courseSidebar.arena.flashcardsTitle")}</CourseName>
-                <CourseDescription>
-                  {t("courseSidebar.arena.flashcardsDescription")}
-                </CourseDescription>
-              </CourseInfo>
-            </CourseItem>
-
-            <CourseItem
-              $active={activeArenaTab === "sentenceBuilders"}
-              onClick={() => {
-                if (setActiveArenaTab) setActiveArenaTab("sentenceBuilders");
-                navigate("/arena/sentence-builder");
-              }}
-            >
-              <CourseThumbnail gradient="linear-gradient(135deg, #22c55e 0%, #14b8a6 100%)">
-                <Type size={20} color="white" />
-              </CourseThumbnail>
-              <CourseInfo>
-                <CourseName>{t("courseSidebar.arena.sentencesTitle")}</CourseName>
-                <CourseDescription>
-                  {t("courseSidebar.arena.sentencesDescription")}
-                </CourseDescription>
-              </CourseInfo>
-            </CourseItem>
-
-            <CourseItem
-              $active={activeArenaTab === "mnemonics"}
-              onClick={() => {
-                if (setActiveArenaTab) setActiveArenaTab("mnemonics");
-                navigate("/arena/minemonika");
-              }}
-            >
-              <CourseThumbnail>
-                <Brain size={20} color="white" />
-              </CourseThumbnail>
-              <CourseInfo>
-                <CourseName>{t("courseSidebar.arena.mnemonicsTitle")}</CourseName>
-                <CourseDescription>
-                  {t("courseSidebar.arena.mnemonicsDescription")}
-                </CourseDescription>
-              </CourseInfo>
-            </CourseItem>
-
-            <CourseItem
-              $active={activeArenaTab === "battles"}
-              onClick={() => {
-                if (setActiveArenaTab) setActiveArenaTab("battles");
-                navigate("/arena/battle");
-              }}
-            >
-              <CourseThumbnail gradient="linear-gradient(135deg, #a18cd1 0%, #fbc2eb 100%)">
-                <Swords size={20} color="white" />
-              </CourseThumbnail>
-              <CourseInfo>
-                <CourseName>{t("courseSidebar.arena.battlesTitle")}</CourseName>
-                <CourseDescription>
-                  {t("courseSidebar.arena.battlesDescription")}
-                </CourseDescription>
-              </CourseInfo>
-            </CourseItem>
+          <CourseList>
+            {filteredArenaItems.map((item) => (
+              <CourseItem
+                key={item.key}
+                $active={activeArenaTab === item.key}
+                onClick={() => {
+                  if (setActiveArenaTab) setActiveArenaTab(item.key);
+                  navigate(item.path);
+                }}
+              >
+                <CourseThumbnail gradient={item.gradient}>
+                  {item.icon}
+                </CourseThumbnail>
+                <CourseInfo>
+                  <CourseName>{item.title}</CourseName>
+                  <CourseDescription>{item.description}</CourseDescription>
+                </CourseInfo>
+              </CourseItem>
+            ))}
           </CourseList>
         ) : (
           <>
-            <HeaderSection>
-              <HeaderSearch
-                type="text"
-                placeholder={t("courseSidebar.searchPlaceholder")}
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-              <ButtonWrapper
-                onClick={() => setIsCreateOpen(true)}
-                title={t("courseSidebar.createTitle")}
-              >
-                <Plus size={18} />
-              </ButtonWrapper>
-            </HeaderSection>
-
-            <CourseList id="sidebarCoursesArea">
+            <CourseList id="sidebarCoursesArea" data-tour="courses-list">
               {loading ? null : filteredCourses.length === 0 ? (
                 <EmptyState>
                   <EmptyIcon>
@@ -535,9 +547,13 @@ const CourseSidebar = ({
                 >
                   {filteredCourses.map((course) => {
                     const statusInfo = getStatusLabel(course._id);
-                    const totalMembers = (course.members || []).filter(
-                      (m) => m.status === "approved",
-                    ).length;
+                    const totalMembers =
+                      course.membersCount ??
+                      (course.members || []).filter(
+                        (m) => m.status === "approved",
+                      ).length;
+                    const lessonCount =
+                      course.lessonCount ?? (course.lessons || []).length;
                     return (
                       <CourseItem
                         key={course._id}
@@ -556,9 +572,9 @@ const CourseSidebar = ({
                         <CourseInfo>
                           <CourseName>{course.name}</CourseName>
                           <CourseDescription>
-                            {(course.lessons || []).length > 0
+                            {lessonCount > 0
                               ? t("courseSidebar.lessonCount", {
-                                  count: course.lessons.length,
+                                  count: lessonCount,
                                 })
                               : t("courseSidebar.noLessons")}
                             {statusInfo && (

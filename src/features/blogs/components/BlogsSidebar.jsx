@@ -90,18 +90,21 @@ const BlogsSidebar = ({ selectedBlogId }) => {
       <BlogItemSkeleton key={index}>
         <BlogItemSkeletonThumb />
         <BlogItemSkeletonBody>
+          {/* Title - roughly 16px height + 6px bottom margin */}
           <Skeleton
-            height="15px"
+            height="16px"
             width={index % 2 === 0 ? "72%" : "58%"}
-            mb="8px"
+            mb="6px"
           />
+          {/* Excerpt - 2 lines roughly ~12px height each, 6px spacing */}
           <Skeleton height="12px" width="92%" mb="6px" />
           <Skeleton
             height="12px"
             width={index % 3 === 0 ? "76%" : "68%"}
-            mb="10px"
+            mb="12px"
           />
-          <Skeleton height="11px" width="54%" mb="0" />
+          {/* Meta - roughly 12px height */}
+          <Skeleton height="12px" width="60%" mb="0" />
         </BlogItemSkeletonBody>
       </BlogItemSkeleton>
     ));
@@ -114,7 +117,10 @@ const BlogsSidebar = ({ selectedBlogId }) => {
           value={query}
           onChange={(event) => setQuery(event.target.value)}
         />
-        <AddBlogButton onClick={() => setEditorOpen(true)} title={t("blogs.createTitle")}>
+        <AddBlogButton
+          onClick={() => setEditorOpen(true)}
+          title={t("blogs.createTitle")}
+        >
           <Plus size={16} />
         </AddBlogButton>
       </SearchWrap>
@@ -154,8 +160,12 @@ const BlogsSidebar = ({ selectedBlogId }) => {
                           blog.author?.username ||
                           t("blogs.author")}
                       </span>
-                      <span>{blog.likes} {t("common.like")}</span>
-                      <span>{blog.comments} {t("blogs.comments")}</span>
+                      <span>
+                        {blog.likes} {t("common.like")}
+                      </span>
+                      <span>
+                        {blog.comments} {t("blogs.comments")}
+                      </span>
                     </Meta>
                   </Content>
                 </BlogItem>

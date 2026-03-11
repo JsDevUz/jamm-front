@@ -1,11 +1,12 @@
 import React from "react";
 import { useLocation } from "react-router-dom";
+import useProfileDecorationsStore from "../../store/profileDecorationsStore";
+import useAuthStore from "../../store/authStore";
+import { API_BASE_URL } from "../../config/env";
 import {
   SystemLoadingScreen,
   SystemStateScreen,
 } from "./SystemStateScreen";
-
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
 
 const initialStatus = {
   loading: true,
@@ -15,14 +16,19 @@ const initialStatus = {
 
 export default function AppGate({ children }) {
   const [status, setStatus] = React.useState(initialStatus);
+  const [showLoading, setShowLoading] = React.useState(false);
   const location = useLocation();
+  const user = useAuthStore((state) => state.user);
+  const fetchDecorations = useProfileDecorationsStore(
+    (state) => state.fetchDecorations,
+  );
 
   React.useEffect(() => {
     let cancelled = false;
 
     const loadStatus = async () => {
       try {
-        const response = await fetch(`${API_URL}/app/status`, {
+        const response = await fetch(`${API_BASE_URL}/app/status`, {
           credentials: "include",
         });
         const data = await response.json();
@@ -52,6 +58,24 @@ export default function AppGate({ children }) {
     };
   }, []);
 
+  React.useEffect(() => {
+    if (!user?._id && !user?.id) return;
+    fetchDecorations();
+  }, [fetchDecorations, user?._id, user?.id]);
+
+  React.useEffect(() => {
+    if (!status.loading) {
+      setShowLoading(false);
+      return undefined;
+    }
+
+    const timer = window.setTimeout(() => {
+      setShowLoading(true);
+    }, 250);
+
+    return () => window.clearTimeout(timer);
+  }, [status.loading]);
+
   if (location.pathname === "/blocked") {
     return (
       <SystemStateScreen
@@ -61,8 +85,12 @@ export default function AppGate({ children }) {
     );
   }
 
-  if (status.loading) {
+  if (status.loading && showLoading) {
     return <SystemLoadingScreen />;
+  }
+
+  if (status.loading) {
+    return null;
   }
 
   if (location.pathname === "/maintenance" || status.maintenanceMode) {

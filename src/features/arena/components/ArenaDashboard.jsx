@@ -32,7 +32,7 @@ const ArenaDashboard = ({ activeTab = "tests", initialId, onBack }) => {
         {activeTab === "battles" && (
           <BattleLobby initialRoomId={initialId} onBack={onBack} />
         )}
-        {activeTab === "mnemonics" && <MnemonicsPanel />}
+        {activeTab === "mnemonics" && <MnemonicsPanel onBack={onBack} />}
 
         {!activeTab && (
           <EmptyState>

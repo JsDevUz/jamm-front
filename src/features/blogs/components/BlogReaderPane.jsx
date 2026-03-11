@@ -11,6 +11,7 @@ import {
 } from "../../../api/blogsApi";
 import BlogComments from "./BlogComments";
 import MarkdownRenderer from "./MarkdownRenderer";
+import UserNameWithDecoration from "../../../shared/ui/users/UserNameWithDecoration";
 import {
   ActionButton,
   Actions,
@@ -58,11 +59,19 @@ const BlogReaderPane = ({ blogIdentifier, onBack }) => {
         setBlog(detail);
         setContent(markdown?.content || "");
 
-        if (!viewedRef.current.has(detail._id)) {
+        if (detail.previouslySeen) {
+          viewedRef.current.add(detail._id);
+        } else if (!viewedRef.current.has(detail._id)) {
           viewedRef.current.add(detail._id);
           const viewStats = await viewBlog(detail._id);
           setBlog((prev) =>
-            prev ? { ...prev, views: viewStats?.views || prev.views } : prev,
+            prev
+              ? {
+                  ...prev,
+                  views: viewStats?.views || prev.views,
+                  previouslySeen: true,
+                }
+              : prev,
           );
         }
       } catch {
@@ -75,6 +84,18 @@ const BlogReaderPane = ({ blogIdentifier, onBack }) => {
 
     load();
   }, [blogIdentifier]);
+
+  useEffect(() => {
+    if (!blog?._id) return;
+
+    const preferredSlug = blog.slug || blog._id;
+    const currentPath = window.location.pathname;
+    const nextPath = `/blogs/${preferredSlug}`;
+
+    if (currentPath !== nextPath) {
+      window.history.replaceState(null, "", nextPath);
+    }
+  }, [blog?._id, blog?.slug]);
 
   const handleLike = async () => {
     if (!blog?._id) return;
@@ -117,7 +138,11 @@ const BlogReaderPane = ({ blogIdentifier, onBack }) => {
         {blog.excerpt ? <Excerpt>{blog.excerpt}</Excerpt> : null}
 
         <Meta>
-          <span>{blog.author?.nickname || blog.author?.username || t("blogs.author")}</span>
+          <UserNameWithDecoration
+            user={blog.author}
+            fallback={t("blogs.author")}
+            showPremiumBadge={false}
+          />
           <span>{dayjs(blog.publishedAt || blog.createdAt).format("DD MMM YYYY · HH:mm")}</span>
         </Meta>
 

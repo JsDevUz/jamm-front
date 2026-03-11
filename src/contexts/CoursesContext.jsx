@@ -9,22 +9,9 @@ import React, {
 import { io } from "socket.io-client";
 import * as coursesApi from "../api/coursesApi";
 import useAuthStore from "../store/authStore";
+import { buildSocketNamespaceUrl } from "../config/env";
 
 const CoursesContext = createContext(null);
-
-const API_URL = "http://localhost:3000";
-
-// Get current user from Zustand auth-storage
-const getCurrentUser = () => {
-  try {
-    const raw = localStorage.getItem("auth-storage");
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    return parsed?.state?.user || null;
-  } catch {
-    return null;
-  }
-};
 
 export const CoursesProvider = ({ children }) => {
   const [courses, setCourses] = useState([]);
@@ -35,7 +22,7 @@ export const CoursesProvider = ({ children }) => {
   const socketRef = useRef(null);
   const authUser = useAuthStore((state) => state.user);
 
-  const currentUser = authUser || getCurrentUser();
+  const currentUser = authUser;
 
   const getEntityId = useCallback((value) => {
     if (!value) return null;
@@ -109,19 +96,12 @@ export const CoursesProvider = ({ children }) => {
 
   // Connect to /courses socket namespace for real-time enrollment updates
   useEffect(() => {
-    let token = null;
-    try {
-      const raw = localStorage.getItem("auth-storage");
-      if (raw) {
-        token = JSON.parse(raw)?.state?.token || null;
-      }
-    } catch {}
-    if (!token) return;
+    if (!currentUser?._id && !currentUser?.id) return;
 
-    const socketUrl = API_URL.replace("http", "ws") + "/courses";
+    const socketUrl = buildSocketNamespaceUrl("/courses");
 
     socketRef.current = io(socketUrl, {
-      auth: { token },
+      withCredentials: true,
       transports: ["websocket"],
     });
 
@@ -141,7 +121,7 @@ export const CoursesProvider = ({ children }) => {
         socketRef.current.disconnect();
       }
     };
-  }, [fetchCourses]);
+  }, [currentUser, fetchCourses]);
 
   const joinCourseRoom = useCallback((courseId) => {
     if (socketRef.current && socketRef.current.connected) {
@@ -203,9 +183,11 @@ export const CoursesProvider = ({ children }) => {
       streamType = "direct",
       streamAssets = [],
       hlsKeyAsset = "",
+      status = "draft",
+      mediaItems = [],
     ) => {
       try {
-        await coursesApi.addLesson({
+        const data = await coursesApi.addLesson({
           courseId,
           title,
           videoUrl,
@@ -217,10 +199,14 @@ export const CoursesProvider = ({ children }) => {
           streamType,
           streamAssets,
           hlsKeyAsset,
+          status,
+          mediaItems,
         });
         await fetchCourses();
+        return data;
       } catch (err) {
         console.error("Error adding lesson:", err);
+        throw err;
       }
     },
     [fetchCourses],
@@ -250,6 +236,32 @@ export const CoursesProvider = ({ children }) => {
         await fetchCourses();
       } catch (err) {
         console.error("Error removing lesson:", err);
+      }
+    },
+    [fetchCourses],
+  );
+
+  const updateLesson = useCallback(
+    async (courseId, lessonId, payload) => {
+      try {
+        await coursesApi.updateLesson({ courseId, lessonId, ...payload });
+        await fetchCourses();
+      } catch (err) {
+        console.error("Error updating lesson:", err);
+        throw err;
+      }
+    },
+    [fetchCourses],
+  );
+
+  const publishLesson = useCallback(
+    async (courseId, lessonId) => {
+      try {
+        await coursesApi.publishLesson({ courseId, lessonId });
+        await fetchCourses();
+      } catch (err) {
+        console.error("Error publishing lesson:", err);
+        throw err;
       }
     },
     [fetchCourses],
@@ -425,6 +437,261 @@ export const CoursesProvider = ({ children }) => {
     }
   }, []);
 
+  const getLessonAttendance = useCallback(async (courseId, lessonId) => {
+    try {
+      return await coursesApi.getLessonAttendance(courseId, lessonId);
+    } catch (err) {
+      console.error("Error fetching lesson attendance:", err);
+      throw err;
+    }
+  }, []);
+
+  const markOwnAttendance = useCallback(
+    async (courseId, lessonId, progressPercent) => {
+      try {
+        return await coursesApi.markOwnAttendance({
+          courseId,
+          lessonId,
+          progressPercent,
+        });
+      } catch (err) {
+        console.error("Error marking own attendance:", err);
+        throw err;
+      }
+    },
+    [],
+  );
+
+  const setLessonAttendanceStatus = useCallback(
+    async (courseId, lessonId, userId, status) => {
+      try {
+        return await coursesApi.setLessonAttendanceStatus({
+          courseId,
+          lessonId,
+          userId,
+          status,
+        });
+      } catch (err) {
+        console.error("Error setting lesson attendance:", err);
+        throw err;
+      }
+    },
+    [],
+  );
+
+  const getLessonHomework = useCallback(async (courseId, lessonId) => {
+    try {
+      return await coursesApi.getLessonHomework(courseId, lessonId);
+    } catch (err) {
+      console.error("Error fetching lesson homework:", err);
+      throw err;
+    }
+  }, []);
+
+  const getLessonLinkedTests = useCallback(async (courseId, lessonId) => {
+    try {
+      return await coursesApi.getLessonLinkedTests(courseId, lessonId);
+    } catch (err) {
+      console.error("Error fetching lesson linked tests:", err);
+      throw err;
+    }
+  }, []);
+
+  const upsertLessonLinkedTest = useCallback(
+    async (courseId, lessonId, payload) => {
+      try {
+        const result = await coursesApi.upsertLessonLinkedTest({
+          courseId,
+          lessonId,
+          ...payload,
+        });
+        await fetchCourses();
+        return result;
+      } catch (err) {
+        console.error("Error upserting lesson linked test:", err);
+        throw err;
+      }
+    },
+    [fetchCourses],
+  );
+
+  const deleteLessonLinkedTest = useCallback(
+    async (courseId, lessonId, linkedTestId) => {
+      try {
+        const result = await coursesApi.deleteLessonLinkedTest({
+          courseId,
+          lessonId,
+          linkedTestId,
+        });
+        await fetchCourses();
+        return result;
+      } catch (err) {
+        console.error("Error deleting lesson linked test:", err);
+        throw err;
+      }
+    },
+    [fetchCourses],
+  );
+
+  const submitLessonLinkedTestAttempt = useCallback(
+    async ({
+      courseId,
+      lessonId,
+      linkedTestId,
+      answers,
+      sentenceBuilderAnswers,
+    }) => {
+      try {
+        const result = await coursesApi.submitLessonLinkedTestAttempt({
+          courseId,
+          lessonId,
+          linkedTestId,
+          answers,
+          sentenceBuilderAnswers,
+        });
+        await fetchCourses();
+        return result;
+      } catch (err) {
+        console.error("Error submitting lesson linked test attempt:", err);
+        throw err;
+      }
+    },
+    [fetchCourses],
+  );
+
+  const upsertLessonHomework = useCallback(
+    async (courseId, lessonId, payload) => {
+      try {
+        return await coursesApi.upsertLessonHomework({
+          courseId,
+          lessonId,
+          ...payload,
+        });
+      } catch (err) {
+        console.error("Error upserting lesson homework:", err);
+        throw err;
+      }
+    },
+    [],
+  );
+
+  const submitLessonHomework = useCallback(
+    async (courseId, lessonId, payload) => {
+      try {
+        return await coursesApi.submitLessonHomework({
+          courseId,
+          lessonId,
+          ...payload,
+        });
+      } catch (err) {
+        console.error("Error submitting lesson homework:", err);
+        throw err;
+      }
+    },
+    [],
+  );
+
+  const reviewLessonHomework = useCallback(
+    async (courseId, lessonId, assignmentId, userId, payload) => {
+      try {
+        return await coursesApi.reviewLessonHomework({
+          courseId,
+          lessonId,
+          assignmentId,
+          userId,
+          ...payload,
+        });
+      } catch (err) {
+        console.error("Error reviewing lesson homework:", err);
+        throw err;
+      }
+    },
+    [],
+  );
+
+  const deleteLessonHomework = useCallback(
+    async (courseId, lessonId, assignmentId) => {
+      try {
+        return await coursesApi.deleteLessonHomework({
+          courseId,
+          lessonId,
+          assignmentId,
+        });
+      } catch (err) {
+        console.error("Error deleting lesson homework:", err);
+        throw err;
+      }
+    },
+    [],
+  );
+
+  const getLessonMaterials = useCallback(async (courseId, lessonId) => {
+    try {
+      return await coursesApi.getLessonMaterials(courseId, lessonId);
+    } catch (err) {
+      console.error("Error fetching lesson materials:", err);
+      throw err;
+    }
+  }, []);
+
+  const upsertLessonMaterial = useCallback(
+    async (courseId, lessonId, payload) => {
+      try {
+        return await coursesApi.upsertLessonMaterial({
+          courseId,
+          lessonId,
+          ...payload,
+        });
+      } catch (err) {
+        console.error("Error upserting lesson material:", err);
+        throw err;
+      }
+    },
+    [],
+  );
+
+  const deleteLessonMaterial = useCallback(
+    async (courseId, lessonId, materialId) => {
+      try {
+        return await coursesApi.deleteLessonMaterial({
+          courseId,
+          lessonId,
+          materialId,
+        });
+      } catch (err) {
+        console.error("Error deleting lesson material:", err);
+        throw err;
+      }
+    },
+    [],
+  );
+
+  const getLessonGrading = useCallback(async (courseId, lessonId) => {
+    try {
+      return await coursesApi.getLessonGrading(courseId, lessonId);
+    } catch (err) {
+      console.error("Error fetching lesson grading:", err);
+      throw err;
+    }
+  }, []);
+
+  const setLessonOralAssessment = useCallback(
+    async (courseId, lessonId, userId, payload) => {
+      try {
+        return await coursesApi.setLessonOralAssessment({
+          courseId,
+          lessonId,
+          userId,
+          ...payload,
+        });
+      } catch (err) {
+        console.error("Error setting lesson oral assessment:", err);
+        throw err;
+      }
+    },
+    [],
+  );
+
   const isAdmin = useCallback(
     (courseId) => {
       if (!currentUser) return false;
@@ -469,6 +736,8 @@ export const CoursesProvider = ({ children }) => {
     createCourse,
     removeCourse,
     addLesson,
+    updateLesson,
+    publishLesson,
     removeLesson,
     getLessonComments,
     addComment,
@@ -479,6 +748,23 @@ export const CoursesProvider = ({ children }) => {
     incrementViews,
     toggleLessonLike,
     fetchLikedLessons,
+    getLessonAttendance,
+    markOwnAttendance,
+    setLessonAttendanceStatus,
+    getLessonLinkedTests,
+    upsertLessonLinkedTest,
+    deleteLessonLinkedTest,
+    submitLessonLinkedTestAttempt,
+    getLessonHomework,
+    upsertLessonHomework,
+    submitLessonHomework,
+    reviewLessonHomework,
+    deleteLessonHomework,
+    getLessonMaterials,
+    upsertLessonMaterial,
+    deleteLessonMaterial,
+    getLessonGrading,
+    setLessonOralAssessment,
     isAdmin,
     isEnrolled,
     loading,

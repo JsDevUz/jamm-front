@@ -83,12 +83,11 @@ const Meta = styled.p`
 
 const ProfileCoursesPane = ({ courses, onBack, onOpenCourse }) => {
   return (
-    <>
+    <div data-tour="profile-pane-courses" style={{ display: "contents" }}>
       <ProfilePaneHeader>
         <MobileBackBtn onClick={onBack}>
           <ArrowLeft size={20} />
         </MobileBackBtn>
-        <GraduationCap size={24} color="#f59e0b" />
         <ProfilePaneTitle>Darslar</ProfilePaneTitle>
       </ProfilePaneHeader>
 
@@ -113,8 +112,8 @@ const ProfileCoursesPane = ({ courses, onBack, onOpenCourse }) => {
                 <Content>
                   <Title>{course.name}</Title>
                   <Meta>
-                    {(course.lessons || []).length > 0
-                      ? `${course.lessons.length} ta dars`
+                    {(course.lessonCount ?? (course.lessons || []).length) > 0
+                      ? `${course.lessonCount ?? course.lessons.length} ta dars`
                       : "Hali dars yo'q"}
                   </Meta>
                 </Content>
@@ -123,7 +122,7 @@ const ProfileCoursesPane = ({ courses, onBack, onOpenCourse }) => {
           </Grid>
         )}
       </ProfilePaneBody>
-    </>
+    </div>
   );
 };
 

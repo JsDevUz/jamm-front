@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import styled, { keyframes } from "styled-components";
 import { useNavigate, useParams } from "react-router-dom";
 import { getMeetById, saveMeet } from "../utils/meetStore";
@@ -158,6 +158,7 @@ const JoinCallPage = () => {
   const [initialMic, setInitialMic] = useState(false);
   const [initialCam, setInitialCam] = useState(false);
   const [isCreator, setIsCreator] = useState(false);
+  const hasEditedNameRef = useRef(false);
   const navigate = useNavigate();
   const user = useAuthStore((state) => state.user);
   const startCall = useMeetCallStore((state) => state.startCall);
@@ -181,15 +182,21 @@ const JoinCallPage = () => {
         setIsCreator(amICreator);
 
         if (amICreator) {
-          setName(user?.nickname || user?.username || "Host");
+          if (!hasEditedNameRef.current) {
+            setName(user?.nickname || user?.username || "Host");
+          }
           setStage("call");
         } else {
-          setName(user?.nickname || user?.username || "");
+          if (!hasEditedNameRef.current) {
+            setName(user?.nickname || user?.username || "");
+          }
           setStage("form");
         }
       } else {
         // Meet not in DB — treat current user as guest (link shared externally)
-        setName(user?.nickname || user?.username || "");
+        if (!hasEditedNameRef.current) {
+          setName(user?.nickname || user?.username || "");
+        }
         setStage("form");
       }
     };
@@ -222,6 +229,7 @@ const JoinCallPage = () => {
     startCall({
       roomId,
       chatTitle: meet?.title || "Meet",
+      displayName: name.trim(),
       isCreator,
       isPrivate: meet?.isPrivate || false,
       initialMicOn: initialMic,
@@ -233,6 +241,7 @@ const JoinCallPage = () => {
     roomId,
     meet?.title,
     meet?.isPrivate,
+    name,
     isCreator,
     initialMic,
     initialCam,
@@ -264,7 +273,10 @@ const JoinCallPage = () => {
         <Input
           autoFocus
           value={name}
-          onChange={(e) => setName(e.target.value)}
+          onChange={(e) => {
+            hasEditedNameRef.current = true;
+            setName(e.target.value);
+          }}
           placeholder="Ismingizni kiriting"
           onKeyDown={(e) => e.key === "Enter" && handleJoin()}
         />

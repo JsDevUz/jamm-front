@@ -103,7 +103,6 @@ export const ComposeBar = styled.button`
   align-items: center;
   gap: 12px;
   padding: 14px 10px;
-  border-radius: 16px;
   border-bottom: 1px solid var(--border-color);
   background: transparent;
   border-left: none;
@@ -160,11 +159,13 @@ export const ListStatus = styled.div`
 `;
 
 export const PostCard = styled.div`
+  position: relative;
   padding: 16px 10px;
-  border-bottom: 1px solid var(--border-color);
   display: flex;
   gap: 12px;
-  border-radius: 16px;
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: inset 0 -1px 0 var(--border-color);
   animation: ${fadeSlide} 0.3s ease both;
   cursor: pointer;
   transition: background 0.15s;

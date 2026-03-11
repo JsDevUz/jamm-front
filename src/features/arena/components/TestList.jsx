@@ -28,6 +28,7 @@ import { useNavigate } from "react-router-dom";
 import ArenaHeader from "./ArenaHeader";
 import InfiniteScroll from "react-infinite-scroll-component";
 import { SidebarIconButton as ButtonWrapper } from "../../../shared/ui/buttons/IconButton";
+import { RESOLVED_APP_BASE_URL } from "../../../config/env";
 import ConfirmDialog from "../../../shared/ui/dialogs/ConfirmDialog";
 const Container = styled.div`
   display: flex;
@@ -229,11 +230,15 @@ const TestList = ({ initialTestId, onBack }) => {
 
   const hasFetched = React.useRef(false);
   useEffect(() => {
-    if (!hasFetched.current) {
-      fetchMyTests();
+    if (hasFetched.current) return;
+    if (myTests.length > 0) {
       hasFetched.current = true;
+      return;
     }
-  }, [fetchMyTests]);
+    fetchMyTests(1).finally(() => {
+      hasFetched.current = true;
+    });
+  }, [fetchMyTests, myTests.length]);
 
   useEffect(() => {
     if (!openMenuId) return undefined;
@@ -305,7 +310,7 @@ const TestList = ({ initialTestId, onBack }) => {
         showResults: shareShowResults,
         timeLimit: Number(shareTimeLimit) || 0,
       });
-      const url = `${window.location.origin}/arena/quiz-link/${response.shortCode}`;
+      const url = `${RESOLVED_APP_BASE_URL}/arena/quiz-link/${response.shortCode}`;
       await navigator.clipboard.writeText(url);
       setShareLinks((prev) => [response, ...prev]);
       toast.success("Qisqa test havolasi nusxalandi!");
@@ -324,7 +329,7 @@ const TestList = ({ initialTestId, onBack }) => {
   };
 
   const handleCopyExistingLink = async (shortCode) => {
-    const url = `${window.location.origin}/arena/quiz-link/${shortCode}`;
+    const url = `${RESOLVED_APP_BASE_URL}/arena/quiz-link/${shortCode}`;
     await navigator.clipboard.writeText(url);
     toast.success("Test havolasi nusxalandi!");
   };

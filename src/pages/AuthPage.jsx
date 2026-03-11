@@ -20,6 +20,7 @@ import {
   X,
 } from "lucide-react";
 import useAuthStore from "../store/authStore";
+import { API_BASE_URL } from "../config/env";
 
 /* ============================
    ANIMATIONS
@@ -223,14 +224,19 @@ const LogoContainer = styled.div`
 `;
 
 const LogoIcon = styled.div`
-  width: 48px;
+  /* width: 48px;
   height: 48px;
   background: linear-gradient(135deg, #5865f2, #7b6cf6);
   border-radius: 14px;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 4px 16px rgba(88, 101, 242, 0.35);
+  box-shadow: 0 4px 16px rgba(88, 101, 242, 0.35); */
+  img{
+    width: 40px;
+    height: 40px;
+    border-radius: 14px;
+  }
 `;
 
 const LogoText = styled.h1`
@@ -655,8 +661,6 @@ const AuthPage = () => {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  const API_URL = "http://localhost:3000";
-
   // Check for verification token in URL
   React.useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -671,7 +675,9 @@ const AuthPage = () => {
     setLoading(true);
     setError("");
     try {
-      const res = await fetch(`${API_URL}/auth/verify/${token}`);
+      const res = await fetch(`${API_BASE_URL}/auth/verify/${token}`, {
+        credentials: "include",
+      });
       const data = await res.json();
 
       if (!res.ok) {
@@ -679,8 +685,8 @@ const AuthPage = () => {
       }
 
       // Success! Auto-login
-      setAuth(data.user, data.access_token);
-      navigate("/");
+      setAuth(data.user);
+      navigate("/chats");
     } catch (err) {
       setError(err.message);
     } finally {
@@ -699,9 +705,10 @@ const AuthPage = () => {
       const body =
         mode === "login" ? { email, password } : { email, password, nickname };
 
-      const res = await fetch(`${API_URL}${endpoint}`, {
+      const res = await fetch(`${API_BASE_URL}${endpoint}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify(body),
       });
 
@@ -719,8 +726,8 @@ const AuthPage = () => {
         setNickname("");
       } else {
         // Login success
-        setAuth(data.user, data.access_token);
-        navigate("/");
+        setAuth(data.user);
+        navigate("/chats");
       }
     } catch (err) {
       setError(err.message);
@@ -784,7 +791,7 @@ const AuthPage = () => {
         <RightPanel>
           <LogoContainer>
             <LogoIcon>
-              <Hash size={26} color="white" />
+              <img src={'./fav.png'} alt="logo" />
             </LogoIcon>
             <LogoText>Jamm</LogoText>
           </LogoContainer>
@@ -812,7 +819,7 @@ const AuthPage = () => {
           <Form onSubmit={handleSubmit}>
             {mode === "signup" && (
               <InputGroup>
-                <Label>Nik (Laqab)</Label>
+                <Label>Ism (Nikname)</Label>
                 <InputWrapper>
                   <StyledInput
                     type="text"
@@ -871,7 +878,7 @@ const AuthPage = () => {
 
             <SubmitButton type="submit" disabled={loading}>
               {loading
-                ? "Yuklanmoqda..."
+                ? "Yuklanmoqdaaaa..."
                 : mode === "login"
                   ? "Kirish"
                   : "Ro'yxatdan o'tish"}

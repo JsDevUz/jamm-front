@@ -5,6 +5,7 @@ import { Bookmark, Edit2, Link2, X } from "lucide-react";
 import { toast } from "react-hot-toast";
 import PremiumBadgeIcon from "../../../../shared/ui/badges/PremiumBadge";
 import useChatAreaUiStore from "../store/useChatAreaUiStore";
+import { RESOLVED_APP_BASE_URL } from "../../../../config/env";
 
 const RightSidebar = styled.div`
   width: 350px;
@@ -398,21 +399,31 @@ const ChatAreaInfoSidebar = ({
               currentChat.name.charAt(0)
             )}
           </LargeAvatar>
-          <GroupName>{currentChat.name}</GroupName>
+          <GroupName>{currentChat.name}
+            {currentChat.premiumStatus === "active" && (
+              <PremiumBadgeIcon width={20} height={20} />
+            )}
+          </GroupName>
           <GroupStatus>
             {currentChat.type === "user" ? (
               otherUser ? (
-                <UserStatusText
-                  $online={isUserOnline(otherUser._id || otherUser.id)}
-                >
-                  {isUserOnline(otherUser._id || otherUser.id)
-                    ? "Online"
-                    : otherUser.lastSeen || otherUser.lastActive
-                      ? `Oxirgi marta: ${dayjs(
-                          otherUser.lastSeen || otherUser.lastActive,
-                        ).format("HH:mm")}`
-                      : "Offline"}
-                </UserStatusText>
+                otherUser.isOfficialProfile ? (
+                  <UserStatusText $online={false}>
+                    {otherUser.officialBadgeLabel || "Rasmiy"}
+                  </UserStatusText>
+                ) : (
+                  <UserStatusText
+                    $online={isUserOnline(otherUser._id || otherUser.id)}
+                  >
+                    {isUserOnline(otherUser._id || otherUser.id)
+                      ? "Online"
+                      : otherUser.lastSeen || otherUser.lastActive
+                        ? `Oxirgi marta: ${dayjs(
+                            otherUser.lastSeen || otherUser.lastActive,
+                          ).format("HH:mm")}`
+                        : "Offline"}
+                  </UserStatusText>
+                )
               ) : null
             ) : (
               <>
@@ -475,7 +486,7 @@ const ChatAreaInfoSidebar = ({
                   }
                 >
                   <span>
-                    {window.location.origin}/
+                    {RESOLVED_APP_BASE_URL}/
                     {displayChat.privateurl || displayChat.urlSlug}
                   </span>
                   <LinkIcon size={20} $muted />
@@ -548,14 +559,18 @@ const ChatAreaInfoSidebar = ({
                             <PremiumBadgeIcon width={12} height={12} />
                           )}
                         </MemberNameRow>
-                        <MemberStatus $online={isUserOnline(memberId)}>
-                          {isUserOnline(memberId)
-                            ? "Online"
-                            : member.lastSeen || member.lastActive
-                              ? `Oxirgi marta: ${dayjs(
-                                  member.lastSeen || member.lastActive,
-                                ).format("HH:mm")}`
-                              : "Offline"}
+                        <MemberStatus
+                          $online={!member.isOfficialProfile && isUserOnline(memberId)}
+                        >
+                          {member.isOfficialProfile
+                            ? member.officialBadgeLabel || "Rasmiy"
+                            : isUserOnline(memberId)
+                              ? "Online"
+                              : member.lastSeen || member.lastActive
+                                ? `Oxirgi marta: ${dayjs(
+                                    member.lastSeen || member.lastActive,
+                                  ).format("HH:mm")}`
+                                : "Offline"}
                         </MemberStatus>
                       </MemberMeta>
                       {isOwner ? (

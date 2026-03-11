@@ -4,8 +4,8 @@ import { CornerDownRight, Send, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { usePosts } from "../../../contexts/PostsContext";
 import useAuthStore from "../../../store/authStore";
-import PremiumBadgeIcon from "../../../shared/ui/badges/PremiumBadge";
 import { SidebarIconButton as ButtonWrapper } from "../../../shared/ui/buttons/IconButton";
+import UserNameWithDecoration from "../../../shared/ui/users/UserNameWithDecoration";
 import {
   AuthorName,
   AuthorRow,
@@ -101,8 +101,8 @@ const PostComments = ({ post, onClose }) => {
     fetchComments(1);
   }, [post, getComments]);
 
-  const handleReply = (commentId, nickname) => {
-    setReplyingTo({ commentId, nickname });
+  const handleReply = (commentId, replyToUserId, nickname) => {
+    setReplyingTo({ commentId, replyToUserId, nickname });
     setTimeout(() => inputRef.current?.focus(), 100);
   };
 
@@ -111,52 +111,25 @@ const PostComments = ({ post, onClose }) => {
     if (!text.trim() || sending) return;
 
     setSending(true);
+    try {
+      if (replyingTo) {
+        await addReply(
+          post._id,
+          replyingTo.commentId,
+          text.trim(),
+          replyingTo.replyToUserId,
+        );
+        await fetchComments(1);
+        setReplyingTo(null);
+      } else {
+        await addComment(post._id, text.trim());
+        await fetchComments(1);
+      }
 
-    if (replyingTo) {
-      await addReply(post._id, replyingTo.commentId, text.trim(), replyingTo.nickname);
-
-      const localReply = {
-        _id: Date.now().toString(),
-        user: {
-          _id: currentUser._id,
-          username: currentUser.username,
-          nickname: currentUser.nickname,
-          avatar: currentUser.avatar,
-        },
-        content: text.trim(),
-        replyToUser: replyingTo.nickname,
-        createdAt: new Date().toISOString(),
-      };
-
-      setComments((prev) =>
-        prev.map((comment) =>
-          comment._id === replyingTo.commentId
-            ? { ...comment, replies: [...(comment.replies || []), localReply] }
-            : comment,
-        ),
-      );
-      setReplyingTo(null);
-    } else {
-      await addComment(post._id, text.trim());
-
-      const localComment = {
-        _id: Date.now().toString(),
-        user: {
-          _id: currentUser._id,
-          username: currentUser.username,
-          nickname: currentUser.nickname,
-          avatar: currentUser.avatar,
-        },
-        content: text.trim(),
-        createdAt: new Date().toISOString(),
-        replies: [],
-      };
-
-      setComments((prev) => [...prev, localComment]);
+      setText("");
+    } finally {
+      setSending(false);
     }
-
-    setText("");
-    setSending(false);
   };
 
   if (!post) return null;
@@ -208,17 +181,21 @@ const PostComments = ({ post, onClose }) => {
                         <CommentBubble>
                           <AuthorRow>
                             <AuthorName>
-                              {name}
-                              {user?.premiumStatus === "active" && (
-                                <PremiumBadgeIcon width={16} height={16} />
-                              )}
+                              <UserNameWithDecoration
+                                user={user}
+                                fallback={t("common.userFallback")}
+                              />
                             </AuthorName>
                             <CommentTime>{timeAgo(comment.createdAt)}</CommentTime>
                           </AuthorRow>
                           <CommentText>{comment.content}</CommentText>
                         </CommentBubble>
                         <CommentMeta>
-                          <ReplyButton onClick={() => handleReply(comment._id, name)}>
+                          <ReplyButton
+                            onClick={() =>
+                              handleReply(comment._id, user._id, name)
+                            }
+                          >
                             <CornerDownRight size={12} /> {t("comments.reply")}
                           </ReplyButton>
                         </CommentMeta>
@@ -258,7 +235,9 @@ const PostComments = ({ post, onClose }) => {
                                     </ReplyBubble>
                                     <CommentMeta>
                                       <ReplyButton
-                                        onClick={() => handleReply(comment._id, replyName)}
+                                        onClick={() =>
+                                          handleReply(comment._id, replyUser._id, replyName)
+                                        }
                                       >
                                         <CornerDownRight size={12} /> {t("comments.reply")}
                                       </ReplyButton>

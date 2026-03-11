@@ -3,6 +3,7 @@
     "back": "Orqaga",
     "loading": "Yuklanmoqda...",
     "save": "Saqlash",
+    "saving": "Saqlanmoqda...",
     "send": "Yuborish",
     "edit": "Tahrirlash",
     "delete": "O'chirish",
@@ -19,14 +20,16 @@
     "views": "ko'rish",
     "userFallback": "Foydalanuvchi",
     "you": "Siz",
-    "message": "Xabar"
+    "message": "Xabar",
+    "actions": "Amallar"
   },
   "navigation": {
     "feed": "Gurunglar",
     "blogs": "Bloglar",
     "chats": "Chatlar",
     "courses": "Kurslar",
-    "profile": "Profilim"
+    "profile": "Profilim",
+    "admin": "Admin"
   },
   "theme": {
     "dark": "Dark",
@@ -39,9 +42,107 @@
   },
   "layout": {
     "selectMeet": "Meet tanlang",
-    "selectChat": "Suhbatni tanlang"
+    "selectChat": "Suhbatni tanlang",
+    "maximizePane": "Panelni kattalashtirish",
+    "minimizePane": "Panelni kichraytirish"
+  },
+  "installPrompt": {
+    "title": "Jamm ni qurilmaga o'rnating",
+    "subtitle": "Tezroq ochiladi va alohida ilova kabi ishlaydi.",
+    "heroTitle": "Home screen dan ochish qulayroq",
+    "heroDescription": "Jamm ni bosh ekranga qo'shsangiz, brauzer panellarisiz va tezroq ochiladi.",
+    "later": "Keyinroq",
+    "install": "O'rnatish",
+    "showSteps": "Qanday qilish",
+    "android": {
+      "step1Title": "O'rnatish tugmasini bosing",
+      "step1Description": "Brauzer system install oynasini ochadi.",
+      "step2Title": "Tasdiqlang",
+      "step2Description": "Tasdiqlagandan keyin Jamm bosh ekranga alohida ilova bo'lib qo'shiladi.",
+      "hint": "Android brauzerlarda install prompt avtomatik ishlaydi."
+    },
+    "ios": {
+      "step1Title": "Share menyusini oching",
+      "step1Description": "Safari yoki iOS brauzeridagi Share tugmasini bosing.",
+      "step2Title": "Add to Home Screen ni tanlang",
+      "step2Description": "Pastdagi ro'yxatdan Add to Home Screen bandini toping.",
+      "step3Title": "Add ni bosing",
+      "step3Description": "Shundan keyin Jamm bosh ekranda alohida ilova bo'lib chiqadi.",
+      "hint": "iPhone va iPad’da install avtomatik emas, Apple share menyusi orqali qilinadi."
+    }
+  },
+  "featureTour": {
+    "step": "{{current}} / {{total}} qadam",
+    "skip": "O'tkazib yuborish",
+    "next": "Keyingi",
+    "done": "Tugatish",
+    "courses": {
+      "searchTitle": "Kurslarni tez toping",
+      "searchDescription": "Kerakli kursni nomi bo'yicha qidiring. Arena va kurslar shu yerdan tez topiladi.",
+      "tabsTitle": "Kurslar va Maydon",
+      "tabsDescription": "Bu tablar orqali kurslar va arena bo'limi o'rtasida tez almashasiz.",
+      "createTitle": "Yangi kurs yarating",
+      "createDescription": "O'zingizning kursingizni shu tugma orqali ochasiz.",
+      "listTitle": "Kurslar ro'yxati",
+      "listDescription": "Siz a'zo bo'lgan yoki boshqarayotgan kurslar shu yerda turadi. Kurs tanlasangiz o'ng tomonda ochiladi.",
+      "contentTitle": "Kurs oynasi",
+      "contentDescription": "Tanlangan kursning darslari, video, vazifalar va boshqaruv qismi shu yerda ochiladi."
+    },
+    "chats": {
+      "searchTitle": "Chatlarni tez toping",
+      "searchDescription": "User yoki groupni shu qidiruv orqali topasiz. Video meetlar ham shu module ichida.",
+      "tabsTitle": "Chat bo'limlari",
+      "tabsDescription": "Shaxsiy, Guruhlar va Video qo'ng'iroq bo'limlari shu tablarda.",
+      "privateTabTitle": "Shaxsiy chatlar",
+      "privateTabDescription": "Bitta-bitta suhbatlar va saqlangan xabarlar shu tabda turadi.",
+      "groupsTabTitle": "Guruhlar",
+      "groupsTabDescription": "Guruh suhbatlari va ularga oid boshqaruvlar shu tabda.",
+      "videoTabTitle": "Video qo'ng'iroqlar",
+      "videoTabDescription": "Yaratilgan meetlar va video xonalar shu tabda ko'rinadi.",
+      "listTitle": "Chatlar ro'yxati",
+      "listDescription": "Tanlash uchun barcha suhbatlar shu yerda turadi. Keraklisini bossangiz o'ng tomonda ochiladi.",
+      "contentTitle": "Suhbat oynasi",
+      "contentDescription": "Tanlangan chatning xabarlari va yozish oynasi shu qismda ochiladi."
+    },
+    "profile": {
+      "entryTitle": "Profilga shu yerdan o'tasiz",
+      "entryDescription": "Profil rasmi tugmasini bosing. Keyingi bosqichda profil sahifasi avtomatik ochiladi.",
+      "overviewTitle": "Profil boshqaruvi",
+      "overviewDescription": "Profil rasmi, statistika va asosiy bo'limlar shu yerda jamlangan.",
+      "editTriggerTitle": "Profilni tahrirlash tugmasi",
+      "editTriggerDescription": "Tur oxirida shu tugma orqali profil tahrirlash oynasini ochasiz.",
+      "editDialogTitle": "Profilni shu yerda o'zgartirasiz",
+      "editDialogDescription": "Nickname, username, avatar va bio shu oynada yangilanadi.",
+      "groupsTabTitle": "Gurunglar bo'limi",
+      "groupsTabDescription": "Shaxsiy gurunglaringizni shu tab orqali ochasiz.",
+      "groupsPaneTitle": "Gurunglar oynasi",
+      "groupsPaneDescription": "Post yaratish, tahrirlash va ko'rish shu ekran ichida bo'ladi.",
+      "coursesTabTitle": "Darslar bo'limi",
+      "coursesTabDescription": "Qo'shgan kurslaringiz va darslaringiz shu tabda turadi.",
+      "coursesPaneTitle": "Darslar oynasi",
+      "coursesPaneDescription": "Kurslar ro'yxatini ochib, shu yerdan kurs sahifasiga o'tasiz.",
+      "blogsTabTitle": "Bloglar bo'limi",
+      "blogsTabDescription": "Blog yozuvlari va ularni boshqarish shu tabda.",
+      "blogsPaneTitle": "Bloglar oynasi",
+      "blogsPaneDescription": "Bloglarni yaratish, o'qish va tahrirlash shu yerda ochiladi.",
+      "appearanceTabTitle": "Theme bo'limi",
+      "appearanceTabDescription": "Interfeys ko'rinishini shu yerda boshqarasiz.",
+      "languageTabTitle": "Til bo'limi",
+      "languageTabDescription": "Ilova tilini shu bo'limdan almashtirasiz.",
+      "appearancePaneTitle": "Theme sozlamalari",
+      "appearancePaneDescription": "Light va dark theme kabi asosiy ko'rinish sozlamalari shu oynada.",
+      "premiumTabTitle": "Jamm Premium",
+      "premiumTabDescription": "Premium holati, promo-kod va bezaklar shu tabda.",
+      "supportTabTitle": "Qo'llab-quvvatlash bo'limi",
+      "supportTabDescription": "Yordam va aloqa ma'lumotlari shu bo'limda turadi.",
+      "favoritesTabTitle": "Sevimlilarim bo'limi",
+      "favoritesTabDescription": "Like bosgan dars, gurung va bloglar shu yerda yig'iladi.",
+      "premiumPaneTitle": "Premium oynasi",
+      "premiumPaneDescription": "Tariflar, promo-kodlar va profil bezaklarini shu yerda boshqarasiz."
+    }
   },
   "courseSidebar": {
+    "lessons": "Darslar",
     "tabs": {
       "courses": "Kurslar",
       "arena": "Maydon"
@@ -93,7 +194,9 @@
       "week": "Hafta"
     },
     "search": {
-      "startMessage": "Xabar yozishni boshlang..."
+      "startMessage": "Xabar yozishni boshlang...",
+      "notFound": "Hech narsa topilmadi",
+      "groupMeta": "{{count}} a'zo"
     },
     "meets": {
       "untitled": "Nomsiz meet",
@@ -141,19 +244,281 @@
       "title": "Tezlik",
       "normal": "Oddiy (1x)"
     },
+    "tabs": {
+      "comments": "Izohlar",
+      "homework": "Uyga vazifa",
+      "attendance": "Davomat",
+      "grading": "Baholash"
+    },
     "meta": {
       "lesson": "{{index}}-dars: {{title}}",
       "views": "ko'rish",
       "likes": "like"
     },
+    "description": {
+      "title": "Dars haqida",
+      "more": "Ko'proq",
+      "less": "Yopish"
+    },
+    "extras": {
+      "title": "Dars qo'shimchalari",
+      "description": "Material, test va uyga vazifani shu yerda ochasiz."
+    },
+    "attendance": {
+      "title": "Davomat",
+      "adminHint": "Bu dars bo'yicha student davomatini boshqaring",
+      "studentHint": "Darsni kamida 70% ko'rish davomatga yoziladi",
+      "present": "Bor",
+      "late": "Kechikdi",
+      "absent": "Yo'q",
+      "progress": "{{percent}}% ko'rilgan",
+      "empty": "Hali tasdiqlangan studentlar yo'q",
+      "noRecord": "Siz uchun hali davomat yozilmagan",
+      "status": {
+        "present": "Bor",
+        "late": "Kechikdi",
+        "absent": "Yo'q"
+      }
+    },
+    "homework": {
+      "title": "Uyga vazifa",
+      "adminHint": "Topshiriq yarating va talabalar javobini tekshiring",
+      "studentHint": "Javobni topshiriq turiga mos yuboring",
+      "typeLabel": "Topshiriq turi",
+      "types": {
+        "text": "Matn",
+        "audio": "Audio",
+        "video": "Video",
+        "pdf": "PDF",
+        "photo": "Rasm"
+      },
+      "fields": {
+        "title": "Uyga vazifa sarlavhasi",
+        "description": "Topshiriq tavsifi",
+        "score": "Ball",
+        "feedback": "Izoh / feedback",
+        "answer": "Javobingizni yozing",
+        "link": "Qo'shimcha havola (ixtiyoriy)",
+        "file": "Fayl yuklash",
+        "note": "Qisqa izoh (ixtiyoriy)"
+      },
+      "fileHint": "{{type}} faylini yuklang (maks. {{size}}MB)",
+      "fileUploaded": "Fayl yuklangan",
+      "uploading": "Yuklanmoqda...",
+      "deadline": "Muddat",
+      "noDeadline": "Belgilanmagan",
+      "maxScore": "Maksimal ball",
+      "submissions": "Topshirganlar",
+      "save": "Saqlash",
+      "createDialogTitle": "Yangi uyga vazifa",
+      "editDialogTitle": "Uyga vazifani tahrirlash",
+      "dialogSubtitle": "Topshiriq turini, muddatini va maksimal ballini belgilang.",
+      "addAnother": "Yana vazifa qo'shish",
+      "delete": "Vazifani o'chirish",
+      "disable": "O'chirish",
+      "submit": "Topshirish",
+      "resubmit": "Qayta topshirish",
+      "review": "Tekshirildi deb belgilash",
+      "needsRevision": "Qayta ishlashga yuborish",
+      "alreadySubmitted": "Vazifa topshirilgan. Ustoz qayta ishlashga yubormasa, yana topshirib bo'lmaydi.",
+      "disabled": "Bu dars uchun uyga vazifa hali yoqilmagan",
+      "disabledStudent": "Bu dars uchun uyga vazifa berilmagan",
+      "emptySubmissions": "Hali hech kim topshirmagan",
+      "statusLabel": "Holat",
+      "scoreLabel": "Ball",
+      "status": {
+        "submitted": "Topshirilgan",
+        "reviewed": "Tekshirilgan",
+        "needs_revision": "Qayta ishlash kerak"
+      },
+      "errors": {
+        "fileOrLinkRequired": "Fayl yoki havola kiriting",
+        "textOrLinkRequired": "Matn yoki havola kiriting",
+        "saveFirst": "Avval vazifani saqlang",
+        "limitReached": "Bu tarifda bitta dars uchun maksimal {{count}} ta uyga vazifa qo'shish mumkin",
+        "textTooLong": "Javob matni maksimal {{count}} ta belgidan oshmasligi kerak",
+        "linkTooLong": "Havola maksimal {{count}} ta belgidan oshmasligi kerak",
+        "invalidFileType": "{{type}} uchun noto'g'ri fayl turi tanlandi",
+        "fileTooLarge": "{{type}} fayli maksimal {{size}}MB bo'lishi kerak"
+      },
+      "assignmentLabel": "{{index}}-vazifa",
+      "emptyAssignments": "Hali vazifalar qo'shilmagan"
+      ,
+      "collapse": "Uyga vazifani yopish",
+      "expand": "Uyga vazifani ochish"
+    },
+    "materials": {
+      "title": "Dars materiallari",
+      "adminHint": "PDF materiallarni shu darsga biriktiring",
+      "studentHint": "Darsga biriktirilgan PDF materiallarni shu yerda oching",
+      "add": "PDF qo'shish",
+      "empty": "Hali material qo'shilmagan",
+      "dialogTitle": "Yangi material",
+      "dialogSubtitle": "Faqat PDF formatdagi faylni biriktiring.",
+      "uploadError": "Materialni yuklab bo'lmadi",
+      "deleteError": "Materialni o'chirib bo'lmadi",
+      "fields": {
+        "title": "Material sarlavhasi",
+        "titlePlaceholder": "Masalan: Dars slaydlari",
+        "file": "PDF fayl"
+      },
+      "collapse": "Materiallarni yopish",
+      "expand": "Materiallarni ochish"
+    },
+    "grading": {
+      "title": "Baholash",
+      "adminHint": "Dars bahosi va kurs bo'yicha umumiy student holatini ko'ring",
+      "studentHint": "Dars va kurs bo'yicha umumiy holatingizni ko'ring",
+      "lessonSection": "Joriy dars",
+      "courseSection": "Kurs bo'yicha umumiy holat",
+      "averageScore": "O'rtacha ball",
+      "excellent": "Yaxshi o'zlashtirganlar",
+      "homeworkDone": "Vazifa topshirganlar",
+      "attendanceMarked": "Davomati borlar",
+      "totalStudents": "Talabalar",
+      "totalLessons": "Darslar",
+      "needAttention": "E'tibor kerak",
+      "student": "Talaba",
+      "attendance": "Davomat",
+      "attendanceRate": "Davomat %",
+      "homework": "Vazifa",
+      "oral": "Og'zaki",
+      "oralScore": "0-100 ball",
+      "oralNote": "Savol-javob izohi",
+      "oralSaved": "Og'zaki baholash saqlandi",
+      "oralSaveError": "Og'zaki baholashni saqlab bo'lmadi",
+      "score": "Ball",
+      "status": "Holat",
+      "notEnabled": "Yoqilmagan",
+      "progressValue": "{{percent}}% ko'rilgan",
+      "presentValue": "{{present}}/{{total}} bor",
+      "homeworkState": {
+        "submitted": "Topshirilgan",
+        "reviewed": "Tekshirilgan",
+        "needs_revision": "Qayta topshirish kerak",
+        "missing": "Topshirilmagan"
+      },
+      "performance": {
+        "excellent": "A'lo",
+        "good": "Yaxshi",
+        "average": "O'rtacha",
+        "needs_attention": "E'tibor kerak",
+        "no_activity": "Faollik yo'q"
+      },
+      "empty": "Baholash uchun hali ma'lumot yo'q"
+    },
+    "adminPane": {
+      "title": "Darslarni boshqarish",
+      "subtitle": "Barcha darslar, a'zolar va statistika bir joyda",
+      "currentLesson": "Joriy dars",
+      "lessonNumber": "{{index}}-dars",
+      "published": "E'lon qilingan",
+      "addLesson": "Yangi dars",
+      "publish": "E'lon qilish",
+      "deleteLesson": "Darsni o'chirish",
+      "totalLessons": "Jami dars",
+      "students": "Talabalar",
+      "noPending": "Kutayotgan talabalar yo'q",
+      "tabs": {
+        "tests": "Test",
+        "homework": "Uyga vazifa",
+        "attendance": "Davomat",
+        "grading": "Baholash",
+        "members": "Talabalar"
+      }
+    },
+    "lessonTests": {
+      "title": "Lesson testi",
+      "adminHint": "Arena test yoki gap tuzish havolasini biriktiring va unlock qoidasini belgilang",
+      "studentHint": "{{count}} / {{total}} test bajarilgan",
+      "add": "Test qo'shish",
+      "limitReached": "Bu darsga faqat bitta test biriktirish mumkin",
+      "edit": "Testni tahrirlash",
+      "delete": "Testni o'chirish",
+      "saved": "Lesson testi saqlandi",
+      "deleted": "Lesson testi o'chirildi",
+      "saveError": "Lesson testini saqlab bo'lmadi",
+      "deleteError": "Lesson testini o'chirib bo'lmadi",
+      "loadError": "Testni yuklab bo'lmadi",
+      "submitError": "Test natijasini saqlab bo'lmadi",
+      "passed": "Test muvaffaqiyatli topshirildi",
+      "failed": "Natija {{score}}%. O'tish uchun kamida {{minimum}}% kerak",
+      "completed": "Bajarilgan",
+      "required": "Majburiy",
+      "resultsShown": "Natija ko'rsatiladi",
+      "resultsHidden": "Natija yashiriladi",
+      "requiredToggle": "Unlock: {{value}}",
+      "unlockRequiredShort": "majburiy",
+      "unlockOptionalShort": "ixtiyoriy",
+      "latestScoreMeta": "Oxirgi natija {{score}}%, urinishlar {{attempts}}",
+      "typeTest": "Test",
+      "typeSentenceBuilder": "Gap tuzish",
+      "minScoreMeta": "Min {{score}}%",
+      "timeLimitMeta": "{{count}} min",
+      "noTimeLimit": "Vaqt cheklovi yo'q",
+      "retry": "Qayta ishlash",
+      "start": "Boshlash",
+      "openArena": "Arenada ochish",
+      "emptyAdmin": "Bu darsga test biriktirilmagan",
+      "emptyStudent": "Bu dars uchun test yo'q",
+      "collapse": "Testlarni yopish",
+      "expand": "Testlarni ochish",
+      "newDialogTitle": "Lesson testini qo'shish",
+      "editDialogTitle": "Lesson testini tahrirlash",
+      "dialogSubtitle": "Arena ichida yaratilgan test, test share linki yoki gap tuzish havolasini kiriting.",
+      "urlLabel": "Test havolasi",
+      "urlPlaceholder": "https://.../arena/quiz/... yoki /arena/sentence-builder/...",
+      "minimumScoreLabel": "Minimal score (%)",
+      "timeLimitLabel": "Vaqt (minut)",
+      "showResultsLabel": "Natijani ko'rsatish",
+      "showResultsOn": "Ko'rsatilsin",
+      "showResultsOff": "Ko'rsatilmasin",
+      "unlockRuleLabel": "Keyingi darsni ochish qoidasi",
+      "unlockRequired": "Majburiy qilib lock qilsin",
+      "unlockOptional": "Faqat qo'shimcha test bo'lsin",
+      "deleteConfirmTitle": "Lesson testini o'chirish",
+      "deleteConfirmDescription": "Bu test bog'lanishini o'chirmoqchimisiz?",
+      "builderBack": "Lessonga qaytish",
+      "builderProgress": "Savol {{current}} / {{total}}",
+      "builderPromptTitle": "Savol",
+      "builderAnswerTitle": "Sizning javobingiz",
+      "builderPoolTitle": "Bo'laklar",
+      "builderComposeHint": "Bo'laklarni bosib gap tuzing",
+      "builderCheck": "Tekshirish",
+      "builderChecking": "Tekshirilmoqda...",
+      "builderNext": "Keyingi savol",
+      "builderFinish": "Yakunlash",
+      "builderCorrect": "Javob to'g'ri",
+      "builderWrong": "Javobda xato bor",
+      "builderExpected": "To'g'ri javob",
+      "builderCorrectCount": "To'g'ri javoblar",
+      "builderTotalCount": "Jami savollar",
+      "builderAccuracy": "Natija",
+      "builderQuestionLabel": "Savol {{number}}",
+      "builderNoBreakdown": "Bu test uchun javoblar tafsiloti ko'rsatilmaydi.",
+      "lockedTitle": "Avval testni ishlang",
+      "lockedDescription": "Keyingi darsni ochish uchun oldingi darsdagi majburiy testdan o'tish kerak."
+    },
     "locked": {
       "noLessonsTitle": "Hali darslar qo'shilmagan",
       "noLessonsAdmin": "O'ng tarafdagi + tugmasini bosib dars qo'shing.",
       "noLessonsUser": "Tez orada darslar qo'shiladi.",
+      "draftTitle": "Draft dars",
+      "draftDescription": "Bu dars hali e'lon qilinmagan.",
+      "draftAdminDescription": "Dars draft holatda turibdi. Media biriktirib e'lon qiling yoki tahrirlashni davom ettiring.",
+      "missingMediaTitle": "Media biriktirilmagan",
+      "missingMediaDescription": "Bu dars uchun video yoki fayl hali tayyor emas.",
+      "missingMediaAdminDescription": "Dars yaratilgan, lekin hali video yoki fayl biriktirilmagan.",
       "pendingTitle": "So'rov yuborildi",
       "enrollTitle": "Kursga yoziling",
       "pendingDescription": "Sizning so'rovingiz admin tomonidan ko'rib chiqilmoqda. Iltimos kuting.",
       "enrollDescription": "Darslarni ko'rish uchun avval kursga yozilish kerak. Admin tasdiqlangandan keyin darslarni ko'rishingiz mumkin."
+    },
+    "playlist": {
+      "count": "{{count}} ta dars",
+      "draft": "Draft",
+      "free": "Bepul",
+      "edit": "Tahrirlash"
     },
     "creator": {
       "author": "Muallif",
@@ -215,15 +580,25 @@
   },
   "addLesson": {
     "title": "Yangi dars qo'shish",
+    "editTitle": "Darsni tahrirlash",
+    "createSubtitle": "Darsni hozircha draft qilib yarating. Video yoki faylni keyinroq biriktirishingiz mumkin.",
+    "editSubtitle": "Dars ma'lumotini yangilang va tayyor bo'lsa e'lon qiling.",
+    "draftNotice": "Bu dars draft holatda. Studentlarga ko'rinishi uchun e'lon qilish kerak.",
     "lessonName": "Dars nomi *",
     "lessonNamePlaceholder": "Masalan: React Hooks asoslari",
     "source": "Video/Fayl manbasi *",
-    "uploadTab": "Fayl yuklash (Max 100MB)",
+    "uploadTab": "Fayl yuklash (Max 200MB)",
     "youtubeTab": "YouTube URL",
     "premiumNotice": "Fayl yuklash uchun Premium obuna talab qilinadi. Bepul tarifda faqat YouTube URL orqali video qo'shishingiz mumkin.",
     "fileLabel": "Video/Fayl *",
     "fileDropTitle": "Faylni yuklang yoki shu yerga tashlang",
-    "fileDropMeta": "MP4, WEBM, MOV (Max: 100MB)",
+    "fileDropMeta": "MP4, WEBM, MOV (jami 200MB gacha)",
+    "multiFileCount": "{{count}} ta video tanlandi",
+    "videoNameLabel": "{{index}}-video nomi",
+    "videoNamePlaceholder": "Video nomini kiriting",
+    "videoCountLimitHint": "Bitta darsga maksimal {{count}} ta video yuklash mumkin.",
+    "videoCountLimitError": "Bu tarifda bitta darsga maksimal {{count}} ta video yuklash mumkin",
+    "totalUploadLimitError": "Bitta darsga yuklanadigan videolar jami 200MB dan oshmasligi kerak",
     "processing": "Video qayta ishlanmoqda...",
     "savingLesson": "Dars saqlanmoqda...",
     "uploading": "Yuklanmoqda...",
@@ -231,13 +606,20 @@
     "processingMeta": "Fayl serverga bordi, endi HLS segmentlarga bo'linmoqda.",
     "savingMeta": "Oxirgi ma'lumotlar saqlanmoqda.",
     "youtubeLabel": "YouTube Video URL *",
+    "optionalMediaHint": "Draft saqlash uchun media majburiy emas.",
     "description": "Tavsif (ixtiyoriy)",
     "descriptionPlaceholder": "Dars haqida qisqacha...",
     "processingShort": "Qayta ishlanmoqda...",
     "savingShort": "Saqlanmoqda...",
     "sending": "Yuborilmoqda...",
+    "createDraft": "Draft yaratish",
+    "saveDraft": "Draftni saqlash",
+    "saveChanges": "O'zgarishlarni saqlash",
+    "publish": "E'lon qilish",
+    "saveAndPublish": "Saqlash va e'lon qilish",
     "submit": "Qo'shish",
-    "uploadError": "Yuklashda xatolik yuz berdi"
+    "uploadError": "Yuklashda xatolik yuz berdi",
+    "publishError": "Darsni e'lon qilishda xatolik yuz berdi"
   },
   "meetDialog": {
     "title": "Create Group Video Call",
@@ -284,77 +666,64 @@
     "rejectedDescription": "Call yaratuvchisi so'rovingizni rad etdi",
     "members": "A'zolar ({{count}})",
     "waitingMembers": "Kutayotganlar ({{count}})",
-    "joinedMembers": "Qo'shilganlar ({{count}})"
+    "joinedMembers": "Qo'shilganlar ({{count}})",
+    "cameraOff": "Kamera o'chirilgan"
+  },
+  "privateCall": {
+    "titleFallback": "Shaxsiy qo'ng'iroq",
+    "calling": "Qo'ng'iroq davom etmoqda",
+    "localLabel": "Siz",
+    "remoteLabel": "Suhbatdosh",
+    "screenShareLabel": "Ekran ulashish"
   },
   "mnemonics": {
     "title": "Minemonika",
-    "description": "Frontend ichida generatsiya qilinadigan mashqlar. Natija faqat yakunda ko'rsatiladi va saqlanmaydi.",
-    "numberMemory": {
-      "title": "Raqam eslab qolish",
-      "description": "Berilgan raqam ketma-ketligini qisqa vaqt ichida eslab qoling va to'g'ri kiriting."
+    "description": "Eng yaxshi natija saqlanadi va reytingda ko'rsatiladi.",
+    "modes": {
+      "digits": "Digits",
+      "words": "Words"
     },
-    "sequenceMemory": {
-      "title": "Tartib bilan yodlash",
-      "description": "Berilgan oraliqdagi sonlar ketma-ketligini aynan ko'rsatilgan tartibda eslab qoling.",
-      "startFrom": "Nechdan boshlab",
-      "endAt": "Nechchigacha",
-      "totalNumbers": "Jami nechta son",
-      "totalOption": "{{count}} ta son",
-      "showTime": "Ko'rsatish vaqti",
-      "helper": "{{start}} dan {{end}} gacha bo'lgan oraliqdan {{count}} ta son tanlanadi.",
-      "countLabel": "{{count}} ta son",
-      "rangeLabel": "{{start}} - {{end}} oraliq",
-      "memorizePrompt": "Ketma-ketlikni aynan tartibi bilan yodlab oling.",
-      "answerPrompt": "Sonlarni tartibi bilan kiriting. Orasini bo'sh joy bilan ajrating.",
-      "answerPlaceholder": "Masalan: 14 27 39 52"
+    "numbers": {
+      "title": "Numbers"
+    },
+    "words": {
+      "title": "Words"
     },
     "fields": {
-      "digits": "Raqam soni",
-      "digitsOption": "{{count}} ta raqam",
-      "rounds": "Raundlar",
-      "roundsOption": "{{count}} ta raund",
-      "showTime": "Ko'rsatish vaqti",
-      "showTimeValue": "{{count}} soniya"
+      "digitsToMemorize": "Digits to Memorize:",
+      "wordsToMemorize": "Words to Memorize:",
+      "maxMemorizationTime": "Maximum Memorization Time:",
+      "maxRecallTime": "Maximum Recall Time:",
+      "autoAdvanceTotalTime": "Auto Advance Total Time:",
+      "optional": "Ixtiyoriy"
     },
-    "stats": {
-      "round": "{{current}} / {{total}} raund",
-      "correct": "{{count}} / {{total}} to'g'ri"
-    },
-    "memorizePrompt": "Raqamni yodlab oling.",
-    "countdown": "{{count}} soniyadan keyin yopiladi",
-    "answerPrompt": "Eslab qolgan raqamni kiriting.",
-    "answerPlaceholder": "Masalan: 4827519",
-    "review": {
-      "correct": "To'g'ri",
-      "wrong": "Xato",
-      "yourAnswer": "Sizning javobingiz",
-      "correctAnswer": "To'g'ri javob",
-      "empty": "Javob yo'q"
-    },
-    "summary": {
-      "title": "Mashq yakunlandi",
-      "score": "{{correct}} / {{total}} to'g'ri • {{percent}}%",
-      "roundLabel": "{{count}}-raund"
+    "stage": {
+      "memorizationStartsIn": "Memorization starts in",
+      "memorizationEndsIn": "Memorization ends in",
+      "recallStartsIn": "Recall starts in",
+      "recallEndsIn": "Recall ends in",
+      "score": "Score",
+      "time": "Time",
+      "completed": "Completed",
+      "done": "Tugadi"
     },
     "actions": {
       "start": "Boshlash",
-      "check": "Tekshirish",
-      "next": "Keyingi raund",
-      "finish": "Yakunlash",
-      "retry": "Qayta boshlash",
-      "reset": "Sozlamalarga qaytish"
+      "skip": "Skip",
+      "finished": "Finished",
+      "continue": "Continue",
+      "clear": "Tozalash"
     },
-    "howItWorks": {
-      "title": "Qanday ishlaydi",
-      "step1": "Raqam soni va raundlar miqdorini tanlang.",
-      "step2": "Har raundda raqam bir necha soniya ko'rinadi.",
-      "step3": "Raqam yashirilgach, uni eslab yozasiz.",
-      "step4": "Oxirida umumiy natija chiqadi, lekin saqlanmaydi."
+    "leaderboard": {
+      "title": "Reyting",
+      "sorting": "Ko'p score, kam vaqt",
+      "yourBest": "Sizning eng yaxshi natijangiz",
+      "loading": "Reyting yuklanmoqda...",
+      "empty": "Hali natijalar yo'q."
     },
-    "tags": {
-      "frontOnly": "Faqat frontend",
-      "notSaved": "Natija saqlanmaydi"
-    }
+    "secondsShort": "sec",
+    "setupHintDigits": "Digits soni 1 dan {{count}} gacha bo'lishi mumkin. Faqat eng yaxshi natija saqlanadi.",
+    "setupHintWords": "Words soni 1 dan {{count}} gacha bo'lishi mumkin. Tayyor noun pool: {{total}} ta. Faqat eng yaxshi natija saqlanadi."
   },
   "arenaShared": {
     "shareLinks": {
@@ -539,6 +908,21 @@
       "invalidPromo": "Promo-kod yaroqsiz",
       "plansTitle": "Obuna rejalari",
       "plansDescription": "Qo'shimcha imkoniyatlar uchun premium rejalari.",
+      "decorationTitle": "Profil dekoratsiyasi",
+      "decorationDescription": "Premium obunachi nickname oxiriga animatsiyali bezak qo'sha oladi.",
+      "decorationSaved": "Profil dekoratsiyasi yangilandi",
+      "decorationCleared": "Profil dekoratsiyasi olib tashlandi",
+      "decorationError": "Dekoratsiyani saqlab bo'lmadi",
+      "decorationNone": "Bezaksiz",
+      "decorationNoneMeta": "Faqat nickname ko'rinadi.",
+      "decorationBadgeMeta": "Rasmiy premium badge ko'rinadi.",
+      "decorationLockedTitle": "Dekoratsiyalar premium uchun",
+      "decorationLockedDescription": "Animatsiyali nickname bezaklari faqat premium obunachilar uchun ochiladi.",
+      "decorationImageUpload": "Custom bezak rasmini yuklash",
+      "decorationImageReplace": "Custom bezakni tanlash yoki almashtirish",
+      "decorationImageUploading": "Rasm yuklanmoqda...",
+      "decorationImageSaved": "Custom bezak rasmi saqlandi",
+      "decorationImageError": "Custom bezak rasmini yuklab bo'lmadi",
       "days": "kun",
       "contactPremium": "Premium bilan bog'lanish",
       "plansUnavailable": "Rejalar vaqtincha ko'rsatilmayapti."
@@ -563,6 +947,87 @@
       "blogsDescription": "Yoqtirgan bloglaringiz shu yerda turadi.",
       "blogsEmpty": "Hozircha like bosilgan bloglar yo'q."
     }
+  },
+  "premiumModal": {
+    "title": "Jamm Premium",
+    "subtitle": "Barcha limitlar bir joyda. Premium bilan kengroq limitlar va qulayroq workflow ochiladi.",
+    "limitReachedTitle": "Cheklovga yetdingiz",
+    "freePlan": "Oddiy tarif",
+    "freePlanDescription": "Asosiy limitlar bilan kundalik foydalanish.",
+    "premiumPlan": "Premium tarif",
+    "premiumPlanDescription": "Ko'proq kontent, ko'proq o'quvchi va kengroq lesson boshqaruvi.",
+    "columns": {
+      "feature": "Limit",
+      "free": "Oddiy",
+      "premium": "Premium"
+    },
+    "sections": {
+      "posts": { "title": "Gurunglar", "description": "Kunlik post va komment limitlari." },
+      "blogs": { "title": "Bloglar", "description": "Blog yaratish va kontent sig'imi." },
+      "groups": { "title": "Guruhlar va chat", "description": "Guruhlar va xabar limitlari." },
+      "meets": { "title": "Video qo'ng'iroqlar", "description": "Meet yaratish va qatnashchi sig'imi." },
+      "courses": { "title": "Kurslar va darslar", "description": "Lesson media, test va homework limitlari." },
+      "arena": { "title": "Arena", "description": "Test, lug'at va gap tuzish limitlari." },
+      "profile": { "title": "Profil", "description": "Profil maydonlari va umumiy foydalanuvchi limitlari." }
+    },
+    "items": {
+      "postsPerDay": "Kuniga gurung",
+      "postCommentsPerPost": "Har gurungga komment",
+      "postWords": "Gurung matni",
+      "postCommentChars": "Komment uzunligi",
+      "blogsPerUser": "Blog soni",
+      "blogCommentsPerBlog": "Har blogga komment",
+      "blogImagesPerBlog": "Blog rasmi",
+      "blogWords": "Blog matni",
+      "blogTitleChars": "Blog sarlavhasi",
+      "blogExcerptChars": "Qisqa tavsif",
+      "blogTagChars": "Tag sig'imi",
+      "blogCommentChars": "Blog kommenti",
+      "groupsCreated": "Ochsa bo'ladigan guruh",
+      "groupsJoined": "Qo'shilsa bo'ladigan guruh",
+      "messageChars": "Xabar uzunligi",
+      "groupNameChars": "Guruh nomi",
+      "groupDescriptionChars": "Guruh haqida",
+      "meetsCreated": "Meet soni",
+      "meetParticipants": "Meet qatnashchisi",
+      "meetTitleChars": "Meet sarlavhasi",
+      "meetDescriptionChars": "Meet tavsifi",
+      "coursesCreated": "Kurs soni",
+      "lessonsPerCourse": "Har kursdagi dars",
+      "lessonVideosPerLesson": "Har darsdagi video",
+      "lessonMediaBytes": "Dars media hajmi",
+      "lessonTestsPerLesson": "Har darsdagi test",
+      "lessonHomeworkPerLesson": "Har darsdagi uyga vazifa",
+      "homeworkTextChars": "Uyga vazifa matni",
+      "homeworkLinkChars": "Uyga vazifa havolasi",
+      "homeworkPhotoBytes": "Uyga vazifa rasmi",
+      "homeworkAudioBytes": "Uyga vazifa audio",
+      "homeworkVideoBytes": "Uyga vazifa video hajmi",
+      "homeworkPdfBytes": "Uyga vazifa PDF",
+      "courseNameChars": "Kurs nomi",
+      "courseDescriptionChars": "Kurs tavsifi",
+      "lessonTitleChars": "Dars sarlavhasi",
+      "lessonDescriptionChars": "Dars tavsifi",
+      "testsCreated": "Test soni",
+      "testShareLinksPerTest": "Har testga havola",
+      "testTitleChars": "Test sarlavhasi",
+      "testDescriptionChars": "Test tavsifi",
+      "testQuestionChars": "Savol uzunligi",
+      "testOptionChars": "Variant uzunligi",
+      "flashcardsCreated": "Lug'at soni",
+      "flashcardSideChars": "Lug'at tomoni",
+      "sentenceBuildersCreated": "Gap tuzish soni",
+      "sentenceBuilderShareLinksPerDeck": "Har gap tuzishga havola",
+      "sentenceBuilderPromptChars": "Gap tuzish savoli",
+      "sentenceBuilderAnswerChars": "Gap tuzish javobi",
+      "nicknameChars": "Nickname",
+      "usernameChars": "Username",
+      "bioChars": "Bio"
+    },
+    "words": "{{count}} so'z",
+    "chars": "{{count}} belgi",
+    "footerNote": "Ba'zi cheklovlar umumiy hajm, ba'zilari esa dars yoki post bo'yicha alohida hisoblanadi.",
+    "upgrade": "Premium bo'limiga o'tish"
   },
   "arena": {
     "dashboard": {

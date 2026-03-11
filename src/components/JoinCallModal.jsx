@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import styled, { keyframes } from "styled-components";
 import { Phone, User, LogIn, Loader, CheckCircle, XCircle } from "lucide-react";
 import useAuthStore from "../store/authStore";
+import { API_BASE_URL } from "../config/env";
 
 const fadeIn = keyframes`
   from { opacity: 0; transform: scale(0.92) translateY(20px); }
@@ -165,8 +166,6 @@ const StatusBox = styled.div`
   }
 `;
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
-
 /**
  * JoinCallModal
  *
@@ -190,7 +189,7 @@ const JoinCallModal = ({ chatId, onCallReady, onClose }) => {
     setLoading(true);
     setError("");
     try {
-      const res = await fetch(`${API_URL}/chats/${chatId}/call/join`, {
+      const res = await fetch(`${API_BASE_URL}/chats/${chatId}/call/join`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name, userId }),
@@ -214,7 +213,7 @@ const JoinCallModal = ({ chatId, onCallReady, onClose }) => {
     pollRef.current = setInterval(async () => {
       try {
         const res = await fetch(
-          `${API_URL}/chats/${chatId}/call/join/${reqId}/status`,
+          `${API_BASE_URL}/chats/${chatId}/call/join/${reqId}/status`,
         );
         if (!res.ok) return;
         const data = await res.json();

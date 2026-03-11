@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import styled, { keyframes } from "styled-components";
 import toast from "react-hot-toast";
 import { useArena } from "../../../contexts/ArenaContext";
@@ -6,6 +6,9 @@ import {
   Plus,
   PlayCircle,
   ArrowLeft,
+  ChevronLeft,
+  ChevronRight,
+  CheckCircle2,
   RefreshCw,
   Link2,
   Users,
@@ -17,6 +20,7 @@ import {
   Pencil,
   Trash2,
   MoreHorizontal,
+  RotateCcw,
 } from "lucide-react";
 import InfiniteScroll from "react-infinite-scroll-component";
 import CreateFlashcardDialog from "./CreateFlashcardDialog";
@@ -25,6 +29,10 @@ import PremiumUpgradeModal from "../../../app/components/PremiumUpgradeModal";
 import ArenaHeader from "./ArenaHeader";
 import { SidebarIconButton as ButtonWrapper } from "../../../shared/ui/buttons/IconButton";
 import ConfirmDialog from "../../../shared/ui/dialogs/ConfirmDialog";
+import { RESOLVED_APP_BASE_URL } from "../../../config/env";
+import FlashcardShooterGame from "./FlashcardShooterGame";
+
+const FLASHCARD_PROMPT_SIDE_STORAGE_KEY = "jamm-flashcard-prompt-side-v1";
 
 const Container = styled.div`
   display: flex;
@@ -112,6 +120,33 @@ const DialogContent = styled.div`
   display: flex;
   flex-direction: column;
   gap: 20px;
+`;
+
+const SettingsGrid = styled.div`
+  display: grid;
+  gap: 10px;
+`;
+
+const FieldLabel = styled.label`
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-color);
+`;
+
+const DirectionSelect = styled.select`
+  width: 100%;
+  min-height: 42px;
+  border-radius: 10px;
+  border: 1px solid var(--border-color);
+  background: var(--secondary-color);
+  color: var(--text-color);
+  padding: 0 12px;
+  font-size: 14px;
+  outline: none;
+
+  &:focus {
+    border-color: var(--primary-color);
+  }
 `;
 
 const CreateBtn = styled.button`
@@ -310,7 +345,6 @@ const HeaderRow = styled.div`
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 24px;
 
   h2 {
     margin: 0;
@@ -345,6 +379,45 @@ const StudyArea = styled.div`
   width: 100%;
   gap: 24px;
   box-sizing: border-box;
+`;
+
+const ModeOptions = styled.div`
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+
+  @media (max-width: 640px) {
+    grid-template-columns: 1fr;
+  }
+`;
+
+const ModeCard = styled.button`
+  border: 1px solid var(--border-color);
+  border-radius: 14px;
+  background: var(--secondary-color);
+  color: var(--text-color);
+  padding: 16px;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  cursor: pointer;
+
+  &:hover {
+    border-color: var(--text-muted-color);
+    background: var(--tertiary-color);
+  }
+`;
+
+const ModeTitle = styled.span`
+  font-size: 16px;
+  font-weight: 700;
+`;
+
+const ModeDesc = styled.span`
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-muted-color);
 `;
 
 const FlashcardBox = styled.div`
@@ -397,27 +470,165 @@ const Ratings = styled.div`
   display: flex;
   gap: 12px;
   width: 100%;
+
+  @media (max-width: 768px) {
+    flex-direction: column;
+  }
 `;
 
 const RatingBtn = styled.button`
   flex: 1;
-  padding: 12px;
-  border: none;
-  border-radius: 8px;
-  font-weight: 600;
-  font-size: 14px;
+  min-height: 44px;
+  border-radius: 10px;
+  border: 1px solid
+    ${(props) => {
+      if (props.type === "fail") return "rgba(239, 68, 68, 0.35)";
+      if (props.type === "hard") return "rgba(249, 115, 22, 0.35)";
+      if (props.type === "good") return "rgba(59, 130, 246, 0.35)";
+      if (props.type === "easy") return "rgba(34, 197, 94, 0.35)";
+      return "var(--border-color)";
+    }};
+  background:
+    ${(props) => {
+      if (props.type === "fail") return "rgba(239, 68, 68, 0.12)";
+      if (props.type === "hard") return "rgba(249, 115, 22, 0.12)";
+      if (props.type === "good") return "rgba(59, 130, 246, 0.12)";
+      if (props.type === "easy") return "rgba(34, 197, 94, 0.12)";
+      return "var(--secondary-color)";
+    }};
+  color: var(--text-color);
+  font-size: 13px;
+  font-weight: 700;
   cursor: pointer;
-  color: white;
-  background-color: ${(props) => {
-    if (props.type === "fail") return "#e74c3c";
-    if (props.type === "hard") return "#e67e22";
-    if (props.type === "good") return "#3498db";
-    if (props.type === "easy") return "#2ecc71";
-    return "gray";
-  }};
+  transition:
+    transform 0.16s ease,
+    filter 0.16s ease,
+    background 0.16s ease;
+
   &:hover {
-    filter: brightness(1.1);
+    filter: brightness(1.06);
+    transform: translateY(-1px);
   }
+`;
+
+const ClassicControls = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+`;
+
+const ClassicActionBtn = styled.button`
+  min-width: 52px;
+  height: 46px;
+  padding: 0 14px;
+  border-radius: 12px;
+  border: 1px solid var(--border-color);
+  background: ${(props) =>
+    props.$variant === "fail"
+      ? "rgba(239, 68, 68, 0.12)"
+      : props.$variant === "success"
+        ? "rgba(34, 197, 94, 0.12)"
+        : "var(--secondary-color)"};
+  color: ${(props) =>
+    props.$variant === "fail"
+      ? "#ef4444"
+      : props.$variant === "success"
+        ? "#22c55e"
+        : "var(--text-color)"};
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-weight: 700;
+  cursor: pointer;
+
+  &:hover {
+    filter: brightness(1.05);
+  }
+`;
+
+const StudyMeta = styled.div`
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--text-muted-color);
+  font-size: 13px;
+`;
+
+const ResultActions = styled.div`
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+
+  @media (max-width: 640px) {
+    grid-template-columns: 1fr;
+  }
+`;
+
+const TestOptions = styled.div`
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+
+  @media (max-width: 640px) {
+    grid-template-columns: 1fr;
+  }
+`;
+
+const TestOptionBtn = styled.button`
+  min-height: 54px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--border-color);
+  background: var(--secondary-color);
+  color: var(--text-color);
+  font-size: 14px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--tertiary-color);
+    border-color: var(--text-muted-color);
+  }
+`;
+
+const floatOne = keyframes`
+  0% { transform: translate3d(0, 0, 0) scale(1); }
+  25% { transform: translate3d(16px, -18px, 0) scale(1.03); }
+  50% { transform: translate3d(-10px, -34px, 0) scale(0.98); }
+  75% { transform: translate3d(20px, -8px, 0) scale(1.02); }
+  100% { transform: translate3d(0, 0, 0) scale(1); }
+`;
+
+const floatTwo = keyframes`
+  0% { transform: translate3d(0, 0, 0) scale(1); }
+  20% { transform: translate3d(-20px, -16px, 0) scale(0.98); }
+  45% { transform: translate3d(10px, -30px, 0) scale(1.04); }
+  75% { transform: translate3d(-14px, -10px, 0) scale(1.01); }
+  100% { transform: translate3d(0, 0, 0) scale(1); }
+`;
+
+const floatThree = keyframes`
+  0% { transform: translate3d(0, 0, 0) scale(1); }
+  30% { transform: translate3d(12px, -26px, 0) scale(1.02); }
+  55% { transform: translate3d(-16px, -18px, 0) scale(0.99); }
+  85% { transform: translate3d(6px, -4px, 0) scale(1.03); }
+  100% { transform: translate3d(0, 0, 0) scale(1); }
+`;
+
+const floatFour = keyframes`
+  0% { transform: translate3d(0, 0, 0) scale(1); }
+  35% { transform: translate3d(-18px, -28px, 0) scale(1.04); }
+  60% { transform: translate3d(14px, -12px, 0) scale(0.99); }
+  85% { transform: translate3d(-10px, -2px, 0) scale(1.02); }
+  100% { transform: translate3d(0, 0, 0) scale(1); }
 `;
 
 const FlashcardList = ({ initialDeckId, onBack }) => {
@@ -432,7 +643,6 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
     leaveFlashcardDeck,
     deleteFlashcardDeck,
   } = useArena();
-  const token = useAuthStore((state) => state.token);
   const user = useAuthStore((state) => state.user);
   const [studyingDeck, setStudyingDeck] = useState(null);
   const [viewingDeck, setViewingDeck] = useState(null);
@@ -447,6 +657,28 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
   const [deckToDelete, setDeckToDelete] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [openMenuId, setOpenMenuId] = useState(null);
+  const [trainingPickerDeck, setTrainingPickerDeck] = useState(null);
+  const [classicDeck, setClassicDeck] = useState(null);
+  const [classicQueue, setClassicQueue] = useState([]);
+  const [classicIndex, setClassicIndex] = useState(0);
+  const [classicShowBack, setClassicShowBack] = useState(false);
+  const [classicAnswers, setClassicAnswers] = useState([]);
+  const [classicCompleted, setClassicCompleted] = useState(false);
+  const [testDeck, setTestDeck] = useState(null);
+  const [testQueue, setTestQueue] = useState([]);
+  const [testIndex, setTestIndex] = useState(0);
+  const [testAnswers, setTestAnswers] = useState([]);
+  const [testCompleted, setTestCompleted] = useState(false);
+  const [gameDeck, setGameDeck] = useState(null);
+  const [gameQueue, setGameQueue] = useState([]);
+  const [promptSide, setPromptSide] = useState(() => {
+    if (typeof window === "undefined") return "front";
+    const saved = window.localStorage.getItem(
+      FLASHCARD_PROMPT_SIDE_STORAGE_KEY,
+    );
+    return saved === "back" ? "back" : "front";
+  });
+  const gameBoardRef = useRef(null);
 
   const isPremium = user?.premiumStatus === "premium";
   const limit = isPremium ? 10 : 4;
@@ -470,11 +702,15 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
 
   const hasFetched = React.useRef(false);
   useEffect(() => {
-    if (token && !hasFetched.current && flashcardDecks.length === 0) {
-      fetchFlashcards(1);
+    if (hasFetched.current) return;
+    if (flashcardDecks.length > 0) {
       hasFetched.current = true;
+      return;
     }
-  }, [fetchFlashcards, token, flashcardDecks.length]);
+    fetchFlashcards(1).finally(() => {
+      hasFetched.current = true;
+    });
+  }, [fetchFlashcards, flashcardDecks.length]);
 
   const fetchMoreData = () => {
     if (flashcardsHasMore) {
@@ -503,6 +739,20 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
     };
   }, [openMenuId]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(FLASHCARD_PROMPT_SIDE_STORAGE_KEY, promptSide);
+  }, [promptSide]);
+
+  const getPromptText = (card) =>
+    promptSide === "front" ? card?.front : card?.back;
+  const getPromptImage = (card) =>
+    promptSide === "front" ? card?.frontImage : card?.backImage;
+  const getAnswerText = (card) =>
+    promptSide === "front" ? card?.back : card?.front;
+  const getAnswerImage = (card) =>
+    promptSide === "front" ? card?.backImage : card?.frontImage;
+
   const startStudy = async (deckMetadata, isRestart = false) => {
     // Fetch deck with personal progress
     const deck = await fetchFlashcardDeck(deckMetadata._id);
@@ -528,8 +778,195 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
     setShowingBack(false);
   };
 
-  const handleCopyLink = (deckId) => {
-    const url = `${window.location.origin}/arena/flashcards/${deckId}`;
+  const openTrainingPicker = async (deckMetadata) => {
+    const deck = await fetchFlashcardDeck(deckMetadata._id);
+    if (!deck) return;
+    setTrainingPickerDeck(deck);
+  };
+
+  const resetClassicSession = (deck, cards) => {
+    setViewingDeck(null);
+    setTrainingPickerDeck(null);
+    setStudyingDeck(null);
+    setClassicDeck(deck);
+    setClassicQueue(cards);
+    setClassicIndex(0);
+    setClassicShowBack(false);
+    setClassicAnswers([]);
+    setClassicCompleted(false);
+  };
+
+  const buildTestOptions = (deck, currentCard) => {
+    const wrongOptions = (deck.cards || [])
+      .filter(
+        (card) =>
+          card._id !== currentCard._id &&
+          getAnswerText(card) !== getAnswerText(currentCard),
+      )
+      .map((card) => getAnswerText(card))
+      .filter(Boolean);
+
+    const uniqueWrongOptions = [...new Set(wrongOptions)];
+    const shuffledWrong = uniqueWrongOptions.sort(() => Math.random() - 0.5);
+    const options = [
+      getAnswerText(currentCard),
+      ...shuffledWrong.slice(0, 3),
+    ].filter(Boolean);
+    return options.sort(() => Math.random() - 0.5);
+  };
+
+  const resetTestSession = (deck, cards) => {
+    setViewingDeck(null);
+    setTrainingPickerDeck(null);
+    setStudyingDeck(null);
+    setClassicDeck(null);
+    setTestDeck(deck);
+    setTestQueue(cards);
+    setTestIndex(0);
+    setTestAnswers([]);
+    setTestCompleted(false);
+  };
+
+  const resetGameSession = (deck, cards) => {
+    setViewingDeck(null);
+    setTrainingPickerDeck(null);
+    setStudyingDeck(null);
+    setClassicDeck(null);
+    setTestDeck(null);
+    setGameDeck(deck);
+    setGameQueue(cards);
+  };
+
+  const startTestStudy = (deckMetadata) => {
+    const deck =
+      trainingPickerDeck?._id === deckMetadata._id
+        ? trainingPickerDeck
+        : viewingDeck?._id === deckMetadata._id
+          ? viewingDeck
+          : deckMetadata;
+    resetTestSession(deck, [...(deck.cards || [])]);
+  };
+
+  const startGameStudy = (deckMetadata) => {
+    const deck =
+      trainingPickerDeck?._id === deckMetadata._id
+        ? trainingPickerDeck
+        : viewingDeck?._id === deckMetadata._id
+          ? viewingDeck
+          : deckMetadata;
+    resetGameSession(deck, [...(deck.cards || [])]);
+  };
+
+  const handleTestAnswer = (selectedOption) => {
+    const currentCard = testQueue[testIndex];
+    if (!currentCard) return;
+
+    const isCorrect = selectedOption === getAnswerText(currentCard);
+    const nextAnswers = [
+      ...testAnswers,
+      {
+        card: currentCard,
+        selectedOption,
+        isCorrect,
+      },
+    ];
+    setTestAnswers(nextAnswers);
+
+    if (testIndex + 1 >= testQueue.length) {
+      setTestCompleted(true);
+      return;
+    }
+
+    setTestIndex((prev) => prev + 1);
+  };
+
+  const restartTestMissed = () => {
+    if (!testDeck) return;
+    const missedCards = testAnswers
+      .filter((item) => !item.isCorrect)
+      .map((item) => item.card);
+    if (missedCards.length === 0) {
+      toast("Hamma javob to'g'ri topildi.", { icon: "👏" });
+      return;
+    }
+    resetTestSession(testDeck, missedCards);
+  };
+
+  const restartTestAll = () => {
+    if (!testDeck) return;
+    resetTestSession(testDeck, [...(testDeck.cards || [])]);
+  };
+
+  const restartGameAll = () => {
+    if (!gameDeck) return;
+    resetGameSession(gameDeck, [...(gameDeck.cards || [])]);
+  };
+
+  const startClassicStudy = (deckMetadata) => {
+    const deck =
+      trainingPickerDeck?._id === deckMetadata._id
+        ? trainingPickerDeck
+        : viewingDeck?._id === deckMetadata._id
+          ? viewingDeck
+          : deckMetadata;
+    resetClassicSession(deck, [...(deck.cards || [])]);
+  };
+
+  const handleClassicAnswer = (known) => {
+    const currentCard = classicQueue[classicIndex];
+    if (!currentCard) return;
+
+    const nextAnswers = [
+      ...classicAnswers,
+      {
+        card: currentCard,
+        known,
+      },
+    ];
+    setClassicAnswers(nextAnswers);
+    setClassicShowBack(false);
+
+    if (classicIndex + 1 >= classicQueue.length) {
+      setClassicCompleted(true);
+      return;
+    }
+
+    setClassicIndex((prev) => prev + 1);
+  };
+
+  const handleClassicReplay = () => {
+    if (classicIndex === 0 || classicAnswers.length === 0) return;
+    const nextAnswers = [...classicAnswers];
+    nextAnswers.pop();
+    setClassicAnswers(nextAnswers);
+    setClassicIndex((prev) => Math.max(prev - 1, 0));
+    setClassicShowBack(false);
+    setClassicCompleted(false);
+  };
+
+  const restartClassicMissed = () => {
+    if (!classicDeck) return;
+    const missedCards = classicAnswers
+      .filter((item) => !item.known)
+      .map((item) => item.card);
+    if (missedCards.length === 0) {
+      toast("Hamma kartani topdingiz.", { icon: "👏" });
+      return;
+    }
+    resetClassicSession(classicDeck, missedCards);
+  };
+
+  const restartClassicAll = () => {
+    if (!classicDeck) return;
+    resetClassicSession(classicDeck, [...(classicDeck.cards || [])]);
+  };
+
+  const handleCopyLink = (deckIdentifier) => {
+    if (!deckIdentifier) {
+      toast.error("Lug'at havolasi hali tayyor emas.");
+      return;
+    }
+    const url = `${RESOLVED_APP_BASE_URL}/arena/flashcards/${deckIdentifier}`;
     navigator.clipboard.writeText(url);
     toast.success("Lug'at havolasi nusxalandi!");
   };
@@ -549,7 +986,8 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
       setDeckToDelete(null);
     } catch (error) {
       toast.error(
-        error?.response?.data?.message || "Lug'atni o'chirishda xatolik yuz berdi.",
+        error?.response?.data?.message ||
+          "Lug'atni o'chirishda xatolik yuz berdi.",
       );
     } finally {
       setIsDeleting(false);
@@ -641,9 +1079,9 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
                   gap: "16px",
                 }}
               >
-                {currentCard?.backImage && (
+                {getAnswerImage(currentCard) && (
                   <img
-                    src={currentCard.backImage}
+                    src={getAnswerImage(currentCard)}
                     alt="back"
                     style={{
                       maxWidth: "100%",
@@ -653,7 +1091,7 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
                     }}
                   />
                 )}
-                <div>{currentCard?.back || "???"}</div>
+                <div>{getAnswerText(currentCard) || "???"}</div>
               </div>
             ) : (
               <div
@@ -664,10 +1102,10 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
                   gap: "16px",
                 }}
               >
-                {currentCard?.frontImage && (
+                {getPromptImage(currentCard) && (
                   <img
-                    src={currentCard.frontImage}
-                    alt="front"
+                    src={getPromptImage(currentCard)}
+                    alt="prompt"
                     style={{
                       maxWidth: "100%",
                       maxHeight: "200px",
@@ -676,7 +1114,7 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
                     }}
                   />
                 )}
-                <div>{currentCard?.front || "???"}</div>
+                <div>{getPromptText(currentCard) || "???"}</div>
               </div>
             )}
           </FlashcardBox>
@@ -705,6 +1143,353 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
               </RatingBtn>
             </Ratings>
           )}
+        </StudyArea>
+      </Container>
+    );
+  }
+
+  if (classicDeck) {
+    const currentCard = classicQueue[classicIndex];
+    const foundCount = classicAnswers.filter((item) => item.known).length;
+    const missedCount = classicAnswers.filter((item) => !item.known).length;
+    const totalAnswered = classicAnswers.length;
+
+    return (
+      <Container>
+        <StudyArea>
+          <BackBtn
+            onClick={() => {
+              setClassicDeck(null);
+              setClassicQueue([]);
+              setClassicAnswers([]);
+              setClassicCompleted(false);
+            }}
+          >
+            <ArrowLeft size={20} /> Orqaga
+          </BackBtn>
+
+          <Title>{classicDeck.title} - Flashcards</Title>
+          <StudyMeta>
+            <span>
+              {classicCompleted
+                ? `Natija: ${foundCount}/${classicQueue.length}`
+                : `Karta: ${classicIndex + 1}/${classicQueue.length}`}
+            </span>
+            <span>
+              Topdi: {foundCount} · Topolmadi: {missedCount}
+            </span>
+          </StudyMeta>
+
+          <FlashcardBox onClick={() => setClassicShowBack((prev) => !prev)}>
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: "16px",
+                width: "100%",
+              }}
+            >
+              {!classicCompleted &&
+                (classicShowBack
+                  ? getAnswerImage(currentCard)
+                  : getPromptImage(currentCard)) && (
+                  <img
+                    src={
+                      classicShowBack
+                        ? getAnswerImage(currentCard)
+                        : getPromptImage(currentCard)
+                    }
+                    alt={classicShowBack ? "answer" : "prompt"}
+                    style={{
+                      maxWidth: "100%",
+                      maxHeight: "200px",
+                      borderRadius: "8px",
+                      objectFit: "contain",
+                    }}
+                  />
+                )}
+
+              {classicCompleted ? (
+                <div
+                  style={{
+                    width: "100%",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "10px",
+                  }}
+                >
+                  {classicAnswers.map((item, index) => (
+                    <PreviewItem key={`${item.card._id || index}-${index}`}>
+                      <PreviewRow>
+                        <PreviewLabel>{index + 1}.</PreviewLabel>
+                        <PreviewContent>
+                          {getPromptText(item.card)}
+                        </PreviewContent>
+                      </PreviewRow>
+                      <PreviewRow>
+                        <PreviewLabel>Javob:</PreviewLabel>
+                        <PreviewContent>
+                          {getAnswerText(item.card)}
+                        </PreviewContent>
+                      </PreviewRow>
+                      <PreviewRow>
+                        <PreviewLabel>Holat:</PreviewLabel>
+                        <PreviewContent
+                          style={{
+                            color: item.known ? "#22c55e" : "#ef4444",
+                            fontWeight: 700,
+                          }}
+                        >
+                          {item.known ? "Topdi" : "Topolmadi"}
+                        </PreviewContent>
+                      </PreviewRow>
+                    </PreviewItem>
+                  ))}
+                </div>
+              ) : (
+                <div>
+                  {classicShowBack
+                    ? getAnswerText(currentCard) || "???"
+                    : getPromptText(currentCard) || "???"}
+                </div>
+              )}
+            </div>
+          </FlashcardBox>
+
+          {!classicCompleted ? (
+            <ClassicControls>
+              <ClassicActionBtn
+                onClick={handleClassicReplay}
+                disabled={classicIndex === 0 || totalAnswered === 0}
+                title="Oldingi karta"
+              >
+                <RotateCcw size={18} />
+              </ClassicActionBtn>
+              <ClassicActionBtn
+                $variant="fail"
+                onClick={() => handleClassicAnswer(false)}
+                title="Topolmadi"
+              >
+                <ChevronLeft size={20} />
+              </ClassicActionBtn>
+              <ClassicActionBtn
+                $variant="success"
+                onClick={() => handleClassicAnswer(true)}
+                title="Topdi"
+              >
+                <ChevronRight size={20} />
+              </ClassicActionBtn>
+            </ClassicControls>
+          ) : (
+            <ResultActions>
+              <StudyBtn
+                onClick={restartClassicMissed}
+                disabled={missedCount === 0}
+                style={{ marginTop: 0 }}
+              >
+                Topilmaganlarni ishlash
+              </StudyBtn>
+              <StudyBtn
+                onClick={restartClassicAll}
+                style={{
+                  marginTop: 0,
+                  background: "var(--secondary-color)",
+                  color: "var(--text-color)",
+                  border: "1px solid var(--border-color)",
+                }}
+              >
+                To'liq qayta ishlash
+              </StudyBtn>
+              <StudyBtn
+                onClick={() => {
+                  setClassicDeck(null);
+                  setClassicQueue([]);
+                  setClassicAnswers([]);
+                  setClassicCompleted(false);
+                }}
+                style={{
+                  marginTop: 0,
+                  background: "var(--secondary-color)",
+                  color: "var(--text-color)",
+                  border: "1px solid var(--border-color)",
+                }}
+              >
+                Asosiy oynaga qaytish
+              </StudyBtn>
+            </ResultActions>
+          )}
+        </StudyArea>
+      </Container>
+    );
+  }
+
+  if (testDeck) {
+    const currentCard = testQueue[testIndex];
+    const correctCount = testAnswers.filter((item) => item.isCorrect).length;
+
+    return (
+      <Container>
+        <StudyArea>
+          <BackBtn
+            onClick={() => {
+              setTestDeck(null);
+              setTestQueue([]);
+              setTestAnswers([]);
+              setTestCompleted(false);
+            }}
+          >
+            <ArrowLeft size={20} /> Orqaga
+          </BackBtn>
+
+          <Title>{testDeck.title} - Test</Title>
+          <StudyMeta>
+            <span>
+              {testCompleted
+                ? `Natija: ${correctCount}/${testQueue.length}`
+                : `Savol: ${testIndex + 1}/${testQueue.length}`}
+            </span>
+            <span>To'g'ri: {correctCount}</span>
+          </StudyMeta>
+
+          <FlashcardBox>
+            {testCompleted ? (
+              <div
+                style={{
+                  width: "100%",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "10px",
+                }}
+              >
+                {testAnswers.map((item, index) => (
+                  <PreviewItem key={`${item.card._id || index}-${index}`}>
+                    <PreviewRow>
+                      <PreviewLabel>{index + 1}.</PreviewLabel>
+                      <PreviewContent>
+                        {getPromptText(item.card)}
+                      </PreviewContent>
+                    </PreviewRow>
+                    <PreviewRow>
+                      <PreviewLabel>To'g'ri:</PreviewLabel>
+                      <PreviewContent>
+                        {getAnswerText(item.card)}
+                      </PreviewContent>
+                    </PreviewRow>
+                    <PreviewRow>
+                      <PreviewLabel>Tanlangan:</PreviewLabel>
+                      <PreviewContent
+                        style={{
+                          color: item.isCorrect ? "#22c55e" : "#ef4444",
+                          fontWeight: 700,
+                        }}
+                      >
+                        {item.selectedOption || "-"}
+                      </PreviewContent>
+                    </PreviewRow>
+                  </PreviewItem>
+                ))}
+              </div>
+            ) : (
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  gap: "18px",
+                  width: "100%",
+                }}
+              >
+                {getPromptImage(currentCard) && (
+                  <img
+                    src={getPromptImage(currentCard)}
+                    alt="prompt"
+                    style={{
+                      maxWidth: "100%",
+                      maxHeight: "180px",
+                      borderRadius: "8px",
+                      objectFit: "contain",
+                    }}
+                  />
+                )}
+                <div style={{ fontSize: "28px", fontWeight: 700 }}>
+                  {getPromptText(currentCard) || "???"}
+                </div>
+              </div>
+            )}
+          </FlashcardBox>
+
+          {!testCompleted ? (
+            <TestOptions>
+              {buildTestOptions(testDeck, currentCard).map((option) => (
+                <TestOptionBtn
+                  key={option}
+                  onClick={() => handleTestAnswer(option)}
+                >
+                  {option}
+                </TestOptionBtn>
+              ))}
+            </TestOptions>
+          ) : (
+            <ResultActions>
+              <StudyBtn
+                onClick={restartTestMissed}
+                disabled={correctCount === testQueue.length}
+                style={{ marginTop: 0 }}
+              >
+                Topilmaganlarni ishlash
+              </StudyBtn>
+              <StudyBtn
+                onClick={restartTestAll}
+                style={{
+                  marginTop: 0,
+                  background: "var(--secondary-color)",
+                  color: "var(--text-color)",
+                  border: "1px solid var(--border-color)",
+                }}
+              >
+                To'liq qayta ishlash
+              </StudyBtn>
+              <StudyBtn
+                onClick={() => {
+                  setTestDeck(null);
+                  setTestQueue([]);
+                  setTestAnswers([]);
+                  setTestCompleted(false);
+                }}
+                style={{
+                  marginTop: 0,
+                  background: "var(--secondary-color)",
+                  color: "var(--text-color)",
+                  border: "1px solid var(--border-color)",
+                }}
+              >
+                Asosiy oynaga qaytish
+              </StudyBtn>
+            </ResultActions>
+          )}
+        </StudyArea>
+      </Container>
+    );
+  }
+
+  if (gameDeck) {
+    return (
+      <Container>
+        <StudyArea style={{ maxWidth: "800px" }}>
+          <FlashcardShooterGame
+            deck={gameDeck}
+            queue={gameQueue}
+            promptSide={promptSide}
+            onBack={() => {
+              setGameDeck(null);
+              setGameQueue([]);
+            }}
+            onFinish={() => {
+              setGameDeck(null);
+              setGameQueue([]);
+            }}
+          />
         </StudyArea>
       </Container>
     );
@@ -754,7 +1539,7 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
                 $raised={openMenuId === deck._id}
                 onClick={() => {
                   setOpenMenuId(null);
-                  startStudy(deck, true);
+                  openTrainingPicker(deck);
                 }}
               >
                 <CardTop>
@@ -766,13 +1551,17 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
                   >
                     <MenuButton
                       onClick={() =>
-                        setOpenMenuId((prev) => (prev === deck._id ? null : deck._id))
+                        setOpenMenuId((prev) =>
+                          prev === deck._id ? null : deck._id,
+                        )
                       }
                     >
                       <MoreHorizontal size={16} />
                     </MenuButton>
                     {openMenuId === deck._id && (
-                      <MenuDropdown onClick={(event) => event.stopPropagation()}>
+                      <MenuDropdown
+                        onClick={(event) => event.stopPropagation()}
+                      >
                         <MenuItem
                           onClick={() => {
                             setViewingDeck(deck);
@@ -784,7 +1573,7 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
                         </MenuItem>
                         <MenuItem
                           onClick={() => {
-                            handleCopyLink(deck._id);
+                            handleCopyLink(deck.urlSlug);
                             setOpenMenuId(null);
                           }}
                         >
@@ -932,7 +1721,7 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
                 ) ? (
                   <StudyBtn
                     style={{ flex: 1 }}
-                    onClick={() => startStudy(viewingDeck)}
+                    onClick={() => openTrainingPicker(viewingDeck)}
                   >
                     <PlayCircle size={18} /> O'qishni boshlash
                   </StudyBtn>
@@ -944,7 +1733,7 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
                       color: "var(--text-color)",
                       border: "1px solid var(--border-color)",
                     }}
-                    onClick={() => startStudy(viewingDeck, true)}
+                    onClick={() => openTrainingPicker(viewingDeck)}
                   >
                     <RefreshCw size={18} /> Yana mashiq qilish
                   </StudyBtn>
@@ -1100,6 +1889,78 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
           }}
           initialDeck={editingDeck}
         />
+      )}
+
+      {trainingPickerDeck && (
+        <Overlay onClick={() => setTrainingPickerDeck(null)}>
+          <Dialog onClick={(event) => event.stopPropagation()}>
+            <HeaderRow
+              style={{
+                padding: "16px 20px",
+                borderBottom: "1px solid var(--border-color)",
+              }}
+            >
+              <Title>Mashq turini tanlang</Title>
+              <ButtonWrapper onClick={() => setTrainingPickerDeck(null)}>
+                <X size={20} />
+              </ButtonWrapper>
+            </HeaderRow>
+            <DialogContent>
+              <SettingsGrid>
+                <FieldLabel htmlFor="flashcard-prompt-side">
+                  Qaysi tomoni so'ralsin?
+                </FieldLabel>
+                <DirectionSelect
+                  id="flashcard-prompt-side"
+                  value={promptSide}
+                  onChange={(event) => setPromptSide(event.target.value)}
+                >
+                  <option value="front">Old tomoni so'ralsin</option>
+                  <option value="back">Orqa tomoni so'ralsin</option>
+                </DirectionSelect>
+              </SettingsGrid>
+              <ModeOptions>
+                <ModeCard
+                  onClick={() => {
+                    startStudy(trainingPickerDeck, true);
+                    setTrainingPickerDeck(null);
+                  }}
+                >
+                  <ModeTitle>Eslab qolish</ModeTitle>
+                  <ModeDesc>
+                    {promptSide === "front"
+                      ? "Old tomoni ko'rsatiladi, orqa tomon bo'yicha baholaysiz."
+                      : "Orqa tomoni ko'rsatiladi, old tomon bo'yicha baholaysiz."}
+                  </ModeDesc>
+                </ModeCard>
+                <ModeCard onClick={() => startClassicStudy(trainingPickerDeck)}>
+                  <ModeTitle>Flashcards</ModeTitle>
+                  <ModeDesc>
+                    {promptSide === "front"
+                      ? "Old tomondan boshlanadi, aylantirib orqa tomonni topasiz."
+                      : "Orqa tomondan boshlanadi, aylantirib old tomonni topasiz."}
+                  </ModeDesc>
+                </ModeCard>
+                <ModeCard onClick={() => startTestStudy(trainingPickerDeck)}>
+                  <ModeTitle>Test mashqi</ModeTitle>
+                  <ModeDesc>
+                    {promptSide === "front"
+                      ? "Old tomon ko'rinadi, variantlarda mos orqa tomonni tanlaysiz."
+                      : "Orqa tomon ko'rinadi, variantlarda mos old tomonni tanlaysiz."}
+                  </ModeDesc>
+                </ModeCard>
+                <ModeCard onClick={() => startGameStudy(trainingPickerDeck)}>
+                  <ModeTitle>Shooter o'yin</ModeTitle>
+                  <ModeDesc>
+                    {promptSide === "front"
+                      ? "Old tomoni bo'yicha mos orqa tomonga o'q uzasiz."
+                      : "Orqa tomoni bo'yicha mos old tomonga o'q uzasiz."}
+                  </ModeDesc>
+                </ModeCard>
+              </ModeOptions>
+            </DialogContent>
+          </Dialog>
+        </Overlay>
       )}
 
       <PremiumUpgradeModal

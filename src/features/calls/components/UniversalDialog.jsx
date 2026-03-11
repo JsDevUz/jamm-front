@@ -59,8 +59,8 @@ const Overlay = styled.div`
     forwards;
 
   @media (max-width: 640px) {
-    padding: 0;
-    align-items: stretch;
+    padding: 12px;
+    align-items: center;
   }
 `;
 
@@ -98,8 +98,8 @@ const Dialog = styled.div`
 
   @media (max-width: 640px) {
     width: 100%;
-    height: 100%;
-    border-radius: 0;
+    max-height: calc(100vh - 24px);
+    border-radius: 18px;
   }
 `;
 

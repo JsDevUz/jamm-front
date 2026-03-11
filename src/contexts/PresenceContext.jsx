@@ -8,10 +8,9 @@ import React, {
 } from "react";
 import { io } from "socket.io-client";
 import useAuthStore from "../store/authStore";
+import { API_BASE_URL, buildSocketNamespaceUrl } from "../config/env";
 
 const PresenceContext = createContext();
-
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
 const HEARTBEAT_INTERVAL = 20_000; // 20 seconds
 
 export const usePresence = () => useContext(PresenceContext);
@@ -32,12 +31,11 @@ export const PresenceProvider = ({ children }) => {
   const heartbeatRef = useRef(null);
 
   useEffect(() => {
-    const token = useAuthStore.getState().token;
-    if (!token) return;
+    const currentUser = useAuthStore.getState().user;
+    if (!currentUser?._id && !currentUser?.id) return;
 
-    // Connect to /presence namespace with JWT
-    const socket = io(`${API_URL}/presence`, {
-      auth: { token },
+    const socket = io(buildSocketNamespaceUrl("/presence"), {
+      withCredentials: true,
       transports: ["websocket", "polling"],
       reconnection: true,
       reconnectionDelay: 2000,
@@ -113,13 +111,12 @@ export const PresenceProvider = ({ children }) => {
    */
   const fetchBulkStatuses = useCallback(async (userIds) => {
     try {
-      const token = useAuthStore.getState().token;
-      const res = await fetch(`${API_URL}/presence/status/bulk`, {
+      const res = await fetch(`${API_BASE_URL}/presence/status/bulk`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
         },
+        credentials: "include",
         body: JSON.stringify({ userIds }),
       });
       if (!res.ok) return {};

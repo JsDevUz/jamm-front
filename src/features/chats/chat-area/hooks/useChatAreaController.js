@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "react-hot-toast";
-import { createChat as createDirectChat, getPublicProfile } from "../../../../api/chatApi";
+import {
+  createChat as createDirectChat,
+  getPublicProfile,
+} from "../../../../api/chatApi";
 import { useChats } from "../../../../contexts/ChatsContext";
 import { usePresence } from "../../../../contexts/PresenceContext";
 import { useCall } from "../../../../contexts/CallContext";
@@ -8,6 +11,7 @@ import useAuthStore from "../../../../store/authStore";
 import { formatMessageDate } from "../../../../utils/dateUtils";
 import { renderChatMessageContent } from "../utils/renderChatMessageContent";
 import useChatAreaUiStore from "../store/useChatAreaUiStore";
+import { RESOLVED_APP_BASE_URL } from "../../../../config/env";
 import {
   getUserAvatarInitials,
   groupMessagesByDate,
@@ -46,10 +50,16 @@ export default function useChatAreaController({
   const isEditGroupDialogOpen = useChatAreaUiStore(
     (state) => state.isEditGroupDialogOpen,
   );
-  const isHeaderMenuOpen = useChatAreaUiStore((state) => state.isHeaderMenuOpen);
+  const isHeaderMenuOpen = useChatAreaUiStore(
+    (state) => state.isHeaderMenuOpen,
+  );
   const closeHeaderMenu = useChatAreaUiStore((state) => state.closeHeaderMenu);
-  const closeDeleteDialog = useChatAreaUiStore((state) => state.closeDeleteDialog);
-  const closeInfoSidebar = useChatAreaUiStore((state) => state.closeInfoSidebar);
+  const closeDeleteDialog = useChatAreaUiStore(
+    (state) => state.closeDeleteDialog,
+  );
+  const closeInfoSidebar = useChatAreaUiStore(
+    (state) => state.closeInfoSidebar,
+  );
   const closeEditGroupDialog = useChatAreaUiStore(
     (state) => state.closeEditGroupDialog,
   );
@@ -61,7 +71,7 @@ export default function useChatAreaController({
 
   const [messageInput, setMessageInput] = useState("");
   const [messages, setMessages] = useState([]);
-  const [messagesPage, setMessagesPage] = useState(1);
+  const [messagesCursor, setMessagesCursor] = useState(null);
   const [messagesHasMore, setMessagesHasMore] = useState(true);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const [replyMessage, setReplyMessage] = useState(null);
@@ -179,19 +189,25 @@ export default function useChatAreaController({
     };
 
     fetchPreview();
-  }, [selectedNav, selectedChatId, currentChat, previewGroupChat, setPreviewChat]);
+  }, [
+    selectedNav,
+    selectedChatId,
+    currentChat,
+    previewGroupChat,
+    setPreviewChat,
+  ]);
 
   useEffect(() => {
     if (!currentChat) return;
 
     const loadMessages = async () => {
       setIsLoadingMessages(true);
-      const result = await fetchMessages(currentChat.id, 1, 30);
+      const result = await fetchMessages(currentChat.id);
       const loadedMessages = result.data || [];
 
       setMessages(loadedMessages);
-      setMessagesPage(result.page || 1);
-      setMessagesHasMore((result.page || 1) < (result.totalPages || 1));
+      setMessagesCursor(result.nextCursor || null);
+      setMessagesHasMore(Boolean(result.hasMore));
       setIsLoadingMessages(false);
 
       const currentUserId = currentUser?._id || currentUser?.id;
@@ -202,7 +218,9 @@ export default function useChatAreaController({
       );
 
       setTimeout(() => {
-        const firstUnreadId = firstUnread ? firstUnread.id || firstUnread._id : null;
+        const firstUnreadId = firstUnread
+          ? firstUnread.id || firstUnread._id
+          : null;
         if (firstUnreadId && messageRefs.current[firstUnreadId]) {
           messageRefs.current[firstUnreadId].scrollIntoView({
             behavior: "auto",
@@ -218,19 +236,25 @@ export default function useChatAreaController({
   }, [currentChat?.id, currentUser?._id, currentUser?.id, fetchMessages]);
 
   const fetchMoreMessages = async () => {
-    if (!currentChat || isLoadingMessages || !messagesHasMore) return;
+    if (
+      !currentChat ||
+      isLoadingMessages ||
+      !messagesHasMore ||
+      !messagesCursor
+    ) {
+      return;
+    }
 
     setIsLoadingMessages(true);
     const scrollContainer = document.getElementById("scrollableChatArea");
     const previousScrollHeight = scrollContainer?.scrollHeight || 0;
     const previousScrollTop = scrollContainer?.scrollTop || 0;
-    const nextPage = messagesPage + 1;
-    const result = await fetchMessages(currentChat.id, nextPage, 30);
+    const result = await fetchMessages(currentChat.id, messagesCursor);
     const nextMessages = result.data || [];
 
     setMessages((previous) => [...nextMessages, ...previous]);
-    setMessagesPage(nextPage);
-    setMessagesHasMore(nextPage < (result.totalPages || 1));
+    setMessagesCursor(result.nextCursor || null);
+    setMessagesHasMore(Boolean(result.hasMore));
     setIsLoadingMessages(false);
 
     setTimeout(() => {
@@ -339,7 +363,9 @@ export default function useChatAreaController({
     const currentUserId = currentUser?._id || currentUser?.id;
     const unreadMessages = messages.filter((message) => {
       const senderId = normalizeSenderId(message.senderId);
-      return senderId !== currentUserId && !message.readBy?.includes(currentUserId);
+      return (
+        senderId !== currentUserId && !message.readBy?.includes(currentUserId)
+      );
     });
 
     if (!unreadMessages.length) return;
@@ -393,7 +419,7 @@ export default function useChatAreaController({
       messageInputRef.current.value.length,
       messageInputRef.current.value.length,
     );
-  }, [selectedChatId, selectedNav, replyMessage]);
+  }, [selectedChatId, selectedNav, replyMessage, currentChat?.id]);
 
   useEffect(() => {
     if (!messageInputRef.current) return;
@@ -430,7 +456,10 @@ export default function useChatAreaController({
     if (!isHeaderMenuOpen) return undefined;
 
     const handleClickOutside = (event) => {
-      if (headerMenuRef.current && !headerMenuRef.current.contains(event.target)) {
+      if (
+        headerMenuRef.current &&
+        !headerMenuRef.current.contains(event.target)
+      ) {
         closeHeaderMenu();
       }
     };
@@ -464,11 +493,15 @@ export default function useChatAreaController({
 
     const existingChat = chats.find((chat) => {
       if (chat.isGroup || !chat.members || chat.isSavedMessages) return false;
-      return chat.members.some((member) => (member._id || member.id) === targetId);
+      return chat.members.some(
+        (member) => (member._id || member.id) === targetId,
+      );
     });
 
     if (existingChat) {
-      navigate(`/users/${existingChat.jammId || existingChat.urlSlug || existingChat.id}`);
+      navigate(
+        `/users/${existingChat.jammId || existingChat.urlSlug || existingChat.id}`,
+      );
       closeInfoSidebar();
       return;
     }
@@ -503,6 +536,10 @@ export default function useChatAreaController({
     setTimeout(() => {
       messageElement.style.backgroundColor = "";
     }, 2000);
+
+    setTimeout(() => {
+      messageInputRef.current?.focus();
+    }, 0);
   };
 
   const handleMessageDoubleClick = (message, event) => {
@@ -721,7 +758,8 @@ export default function useChatAreaController({
           !chat.isGroup &&
           chat.members &&
           chat.members.some(
-            (member) => String(member._id || member.id) === String(targetUserId),
+            (member) =>
+              String(member._id || member.id) === String(targetUserId),
           ),
       );
 
@@ -749,7 +787,6 @@ export default function useChatAreaController({
 
   const handleEmojiClick = (emoji) => {
     setMessageInput((previous) => previous + emoji);
-    setShowEmojiPicker(false);
 
     setTimeout(() => {
       if (!messageInputRef.current) return;
@@ -815,7 +852,10 @@ export default function useChatAreaController({
     }
   };
 
-  const messageGroups = useMemo(() => groupMessagesByDate(messages), [messages]);
+  const messageGroups = useMemo(
+    () => groupMessagesByDate(messages),
+    [messages],
+  );
 
   const handleSendMessage = async (event) => {
     if (event.key !== "Enter" || event.shiftKey || !messageInput.trim()) {
@@ -849,7 +889,23 @@ export default function useChatAreaController({
 
       if (!targetChatId) return;
 
-      await sendMessage(targetChatId, content, replyToMessageId);
+      const nextMessage = await sendMessage(
+        targetChatId,
+        content,
+        replyToMessageId,
+      );
+
+      setMessages((previous) => {
+        if (
+          !nextMessage ||
+          previous.some((message) => message.id === nextMessage.id)
+        ) {
+          return previous;
+        }
+
+        return [...previous, nextMessage];
+      });
+
       setTimeout(() => scrollToBottom("smooth"), 100);
     } catch (error) {
       console.error("Failed to send message:", error);
@@ -860,7 +916,8 @@ export default function useChatAreaController({
     .filter((chat) => chat.type === "user" && !chat.isSavedMessages)
     .map((chat) => {
       const other = chat.members?.find(
-        (member) => (member._id || member.id) !== (currentUser?._id || currentUser?.id),
+        (member) =>
+          (member._id || member.id) !== (currentUser?._id || currentUser?.id),
       );
 
       return {
@@ -880,7 +937,7 @@ export default function useChatAreaController({
   };
 
   const handleCopyChatLink = (slug) => {
-    navigator.clipboard.writeText(`${window.location.origin}/${slug}`);
+    navigator.clipboard.writeText(`${RESOLVED_APP_BASE_URL}/${slug}`);
     toast.success("Havola nusxalandi");
   };
 
@@ -895,6 +952,7 @@ export default function useChatAreaController({
       joinGroupChat,
       messages,
       messagesHasMore,
+      isLoadingMessages,
       messageGroups,
       contextMenu,
       replyMessage,
@@ -938,6 +996,7 @@ export default function useChatAreaController({
       messageInput,
       messages,
       messagesHasMore,
+      isLoadingMessages,
       navigate,
       previewChat,
       replyMessage,
@@ -964,6 +1023,7 @@ export default function useChatAreaController({
     isUserOnline,
     lastSeenText,
     onlineCount,
+    otherMember,
     startPrivateVideoCall,
     typingText,
   };

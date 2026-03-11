@@ -1,6 +1,7 @@
 import React, { useState, useRef } from "react";
 import styled from "styled-components";
 import { X, Upload, Check, Search, Loader } from "lucide-react";
+import { toast } from "react-hot-toast";
 import useUploadAvatar from "../../../hooks/useUploadAvatar";
 import { APP_LIMITS } from "../../../constants/appLimits";
 import {
@@ -31,15 +32,15 @@ const Label = styled.label`
 
 const Input = styled.input`
   padding: 10px;
-  border-radius: 4px;
-  border: none;
+  border-radius: 10px;
+  border: 1px solid var(--border-color);
   background-color: var(--input-color);
   color: var(--text-color);
   font-size: 14px;
   outline: none;
 
   &:focus {
-    background-color: #40444b;
+    border-color: var(--primary-color);
   }
 `;
 
@@ -94,7 +95,7 @@ const UserList = styled.div`
   max-height: 150px;
   overflow-y: auto;
   border: 1px solid var(--border-color);
-  border-radius: 4px;
+  border-radius: 10px;
   background-color: var(--tertiary-color);
 `;
 
@@ -142,6 +143,18 @@ const UserName = styled.span`
   font-weight: 500;
 `;
 
+const UserBadge = styled.span`
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border-color);
+  background: var(--secondary-color);
+  color: var(--text-muted-color);
+  font-size: 11px;
+  font-weight: 700;
+`;
+
 const CreateGroupDialog = ({ isOpen, onClose, onCreate, users = [] }) => {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -176,6 +189,10 @@ const CreateGroupDialog = ({ isOpen, onClose, onCreate, users = [] }) => {
   };
 
   const toggleUser = (userId) => {
+    const targetUser = users.find((user) => String(user.id) === String(userId));
+    if (targetUser?.disableGroupInvites || targetUser?.isOfficialProfile) {
+      return;
+    }
     if (selectedUsers.includes(userId)) {
       setSelectedUsers(selectedUsers.filter((id) => id !== userId));
     } else {
@@ -214,7 +231,7 @@ const CreateGroupDialog = ({ isOpen, onClose, onCreate, users = [] }) => {
       <ModalPanel
         $width="min(100%, 520px)"
         $maxHeight="min(86vh, 760px)"
-        $mobileFull
+        $radius="18px"
         onClick={(e) => e.stopPropagation()}
       >
         <ModalHeader $padding="18px">
@@ -321,11 +338,20 @@ const CreateGroupDialog = ({ isOpen, onClose, onCreate, users = [] }) => {
                     <UserItem
                       key={user.id}
                       selected={selectedUsers.includes(user.id)}
+                      style={{
+                        opacity: user.disableGroupInvites ? 0.55 : 1,
+                        pointerEvents: user.disableGroupInvites ? "none" : "auto",
+                      }}
                       onClick={() => toggleUser(user.id)}
                     >
                       <UserInfo>
                         <Avatar>{user.avatar || user.name.charAt(0)}</Avatar>
-                        <UserName>{user.name}</UserName>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                          <UserName>{user.name}</UserName>
+                          {user.isOfficialProfile ? (
+                            <UserBadge>{user.officialBadgeLabel || "Rasmiy"}</UserBadge>
+                          ) : null}
+                        </div>
                       </UserInfo>
                       {selectedUsers.includes(user.id) && (
                         <Check size={16} color="var(--primary-color)" />

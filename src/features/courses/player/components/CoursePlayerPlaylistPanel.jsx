@@ -1,12 +1,28 @@
 import React from "react";
-import { ArrowLeft, ChevronDown, ChevronUp, Eye, ListVideo, Lock, Play, Plus, Trash2 } from "lucide-react";
+import { useTranslation } from "react-i18next";
+import {
+  ArrowLeft,
+  Check,
+  ChevronDown,
+  ChevronUp,
+  Eye,
+  ListVideo,
+  Lock,
+  Pencil,
+  Play,
+  Plus,
+  Trash2,
+} from "lucide-react";
 import { useCoursePlayerContext } from "../context/CoursePlayerContext";
 import {
   AddLessonBtn,
   DeleteLessonBtn,
+  DraftBadge,
   EmptyLessons,
   EmptyLessonsHint,
+  EditLessonBtn,
   FreeBadge,
+  LessonTitleText,
   LessonInfo,
   LessonItem,
   LessonList,
@@ -22,9 +38,11 @@ import {
   PlaylistPanel,
   PlaylistTitle,
   PlaylistToggle,
+  PublishLessonBtn,
 } from "./CoursePlayerPlaylistPanel.styles";
 
 const CoursePlayerPlaylistPanel = () => {
+  const { t } = useTranslation();
   const {
     activeLesson,
     admin,
@@ -33,9 +51,11 @@ const CoursePlayerPlaylistPanel = () => {
     course,
     formatViews,
     handleLessonClick,
+    handlePublishLesson,
     onClose,
+    openLessonCreator,
+    openLessonEditor,
     playlistCollapsed,
-    setIsAddLessonOpen,
     setLessonToDelete,
     setPlaylistCollapsed,
   } = useCoursePlayerContext();
@@ -48,14 +68,16 @@ const CoursePlayerPlaylistPanel = () => {
             <ArrowLeft size={20} />
           </MobileBackBtn>
           <ListVideo size={18} />
-          Darslar
+          {t("courseSidebar.lessons")}
         </PlaylistTitle>
         <PlaylistActions>
-          <PlaylistCount>{course.lessons.length} ta dars</PlaylistCount>
+          <PlaylistCount>
+            {t("coursePlayer.playlist.count", { count: course.lessons.length })}
+          </PlaylistCount>
           {admin && (
             <AddLessonBtn
-              onClick={() => setIsAddLessonOpen(true)}
-              title="Dars qo'shish"
+              onClick={openLessonCreator}
+              title={t("addLesson.createDraft")}
             >
               <Plus size={16} />
             </AddLessonBtn>
@@ -71,18 +93,25 @@ const CoursePlayerPlaylistPanel = () => {
           <EmptyLessons>
             {admin ? (
               <>
-                Hali darslar yo'q.
+                {t("coursePlayer.locked.noLessonsTitle")}
                 <br />
-                <EmptyLessonsHint>+ tugmasini bosib dars qo'shing</EmptyLessonsHint>
+                <EmptyLessonsHint>
+                  {t("coursePlayer.locked.noLessonsAdmin")}
+                </EmptyLessonsHint>
               </>
             ) : (
-              "Hali darslar qo'shilmagan"
+              t("coursePlayer.locked.noLessonsUser")
             )}
           </EmptyLessons>
         ) : (
           course.lessons.map((lesson, index) => {
             const canOpen = canAccessLesson(index);
             const isActive = canOpen && activeLesson === index;
+            const hasLessonMedia = Boolean(
+              (Array.isArray(lesson.mediaItems) && lesson.mediaItems.length) ||
+                lesson.videoUrl ||
+                lesson.fileUrl,
+            );
 
             return (
               <LessonItem
@@ -105,8 +134,13 @@ const CoursePlayerPlaylistPanel = () => {
                   {canOpen ? (
                     <>
                       <LessonTitle $active={activeLesson === index}>
-                        {lesson.title}
-                        {index === 0 && !canAccessLessons && <FreeBadge>Bepul</FreeBadge>}
+                        <LessonTitleText>{lesson.title}</LessonTitleText>
+                        {lesson.status === "draft" && (
+                          <DraftBadge>{t("coursePlayer.playlist.draft")}</DraftBadge>
+                        )}
+                        {index === 0 && !canAccessLessons && (
+                          <FreeBadge>{t("coursePlayer.playlist.free")}</FreeBadge>
+                        )}
                       </LessonTitle>
                       <LessonMeta>
                         <LessonMetaItem>
@@ -124,15 +158,37 @@ const CoursePlayerPlaylistPanel = () => {
                 </LessonInfo>
 
                 {admin && (
-                  <DeleteLessonBtn
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      setLessonToDelete(lesson._id);
-                    }}
-                    title="O'chirish"
-                  >
-                    <Trash2 size={14} />
-                  </DeleteLessonBtn>
+                  <>
+                    <EditLessonBtn
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        openLessonEditor(lesson);
+                      }}
+                      title={t("coursePlayer.playlist.edit")}
+                    >
+                      <Pencil size={14} />
+                    </EditLessonBtn>
+                    {lesson.status === "draft" && hasLessonMedia && (
+                      <PublishLessonBtn
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          handlePublishLesson(lesson);
+                        }}
+                        title={t("addLesson.publish")}
+                      >
+                        <Check size={14} />
+                      </PublishLessonBtn>
+                    )}
+                    <DeleteLessonBtn
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setLessonToDelete(lesson._id);
+                      }}
+                      title={t("common.delete")}
+                    >
+                      <Trash2 size={14} />
+                    </DeleteLessonBtn>
+                  </>
                 )}
               </LessonItem>
             );

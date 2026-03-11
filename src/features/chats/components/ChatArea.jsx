@@ -45,6 +45,7 @@ const ChatArea = ({
     onlineCount,
     startPrivateVideoCall,
     typingText,
+    otherMember,
   } = useChatAreaController({
     selectedChatId,
     selectedNav,
@@ -63,6 +64,7 @@ const ChatArea = ({
             selectedNav={selectedNav}
             currentChat={currentChat}
             displayChat={displayChat}
+            otherMember={otherMember}
             currentChatName={currentChatName}
             currentUser={currentUser}
             typingText={typingText}

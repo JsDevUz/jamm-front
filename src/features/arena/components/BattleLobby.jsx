@@ -22,6 +22,7 @@ import BattleHistoryDialog from "./BattleHistoryDialog";
 import CreateBattleDialog from "./CreateBattleDialog";
 import { History as HistoryIcon } from "lucide-react";
 import { SidebarIconButton as ButtonWrapper } from "../../../shared/ui/buttons/IconButton";
+import { RESOLVED_APP_BASE_URL } from "../../../config/env";
 
 const Container = styled.div`
   display: flex;
@@ -202,7 +203,6 @@ const BattleLobby = ({ initialRoomId, onBack }) => {
   const [showHistory, setShowHistory] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
   const user = useAuthStore((state) => state.user);
-  const token = useAuthStore((state) => state.token);
 
   React.useEffect(() => {
     if (initialRoomId && initialRoomId !== "0" && !activeBattle) {
@@ -231,7 +231,7 @@ const BattleLobby = ({ initialRoomId, onBack }) => {
   };
 
   const handleCopyLink = () => {
-    const url = `${window.location.origin}/arena/battle/${activeBattle.roomId}`;
+    const url = `${RESOLVED_APP_BASE_URL}/arena/battle/${activeBattle.roomId}`;
     navigator.clipboard.writeText(url);
     toast.success("Havola nusxalandi!");
   };
@@ -239,7 +239,7 @@ const BattleLobby = ({ initialRoomId, onBack }) => {
   // --- Render Logic ---
   const getHeaderAndContent = () => {
     // 1. Guest Name Entry
-    if (!token && !guestName) {
+    if (!user && !guestName) {
       return {
         headerProps: {
           title: "Ismingizni kiriting",

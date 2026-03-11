@@ -13,7 +13,7 @@ import {
   X,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
-import PremiumBadgeIcon from "../../../../shared/ui/badges/PremiumBadge";
+import UserNameWithDecoration from "../../../../shared/ui/users/UserNameWithDecoration";
 import useChatAreaUiStore from "../store/useChatAreaUiStore";
 
 const ChatHeader = styled.div`
@@ -77,9 +77,7 @@ const ChatAvatar = styled.div`
   height: 40px;
   border-radius: 50%;
   background: ${(props) =>
-    props.$isSavedMessages
-      ? "var(--primary-color)"
-      : "var(--primary-color)"};
+    props.$isSavedMessages ? "var(--primary-color)" : "var(--primary-color)"};
   display: flex;
   align-items: center;
   justify-content: center;
@@ -163,17 +161,17 @@ const HeaderDropdown = styled.div`
   position: absolute;
   top: 55px;
   right: 16px;
-  background-color: var(--secondary-color);
-  backdrop-filter: blur(5px) saturate(200%);
-  -webkit-backdrop-filter: blur(40px) saturate(200%);
-  border: 1px solid var(--border-color);
+  background: var(--secondary-color-with-opacity);
+  backdrop-filter: blur(5px) saturate(150%);
+  -webkit-backdrop-filter: blur(18px) saturate(170%);
+  /* border: 1px solid color-mix(in srgb, var(--border-color) 78%, transparent); */
   border-radius: 14px;
   padding: 8px;
   min-width: 200px;
   z-index: 1000;
   box-shadow:
-    0 24px 48px var(--shadow-color-strong, rgba(0, 0, 0, 0.4)),
-    0 0 0 1px var(--border-color) inset;
+    0 20px 48px rgba(0, 0, 0, 0.22),
+    0 0 0 1px rgba(255, 255, 255, 0.05) inset;
   display: flex;
   flex-direction: column;
 `;
@@ -182,7 +180,9 @@ const DropdownItem = styled.button`
   width: 100%;
   padding: 10px 14px;
   color: ${(props) =>
-    props.$danger ? "var(--danger-color, var(--primary-color))" : "var(--text-color)"};
+    props.$danger
+      ? "var(--danger-color, var(--primary-color))"
+      : "var(--text-color)"};
   background: transparent;
   border: none;
   cursor: pointer;
@@ -201,12 +201,16 @@ const DropdownItem = styled.button`
   }
 
   &:hover {
-    background-color: ${(props) =>
+    background: ${(props) =>
+      props.$danger
+        ? "color-mix(in srgb, var(--danger-color, var(--primary-color)) 18%, transparent)"
+        : "color-mix(in srgb, var(--text-color) 8%, transparent)"};
+    color: ${(props) =>
       props.$danger
         ? "var(--danger-color, var(--primary-color))"
-        : "var(--primary-color)"};
-    color: white;
-    transform: translateX(4px);
+        : "var(--text-color)"};
+    /* backdrop-filter: blur(2px) saturate(150%); */
+    /* -webkit-backdrop-filter: blur(2px) saturate(150%); */
   }
 `;
 
@@ -266,6 +270,7 @@ const ChatAreaHeader = ({
   selectedNav,
   currentChat,
   displayChat,
+  otherMember,
   currentChatName,
   currentUser,
   typingText,
@@ -275,7 +280,9 @@ const ChatAreaHeader = ({
   onStartPrivateVideoCall,
   headerMenuRef,
 }) => {
-  const isHeaderMenuOpen = useChatAreaUiStore((state) => state.isHeaderMenuOpen);
+  const isHeaderMenuOpen = useChatAreaUiStore(
+    (state) => state.isHeaderMenuOpen,
+  );
   const toggleInfoSidebar = useChatAreaUiStore(
     (state) => state.toggleInfoSidebar,
   );
@@ -283,12 +290,18 @@ const ChatAreaHeader = ({
   const openEditGroupDialog = useChatAreaUiStore(
     (state) => state.openEditGroupDialog,
   );
-  const toggleHeaderMenu = useChatAreaUiStore((state) => state.toggleHeaderMenu);
-  const openDeleteDialog = useChatAreaUiStore((state) => state.openDeleteDialog);
+  const toggleHeaderMenu = useChatAreaUiStore(
+    (state) => state.toggleHeaderMenu,
+  );
+  const openDeleteDialog = useChatAreaUiStore(
+    (state) => state.openDeleteDialog,
+  );
 
   const activeChat = currentChat || displayChat;
   const currentUserId = currentUser?._id || currentUser?.id;
-  const isOfficial = ["jamm", "premium"].includes(displayChat?.username);
+  const isOfficial =
+    Boolean(displayChat?.isOfficialProfile) ||
+    ["jamm", "premium", "ceo"].includes(displayChat?.username);
   const isGroupOwnerLeaving =
     activeChat?.isGroup && activeChat?.createdBy !== currentUserId;
 
@@ -331,10 +344,10 @@ const ChatAreaHeader = ({
 
         <ChatInfo>
           <ChatName>
-            {currentChatName}
-            {displayChat?.premiumStatus === "active" && (
-              <PremiumBadgeIcon width={16} height={16} />
-            )}
+            <UserNameWithDecoration
+              user={otherMember || displayChat}
+              fallback={currentChatName}
+            />
           </ChatName>
           <ChatStatus>
             {typingText ? (
@@ -355,7 +368,7 @@ const ChatAreaHeader = ({
             ) : displayChat?.isSavedMessages ? (
               <>o'zim</>
             ) : isOfficial ? (
-              <>Rasmiy</>
+              <>{displayChat?.officialBadgeLabel || "Rasmiy"}</>
             ) : (
               <>
                 <StatusDot $online={isOnline} />
@@ -369,7 +382,8 @@ const ChatAreaHeader = ({
       <HeaderRight>
         {displayChat?.type === "user" &&
           !displayChat?.isSavedMessages &&
-          !isOfficial && (
+          !isOfficial &&
+          !displayChat?.disableCalls && (
             <HeaderButton
               onClick={() => {
                 if (isOnline) {
@@ -417,8 +431,14 @@ const ChatAreaHeader = ({
               <Divider />
 
               <DropdownItem $danger onClick={openDeleteDialog}>
-                {isGroupOwnerLeaving ? <LogOut size={18} /> : <Trash2 size={18} />}
-                {isGroupOwnerLeaving ? "Guruhni tark etish" : "Suhbatni o'chirish"}
+                {isGroupOwnerLeaving ? (
+                  <LogOut size={18} />
+                ) : (
+                  <Trash2 size={18} />
+                )}
+                {isGroupOwnerLeaving
+                  ? "Guruhni tark etish"
+                  : "Suhbatni o'chirish"}
               </DropdownItem>
             </HeaderDropdown>
           )}

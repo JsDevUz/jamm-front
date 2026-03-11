@@ -34,4 +34,50 @@ export const Description = styled.p`
 
 export const CenteredMessage = styled(Screen)`
   font-size: 15px;
+  width: 100vw;
+`;
+
+export const LoadingCard = styled.div`
+  width: min(100%, 280px);
+  background: var(--secondary-color);
+  border: 1px solid var(--border-color);
+  border-radius: 18px;
+  padding: 18px 16px;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+`;
+
+export const LoadingSpinner = styled.div`
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  border: 2px solid color-mix(in srgb, var(--border-color) 78%, transparent);
+  border-top-color: var(--primary-color);
+  animation: systemStateSpin 0.8s linear infinite;
+
+  @keyframes systemStateSpin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+`;
+
+export const LoadingContent = styled.div`
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+`;
+
+export const LoadingTitle = styled.div`
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-color);
+`;
+
+export const LoadingHint = styled.div`
+  font-size: 12px;
+  color: var(--text-muted-color);
 `;

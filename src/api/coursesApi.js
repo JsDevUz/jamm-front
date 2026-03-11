@@ -19,11 +19,30 @@ export const removeCourse = async (courseId) => {
 
 // --- Lessons ---
 export const addLesson = async ({ courseId, ...lessonData }) => {
-  await axiosInstance.post(`/courses/${courseId}/lessons`, lessonData);
+  const { data } = await axiosInstance.post(
+    `/courses/${courseId}/lessons`,
+    lessonData,
+  );
+  return data;
 };
 
 export const removeLesson = async ({ courseId, lessonId }) => {
   await axiosInstance.delete(`/courses/${courseId}/lessons/${lessonId}`);
+};
+
+export const updateLesson = async ({ courseId, lessonId, ...lessonData }) => {
+  const { data } = await axiosInstance.patch(
+    `/courses/${courseId}/lessons/${lessonId}`,
+    lessonData,
+  );
+  return data;
+};
+
+export const publishLesson = async ({ courseId, lessonId }) => {
+  const { data } = await axiosInstance.patch(
+    `/courses/${courseId}/lessons/${lessonId}/publish`,
+  );
+  return data;
 };
 
 // --- Comments ---
@@ -83,9 +102,214 @@ export const fetchLikedLessons = async () => {
   return data;
 };
 
-export const getLessonPlaybackToken = async (courseId, lessonId) => {
+export const getLessonAttendance = async (courseId, lessonId) => {
+  const { data } = await axiosInstance.get(
+    `/courses/${courseId}/lessons/${lessonId}/attendance`,
+  );
+  return data;
+};
+
+export const markOwnAttendance = async ({
+  courseId,
+  lessonId,
+  progressPercent,
+}) => {
+  const { data } = await axiosInstance.post(
+    `/courses/${courseId}/lessons/${lessonId}/attendance/self`,
+    { progressPercent },
+  );
+  return data;
+};
+
+export const setLessonAttendanceStatus = async ({
+  courseId,
+  lessonId,
+  userId,
+  status,
+}) => {
+  const { data } = await axiosInstance.patch(
+    `/courses/${courseId}/lessons/${lessonId}/attendance/${userId}`,
+    { status },
+  );
+  return data;
+};
+
+export const getLessonHomework = async (courseId, lessonId) => {
+  const { data } = await axiosInstance.get(
+    `/courses/${courseId}/lessons/${lessonId}/homework`,
+  );
+  return data;
+};
+
+export const getLessonLinkedTests = async (courseId, lessonId) => {
+  const { data } = await axiosInstance.get(
+    `/courses/${courseId}/lessons/${lessonId}/tests`,
+  );
+  return data;
+};
+
+export const upsertLessonLinkedTest = async ({
+  courseId,
+  lessonId,
+  ...payload
+}) => {
+  const { data } = await axiosInstance.patch(
+    `/courses/${courseId}/lessons/${lessonId}/tests`,
+    payload,
+  );
+  return data;
+};
+
+export const deleteLessonLinkedTest = async ({
+  courseId,
+  lessonId,
+  linkedTestId,
+}) => {
+  const { data } = await axiosInstance.delete(
+    `/courses/${courseId}/lessons/${lessonId}/tests/${linkedTestId}`,
+  );
+  return data;
+};
+
+export const submitLessonLinkedTestAttempt = async ({
+  courseId,
+  lessonId,
+  linkedTestId,
+  answers,
+  sentenceBuilderAnswers,
+}) => {
+  const { data } = await axiosInstance.post(
+    `/courses/${courseId}/lessons/${lessonId}/tests/${linkedTestId}/submit`,
+    {
+      answers: Array.isArray(answers) ? answers : [],
+      sentenceBuilderAnswers: Array.isArray(sentenceBuilderAnswers)
+        ? sentenceBuilderAnswers
+        : [],
+    },
+  );
+  return data;
+};
+
+export const upsertLessonHomework = async ({
+  courseId,
+  lessonId,
+  ...payload
+}) => {
+  const { data } = await axiosInstance.patch(
+    `/courses/${courseId}/lessons/${lessonId}/homework`,
+    payload,
+  );
+  return data;
+};
+
+export const submitLessonHomework = async ({
+  courseId,
+  lessonId,
+  assignmentId,
+  ...payload
+}) => {
+  const { data } = await axiosInstance.post(
+    `/courses/${courseId}/lessons/${lessonId}/homework/${assignmentId}/submit`,
+    payload,
+  );
+  return data;
+};
+
+export const reviewLessonHomework = async ({
+  courseId,
+  lessonId,
+  assignmentId,
+  userId,
+  ...payload
+}) => {
+  const { data } = await axiosInstance.patch(
+    `/courses/${courseId}/lessons/${lessonId}/homework/${assignmentId}/review/${userId}`,
+    payload,
+  );
+  return data;
+};
+
+export const deleteLessonHomework = async ({
+  courseId,
+  lessonId,
+  assignmentId,
+}) => {
+  const { data } = await axiosInstance.delete(
+    `/courses/${courseId}/lessons/${lessonId}/homework/${assignmentId}`,
+  );
+  return data;
+};
+
+export const getLessonPlaybackToken = async (courseId, lessonId, mediaId) => {
+  const params = mediaId
+    ? { params: { mediaId } }
+    : undefined;
   const { data } = await axiosInstance.get(
     `/courses/${courseId}/lessons/${lessonId}/playback-token`,
+    params,
+  );
+  return data;
+};
+
+export const getLessonMaterials = async (courseId, lessonId) => {
+  const { data } = await axiosInstance.get(
+    `/courses/${courseId}/lessons/${lessonId}/materials`,
+  );
+  return data;
+};
+
+export const upsertLessonMaterial = async ({
+  courseId,
+  lessonId,
+  ...payload
+}) => {
+  const { data } = await axiosInstance.patch(
+    `/courses/${courseId}/lessons/${lessonId}/materials`,
+    payload,
+  );
+  return data;
+};
+
+export const deleteLessonMaterial = async ({
+  courseId,
+  lessonId,
+  materialId,
+}) => {
+  const { data } = await axiosInstance.delete(
+    `/courses/${courseId}/lessons/${lessonId}/materials/${materialId}`,
+  );
+  return data;
+};
+
+export const getLessonGrading = async (courseId, lessonId) => {
+  const { data } = await axiosInstance.get(
+    `/courses/${courseId}/lessons/${lessonId}/grading`,
+  );
+  return data;
+};
+
+export const setLessonOralAssessment = async ({
+  courseId,
+  lessonId,
+  userId,
+  score,
+  note,
+}) => {
+  const { data } = await axiosInstance.patch(
+    `/courses/${courseId}/lessons/${lessonId}/oral-assessment/${userId}`,
+    { score, note },
+  );
+  return data;
+};
+
+export const getHomeworkSubmissionPlaybackToken = async ({
+  courseId,
+  lessonId,
+  assignmentId,
+  userId,
+}) => {
+  const { data } = await axiosInstance.get(
+    `/courses/${courseId}/lessons/${lessonId}/homework/${assignmentId}/submissions/${userId}/playback-token`,
   );
   return data;
 };

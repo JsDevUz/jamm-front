@@ -81,7 +81,8 @@ export const VideoOverlay = styled.div`
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  pointer-events: ${(props) => (props.$pointerEvents ? props.$pointerEvents : "auto")};
+  pointer-events: ${(props) =>
+    props.$pointerEvents ? props.$pointerEvents : "auto"};
 `;
 
 export const TransparentVideoOverlay = styled(VideoOverlay)`
@@ -151,8 +152,10 @@ export const CenterPlayButton = styled.button`
   cursor: pointer;
   opacity: ${(props) => (props.$visible ? 1 : 0)};
   pointer-events: ${(props) => (props.$visible ? "auto" : "none")};
+  z-index: 30;
   transition: all 0.3s ease;
-  box-shadow: 0 4px 24px color-mix(in srgb, var(--primary-color) 50%, transparent);
+  box-shadow: 0 4px 24px
+    color-mix(in srgb, var(--primary-color) 50%, transparent);
 
   &:hover {
     transform: translate(-50%, -50%) scale(1.1);
@@ -181,6 +184,19 @@ export const ProgressContainer = styled.div`
   }
 `;
 
+export const ProgressSegmentDivider = styled.div`
+  position: absolute;
+  top: -1px;
+  left: ${(props) => `${props.$left}%`};
+  width: 2px;
+  height: calc(100% + 2px);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.78);
+  transform: translateX(-50%);
+  z-index: 3;
+  pointer-events: none;
+`;
+
 export const ProgressFilled = styled.div`
   height: 100%;
   background: var(--primary-color);
@@ -199,7 +215,8 @@ export const ProgressFilled = styled.div`
     height: 12px;
     border-radius: 50%;
     background: var(--primary-color);
-    box-shadow: 0 0 4px color-mix(in srgb, var(--primary-color) 50%, transparent);
+    box-shadow: 0 0 4px
+      color-mix(in srgb, var(--primary-color) 50%, transparent);
     opacity: 0;
     transition: opacity 0.15s;
   }
@@ -226,14 +243,33 @@ export const ProgressHoverTooltip = styled.div`
   transform: translateX(-50%);
   background: rgba(0, 0, 0, 0.85);
   color: white;
+  display: grid;
+  gap: 2px;
+  min-width: 0;
   font-size: 11px;
   font-weight: 600;
-  padding: 3px 7px;
+  padding: 5px 8px;
   border-radius: 4px;
   white-space: nowrap;
   pointer-events: none;
   z-index: 20;
   letter-spacing: 0.5px;
+
+  strong {
+    max-width: 180px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0;
+  }
+
+  span {
+    font-size: 10px;
+    color: rgba(255, 255, 255, 0.82);
+    letter-spacing: 0;
+  }
 `;
 
 export const ControlsRow = styled.div`
@@ -283,6 +319,8 @@ export const SpeedToggleButton = styled(ControlButton)`
   width: auto;
   padding: 0 8px;
   border-radius: 4px;
+  height: 25px;
+
   border: 1px solid
     ${(props) =>
       props.$active ? "var(--primary-color)" : "rgba(255, 255, 255, 0.2)"};
@@ -322,7 +360,9 @@ export const SpeedOption = styled.button`
   color: ${(props) => (props.$active ? "var(--primary-color)" : "white")};
   font-weight: ${(props) => (props.$active ? 700 : 400)};
   background: ${(props) =>
-    props.$active ? "color-mix(in srgb, var(--primary-color) 16%, transparent)" : "transparent"};
+    props.$active
+      ? "color-mix(in srgb, var(--primary-color) 16%, transparent)"
+      : "transparent"};
   transition: background 0.15s;
 
   &:hover {
@@ -393,6 +433,27 @@ export const TimeDisplay = styled.span`
   user-select: none;
 `;
 
+export const CurrentSegmentLabel = styled.div`
+  max-width: 220px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  user-select: none;
+
+  @media (max-width: 768px) {
+    max-width: 140px;
+    font-size: 11px;
+    padding: 5px 9px;
+  }
+`;
+
 export const VolumeContainer = styled.div`
   display: flex;
   align-items: center;
@@ -414,7 +475,7 @@ export const VolumeSlider = styled.input`
 `;
 
 export const VideoInfo = styled.div`
-  padding: 20px 24px;
+  padding: 18px 24px 14px;
   border-bottom: 1px solid var(--border-color);
   flex-shrink: 0;
 `;
@@ -436,6 +497,127 @@ export const VideoMeta = styled.div`
   align-items: center;
   gap: 16px;
   flex-wrap: wrap;
+`;
+
+export const LessonDescriptionCard = styled.div`
+  margin: 5px;
+  padding: 14px 16px;
+  border: 1px solid var(--border-color);
+  border-radius: 14px;
+  background: var(--secondary-color);
+  display: grid;
+  gap: 8px;
+
+  @media (max-width: 768px) {
+    padding: 12px 14px;
+    border-radius: 12px;
+  }
+`;
+
+export const LessonExtrasCard = styled.div`
+  margin: 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 14px;
+  background: var(--secondary-color);
+
+  @media (max-width: 768px) {
+    margin: 16px;
+    border-radius: 12px;
+  }
+`;
+
+export const LessonExtrasHeader = styled.button`
+  width: 100%;
+  display: grid;
+  gap: 10px;
+  padding: 12px 14px;
+  border: none;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+`;
+
+export const LessonExtrasHeaderMeta = styled.div`
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+`;
+
+export const LessonExtrasTitle = styled.div`
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-color);
+  font-size: 14px;
+  font-weight: 700;
+`;
+
+export const LessonExtrasHint = styled.div`
+  color: var(--text-muted-color);
+  font-size: 12px;
+  line-height: 1.45;
+`;
+
+export const LessonExtrasBadges = styled.div`
+  display: flex;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 6px;
+`;
+
+export const LessonExtrasBadge = styled.span`
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  border: 1px solid
+    color-mix(in srgb, var(--success-color) 24%, var(--border-color));
+  background: color-mix(in srgb, var(--success-color) 10%, transparent);
+  color: var(--success-color);
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+`;
+
+export const LessonExtrasBody = styled.div`
+  border-top: 1px solid var(--border-color);
+`;
+
+export const LessonDescriptionHeader = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+`;
+
+export const LessonDescriptionTitle = styled.div`
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-color);
+`;
+
+export const LessonDescriptionBody = styled.div`
+  font-size: 13px;
+  line-height: 1.62;
+  color: var(--text-secondary-color);
+  white-space: pre-wrap;
+  display: -webkit-box;
+  -webkit-line-clamp: ${(props) => (props.$expanded ? "unset" : 3)};
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+`;
+
+export const LessonDescriptionToggle = styled.button`
+  border: none;
+  background: transparent;
+  padding: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--primary-color);
+  cursor: pointer;
 `;
 
 export const MetaItem = styled.span`
@@ -781,4 +963,28 @@ export const PendingMembersEmptyText = styled.div`
   color: var(--text-muted-color);
   font-size: 13px;
   padding: 8px 0;
+`;
+
+export const LessonTabsBar = styled.div`
+  display: flex;
+  gap: 8px;
+  padding: 0 24px 16px;
+  border-bottom: 1px solid var(--border-color);
+`;
+
+export const LessonTabButton = styled.button`
+  padding: 8px 12px;
+  border: 1px solid
+    ${(props) =>
+      props.$active ? "var(--primary-color)" : "var(--border-color)"};
+  border-radius: 999px;
+  background: ${(props) =>
+    props.$active
+      ? "color-mix(in srgb, var(--primary-color) 12%, transparent)"
+      : "var(--input-color)"};
+  color: ${(props) =>
+    props.$active ? "var(--primary-color)" : "var(--text-secondary-color)"};
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
 `;

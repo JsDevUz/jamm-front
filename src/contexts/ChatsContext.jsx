@@ -10,16 +10,16 @@ import useAuthStore from "../store/authStore";
 import * as chatApi from "../api/chatApi";
 import { formatChatTime } from "../utils/dateUtils";
 import dayjs from "dayjs";
+import { buildSocketNamespaceUrl } from "../config/env";
 
 const ChatsContext = createContext();
-
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
 
 export const useChats = () => {
   return useContext(ChatsContext);
 };
 
 export const ChatsProvider = ({ children }) => {
+  const authUser = useAuthStore((state) => state.user);
   const [chats, setChats] = useState([]);
   const [loading, setLoading] = useState(true);
   const [chatsPage, setChatsPage] = useState(1);
@@ -27,7 +27,7 @@ export const ChatsProvider = ({ children }) => {
   const hasLoadedChatsRef = React.useRef(false);
   const [selectedNav, setSelectedNav] = useState(() => {
     const parts = window.location.pathname.split("/").filter(Boolean);
-    const first = parts[0] || "home";
+    const first = parts[0] || "chats";
     const knownNavs = [
       "home",
       "feed",
@@ -41,7 +41,7 @@ export const ChatsProvider = ({ children }) => {
       "profile",
     ];
     if (first === "a") return "chats";
-    return knownNavs.includes(first) ? first : "feed";
+    return knownNavs.includes(first) ? first : "chats";
   });
   const [selectedChatId, setSelectedChatId] = useState(() => {
     const parts = window.location.pathname.split("/").filter(Boolean);
@@ -61,12 +61,17 @@ export const ChatsProvider = ({ children }) => {
   const [previewChat, setPreviewChat] = useState(null);
 
   useEffect(() => {
-    const token = useAuthStore.getState().token;
-    if (!token) return;
+    const currentUserId = authUser?._id || authUser?.id;
+    if (!currentUserId) {
+      setChatSocket((previousSocket) => {
+        previousSocket?.disconnect();
+        return null;
+      });
+      return undefined;
+    }
 
-    const baseUrl = API_URL.replace(/\/$/, "");
-    const socket = io(`${baseUrl}/chats`, {
-      auth: { token },
+    const socket = io(buildSocketNamespaceUrl("/chats"), {
+      withCredentials: true,
       transports: ["websocket"],
       reconnectionAttempts: 5,
     });
@@ -80,7 +85,7 @@ export const ChatsProvider = ({ children }) => {
     return () => {
       socket.disconnect();
     };
-  }, []);
+  }, [authUser?._id, authUser?.id]);
 
   useEffect(() => {
     if (!chatSocket) return;
@@ -246,15 +251,15 @@ export const ChatsProvider = ({ children }) => {
   const fetchChats = useCallback(async (page = 1) => {
     try {
       if (page === 1) setLoading(true);
-      const token = useAuthStore.getState().token;
-      if (!token) return;
+      const currentUser = useAuthStore.getState().user;
+      if (!currentUser?._id && !currentUser?.id) return;
 
       const res = await chatApi.fetchChats(page, 15);
       const rawChats = res?.data || [];
       const totalPages = res?.totalPages || 1;
 
-      const currentUser = useAuthStore.getState().user || {};
-      const currentUserId = currentUser._id || currentUser.id;
+      const resolvedCurrentUser = useAuthStore.getState().user || {};
+      const currentUserId = resolvedCurrentUser._id || resolvedCurrentUser.id;
 
       const formatted = rawChats.map((chat) => {
         let displayInfo = { name: "Noma'lum", avatar: "" };
@@ -277,6 +282,14 @@ export const ChatsProvider = ({ children }) => {
                 other.avatar || (other.nickname || other.username).charAt(0),
               urlSlug: other.username,
               premiumStatus: other.premiumStatus,
+              selectedProfileDecorationId: other.selectedProfileDecorationId,
+              customProfileDecorationImage: other.customProfileDecorationImage,
+              isOfficialProfile: other.isOfficialProfile,
+              officialBadgeKey: other.officialBadgeKey,
+              officialBadgeLabel: other.officialBadgeLabel,
+              hidePresence: other.hidePresence,
+              disableCalls: other.disableCalls,
+              disableGroupInvites: other.disableGroupInvites,
             };
           } else {
             displayInfo = {
@@ -298,6 +311,15 @@ export const ChatsProvider = ({ children }) => {
           avatar: displayInfo.avatar,
           isSavedMessages: displayInfo.isSavedMessages,
           premiumStatus: displayInfo.premiumStatus,
+          selectedProfileDecorationId: displayInfo.selectedProfileDecorationId,
+          customProfileDecorationImage:
+            displayInfo.customProfileDecorationImage,
+          isOfficialProfile: displayInfo.isOfficialProfile,
+          officialBadgeKey: displayInfo.officialBadgeKey,
+          officialBadgeLabel: displayInfo.officialBadgeLabel,
+          hidePresence: displayInfo.hidePresence,
+          disableCalls: displayInfo.disableCalls,
+          disableGroupInvites: displayInfo.disableGroupInvites,
           urlSlug: chat.jammId
             ? String(chat.jammId)
             : displayInfo.urlSlug || chat._id,
@@ -357,9 +379,9 @@ export const ChatsProvider = ({ children }) => {
     setChats((prev) => prev.filter((c) => c.id !== chatId));
   };
 
-  const fetchMessages = useCallback(async (chatId, page = 1, limit = 30) => {
-    if (!chatId) return { data: [], totalPages: 1 };
-    const res = await chatApi.fetchMessages(chatId, page, limit);
+  const fetchMessages = useCallback(async (chatId, before = null) => {
+    if (!chatId) return { data: [], hasMore: false, nextCursor: null };
+    const res = await chatApi.fetchMessages(chatId, before);
     return {
       data: (res.data || []).map((msg) => ({
         id: msg._id,
@@ -369,13 +391,34 @@ export const ChatsProvider = ({ children }) => {
           msg.senderId?.avatar ||
           (msg.senderId?.nickname || msg.senderId?.username)?.charAt(0) ||
           "U",
+        username: msg.senderId?.username,
+        premiumStatus: msg.senderId?.premiumStatus,
+        selectedProfileDecorationId: msg.senderId?.selectedProfileDecorationId,
+        customProfileDecorationImage:
+          msg.senderId?.customProfileDecorationImage,
+        isOfficialProfile: msg.senderId?.isOfficialProfile,
+        officialBadgeKey: msg.senderId?.officialBadgeKey,
+        officialBadgeLabel: msg.senderId?.officialBadgeLabel,
         content: msg.content,
         timestamp: dayjs(msg.createdAt).format("HH:mm"),
+        date: dayjs(msg.createdAt).format("YYYY-MM-DD"),
+        createdAt: msg.createdAt,
+        edited: msg.isEdited,
+        isDeleted: msg.isDeleted,
+        replayTo: msg.replayTo
+          ? {
+              id: msg.replayTo._id,
+              user:
+                msg.replayTo.senderId?.nickname ||
+                msg.replayTo.senderId?.username,
+              content: msg.replayTo.content,
+            }
+          : null,
 
         readBy: msg.readBy || [],
       })),
-      totalPages: res.totalPages || 1,
-      page: res.page || 1,
+      hasMore: Boolean(res.hasMore),
+      nextCursor: res.nextCursor || null,
     };
   }, []);
 
@@ -389,10 +432,30 @@ export const ChatsProvider = ({ children }) => {
         msg.senderId?.avatar ||
         (msg.senderId?.nickname || msg.senderId?.username)?.charAt(0) ||
         "U",
+      username: msg.senderId?.username,
+      premiumStatus: msg.senderId?.premiumStatus,
+      selectedProfileDecorationId: msg.senderId?.selectedProfileDecorationId,
+      customProfileDecorationImage: msg.senderId?.customProfileDecorationImage,
+      isOfficialProfile: msg.senderId?.isOfficialProfile,
+      officialBadgeKey: msg.senderId?.officialBadgeKey,
+      officialBadgeLabel: msg.senderId?.officialBadgeLabel,
       content: msg.content,
       timestamp: dayjs(msg.createdAt).format("HH:mm"),
+      date: dayjs(msg.createdAt).format("YYYY-MM-DD"),
+      createdAt: msg.createdAt,
+      edited: msg.isEdited,
+      isDeleted: msg.isDeleted,
       readBy: msg.readBy || [],
-      replayTo: msg.replayTo || null,
+      replayTo: msg.replayTo
+        ? {
+            id: msg.replayTo._id || msg.replayTo.id,
+            user:
+              msg.replayTo.senderId?.nickname ||
+              msg.replayTo.senderId?.username ||
+              msg.replayTo.user,
+            content: msg.replayTo.content,
+          }
+        : null,
     };
   }, []);
 
@@ -416,17 +479,46 @@ export const ChatsProvider = ({ children }) => {
       name: u.nickname || u.username,
       username: u.username,
       avatar: u.avatar || (u.nickname || u.username).charAt(0),
+      isOfficialProfile: u.isOfficialProfile,
+      officialBadgeKey: u.officialBadgeKey,
+      officialBadgeLabel: u.officialBadgeLabel,
+      hidePresence: u.hidePresence,
+      disableCalls: u.disableCalls,
+      disableGroupInvites: u.disableGroupInvites,
     }));
   }, []);
 
   const searchUsers = useCallback(async (query) => {
     if (!query) return [];
-    const data = await chatApi.searchUsers(query);
+    const data = await chatApi.searchPrivateUsers(query);
     return data.map((u) => ({
-      id: u._id,
-      name: u.nickname || u.username,
+      id: u.id || u._id,
+      name: u.name || u.nickname || u.username,
       username: u.username,
-      avatar: u.avatar || (u.nickname || u.username).charAt(0),
+      avatar: u.avatar || (u.name || u.nickname || u.username).charAt(0),
+      premiumStatus: u.premiumStatus,
+      selectedProfileDecorationId: u.selectedProfileDecorationId,
+      customProfileDecorationImage: u.customProfileDecorationImage,
+      isOfficialProfile: u.isOfficialProfile,
+      officialBadgeKey: u.officialBadgeKey,
+      officialBadgeLabel: u.officialBadgeLabel,
+      hidePresence: u.hidePresence,
+      disableCalls: u.disableCalls,
+      disableGroupInvites: u.disableGroupInvites,
+    }));
+  }, []);
+
+  const searchGroups = useCallback(async (query) => {
+    if (!query) return [];
+    const data = await chatApi.searchGroupChats(query);
+    return data.map((group) => ({
+      id: group.id || group._id,
+      urlSlug: group.urlSlug || group.jammId || group.id,
+      name: group.name,
+      avatar: group.avatar || (group.name || "").charAt(0),
+      lastMessage: group.lastMessage || "",
+      membersCount: group.membersCount || 0,
+      lastMessageAt: group.lastMessageAt || null,
     }));
   }, []);
 
@@ -447,6 +539,14 @@ export const ChatsProvider = ({ children }) => {
         username: u.username,
         avatar: u.avatar || (u.nickname || u.username || "").charAt(0),
         premiumStatus: u.premiumStatus,
+        selectedProfileDecorationId: u.selectedProfileDecorationId,
+        customProfileDecorationImage: u.customProfileDecorationImage,
+        isOfficialProfile: u.isOfficialProfile,
+        officialBadgeKey: u.officialBadgeKey,
+        officialBadgeLabel: u.officialBadgeLabel,
+        hidePresence: u.hidePresence,
+        disableCalls: u.disableCalls,
+        disableGroupInvites: u.disableGroupInvites,
       }));
     } catch {
       return [];
@@ -457,7 +557,7 @@ export const ChatsProvider = ({ children }) => {
     if (["chats", "groups", "users"].includes(selectedNav)) {
       ensureChatsLoaded();
     }
-  }, [ensureChatsLoaded, selectedNav]);
+  }, [ensureChatsLoaded, selectedNav, authUser]);
 
   useEffect(() => {
     if (!selectedChatId || selectedChatId === "0") return;
@@ -490,6 +590,7 @@ export const ChatsProvider = ({ children }) => {
     markMessagesAsRead,
     resolveChatSlug,
     searchUsers,
+    searchGroups,
     getUserByUsername,
     getAllUsers,
     selectedNav,

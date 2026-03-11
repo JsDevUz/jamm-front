@@ -91,7 +91,9 @@ export const PostsProvider = ({ children }) => {
     try {
       const { views } = await postsApi.viewPost(postId);
       const updater = (prev) =>
-        prev.map((p) => (p._id === postId ? { ...p, views } : p));
+        prev.map((p) =>
+          p._id === postId ? { ...p, views, previouslySeen: true } : p,
+        );
       setForYouPosts(updater);
       setFollowingPosts(updater);
       setUserPosts(updater);

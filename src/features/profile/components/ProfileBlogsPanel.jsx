@@ -339,10 +339,15 @@ const ProfileBlogsPanel = ({
         setSelectedBlog(detail);
         setSelectedContent(content?.content || "");
 
-        if (!viewedRef.current.has(selectedBlog._id)) {
+        if (detail.previouslySeen) {
+          viewedRef.current.add(detail._id);
+        } else if (!viewedRef.current.has(selectedBlog._id)) {
           viewedRef.current.add(selectedBlog._id);
           const viewed = await viewBlog(selectedBlog._id);
-          applyBlogPatch(selectedBlog._id, { views: viewed?.views || 0 });
+          applyBlogPatch(selectedBlog._id, {
+            views: viewed?.views || 0,
+            previouslySeen: true,
+          });
         }
       } catch (error) {
         toast.error("Blog ochilmadi");
@@ -422,13 +427,12 @@ const ProfileBlogsPanel = ({
       : null;
 
   return (
-    <ProfilePaneWrapper>
+    <ProfilePaneWrapper data-tour="profile-pane-blogs">
       {!showDetailOnly && (
         <ProfilePaneHeader>
           <MobileBackBtn onClick={onBack}>
             <ArrowLeft size={20} />
           </MobileBackBtn>
-          <BookOpen size={24} color="#60a5fa" />
           <ProfilePaneTitle>Bloglar</ProfilePaneTitle>
           {isOwnProfile && (
             <ButtonWrapper

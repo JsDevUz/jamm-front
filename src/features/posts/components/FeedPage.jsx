@@ -18,11 +18,11 @@ import {
   Skeleton,
   SkeletonCircle,
 } from "../../../shared/ui/feedback/Skeleton";
-import PremiumBadgeIcon from "../../../shared/ui/badges/PremiumBadge";
 import ConfirmDialog from "../../../shared/ui/dialogs/ConfirmDialog";
 import { formatChatTime } from "../../../utils/dateUtils";
 import { SidebarIconButton as ButtonWrapper } from "../../../shared/ui/buttons/IconButton";
 import { renderInlineMarkup } from "../../../shared/utils/renderInlineMarkup";
+import UserNameWithDecoration from "../../../shared/ui/users/UserNameWithDecoration";
 import CreatePostDialog from "./CreatePostDialog";
 import PostComments from "./PostComments";
 import {
@@ -104,6 +104,7 @@ const FeedPage = () => {
   const activeHasMore = activeTab === "foryou" ? forYouHasMore : followingHasMore;
   const activePage = activeTab === "foryou" ? forYouPage : followingPage;
   const viewedRef = useRef(new Set());
+  const viewTimeoutsRef = useRef(new Map());
 
   useEffect(() => {
     if (
@@ -115,22 +116,61 @@ const FeedPage = () => {
   }, [activeTab, fetchFeed, forYouPosts.length, followingPosts.length]);
 
   useEffect(() => {
-    const unviewedPosts = activePosts.filter(
-      (post) => post._id && !viewedRef.current.has(post._id),
+    const scrollRoot = document.getElementById("scrollableFeed");
+    if (!scrollRoot || activePosts.length === 0) return undefined;
+
+    const clearViewTimeout = (postId) => {
+      const timeoutId = viewTimeoutsRef.current.get(postId);
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+        viewTimeoutsRef.current.delete(postId);
+      }
+    };
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          const postId = entry.target.getAttribute("data-post-id");
+          if (!postId || viewedRef.current.has(postId)) return;
+
+          if (entry.isIntersecting && entry.intersectionRatio >= 0.6) {
+            if (!viewTimeoutsRef.current.has(postId)) {
+              const timeoutId = setTimeout(() => {
+                viewedRef.current.add(postId);
+                viewTimeoutsRef.current.delete(postId);
+                viewPost(postId);
+              }, 800);
+              viewTimeoutsRef.current.set(postId, timeoutId);
+            }
+            return;
+          }
+
+          clearViewTimeout(postId);
+        });
+      },
+      {
+        root: scrollRoot,
+        threshold: [0.6],
+      },
     );
 
-    if (unviewedPosts.length === 0) return;
+    const postElements = scrollRoot.querySelectorAll("[data-post-id]");
+    postElements.forEach((element) => observer.observe(element));
 
-    const timeout = setTimeout(() => {
-      unviewedPosts.forEach((post) => {
-        if (!viewedRef.current.has(post._id)) {
-          viewedRef.current.add(post._id);
-          viewPost(post._id);
+    activePosts.forEach((post) => {
+      if (post?._id && post.previouslySeen) {
+        viewedRef.current.add(post._id);
+      }
+    });
+
+    return () => {
+      observer.disconnect();
+      activePosts.forEach((post) => {
+        if (post?._id && !viewedRef.current.has(post._id)) {
+          clearViewTimeout(post._id);
         }
       });
-    }, 500);
-
-    return () => clearTimeout(timeout);
+    };
   }, [activePosts, viewPost]);
 
   const displayName =
@@ -259,7 +299,7 @@ const FeedPage = () => {
                   String(currentUser?._id || currentUser?.id || "");
 
                 return (
-                  <PostCard key={post._id}>
+                  <PostCard key={post._id} data-post-id={post._id}>
                     <PostAvatarCol>
                       <PostAvatar
                         $color={colorOf(authorName)}
@@ -276,10 +316,10 @@ const FeedPage = () => {
                     <PostBody>
                       <PostHeader>
                         <PostAuthor onClick={() => goToProfile(author._id)}>
-                          {authorName}
-                          {author.premiumStatus === "active" && (
-                            <PremiumBadgeIcon width={16} height={16} />
-                          )}
+                          <UserNameWithDecoration
+                            user={author}
+                            fallback={t("common.userFallback")}
+                          />
                         </PostAuthor>
                         <PostHandle>@{authorHandle}</PostHandle>
                         <PostDot>·</PostDot>

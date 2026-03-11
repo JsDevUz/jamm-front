@@ -31,10 +31,9 @@ export const editChat = async ({ chatId, dto }) => {
 };
 
 // --- Messages ---
-export const fetchMessages = async (chatId, page = 1, limit = 30) => {
-  const { data } = await axiosInstance.get(
-    `/chats/${chatId}/messages?page=${page}&limit=${limit}`,
-  );
+export const fetchMessages = async (chatId, before = null) => {
+  const suffix = before ? `?before=${encodeURIComponent(before)}` : "";
+  const { data } = await axiosInstance.get(`/chats/${chatId}/messages${suffix}`);
   return data;
 };
 
@@ -69,6 +68,20 @@ export const joinGroupChat = async (slug) => {
 // --- Users ---
 export const searchUsers = async (query) => {
   const { data } = await axiosInstance.get(`/users/search?q=${query}`);
+  return data;
+};
+
+export const searchPrivateUsers = async (query) => {
+  const { data } = await axiosInstance.get(
+    `/chats/search/users?q=${encodeURIComponent(query)}&limit=10`,
+  );
+  return data;
+};
+
+export const searchGroupChats = async (query) => {
+  const { data } = await axiosInstance.get(
+    `/chats/search/groups?q=${encodeURIComponent(query)}&limit=10`,
+  );
   return data;
 };
 

@@ -90,7 +90,14 @@ const CoursePlayerCommentsSection = () => {
     <CommentsSection>
       <CommentsSectionHeader>
         <CommentsTitle>Izohlar</CommentsTitle>
-        <CommentsCount>{currentLessonData.comments?.length || 0}</CommentsCount>
+        <CommentsCount>
+          {Number(
+            currentLessonData.commentsCount ??
+              currentLessonData.comments?.length ??
+              paginatedComments.length ??
+              0,
+          )}
+        </CommentsCount>
       </CommentsSectionHeader>
 
       {!commentsExpanded ? (

@@ -23,6 +23,7 @@ const ImageUploadArea = styled.div`
   display: flex;
   flex-direction: column;
   align-items: center;
+  margin-bottom: 8px;
   justify-content: center;
   gap: 8px;
   cursor: pointer;
@@ -79,6 +80,7 @@ const InputGroup = styled.div`
   display: flex;
   flex-direction: column;
   gap: 6px;
+  margin-bottom: 12px;
 `;
 
 const Label = styled.label`
@@ -92,8 +94,8 @@ const Label = styled.label`
 const Input = styled.input`
   padding: 10px 14px;
   background-color: var(--input-color);
-  border: 1px solid transparent;
-  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
   color: var(--text-color);
   font-size: 14px;
   outline: none;
@@ -111,8 +113,8 @@ const Input = styled.input`
 const TextArea = styled.textarea`
   padding: 10px 14px;
   background-color: var(--input-color);
-  border: 1px solid transparent;
-  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
   color: var(--text-color);
   font-size: 14px;
   outline: none;
@@ -134,8 +136,8 @@ const SelectField = styled.select`
   padding: 10px 14px;
   background-color: var(--input-color);
   color: var(--text-color);
-  border: none;
-  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
   outline: none;
 `;
 
@@ -205,9 +207,10 @@ const CreateCourseDialog = ({ isOpen, onClose, onCreated, onOpenPremium }) => {
   return (
     <ModalOverlay onClick={onClose} onKeyDown={handleKeyDown}>
       <ModalPanel
-        $width="480px"
+        $width="min(100%, 520px)"
         $maxWidth="95vw"
-        $maxHeight="90vh"
+        $maxHeight="min(88vh, 760px)"
+        $radius="18px"
         onClick={(e) => e.stopPropagation()}
       >
         <ModalHeader $padding="16px 18px">
@@ -217,7 +220,7 @@ const CreateCourseDialog = ({ isOpen, onClose, onCreated, onOpenPremium }) => {
           </ModalCloseButton>
         </ModalHeader>
 
-        <ModalBody $padding="18px 18px 20px">
+        <ModalBody $padding="16px 18px 18px">
           <ImageUploadArea hasImage={!!imageUrl}>
             {imageUrl ? (
               <>

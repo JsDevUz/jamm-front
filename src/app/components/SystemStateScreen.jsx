@@ -3,6 +3,11 @@ import {
   Card,
   CenteredMessage,
   Description,
+  LoadingCard,
+  LoadingContent,
+  LoadingHint,
+  LoadingSpinner,
+  LoadingTitle,
   Screen,
   Title,
 } from "./SystemStateScreen.styles";
@@ -19,5 +24,15 @@ export function SystemStateScreen({ title, description }) {
 }
 
 export function SystemLoadingScreen({ message = "Yuklanmoqda..." }) {
-  return <CenteredMessage>{message}</CenteredMessage>;
+  return (
+    <CenteredMessage>
+      <LoadingCard>
+        <LoadingSpinner />
+        <LoadingContent>
+          <LoadingTitle>{message}</LoadingTitle>
+          <LoadingHint>Tizim tayyorlanmoqda</LoadingHint>
+        </LoadingContent>
+      </LoadingCard>
+    </CenteredMessage>
+  );
 }

@@ -1,19 +1,22 @@
 import axios from "axios";
 import useAuthStore from "../store/authStore";
 import toast from "react-hot-toast";
+import usePremiumUpgradeModalStore from "../app/store/usePremiumUpgradeModalStore";
+import { API_BASE_URL } from "../config/env";
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
+const PREMIUM_LIMIT_ERROR_PATTERN =
+  /premium|tarif|maksimal|limit|obuna/i;
+
+const isPublicArenaPath = () =>
+  typeof window !== "undefined" &&
+  window.location.pathname.startsWith("/arena");
 
 const axiosInstance = axios.create({
-  baseURL: API_URL,
+  baseURL: API_BASE_URL,
   withCredentials: true,
 });
 
 axiosInstance.interceptors.request.use((config) => {
-  const token = useAuthStore.getState().token;
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
   return config;
 });
 
@@ -27,13 +30,12 @@ axiosInstance.interceptors.response.use(
 
     if (status === 401) {
       const { logout } = useAuthStore.getState();
-      logout();
-      window.location.href = "/login";
+      logout({ redirect: !isPublicArenaPath() });
     }
 
     if (status === 423) {
       const { logout } = useAuthStore.getState();
-      logout();
+      logout({ redirect: false });
       window.location.href = "/blocked";
     }
 
@@ -45,6 +47,18 @@ axiosInstance.interceptors.response.use(
       toast.error(
         "Siz juda ko'p so'rov yubordingiz. Iltimos birozdan so'ng urinib ko'ring.",
       );
+    }
+
+    if (
+      status === 403 &&
+      !config?._skipPremiumModal &&
+      PREMIUM_LIMIT_ERROR_PATTERN.test(String(error.response?.data?.message || ""))
+    ) {
+      const { openPremiumUpgradeModal } = usePremiumUpgradeModalStore.getState();
+      openPremiumUpgradeModal({
+        message: String(error.response?.data?.message || ""),
+        source: "server-403",
+      });
     }
 
     return Promise.reject(error);

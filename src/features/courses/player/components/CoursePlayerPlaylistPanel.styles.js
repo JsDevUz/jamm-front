@@ -176,14 +176,22 @@ export const LessonInfo = styled.div`
 `;
 
 export const LessonTitle = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
   font-size: 14px;
   font-weight: ${(props) => (props.$active ? "600" : "500")};
   color: ${(props) =>
     props.$active ? "var(--text-color)" : "var(--text-secondary-color)"};
-  white-space: nowrap;
+  margin-bottom: 2px;
+`;
+
+export const LessonTitleText = styled.span`
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
-  margin-bottom: 2px;
+  white-space: nowrap;
 `;
 
 export const FreeBadge = styled.span`
@@ -195,6 +203,16 @@ export const FreeBadge = styled.span`
   color: var(--success-color);
   margin-left: 6px;
   vertical-align: middle;
+`;
+
+export const DraftBadge = styled.span`
+  flex-shrink: 0;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--warning-color) 14%, transparent);
+  color: var(--warning-color);
+  font-size: 10px;
+  font-weight: 700;
 `;
 
 export const LessonMeta = styled.div`
@@ -242,5 +260,19 @@ export const DeleteLessonBtn = styled.button`
   &:hover {
     background: color-mix(in srgb, var(--danger-color) 16%, transparent);
     color: var(--danger-color);
+  }
+`;
+
+export const EditLessonBtn = styled(DeleteLessonBtn)`
+  &:hover {
+    background: color-mix(in srgb, var(--primary-color) 14%, transparent);
+    color: var(--primary-color);
+  }
+`;
+
+export const PublishLessonBtn = styled(DeleteLessonBtn)`
+  &:hover {
+    background: color-mix(in srgb, var(--success-color) 14%, transparent);
+    color: var(--success-color);
   }
 `;
