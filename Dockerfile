@@ -4,6 +4,7 @@ WORKDIR /app
 
 COPY package*.json ./
 RUN npm install --no-audit --no-fund
+RUN npm install --no-save --no-audit --no-fund @rollup/rollup-linux-x64-gnu@4.54.0
 
 COPY . .
 
