@@ -24,6 +24,7 @@ import {
   ScrollPane,
 } from "./JammLayout.styles";
 import usePremiumUpgradeModalStore from "../app/store/usePremiumUpgradeModalStore";
+import { getTourFlag, setTourFlag } from "../app/utils/tourStorage";
 
 const ChatArea = lazy(() =>
   import("../features/chats/components").then((module) => ({
@@ -143,7 +144,7 @@ const JammLayout = ({
   useEffect(() => {
     if (!currentUser?.isOnboardingCompleted) return;
     if (selectedNav !== "courses" || viewMode !== "courses") return;
-    if (localStorage.getItem("jamm-tour-courses-v1") === "done") return;
+    if (getTourFlag("jamm-tour-courses-v1") === "done") return;
 
     const timer = window.setTimeout(() => {
       setIsCoursesTourOpen(true);
@@ -157,8 +158,8 @@ const JammLayout = ({
     if (!["chats", "users", "groups", "meets"].includes(selectedNav)) return;
     if (selectedChatId && selectedChatId !== "0" && selectedChatId !== 0)
       return;
-    if (localStorage.getItem("jamm-tour-profile-v1") !== "done") return;
-    if (localStorage.getItem("jamm-tour-chats-v1") === "done") return;
+    if (getTourFlag("jamm-tour-profile-v1") !== "done") return;
+    if (getTourFlag("jamm-tour-chats-v1") === "done") return;
 
     const timer = window.setTimeout(() => {
       setIsChatsTourOpen(true);
@@ -170,7 +171,7 @@ const JammLayout = ({
   useEffect(() => {
     if (!currentUser?.isOnboardingCompleted) return;
     if (selectedNav === "profile") return;
-    if (localStorage.getItem("jamm-tour-profile-v1") === "done") return;
+    if (getTourFlag("jamm-tour-profile-v1") === "done") return;
     if (sessionStorage.getItem("jamm-tour-profile-started") === "done") return;
 
     let attempts = 0;
@@ -729,6 +730,7 @@ const JammLayout = ({
             isOpen={isProfileIntroTourOpen}
             onClose={() => {
               sessionStorage.setItem("jamm-tour-profile-started", "done");
+              setTourFlag("jamm-tour-profile-v1", "done");
               setIsProfileIntroTourOpen(false);
             }}
             steps={[
@@ -739,6 +741,7 @@ const JammLayout = ({
                 onNext: async () => {
                   sessionStorage.setItem("jamm-tour-profile-autostart", "1");
                   sessionStorage.setItem("jamm-tour-profile-started", "done");
+                  setTourFlag("jamm-tour-profile-v1", "done");
                   setIsProfileIntroTourOpen(false);
                   setSelectedNav("profile");
                   setSelectedChatId(0);

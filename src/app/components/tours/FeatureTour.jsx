@@ -1,5 +1,6 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
+import { setTourFlag } from "../../utils/tourStorage";
 import {
   TourCard,
   TourDescription,
@@ -52,7 +53,7 @@ const FeatureTour = ({ isOpen, steps, onClose, storageKey, onStepChange }) => {
 
   const completeTour = React.useCallback(() => {
     if (storageKey) {
-      localStorage.setItem(storageKey, "done");
+      setTourFlag(storageKey, "done");
     }
     setStepIndex(0);
     onClose?.();

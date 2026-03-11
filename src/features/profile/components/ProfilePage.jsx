@@ -27,6 +27,7 @@ import {
   RightPanel,
 } from "../styles/ProfilePage.styles";
 import FeatureTour from "../../../app/components/tours/FeatureTour";
+import { getTourFlag } from "../../../app/utils/tourStorage";
 
 const ProfilePage = ({ profileUserId, isFocused = false, onToggleFocus }) => {
   const { t } = useTranslation();
@@ -97,7 +98,7 @@ const ProfilePage = ({ profileUserId, isFocused = false, onToggleFocus }) => {
 
     const shouldAutostart =
       sessionStorage.getItem("jamm-tour-profile-autostart") === "1";
-    if (!shouldAutostart && localStorage.getItem("jamm-tour-profile-v1") === "done") {
+    if (!shouldAutostart && getTourFlag("jamm-tour-profile-v1") === "done") {
       return;
     }
 
