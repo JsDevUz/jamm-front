@@ -1465,9 +1465,12 @@ const CoursePlayer = ({ courseId, initialLessonSlug, onClose }) => {
                         : currentMediaItem?.videoUrl || currentLessonData.videoUrl
                     }
                     preload="metadata"
+                    playsInline
+                    controls={false}
                     crossOrigin={isHlsVideo ? "anonymous" : undefined}
-                    controlsList="nodownload"
+                    controlsList="nodownload noplaybackrate noremoteplayback nofullscreen"
                     disablePictureInPicture
+                    disableRemotePlayback
                     onContextMenu={(e) => e.preventDefault()}
                     onPlay={() => setIsPlaying(true)}
                     onPause={() => setIsPlaying(false)}

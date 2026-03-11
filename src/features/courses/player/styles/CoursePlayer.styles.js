@@ -64,6 +64,16 @@ export const StyledVideo = styled.video`
   height: 100%;
   object-fit: contain;
   display: block;
+
+  &::-webkit-media-controls {
+    display: none !important;
+    -webkit-appearance: none;
+  }
+
+  &::-webkit-media-controls-enclosure {
+    display: none !important;
+    -webkit-appearance: none;
+  }
 `;
 
 export const YouTubeIframe = styled.iframe`

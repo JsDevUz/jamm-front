@@ -11,11 +11,14 @@ import {
   GraduationCap,
   Headphones,
   Heart,
+  LogOut,
   MessageSquare,
   Palette,
   Shield,
 } from "lucide-react";
 import UserNameWithDecoration from "../../../shared/ui/users/UserNameWithDecoration";
+import useAuthStore from "../../../store/authStore";
+import packageJson from "../../../../package.json";
 
 const fadeIn = keyframes`
   from {
@@ -251,6 +254,74 @@ const Tabs = styled.div`
   overflow: hidden;
 `;
 
+const SidebarFooter = styled.div`
+  margin: 0 14px 18px;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  background: var(--secondary-color);
+  overflow: hidden;
+`;
+
+const FooterRow = styled.div`
+  width: 100%;
+  min-height: 48px;
+  padding: 10px 14px;
+  border: none;
+  background: transparent;
+  color: var(--text-color);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  text-align: left;
+  cursor: ${(props) => (props.as === "button" ? "pointer" : "default")};
+
+  &:not(:last-child) {
+    border-bottom: 1px solid var(--border-color);
+  }
+
+  &:hover {
+    background: ${(props) => (props.as === "button" ? "var(--hover-color)" : "transparent")};
+  }
+`;
+
+const FooterMeta = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+
+  strong {
+    font-size: 13px;
+    line-height: 1.3;
+  }
+
+  span {
+    color: var(--text-muted-color);
+    font-size: 12px;
+    line-height: 1.4;
+  }
+`;
+
+const VersionBadge = styled.div`
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(88, 101, 242, 0.08);
+  color: var(--primary-color);
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+`;
+
+const LogoutAction = styled.div`
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #ef4444;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+`;
+
 const Tab = styled.button`
   width: 100%;
   min-height: 52px;
@@ -383,6 +454,7 @@ const ProfileSidebar = ({
   const { t } = useTranslation();
   const displayName =
     targetUser?.nickname || targetUser?.username || t("common.userFallback");
+  const logout = useAuthStore((state) => state.logout);
   const handle = `@${(targetUser?.username || "user").toLowerCase()}`;
   const avatarLetter = displayName.charAt(0).toUpperCase();
   const userAvatar = targetUser?.avatar;
@@ -519,6 +591,28 @@ const ProfileSidebar = ({
               );
             })}
           </Tabs>
+        ) : null}
+
+        {isOwnProfile ? (
+          <SidebarFooter>
+            <FooterRow as="div">
+              <FooterMeta>
+                <strong>App version</strong>
+                <span>Current production version</span>
+              </FooterMeta>
+              <VersionBadge>v{packageJson.version}</VersionBadge>
+            </FooterRow>
+            <FooterRow as="button" type="button" onClick={() => logout()}>
+              <FooterMeta>
+                <strong>Log out</strong>
+                <span>Sign out from this device</span>
+              </FooterMeta>
+              <LogoutAction>
+                <LogOut size={14} />
+                Log out
+              </LogoutAction>
+            </FooterRow>
+          </SidebarFooter>
         ) : null}
       </NavScroll>
     </Sidebar>

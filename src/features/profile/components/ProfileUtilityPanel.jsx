@@ -29,7 +29,6 @@ import {
 import { normalizeLanguageCode } from "../../../i18n";
 import useProfileDecorationsStore from "../../../store/profileDecorationsStore";
 import UserNameWithDecoration from "../../../shared/ui/users/UserNameWithDecoration";
-import packageJson from "../../../../package.json";
 import {
   ProfilePaneBody as Body,
   ProfilePaneHeader as Header,
@@ -365,7 +364,6 @@ const ProfileUtilityPanel = ({ section, currentUser, onBack }) => {
   const navigate = useNavigate();
   const authUser = useAuthStore((state) => state.user);
   const setAuth = useAuthStore((state) => state.setAuth);
-  const logout = useAuthStore((state) => state.logout);
   const decorations = useProfileDecorationsStore((state) => state.decorations);
   const fetchDecorations = useProfileDecorationsStore(
     (state) => state.fetchDecorations,
@@ -616,29 +614,6 @@ const ProfileUtilityPanel = ({ section, currentUser, onBack }) => {
               </option>
             ))}
           </Select>
-        </SettingRow>
-        <SettingRow>
-          <SettingMeta>
-            <strong>App version</strong>
-            <span>Current production version</span>
-          </SettingMeta>
-          <Badge>v{packageJson.version}</Badge>
-        </SettingRow>
-      </Group>
-
-      <Group>
-        <GroupHeader>
-          <h4>Session</h4>
-          <p>Manage your current account session.</p>
-        </GroupHeader>
-        <SettingRow>
-          <SettingMeta>
-            <strong>Log out</strong>
-            <span>Sign out from this device and return to login.</span>
-          </SettingMeta>
-          <DangerButton type="button" onClick={() => logout()}>
-            Log out
-          </DangerButton>
         </SettingRow>
       </Group>
     </>

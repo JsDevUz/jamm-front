@@ -41,11 +41,18 @@ const Overlay = styled.div`
   justify-content: center;
   z-index: 10000;
   padding: 20px;
+
+  @media (max-width: 768px) {
+    align-items: flex-start;
+    overflow-y: auto;
+    padding: 12px;
+  }
 `;
 
 const ModalCard = styled.div`
   width: 100%;
   max-width: 600px;
+  max-height: calc(100dvh - 40px);
   background: #2f3136;
   border-radius: 24px;
   border: 1px solid rgba(88, 101, 242, 0.2);
@@ -54,12 +61,22 @@ const ModalCard = styled.div`
   overflow: hidden;
   box-shadow: 0 30px 90px rgba(0, 0, 0, 0.6);
   animation: ${fadeIn} 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+
+  @media (max-width: 768px) {
+    max-height: calc(100dvh - 24px);
+    border-radius: 20px;
+  }
 `;
 
 const ProgressHeader = styled.div`
   padding: 24px 32px 0;
   display: flex;
   gap: 8px;
+  flex-shrink: 0;
+
+  @media (max-width: 768px) {
+    padding: 18px 18px 0;
+  }
 `;
 
 const ProgressBar = styled.div`
@@ -86,11 +103,19 @@ const Content = styled.div`
   flex-direction: column;
   align-items: center;
   text-align: center;
+  min-height: 0;
+  overflow-y: auto;
+
+  @media (max-width: 768px) {
+    padding: 20px 18px;
+    align-items: stretch;
+  }
 `;
 
 const IconWrapper = styled.div`
   width: 80px;
   height: 80px;
+  margin: auto;
   background: linear-gradient(
     135deg,
     rgba(88, 101, 242, 0.1),
@@ -168,6 +193,12 @@ const Footer = styled.div`
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+
+  @media (max-width: 768px) {
+    padding: 16px 18px 18px;
+  }
 `;
 
 const NavBtn = styled.button`
@@ -475,6 +506,7 @@ const OnboardingModal = () => {
               style={{
                 width: "100%",
                 maxWidth: "360px",
+                margin: "auto",
                 display: "flex",
                 flexDirection: "column",
                 gap: "16px",
