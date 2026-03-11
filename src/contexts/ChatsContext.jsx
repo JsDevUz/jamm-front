@@ -11,6 +11,7 @@ import * as chatApi from "../api/chatApi";
 import { formatChatTime } from "../utils/dateUtils";
 import dayjs from "dayjs";
 import { buildSocketNamespaceUrl } from "../config/env";
+import { showDesktopChatNotification } from "../utils/desktopNotifications";
 
 const ChatsContext = createContext();
 
@@ -91,6 +92,9 @@ export const ChatsProvider = ({ children }) => {
     if (!chatSocket) return;
 
     const handleGlobalNewMessage = (rawMsg) => {
+      let notificationChat = null;
+      let shouldNotify = false;
+
       setChats((prev) => {
         const chatIndex = prev.findIndex((c) => c.id === rawMsg.chatId);
         if (chatIndex === -1) {
@@ -115,14 +119,36 @@ export const ChatsProvider = ({ children }) => {
         const isOurMessage =
           (rawMsg.senderId?._id || rawMsg.senderId) === currentUserId;
 
+        notificationChat = chat;
+
         if (!isCurrentChat && !isOurMessage) {
           chat.unread = (chat.unread || 0) + 1;
+          shouldNotify = true;
         }
 
         newChats.splice(chatIndex, 1);
         newChats.unshift(chat);
         return newChats;
       });
+
+      if (shouldNotify) {
+        const senderName =
+          rawMsg.senderId?.nickname || rawMsg.senderId?.username || "Yangi xabar";
+        const notificationPath = notificationChat?.isGroup
+          ? `/groups/${notificationChat.urlSlug || notificationChat.jammId || notificationChat.id}`
+          : `/users/${notificationChat?.urlSlug || notificationChat?.jammId || notificationChat?.id}`;
+        const body = notificationChat?.isGroup
+          ? `${notificationChat.name || "Guruh"}: ${rawMsg.content || "Yangi xabar"}`
+          : rawMsg.content || "Yangi xabar";
+
+        showDesktopChatNotification({
+          title: senderName,
+          body,
+          icon: rawMsg.senderId?.avatar || undefined,
+          tag: `chat-message-${rawMsg.chatId}`,
+          path: notificationPath,
+        });
+      }
     };
 
     const handleGlobalMessagesRead = ({ chatId, readByUserId, messageIds }) => {

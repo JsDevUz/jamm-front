@@ -30,6 +30,14 @@ export default function SlugResolver() {
 
     if (!nav && chatId) {
       slugToResolve = chatId;
+    } else if (nav?.startsWith("+")) {
+      navigate(`/courses/${nav}`, { replace: true });
+      return;
+    } else if (nav?.startsWith(":")) {
+      navigate(`/blogs/${nav}`, { replace: true });
+      return;
+    } else if (nav?.startsWith("-")) {
+      slugToResolve = nav;
     } else if (nav && !knownRoutes.includes(nav) && nav !== "a") {
       slugToResolve = nav;
     } else {

@@ -4,6 +4,7 @@ import dayjs from "dayjs";
 import {
   ArrowLeft,
   BookOpen,
+  Copy,
   Eye,
   Heart,
   MessageCircle,
@@ -36,6 +37,7 @@ import {
   ProfilePaneWrapper,
 } from "../ui";
 import { SidebarIconButton } from "../../../shared/ui/buttons/IconButton";
+import { RESOLVED_APP_BASE_URL } from "../../../config/env";
 
 const MobileBackBtn = styled(ProfileMobileBackButton)`
   @media (max-width: 768px) {
@@ -105,6 +107,21 @@ const BlogCard = styled.button`
   padding: 12px 14px;
   text-align: left;
   cursor: pointer;
+`;
+
+const BlogCardHeader = styled.div`
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 4px;
+`;
+
+const BlogCardCopyButton = styled(SidebarIconButton)`
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  border-radius: 10px;
+  margin-left: auto;
 `;
 
 const CoverThumb = styled.div`
@@ -417,6 +434,16 @@ const ProfileBlogsPanel = ({
     }
   };
 
+  const handleCopyBlogLink = async (event, slug) => {
+    event?.stopPropagation?.();
+    try {
+      await navigator.clipboard.writeText(`${RESOLVED_APP_BASE_URL}/blogs/${slug}`);
+      toast.success("Blog havolasi nusxalandi");
+    } catch {
+      toast.error("Blog havolasini nusxalab bo'lmadi");
+    }
+  };
+
   const selectedEditorBlog =
     editingBlog && editingBlog._id
       ? {
@@ -482,7 +509,17 @@ const ProfileBlogsPanel = ({
                       <img src={blog.coverImage} alt={blog.title} />
                     ) : null}
                   </CoverThumb>
-                  <BlogTitle>{blog.title}</BlogTitle>
+                  <BlogCardHeader>
+                    <BlogTitle>{blog.title}</BlogTitle>
+                    <BlogCardCopyButton
+                      title="Blog havolasini nusxalash"
+                      onClick={(event) =>
+                        handleCopyBlogLink(event, blog.slug || blog._id)
+                      }
+                    >
+                      <Copy size={15} />
+                    </BlogCardCopyButton>
+                  </BlogCardHeader>
                   <BlogExcerpt>{blog.excerpt || "Tavsif yo'q"}</BlogExcerpt>
                   <MetaRow>
                     <span>
@@ -574,6 +611,17 @@ const ProfileBlogsPanel = ({
                   <SecondaryBtn as="div">
                     <Eye size={16} />
                     {selectedBlog.views}
+                  </SecondaryBtn>
+                  <SecondaryBtn
+                    onClick={(event) =>
+                      handleCopyBlogLink(
+                        event,
+                        selectedBlog.slug || selectedBlog._id,
+                      )
+                    }
+                  >
+                    <Copy size={16} />
+                    Havola
                   </SecondaryBtn>
                   {isOwnProfile && (
                     <SecondaryBtn

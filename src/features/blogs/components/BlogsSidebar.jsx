@@ -1,13 +1,17 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Plus } from "lucide-react";
+import { Copy, Plus } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
+import toast from "react-hot-toast";
 import { createBlog, fetchBlogs } from "../../../api/blogsApi";
+import { RESOLVED_APP_BASE_URL } from "../../../config/env";
 import BlogEditorDialog from "./BlogEditorDialog";
 import { Skeleton } from "../../../shared/ui/feedback/Skeleton";
 import {
   AddBlogButton,
   BlogItem,
+  BlogCopyButton,
+  BlogItemActions,
   BlogItemSkeleton,
   BlogItemSkeletonBody,
   BlogItemSkeletonThumb,
@@ -82,6 +86,16 @@ const BlogsSidebar = ({ selectedBlogId }) => {
       navigate(`/blogs/${created.slug || created._id}`);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleCopyBlogLink = async (event, slug) => {
+    event.stopPropagation();
+    try {
+      await navigator.clipboard.writeText(`${RESOLVED_APP_BASE_URL}/blogs/${slug}`);
+      toast.success("Blog havolasi nusxalandi");
+    } catch {
+      toast.error("Blog havolasini nusxalab bo'lmadi");
     }
   };
 
@@ -168,6 +182,14 @@ const BlogsSidebar = ({ selectedBlogId }) => {
                       </span>
                     </Meta>
                   </Content>
+                  <BlogItemActions>
+                    <BlogCopyButton
+                      title="Blog havolasini nusxalash"
+                      onClick={(event) => handleCopyBlogLink(event, target)}
+                    >
+                      <Copy size={15} />
+                    </BlogCopyButton>
+                  </BlogItemActions>
                 </BlogItem>
               );
             })}

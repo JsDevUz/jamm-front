@@ -165,7 +165,6 @@ export const PostCard = styled.div`
   gap: 12px;
   border-radius: 10px;
   overflow: hidden;
-  box-shadow: inset 0 -1px 0 var(--border-color);
   animation: ${fadeSlide} 0.3s ease both;
   cursor: pointer;
   transition: background 0.15s;

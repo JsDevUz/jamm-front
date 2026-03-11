@@ -30,6 +30,13 @@ import {
 } from "../../shared/ui/feedback/Skeleton";
 import PremiumBadgeIcon from "../../shared/ui/badges/PremiumBadge";
 import { SidebarIconButton as ButtonWrapper } from "../../shared/ui/buttons/IconButton";
+import {
+  getDesktopNotificationsEnabled,
+  getSoundNotificationsEnabled,
+  requestDesktopNotificationPermission,
+  setDesktopNotificationsEnabled,
+  setSoundNotificationsEnabled,
+} from "../../utils/desktopNotifications";
 
 const SettingsOverlay = styled.div`
   position: fixed;
@@ -693,8 +700,8 @@ const SettingsDialog = ({ isOpen, onClose, initialSection = "my-account" }) => {
     outputDevice: "default",
     autoInputSensitivity: true,
     noiseSuppression: true,
-    desktopNotifications: true,
-    soundNotifications: true,
+    desktopNotifications: getDesktopNotificationsEnabled(),
+    soundNotifications: getSoundNotificationsEnabled(),
     theme,
     messageDisplay: "compact",
     twoFactorAuth: false,
@@ -890,10 +897,36 @@ const SettingsDialog = ({ isOpen, onClose, initialSection = "my-account" }) => {
     { id: "premium", label: "Jamm Premium", icon: Star, color: "#ffaa00" },
   ];
 
-  const handleToggle = (key) => {
+  const handleToggle = async (key) => {
+    const nextValue = !settings[key];
+
+    if (key === "desktopNotifications") {
+      if (nextValue) {
+        const permission = await requestDesktopNotificationPermission();
+        const enabled = permission === "granted";
+
+        setDesktopNotificationsEnabled(enabled);
+        setSettings((prev) => ({
+          ...prev,
+          [key]: enabled,
+        }));
+
+        if (!enabled) {
+          toast.error("Browser notification ruxsati berilmagan");
+        }
+        return;
+      }
+
+      setDesktopNotificationsEnabled(false);
+    }
+
+    if (key === "soundNotifications") {
+      setSoundNotificationsEnabled(nextValue);
+    }
+
     setSettings((prev) => ({
       ...prev,
-      [key]: !prev[key],
+      [key]: nextValue,
     }));
   };
 

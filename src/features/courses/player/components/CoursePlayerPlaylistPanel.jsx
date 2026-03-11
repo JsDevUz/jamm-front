@@ -5,6 +5,7 @@ import {
   Check,
   ChevronDown,
   ChevronUp,
+  Copy,
   Eye,
   ListVideo,
   Lock,
@@ -14,8 +15,11 @@ import {
   Trash2,
 } from "lucide-react";
 import { useCoursePlayerContext } from "../context/CoursePlayerContext";
+import toast from "react-hot-toast";
+import { RESOLVED_APP_BASE_URL } from "../../../../config/env";
 import {
   AddLessonBtn,
+  CopyLessonBtn,
   DeleteLessonBtn,
   DraftBadge,
   EmptyLessons,
@@ -59,6 +63,21 @@ const CoursePlayerPlaylistPanel = () => {
     setLessonToDelete,
     setPlaylistCollapsed,
   } = useCoursePlayerContext();
+
+  const handleCopyLessonLink = async (event, lesson) => {
+    event.stopPropagation();
+
+    try {
+      const courseSlug = course?.urlSlug || course?._id || course?.id;
+      const lessonSlug = lesson?.urlSlug || lesson?._id || lesson?.id;
+      await navigator.clipboard.writeText(
+        `${RESOLVED_APP_BASE_URL}/courses/${courseSlug}/${lessonSlug}`,
+      );
+      toast.success("Lesson havolasi nusxalandi");
+    } catch {
+      toast.error("Lesson havolasini nusxalab bo'lmadi");
+    }
+  };
 
   return (
     <PlaylistPanel>
@@ -156,6 +175,13 @@ const CoursePlayerPlaylistPanel = () => {
                     </LockedLessonTitle>
                   )}
                 </LessonInfo>
+
+                <CopyLessonBtn
+                  onClick={(event) => handleCopyLessonLink(event, lesson)}
+                  title="Lesson havolasini nusxalash"
+                >
+                  <Copy size={14} />
+                </CopyLessonBtn>
 
                 {admin && (
                   <>

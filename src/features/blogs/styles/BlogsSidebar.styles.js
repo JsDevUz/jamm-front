@@ -58,6 +58,12 @@ export const BlogItem = styled.button`
   }
 `;
 
+export const BlogItemActions = styled.div`
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+`;
+
 export const Cover = styled.div`
   width: 72px;
   min-width: 72px;
@@ -103,6 +109,14 @@ export const Meta = styled.div`
   gap: 10px;
   color: var(--text-muted-color);
   font-size: 12px;
+`;
+
+export const BlogCopyButton = styled(SidebarIconButton)`
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  border-radius: 10px;
+  margin-left: 0;
 `;
 
 export const EmptyState = styled.div`

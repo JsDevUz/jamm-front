@@ -276,3 +276,10 @@ export const PublishLessonBtn = styled(DeleteLessonBtn)`
     color: var(--success-color);
   }
 `;
+
+export const CopyLessonBtn = styled(DeleteLessonBtn)`
+  &:hover {
+    background: color-mix(in srgb, var(--primary-color) 14%, transparent);
+    color: var(--primary-color);
+  }
+`;
