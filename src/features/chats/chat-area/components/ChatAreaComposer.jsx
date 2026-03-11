@@ -6,7 +6,7 @@ import { CHAT_EMOJIS } from "../constants/emojis";
 import { useChatAreaContext } from "../context/ChatAreaContext";
 
 const MessageInputContainer = styled.div`
-  padding: 12px 16px 16px;
+  padding: 12px 16px calc(16px + env(safe-area-inset-bottom, 0px));
   background-color: var(--secondary-color);
   border-top: 1px solid var(--border-color);
   position: relative;
@@ -148,7 +148,7 @@ const MessageInput = styled.textarea`
 
 const EmojiPicker = styled.div`
   position: fixed;
-  bottom: 100px;
+  bottom: calc(100px + env(safe-area-inset-bottom, 0px));
   right: 40px;
   width: min(360px, calc(100vw - 24px));
   background: var(--secondary-color-with-opacity);
@@ -164,7 +164,7 @@ const EmojiPicker = styled.div`
   display: flex;
   flex-direction: column;
   gap: 12px;
-  max-height: min(420px, calc(100vh - 140px));
+  max-height: min(420px, calc(var(--app-height, 100dvh) - 140px));
   overflow-y: auto;
   scrollbar-width: none;
 
@@ -175,7 +175,7 @@ const EmojiPicker = styled.div`
   @media (max-width: 768px) {
     right: 12px;
     left: 12px;
-    bottom: 88px;
+    bottom: calc(88px + env(safe-area-inset-bottom, 0px));
     width: auto;
   }
 `;

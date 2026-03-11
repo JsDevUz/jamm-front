@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import styled from "styled-components";
 import { Check, CheckCheck } from "lucide-react";
 import PremiumBadgeIcon from "../../../../shared/ui/badges/PremiumBadge";
@@ -238,6 +238,50 @@ const ChatAreaMessageList = () => {
     getUserAvatar,
     formatDate,
   } = useChatAreaContext();
+  const longPressTimerRef = useRef(null);
+  const suppressClickRef = useRef(false);
+  const longPressTriggeredRef = useRef(false);
+
+  useEffect(
+    () => () => {
+      if (longPressTimerRef.current) {
+        clearTimeout(longPressTimerRef.current);
+      }
+    },
+    [],
+  );
+
+  const clearLongPressTimer = () => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  };
+
+  const handleTouchStart = (group, event) => {
+    if (!event.touches?.length) return;
+
+    longPressTriggeredRef.current = false;
+    const touch = event.touches[0];
+    longPressTimerRef.current = window.setTimeout(() => {
+      longPressTriggeredRef.current = true;
+      suppressClickRef.current = true;
+      showContextMenu(group, {
+        clientX: touch.clientX,
+        clientY: touch.clientY,
+      });
+    }, 3000);
+  };
+
+  const handleTouchEnd = () => {
+    clearLongPressTimer();
+    if (longPressTriggeredRef.current) {
+      window.setTimeout(() => {
+        suppressClickRef.current = false;
+        longPressTriggeredRef.current = false;
+      }, 0);
+    }
+  };
 
   const handleMessagesScroll = (event) => {
     const element = event.currentTarget;
@@ -281,7 +325,16 @@ const ChatAreaMessageList = () => {
                 key={group.id}
                 data-message-id={group.id}
                 $isOwn={isOwnMessage}
-                onClick={() => handleMessageDoubleClick(group)}
+                onClick={(event) => {
+                  if (suppressClickRef.current) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    suppressClickRef.current = false;
+                    return;
+                  }
+
+                  handleMessageDoubleClick(group, event);
+                }}
                 ref={(element) => {
                   messageRefs.current[group.id] = element;
                 }}
@@ -342,6 +395,10 @@ const ChatAreaMessageList = () => {
                       event.stopPropagation();
                       showContextMenu(group, event);
                     }}
+                    onTouchStart={(event) => handleTouchStart(group, event)}
+                    onTouchEnd={handleTouchEnd}
+                    onTouchCancel={handleTouchEnd}
+                    onTouchMove={clearLongPressTimer}
                   >
                     {editingMessage?.id === group.id ? (
                       <EditContainer>

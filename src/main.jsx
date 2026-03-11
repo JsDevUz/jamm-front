@@ -7,6 +7,12 @@ import "./index.css";
 
 const queryClient = new QueryClient();
 
+const syncAppHeight = () => {
+  const viewportHeight =
+    window.visualViewport?.height || window.innerHeight || 0;
+  document.documentElement.style.setProperty("--app-height", `${viewportHeight}px`);
+};
+
 const preventBrowserZoom = () => {
   const blockedZoomKeys = new Set(["+", "-", "=", "_", "0"]);
 
@@ -32,6 +38,10 @@ const preventBrowserZoom = () => {
 };
 
 preventBrowserZoom();
+syncAppHeight();
+window.addEventListener("resize", syncAppHeight, { passive: true });
+window.visualViewport?.addEventListener("resize", syncAppHeight, { passive: true });
+window.visualViewport?.addEventListener("scroll", syncAppHeight, { passive: true });
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <QueryClientProvider client={queryClient}>

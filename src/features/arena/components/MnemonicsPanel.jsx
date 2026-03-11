@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import styled from "styled-components";
 import { Check, ChevronLeft, ChevronRight, Play, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import useAuthStore from "../../../store/authStore";
@@ -100,6 +101,28 @@ const chunkItems = (items, size) => {
   return chunks;
 };
 
+const ModalHeaderActions = styled.div`
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+`;
+
+const TimerBadge = styled.div`
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  padding: 0 12px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--input-color) 80%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border-color) 78%, transparent);
+  color: var(--text-color);
+  font-size: 13px;
+  font-weight: 800;
+  white-space: nowrap;
+`;
+
 const MnemonicsPanel = ({ onBack }) => {
   const { t, i18n } = useTranslation();
   const authToken = useAuthStore((state) => state.token);
@@ -138,6 +161,23 @@ const MnemonicsPanel = ({ onBack }) => {
   const currentItem = items[currentIndex] || "";
   const wordColumns = useMemo(() => chunkItems(items, 10), [items]);
   const recallColumns = useMemo(() => chunkItems(enteredItems, 10), [enteredItems]);
+  const headerTimerValue = useMemo(() => {
+    if (
+      phase === "prepare-memorize" ||
+      phase === "memorize" ||
+      phase === "prepare-recall" ||
+      phase === "recall"
+    ) {
+      return formatCountdown(stageSeconds);
+    }
+
+    if (phase === "result") {
+      const elapsedSeconds = Math.max(1, Math.ceil(elapsedMemorizeMs / 1000));
+      return `${elapsedSeconds} ${t("mnemonics.secondsShort")}`;
+    }
+
+    return null;
+  }, [elapsedMemorizeMs, phase, stageSeconds, t]);
 
   const loadLeaderboard = async (nextMode = mode) => {
     try {
@@ -861,9 +901,12 @@ const MnemonicsPanel = ({ onBack }) => {
                       : t("mnemonics.words.title")}
                 </ModalSubtitle>
               </ModalTitleBlock>
-              <ModalCloseButton type="button" onClick={closeDialog}>
-                <X size={18} />
-              </ModalCloseButton>
+              <ModalHeaderActions>
+                {headerTimerValue ? <TimerBadge>{headerTimerValue}</TimerBadge> : null}
+                <ModalCloseButton type="button" onClick={closeDialog}>
+                  <X size={18} />
+                </ModalCloseButton>
+              </ModalHeaderActions>
             </ModalHeader>
             <ModalBody $padding={phase === "setup" ? "16px" : "16px 16px 20px"}>
               {phase === "setup" ? renderSetup() : renderStage()}

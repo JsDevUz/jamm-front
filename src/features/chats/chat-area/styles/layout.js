@@ -5,12 +5,12 @@ export const ChatContainer = styled.div`
   flex-direction: column;
   flex: 1;
   background-color: var(--background-color);
-  height: 100vh;
+  height: var(--app-height, 100dvh);
   overflow: hidden;
 
   @media (max-width: 768px) {
     width: 100%;
-    height: 100vh;
+    height: var(--app-height, 100dvh);
     position: fixed;
     top: 0;
     left: 0;
@@ -35,7 +35,7 @@ export const OuterChatWrapper = styled.div`
   display: flex;
   flex: 1;
   width: 100%;
-  height: 100vh;
+  height: var(--app-height, 100dvh);
   overflow: hidden;
   position: relative;
 `;

@@ -174,26 +174,26 @@ const PromoRow = styled.div`
 
 const Input = styled.input`
   flex: 1;
-  height: 36px;
+  height: 44px;
   border-radius: 10px;
   border: 1px solid var(--border-color);
   background: var(--input-color);
   color: var(--text-color);
-  padding: 0 10px;
-  font-size: 12px;
+  padding: 0 14px;
+  font-size: 14px;
   outline: none;
   min-width: 0;
 `;
 
 const Button = styled.button`
-  height: 36px;
-  padding: 0 12px;
+  height: 44px;
+  padding: 0 14px;
   border-radius: 10px;
   border: none;
   background: ${(p) =>
     p.$secondary ? "var(--input-color)" : "var(--primary-color)"};
   color: ${(p) => (p.$secondary ? "var(--text-color)" : "white")};
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 700;
   display: inline-flex;
   align-items: center;
