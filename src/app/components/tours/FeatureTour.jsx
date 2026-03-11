@@ -43,6 +43,12 @@ const FeatureTour = ({ isOpen, steps, onClose, storageKey, onStepChange }) => {
   const { t } = useTranslation();
   const [stepIndex, setStepIndex] = React.useState(0);
   const [rect, setRect] = React.useState(null);
+  const onStepChangeRef = React.useRef(onStepChange);
+  const lastReportedStepRef = React.useRef(null);
+
+  React.useEffect(() => {
+    onStepChangeRef.current = onStepChange;
+  }, [onStepChange]);
 
   const visibleSteps = React.useMemo(
     () => steps.filter((step) => getRectFromSelector(step.selector)),
@@ -63,6 +69,7 @@ const FeatureTour = ({ isOpen, steps, onClose, storageKey, onStepChange }) => {
     if (!isOpen) {
       setRect(null);
       setStepIndex(0);
+      lastReportedStepRef.current = null;
       return;
     }
 
@@ -73,8 +80,11 @@ const FeatureTour = ({ isOpen, steps, onClose, storageKey, onStepChange }) => {
 
   React.useEffect(() => {
     if (!isOpen || !activeStep) return;
-    onStepChange?.(stepIndex, activeStep);
-  }, [activeStep, isOpen, onStepChange, stepIndex]);
+    const stepKey = `${stepIndex}:${activeStep.selector}`;
+    if (lastReportedStepRef.current === stepKey) return;
+    lastReportedStepRef.current = stepKey;
+    onStepChangeRef.current?.(stepIndex, activeStep);
+  }, [activeStep, isOpen, stepIndex]);
 
   React.useEffect(() => {
     if (!isOpen || !activeStep) return undefined;
