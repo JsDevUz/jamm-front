@@ -1,8 +1,9 @@
-import React, { useState, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import styled from "styled-components";
 import { X, Upload, Check, Search, Loader } from "lucide-react";
 import { toast } from "react-hot-toast";
 import useUploadAvatar from "../../../hooks/useUploadAvatar";
+import { searchUsers as searchUsersApi } from "../../../api/chatApi";
 import { APP_LIMITS } from "../../../constants/appLimits";
 import {
   DialogActionButton,
@@ -161,6 +162,8 @@ const CreateGroupDialog = ({ isOpen, onClose, onCreate, users = [] }) => {
   const [imageUrl, setImageUrl] = useState("");
   const [selectedUsers, setSelectedUsers] = useState([]);
   const [searchUser, setSearchUser] = useState("");
+  const [apiResults, setApiResults] = useState([]);
+  const [isSearching, setIsSearching] = useState(false);
   const fileInputRef = useRef(null);
 
   const uploadAvatarMutation = useUploadAvatar({
@@ -168,7 +171,33 @@ const CreateGroupDialog = ({ isOpen, onClose, onCreate, users = [] }) => {
     onError: () => toast.error("Rasm yuklashda xatolik yuz berdi"),
   });
 
-  if (!isOpen) return null;
+  useEffect(() => {
+    if (!isOpen) {
+      setApiResults([]);
+      setIsSearching(false);
+      return undefined;
+    }
+
+    const timer = setTimeout(async () => {
+      if (!searchUser.trim()) {
+        setApiResults([]);
+        return;
+      }
+
+      setIsSearching(true);
+      try {
+        const results = await searchUsersApi(searchUser.trim());
+        setApiResults(Array.isArray(results) ? results : []);
+      } catch (error) {
+        console.error("Group user search failed:", error);
+        setApiResults([]);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 400);
+
+    return () => clearTimeout(timer);
+  }, [isOpen, searchUser]);
 
   const handleSubmit = () => {
     if (!name.trim()) return;
@@ -185,11 +214,15 @@ const CreateGroupDialog = ({ isOpen, onClose, onCreate, users = [] }) => {
     setDescription("");
     setImageUrl("");
     setSelectedUsers([]);
+    setSearchUser("");
+    setApiResults([]);
     onClose();
   };
 
   const toggleUser = (userId) => {
-    const targetUser = users.find((user) => String(user.id) === String(userId));
+    const targetUser = combinedUsers.find(
+      (user) => String(user.id) === String(userId),
+    );
     if (targetUser?.disableGroupInvites || targetUser?.isOfficialProfile) {
       return;
     }
@@ -204,13 +237,42 @@ const CreateGroupDialog = ({ isOpen, onClose, onCreate, users = [] }) => {
     }
   };
 
-  const filteredUsers = users.filter(
-    (user) =>
-      user.name.toLowerCase().includes(searchUser.toLowerCase()) &&
-      user.type === "user" && // Ensure we only list users, not groups
-      !user.isSavedMessages &&
-      searchUser.trim() !== "",
+  const combinedUsers = [
+    ...users,
+    ...apiResults
+      .map((user) => ({
+        id: user.id || user._id,
+        name: user.name || user.nickname || user.username,
+        username: user.username,
+        avatar: user.avatar || "",
+        premiumStatus: user.premiumStatus,
+        selectedProfileDecorationId: user.selectedProfileDecorationId,
+        customProfileDecorationImage: user.customProfileDecorationImage,
+        isOfficialProfile: user.isOfficialProfile,
+        officialBadgeKey: user.officialBadgeKey,
+        officialBadgeLabel: user.officialBadgeLabel,
+        disableCalls: user.disableCalls,
+        disableGroupInvites: user.disableGroupInvites,
+      }))
+      .filter((user) => user.id),
+  ].filter(
+    (user, index, list) =>
+      list.findIndex((candidate) => String(candidate.id) === String(user.id)) ===
+      index,
   );
+
+  const filteredUsers = combinedUsers.filter((user) => {
+    const query = searchUser.trim().toLowerCase();
+    if (!query) return false;
+
+    return (
+      !user.isSavedMessages &&
+      (user.name?.toLowerCase().includes(query) ||
+        user.username?.toLowerCase().includes(query))
+    );
+  });
+
+  if (!isOpen) return null;
 
   const handleFileChange = (e) => {
     const file = e.target.files?.[0];
@@ -310,15 +372,28 @@ const CreateGroupDialog = ({ isOpen, onClose, onCreate, users = [] }) => {
                 onChange={(e) => setSearchUser(e.target.value)}
                 style={{ paddingLeft: 30 }}
               />
-              <Search
-                size={14}
-                style={{
-                  position: "absolute",
-                  left: 10,
-                  top: 12,
-                  color: "#aaa",
-                }}
-              />
+              {isSearching ? (
+                <Loader
+                  size={14}
+                  style={{
+                    position: "absolute",
+                    left: 10,
+                    top: 12,
+                    color: "#aaa",
+                    animation: "spin 1s linear infinite",
+                  }}
+                />
+              ) : (
+                <Search
+                  size={14}
+                  style={{
+                    position: "absolute",
+                    left: 10,
+                    top: 12,
+                    color: "#aaa",
+                  }}
+                />
+              )}
             </UserSearch>
             {searchUser.trim() !== "" && (
               <UserList>
@@ -345,7 +420,13 @@ const CreateGroupDialog = ({ isOpen, onClose, onCreate, users = [] }) => {
                       onClick={() => toggleUser(user.id)}
                     >
                       <UserInfo>
-                        <Avatar>{user.avatar || user.name.charAt(0)}</Avatar>
+                        <Avatar>
+                          {user.avatar?.length > 1 ? (
+                            <img src={user.avatar} alt={user.name} />
+                          ) : (
+                            (user.name || user.username || "").charAt(0)
+                          )}
+                        </Avatar>
                         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                           <UserName>{user.name}</UserName>
                           {user.isOfficialProfile ? (
