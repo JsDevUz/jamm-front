@@ -58,11 +58,7 @@ import {
   SecondaryAction,
   SetupCard,
   SetupTitle,
-  StageHeader,
-  StageMeta,
-  StageMetaValue,
   StagePanel,
-  StageTitle,
   TopActionButton,
   TrainingCanvas,
   WordInput,
@@ -743,100 +739,12 @@ const MnemonicsPanel = ({ onBack }) => {
           );
         })}
       </ResultGrid>
-
-      <ConfigActions>
-        <TopActionButton type="button" onClick={resetTraining}>
-          {t("mnemonics.actions.continue")}
-        </TopActionButton>
-      </ConfigActions>
     </ResultPanel>
   );
 
   const renderStage = () => {
-    const elapsedSeconds = (elapsedMemorizeMs / 1000).toFixed(2);
-    const headerMeta =
-      phase === "prepare-memorize"
-        ? [
-            {
-              label: t("mnemonics.stage.memorizationStartsIn"),
-              value: formatCountdown(stageSeconds),
-            },
-          ]
-        : phase === "memorize"
-          ? [
-              {
-                label: t("mnemonics.stage.memorizationEndsIn"),
-                value: formatCountdown(stageSeconds),
-              },
-            ]
-          : phase === "prepare-recall"
-            ? [
-                {
-                  label: t("mnemonics.stage.time"),
-                  value: `${elapsedSeconds} ${t("mnemonics.secondsShort")}`,
-                },
-                {
-                  label: t("mnemonics.stage.recallStartsIn"),
-                  value: formatCountdown(stageSeconds),
-                },
-              ]
-            : phase === "recall"
-              ? [
-                  {
-                    label: t("mnemonics.stage.time"),
-                    value: `${elapsedSeconds} ${t("mnemonics.secondsShort")}`,
-                  },
-                  {
-                    label: t("mnemonics.stage.recallEndsIn"),
-                    value: formatCountdown(stageSeconds),
-                  },
-                ]
-              : [
-                  { label: t("mnemonics.stage.score"), value: result?.score ?? 0 },
-                  {
-                    label: t("mnemonics.stage.time"),
-                    value: `${elapsedSeconds} ${t("mnemonics.secondsShort")}`,
-                  },
-                  {
-                    label: t("mnemonics.stage.completed"),
-                    value: t("mnemonics.stage.done"),
-                  },
-                ];
-
     return (
       <StagePanel>
-        <StageHeader>
-          <StageTitle>
-            {mode === "digits"
-              ? t("mnemonics.modes.digits")
-              : t("mnemonics.modes.words")}
-          </StageTitle>
-          <StageMeta>
-            {headerMeta.map((item) => (
-              <div key={item.label}>
-                {item.label}: <StageMetaValue>{item.value}</StageMetaValue>
-              </div>
-            ))}
-          </StageMeta>
-          {phase === "prepare-memorize" || phase === "prepare-recall" ? (
-            <TopActionButton type="button" onClick={skipToNextPhase}>
-              {t("mnemonics.actions.skip")}
-            </TopActionButton>
-          ) : phase === "result" ? (
-            <TopActionButton type="button" onClick={resetTraining}>
-              {t("mnemonics.actions.continue")}
-            </TopActionButton>
-          ) : (
-            <FinishedButton
-              type="button"
-              onClick={phase === "recall" ? finishRecall : finishMemorize}
-            >
-              <Check size={18} />
-              {t("mnemonics.actions.finished")}
-            </FinishedButton>
-          )}
-        </StageHeader>
-
         <TrainingCanvas>
           {phase === "memorize" &&
             (mode === "digits" ? renderDigitMemorize() : renderWordMemorize())}
@@ -862,6 +770,26 @@ const MnemonicsPanel = ({ onBack }) => {
             </KeypadButton>
           </Keypad>
         )}
+
+        <ConfigActions>
+          {phase === "prepare-memorize" || phase === "prepare-recall" ? (
+            <TopActionButton type="button" onClick={skipToNextPhase}>
+              {t("mnemonics.actions.skip")}
+            </TopActionButton>
+          ) : phase === "result" ? (
+            <TopActionButton type="button" onClick={resetTraining}>
+              {t("mnemonics.actions.continue")}
+            </TopActionButton>
+          ) : (
+            <FinishedButton
+              type="button"
+              onClick={phase === "recall" ? finishRecall : finishMemorize}
+            >
+              <Check size={18} />
+              {t("mnemonics.actions.finished")}
+            </FinishedButton>
+          )}
+        </ConfigActions>
       </StagePanel>
     );
   };
@@ -893,13 +821,9 @@ const MnemonicsPanel = ({ onBack }) => {
             <ModalHeader>
               <ModalTitleBlock>
                 <ModalTitle>{t("mnemonics.title")}</ModalTitle>
-                <ModalSubtitle>
-                  {phase === "setup"
-                    ? t("mnemonics.description")
-                    : mode === "digits"
-                      ? t("mnemonics.numbers.title")
-                      : t("mnemonics.words.title")}
-                </ModalSubtitle>
+                {phase === "setup" ? (
+                  <ModalSubtitle>{t("mnemonics.description")}</ModalSubtitle>
+                ) : null}
               </ModalTitleBlock>
               <ModalHeaderActions>
                 {headerTimerValue ? <TimerBadge>{headerTimerValue}</TimerBadge> : null}
