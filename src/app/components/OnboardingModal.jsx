@@ -280,7 +280,7 @@ const OnboardingModal = () => {
 
     const timer = setTimeout(checkUsername, 500);
     return () => clearTimeout(timer);
-  }, [data.username, token]);
+  }, [data.username]);
 
   const toggleInterest = (id) => {
     setData((prev) => ({
