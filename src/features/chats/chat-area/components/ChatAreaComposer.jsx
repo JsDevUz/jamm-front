@@ -119,7 +119,7 @@ const InputButtons = styled.div`
   gap: 16px;
   position: relative;
   flex-shrink: 0;
-  min-width: ${(props) => (props.$side === "right" ? "72px" : "36px")};
+  min-width: ${(props) => (props.$side === "right" ? "72px" : "0px")};
   justify-content: ${(props) =>
     props.$side === "right" ? "flex-end" : "flex-start"};
   margin-right: ${(props) => (props.$side === "left" ? "16px" : "0")};

@@ -147,10 +147,13 @@ const OptionBtn = styled.button`
   align-items: center;
   gap: 16px;
 
-  &:hover {
-    border-color: ${(props) => (props.disabled ? "" : "var(--primary-color)")};
-    background-color: ${(props) =>
-      props.disabled ? "" : "rgba(var(--primary-color-rgb), 0.02)"};
+  @media (hover: hover) and (pointer: fine) {
+    &:hover {
+      border-color: ${(props) =>
+        props.disabled ? "" : "var(--primary-color)"};
+      background-color: ${(props) =>
+        props.disabled ? "" : "rgba(var(--primary-color-rgb), 0.02)"};
+    }
   }
 
   @media (max-width: 768px) {
@@ -673,9 +676,12 @@ const SoloTestPlayer = ({
         document.activeElement?.blur?.();
       }
       if (currentIdx + 1 < questions.length) {
-        setCurrentIdx(currentIdx + 1);
+        selectedOptionRef.current = null;
         setSelectedOption(null);
         setIsRevealed(false);
+        window.requestAnimationFrame(() => {
+          setCurrentIdx(currentIdx + 1);
+        });
       } else {
         // All questions done — submit to server
         const finalAnswers = questions.map((_, i) =>

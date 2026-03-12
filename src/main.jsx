@@ -7,11 +7,26 @@ import "./index.css";
 
 const queryClient = new QueryClient();
 
+let viewportSyncFrame = null;
+let lastViewportSnapshot = "";
+
 const syncAppHeight = () => {
+  if (viewportSyncFrame) {
+    window.cancelAnimationFrame(viewportSyncFrame);
+  }
+
+  viewportSyncFrame = window.requestAnimationFrame(() => {
   const viewport = window.visualViewport;
   const viewportHeight = viewport?.height || window.innerHeight || 0;
   const viewportOffsetTop = viewport?.offsetTop || 0;
   const appHeight = viewportHeight + viewportOffsetTop;
+  const snapshot = `${appHeight}|${viewportHeight}|${viewportOffsetTop}`;
+
+  if (snapshot === lastViewportSnapshot) {
+    return;
+  }
+
+  lastViewportSnapshot = snapshot;
 
   document.documentElement.style.setProperty("--app-height", `${appHeight}px`);
   document.documentElement.style.setProperty(
@@ -22,6 +37,8 @@ const syncAppHeight = () => {
     "--visual-viewport-offset-top",
     `${viewportOffsetTop}px`,
   );
+  viewportSyncFrame = null;
+  });
 };
 
 const preventBrowserZoom = () => {

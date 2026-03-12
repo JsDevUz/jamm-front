@@ -37,13 +37,27 @@ export default function useKeyboardAvoid(containerRef) {
 
     const viewport = window.visualViewport;
     const root = document.documentElement;
+    let frameId = null;
+    let lastKeyboardHeight = -1;
 
     const syncViewport = () => {
-      const { keyboardHeight: nextKeyboardHeight } = getViewportMetrics();
+      if (frameId) {
+        window.cancelAnimationFrame(frameId);
+      }
 
-      setKeyboardHeight(nextKeyboardHeight);
-      root.style.setProperty("--keyboard-height", `${nextKeyboardHeight}px`);
-      root.dataset.mobileKeyboardOpen = nextKeyboardHeight > 0 ? "true" : "false";
+      frameId = window.requestAnimationFrame(() => {
+        const { keyboardHeight: nextKeyboardHeight } = getViewportMetrics();
+
+        if (nextKeyboardHeight !== lastKeyboardHeight) {
+          lastKeyboardHeight = nextKeyboardHeight;
+          setKeyboardHeight(nextKeyboardHeight);
+          root.style.setProperty("--keyboard-height", `${nextKeyboardHeight}px`);
+          root.dataset.mobileKeyboardOpen =
+            nextKeyboardHeight > 0 ? "true" : "false";
+        }
+
+        frameId = null;
+      });
     };
 
     syncViewport();
@@ -56,6 +70,9 @@ export default function useKeyboardAvoid(containerRef) {
     }
 
     return () => {
+      if (frameId) {
+        window.cancelAnimationFrame(frameId);
+      }
       window.removeEventListener("resize", syncViewport);
       viewport?.removeEventListener("resize", syncViewport);
       viewport?.removeEventListener("scroll", syncViewport);
@@ -70,14 +87,14 @@ export default function useKeyboardAvoid(containerRef) {
 
       const scrollTarget = () => {
         element.scrollIntoView({
-          behavior: "smooth",
+          behavior: isiOS ? "auto" : "smooth",
           block: "nearest",
           inline: "nearest",
         });
 
         if (containerRef?.current) {
           containerRef.current.scrollIntoView({
-            behavior: "smooth",
+            behavior: isiOS ? "auto" : "smooth",
             block: "nearest",
           });
         }
