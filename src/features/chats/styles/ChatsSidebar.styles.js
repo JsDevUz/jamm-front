@@ -69,6 +69,29 @@ export const ChatsTab = styled.button`
   }
 `;
 
+export const ChatsTabLabel = styled.span`
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+`;
+
+export const ChatsTabBadge = styled.span`
+  min-width: 18px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: ${(props) =>
+    props.$active ? "rgba(255, 255, 255, 0.18)" : "var(--primary-color)"};
+  color: white;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+`;
+
 export const FilterButton = styled.button`
   padding: 4px 12px;
   background-color: ${(props) =>

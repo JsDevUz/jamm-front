@@ -221,23 +221,91 @@ const VideoGrid = styled.div`
   padding: 14px;
   gap: 10px;
   overflow: hidden;
+  min-width: 0;
+  min-height: 0;
+
   ${(p) => {
     const n = p.$count;
-    if (n === 1)
+
+    if (n === 1) {
       return css`
-        grid-template-columns: 1fr;
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-rows: minmax(0, 1fr);
       `;
-    if (n === 2)
+    }
+
+    if (n === 2) {
       return css`
-        grid-template-columns: 1fr 1fr;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-template-rows: minmax(0, 1fr);
+
+        @media (max-width: 768px) {
+          grid-template-columns: minmax(0, 1fr);
+          grid-template-rows: repeat(2, minmax(0, 1fr));
+        }
       `;
-    if (n <= 4)
+    }
+
+    if (n === 3) {
       return css`
-        grid-template-columns: 1fr 1fr;
-        grid-template-rows: 1fr 1fr;
+        grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr);
+        grid-template-rows: repeat(2, minmax(0, 1fr));
+
+        & > *:nth-child(1) {
+          grid-column: 2;
+          grid-row: 1 / span 2;
+        }
+
+        & > *:nth-child(2) {
+          grid-column: 1;
+          grid-row: 1;
+        }
+
+        & > *:nth-child(3) {
+          grid-column: 1;
+          grid-row: 2;
+        }
+
+        @media (max-width: 768px) {
+          grid-template-columns: minmax(0, 1fr);
+          grid-template-rows: repeat(3, minmax(0, 1fr));
+
+          & > *:nth-child(1),
+          & > *:nth-child(2),
+          & > *:nth-child(3) {
+            grid-column: auto;
+            grid-row: auto;
+          }
+        }
       `;
+    }
+
+    if (n === 4) {
+      return css`
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-template-rows: repeat(2, minmax(0, 1fr));
+      `;
+    }
+
+    if (n <= 6) {
+      return css`
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        grid-template-rows: repeat(2, minmax(0, 1fr));
+
+        @media (max-width: 768px) {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          grid-template-rows: repeat(${Math.ceil(n / 2)}, minmax(0, 1fr));
+        }
+      `;
+    }
+
     return css`
-      grid-template-columns: repeat(3, 1fr);
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      grid-auto-rows: minmax(0, 1fr);
+
+      @media (max-width: 768px) {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
     `;
   }}
 `;
@@ -247,6 +315,9 @@ const VideoTile = styled.div`
   border-radius: 14px;
   overflow: hidden;
   background: var(--call-panel);
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
   border: 2px solid
     ${(p) =>
       p.$isLocal

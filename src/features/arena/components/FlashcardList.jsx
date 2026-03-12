@@ -21,6 +21,8 @@ import {
   Trash2,
   MoreHorizontal,
   RotateCcw,
+  Volume2,
+  Star,
 } from "lucide-react";
 import InfiniteScroll from "react-infinite-scroll-component";
 import CreateFlashcardDialog from "./CreateFlashcardDialog";
@@ -559,6 +561,270 @@ const StudyMeta = styled.div`
   font-size: 13px;
 `;
 
+const ClassicDeckShell = styled.div`
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+`;
+
+const ClassicSummaryBar = styled.div`
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+
+  @media (max-width: 640px) {
+    grid-template-columns: 1fr;
+  }
+`;
+
+const ClassicSummaryPill = styled.div`
+  min-height: 52px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1px solid
+    ${(props) =>
+      props.$tone === "success"
+        ? "rgba(121, 241, 203, 0.34)"
+        : props.$tone === "danger"
+          ? "rgba(255, 164, 87, 0.34)"
+          : "rgba(163, 176, 217, 0.22)"};
+  background:
+    ${(props) =>
+      props.$tone === "success"
+        ? "rgba(121, 241, 203, 0.1)"
+        : props.$tone === "danger"
+          ? "rgba(255, 164, 87, 0.1)"
+          : "rgba(255, 255, 255, 0.04)"};
+  color: var(--text-color);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+
+  strong {
+    font-size: 18px;
+    font-weight: 800;
+  }
+
+  span {
+    color: var(--text-muted-color);
+    font-size: 12px;
+    font-weight: 700;
+  }
+`;
+
+const ClassicCardStage = styled.div`
+  position: relative;
+  width: 100%;
+  min-height: min(72vh, 760px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px 0 8px;
+  perspective: 1800px;
+
+  @media (max-width: 768px) {
+    min-height: calc(var(--app-height, 100dvh) - 340px);
+  }
+`;
+
+const ClassicGhostCard = styled.div`
+  position: absolute;
+  inset: 24px 18px 24px 18px;
+  border-radius: 34px;
+  background: rgba(64, 71, 126, 0.28);
+  border: 1px solid rgba(127, 140, 181, 0.12);
+  transform:
+    translateX(${(props) => props.$offsetX || 0}px)
+    translateY(${(props) => props.$offsetY || 0}px)
+    rotate(${(props) => props.$rotate || 0}deg);
+  opacity: ${(props) => props.$opacity || 0.42};
+  pointer-events: none;
+`;
+
+const ClassicSwipeMeter = styled.div`
+  position: absolute;
+  top: 22px;
+  ${(props) => (props.$side === "left" ? "left: 0;" : "right: 0;")}
+  min-width: 84px;
+  min-height: 48px;
+  padding: 0 18px;
+  border-radius: ${(props) =>
+    props.$side === "left" ? "0 999px 999px 0" : "999px 0 0 999px"};
+  border: 2px solid
+    ${(props) =>
+      props.$side === "left" ? "rgba(255, 164, 87, 0.9)" : "rgba(121, 241, 203, 0.9)"};
+  background:
+    ${(props) =>
+      props.$side === "left" ? "rgba(255, 164, 87, 0.16)" : "rgba(121, 241, 203, 0.16)"};
+  color: ${(props) => (props.$side === "left" ? "#ffa457" : "#79f1cb")};
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+  opacity: ${(props) => props.$opacity || 0};
+  transform: scale(${(props) => 0.94 + (props.$opacity || 0) * 0.06});
+  transition: opacity 0.12s ease, transform 0.12s ease;
+  pointer-events: none;
+`;
+
+const ClassicSwipeCard = styled.div`
+  position: relative;
+  width: min(100%, 820px);
+  min-height: min(62vh, 640px);
+  border-radius: 36px;
+  border: 1px solid rgba(127, 140, 181, 0.18);
+  background: linear-gradient(180deg, #222652 0%, #20234d 100%);
+  box-shadow:
+    0 24px 80px rgba(0, 0, 0, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  padding: 28px;
+  cursor: grab;
+  transform-style: preserve-3d;
+  transform:
+    translate3d(${(props) => props.$dragX || 0}px, 0, 0)
+    rotate(${(props) => ((props.$dragX || 0) / 16).toFixed(2)}deg)
+    scale(${(props) => (props.$dragging ? 1.01 : 1)});
+  transition: ${(props) =>
+    props.$dragging
+      ? "none"
+      : "transform 0.24s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.24s ease"};
+  user-select: none;
+  touch-action: pan-y;
+  overflow: hidden;
+
+  @media (max-width: 768px) {
+    min-height: min(56vh, 560px);
+    padding: 22px;
+  }
+`;
+
+const ClassicFlipLayer = styled.div`
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+  transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+  transform: rotateY(${(props) => (props.$flipped ? 180 : 0)}deg);
+`;
+
+const ClassicCardFace = styled.div`
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  border-radius: 28px;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  overflow: hidden;
+`;
+
+const ClassicCardFront = styled(ClassicCardFace)`
+  transform: rotateY(0deg);
+`;
+
+const ClassicCardBack = styled(ClassicCardFace)`
+  transform: rotateY(180deg);
+`;
+
+const ClassicCardToolbar = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: rgba(255, 255, 255, 0.82);
+`;
+
+const ClassicToolbarIcon = styled.button`
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+  color: inherit;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.08);
+  }
+`;
+
+const ClassicCardBody = styled.div`
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  padding: 18px 8px;
+`;
+
+const ClassicCardImage = styled.img`
+  max-width: 100%;
+  max-height: 220px;
+  border-radius: 18px;
+  object-fit: contain;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.24);
+
+  @media (max-width: 768px) {
+    max-height: 180px;
+  }
+`;
+
+const ClassicCardWord = styled.div`
+  max-width: 100%;
+  font-size: clamp(36px, 7vw, 74px);
+  line-height: 1.05;
+  font-weight: 800;
+  color: rgba(246, 248, 255, 0.94);
+  text-align: center;
+  word-break: break-word;
+  filter: blur(${(props) => `${(props.$blur || 0).toFixed(2)}px`});
+  opacity: ${(props) => 1 - (props.$fade || 0) * 0.55};
+  transition: filter 0.12s ease, opacity 0.12s ease;
+`;
+
+const ClassicCardHint = styled.div`
+  color: rgba(199, 205, 231, 0.72);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+`;
+
+const ClassicBottomRow = styled.div`
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 8px;
+`;
+
+const ClassicGhostAction = styled.button`
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(255, 255, 255, 0.84);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.08);
+  }
+`;
+
 const ResultActions = styled.div`
   width: 100%;
   display: grid;
@@ -664,6 +930,8 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
   const [classicShowBack, setClassicShowBack] = useState(false);
   const [classicAnswers, setClassicAnswers] = useState([]);
   const [classicCompleted, setClassicCompleted] = useState(false);
+  const [classicDragX, setClassicDragX] = useState(0);
+  const [classicDragging, setClassicDragging] = useState(false);
   const [testDeck, setTestDeck] = useState(null);
   const [testQueue, setTestQueue] = useState([]);
   const [testIndex, setTestIndex] = useState(0);
@@ -679,6 +947,11 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
     return saved === "back" ? "back" : "front";
   });
   const gameBoardRef = useRef(null);
+  const classicPointerStateRef = useRef({
+    active: false,
+    startX: 0,
+    dragStarted: false,
+  });
 
   const isPremium = user?.premiumStatus === "premium";
   const limit = isPremium ? 10 : 4;
@@ -752,6 +1025,32 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
     promptSide === "front" ? card?.back : card?.front;
   const getAnswerImage = (card) =>
     promptSide === "front" ? card?.backImage : card?.frontImage;
+
+  const resetClassicCardMotion = () => {
+    setClassicDragX(0);
+    setClassicDragging(false);
+    classicPointerStateRef.current = {
+      active: false,
+      startX: 0,
+      dragStarted: false,
+    };
+  };
+
+  const speakClassicCard = (event) => {
+    event?.stopPropagation?.();
+    const card = classicQueue[classicIndex];
+    const text =
+      (classicShowBack ? getAnswerText(card) : getPromptText(card)) || "";
+    if (!text || typeof window === "undefined" || !window.speechSynthesis) {
+      return;
+    }
+
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = /[\u0600-\u06FF]/.test(text) ? "ar" : "en-US";
+    utterance.rate = 0.92;
+    window.speechSynthesis.speak(utterance);
+  };
 
   const startStudy = async (deckMetadata, isRestart = false) => {
     // Fetch deck with personal progress
@@ -925,6 +1224,7 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
     ];
     setClassicAnswers(nextAnswers);
     setClassicShowBack(false);
+    resetClassicCardMotion();
 
     if (classicIndex + 1 >= classicQueue.length) {
       setClassicCompleted(true);
@@ -942,6 +1242,7 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
     setClassicIndex((prev) => Math.max(prev - 1, 0));
     setClassicShowBack(false);
     setClassicCompleted(false);
+    resetClassicCardMotion();
   };
 
   const restartClassicMissed = () => {
@@ -959,6 +1260,52 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
   const restartClassicAll = () => {
     if (!classicDeck) return;
     resetClassicSession(classicDeck, [...(classicDeck.cards || [])]);
+  };
+
+  const handleClassicPointerDown = (event) => {
+    if (classicCompleted) return;
+    classicPointerStateRef.current = {
+      active: true,
+      startX: event.clientX,
+      dragStarted: false,
+    };
+    setClassicDragging(false);
+  };
+
+  const handleClassicPointerMove = (event) => {
+    if (!classicPointerStateRef.current.active || classicCompleted) return;
+
+    const deltaX = event.clientX - classicPointerStateRef.current.startX;
+    if (Math.abs(deltaX) > 8) {
+      classicPointerStateRef.current.dragStarted = true;
+      setClassicDragging(true);
+    }
+
+    if (classicPointerStateRef.current.dragStarted) {
+      setClassicDragX(Math.max(-180, Math.min(180, deltaX)));
+    }
+  };
+
+  const handleClassicPointerEnd = () => {
+    if (!classicPointerStateRef.current.active || classicCompleted) return;
+
+    const deltaX = classicDragX;
+    const wasDragging = classicPointerStateRef.current.dragStarted;
+    resetClassicCardMotion();
+
+    if (!wasDragging) {
+      setClassicShowBack((prev) => !prev);
+      return;
+    }
+
+    if (deltaX >= 110) {
+      handleClassicAnswer(true);
+      return;
+    }
+
+    if (deltaX <= -110) {
+      handleClassicAnswer(false);
+    }
   };
 
   const handleCopyLink = (deckIdentifier) => {
@@ -1056,6 +1403,23 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
     }
   };
 
+  const viewingDeckOwnerId =
+    viewingDeck?.createdBy?._id || viewingDeck?.createdBy?.id || null;
+  const currentUserId = user?._id || user?.id || null;
+  const isViewingOwnDeck =
+    viewingDeckOwnerId && currentUserId
+      ? String(viewingDeckOwnerId) === String(currentUserId)
+      : false;
+  const hasJoinedViewingDeck = Boolean(
+    viewingDeck?.members?.some((member) => {
+      const memberUserId =
+        member?.userId?._id || member?.userId?.id || member?.userId || null;
+      return memberUserId && currentUserId
+        ? String(memberUserId) === String(currentUserId)
+        : false;
+    }),
+  );
+
   if (studyingDeck) {
     const currentCard = reviewQueue[currentCardIndex];
     return (
@@ -1152,7 +1516,13 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
     const currentCard = classicQueue[classicIndex];
     const foundCount = classicAnswers.filter((item) => item.known).length;
     const missedCount = classicAnswers.filter((item) => !item.known).length;
-    const totalAnswered = classicAnswers.length;
+    const swipeProgress = Math.min(Math.abs(classicDragX) / 120, 1);
+    const knowOpacity = classicDragX > 0 ? swipeProgress : 0;
+    const missOpacity = classicDragX < 0 ? swipeProgress : 0;
+    const promptImage = getPromptImage(currentCard);
+    const answerImage = getAnswerImage(currentCard);
+    const promptText = getPromptText(currentCard) || "???";
+    const answerText = getAnswerText(currentCard) || "???";
 
     return (
       <Container>
@@ -1180,107 +1550,170 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
             </span>
           </StudyMeta>
 
-          <FlashcardBox onClick={() => setClassicShowBack((prev) => !prev)}>
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                gap: "16px",
-                width: "100%",
-              }}
-            >
-              {!classicCompleted &&
-                (classicShowBack
-                  ? getAnswerImage(currentCard)
-                  : getPromptImage(currentCard)) && (
-                  <img
-                    src={
-                      classicShowBack
-                        ? getAnswerImage(currentCard)
-                        : getPromptImage(currentCard)
-                    }
-                    alt={classicShowBack ? "answer" : "prompt"}
-                    style={{
-                      maxWidth: "100%",
-                      maxHeight: "200px",
-                      borderRadius: "8px",
-                      objectFit: "contain",
-                    }}
-                  />
-                )}
+          {!classicCompleted ? (
+            <ClassicDeckShell>
+              <ClassicSummaryBar>
+                <ClassicSummaryPill>
+                  <strong>
+                    {classicIndex + 1}/{classicQueue.length}
+                  </strong>
+                  <span>Joriy karta</span>
+                </ClassicSummaryPill>
+                <ClassicSummaryPill $tone="success">
+                  <strong>{foundCount}</strong>
+                  <span>Topdim</span>
+                </ClassicSummaryPill>
+                <ClassicSummaryPill $tone="danger">
+                  <strong>{missedCount}</strong>
+                  <span>Topolmadim</span>
+                </ClassicSummaryPill>
+              </ClassicSummaryBar>
 
-              {classicCompleted ? (
-                <div
-                  style={{
-                    width: "100%",
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "10px",
+              <ClassicCardStage>
+                <ClassicGhostCard $offsetX={-18} $offsetY={-4} $rotate={-1.8} />
+                <ClassicGhostCard $offsetX={18} $offsetY={8} $rotate={2.4} $opacity={0.3} />
+                <ClassicSwipeMeter $side="left" $opacity={missOpacity}>
+                  Topolmadim
+                </ClassicSwipeMeter>
+                <ClassicSwipeMeter $side="right" $opacity={knowOpacity}>
+                  Topdim
+                </ClassicSwipeMeter>
+
+                <ClassicSwipeCard
+                  $dragX={classicDragX}
+                  $dragging={classicDragging}
+                  onPointerDown={handleClassicPointerDown}
+                  onPointerMove={handleClassicPointerMove}
+                  onPointerUp={handleClassicPointerEnd}
+                  onPointerCancel={handleClassicPointerEnd}
+                  onPointerLeave={() => {
+                    if (classicDragging) {
+                      handleClassicPointerEnd();
+                    }
                   }}
                 >
-                  {classicAnswers.map((item, index) => (
-                    <PreviewItem key={`${item.card._id || index}-${index}`}>
-                      <PreviewRow>
-                        <PreviewLabel>{index + 1}.</PreviewLabel>
-                        <PreviewContent>
-                          {getPromptText(item.card)}
-                        </PreviewContent>
-                      </PreviewRow>
-                      <PreviewRow>
-                        <PreviewLabel>Javob:</PreviewLabel>
-                        <PreviewContent>
-                          {getAnswerText(item.card)}
-                        </PreviewContent>
-                      </PreviewRow>
-                      <PreviewRow>
-                        <PreviewLabel>Holat:</PreviewLabel>
-                        <PreviewContent
-                          style={{
-                            color: item.known ? "#22c55e" : "#ef4444",
-                            fontWeight: 700,
-                          }}
+                  <ClassicFlipLayer $flipped={classicShowBack}>
+                    <ClassicCardFront>
+                      <ClassicCardToolbar>
+                        <ClassicToolbarIcon
+                          type="button"
+                          onClick={speakClassicCard}
+                          title="Ovoz bilan eshitish"
                         >
-                          {item.known ? "Topdi" : "Topolmadi"}
-                        </PreviewContent>
-                      </PreviewRow>
-                    </PreviewItem>
-                  ))}
-                </div>
-              ) : (
-                <div>
-                  {classicShowBack
-                    ? getAnswerText(currentCard) || "???"
-                    : getPromptText(currentCard) || "???"}
-                </div>
-              )}
-            </div>
-          </FlashcardBox>
+                          <Volume2 size={20} />
+                        </ClassicToolbarIcon>
+                        <ClassicToolbarIcon
+                          type="button"
+                          title="Flashcard"
+                          onClick={(event) => event.stopPropagation()}
+                        >
+                          <Star size={20} />
+                        </ClassicToolbarIcon>
+                      </ClassicCardToolbar>
+                      <ClassicCardBody>
+                        {promptImage ? (
+                          <ClassicCardImage src={promptImage} alt="flashcard prompt" />
+                        ) : null}
+                        <ClassicCardWord $blur={swipeProgress * 3.2} $fade={swipeProgress}>
+                          {promptText}
+                        </ClassicCardWord>
+                        <ClassicCardHint>
+                          Ustiga bosing va flip qiling. O‘ngga sursangiz topdim, chapga sursangiz topolmadim.
+                        </ClassicCardHint>
+                      </ClassicCardBody>
+                    </ClassicCardFront>
+
+                    <ClassicCardBack>
+                      <ClassicCardToolbar>
+                        <ClassicToolbarIcon
+                          type="button"
+                          onClick={speakClassicCard}
+                          title="Ovoz bilan eshitish"
+                        >
+                          <Volume2 size={20} />
+                        </ClassicToolbarIcon>
+                        <ClassicToolbarIcon
+                          type="button"
+                          title="Flashcard"
+                          onClick={(event) => event.stopPropagation()}
+                        >
+                          <Star size={20} />
+                        </ClassicToolbarIcon>
+                      </ClassicCardToolbar>
+                      <ClassicCardBody>
+                        {answerImage ? (
+                          <ClassicCardImage src={answerImage} alt="flashcard answer" />
+                        ) : null}
+                        <ClassicCardWord>{answerText}</ClassicCardWord>
+                        <ClassicCardHint>
+                          Javob ko‘rinib turibdi. Endi surib baholang.
+                        </ClassicCardHint>
+                      </ClassicCardBody>
+                    </ClassicCardBack>
+                  </ClassicFlipLayer>
+                </ClassicSwipeCard>
+              </ClassicCardStage>
+
+              <ClassicBottomRow>
+                <ClassicGhostAction
+                  type="button"
+                  onClick={handleClassicReplay}
+                  disabled={classicIndex === 0 && classicAnswers.length === 0}
+                  title="Oldingi karta"
+                >
+                  <RotateCcw size={22} />
+                </ClassicGhostAction>
+                <ClassicGhostAction
+                  type="button"
+                  onClick={() => setClassicShowBack((prev) => !prev)}
+                  title="Flip"
+                >
+                  <RefreshCw size={22} />
+                </ClassicGhostAction>
+              </ClassicBottomRow>
+            </ClassicDeckShell>
+          ) : (
+            <FlashcardBox>
+              <div
+                style={{
+                  width: "100%",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "10px",
+                }}
+              >
+                {classicAnswers.map((item, index) => (
+                  <PreviewItem key={`${item.card._id || index}-${index}`}>
+                    <PreviewRow>
+                      <PreviewLabel>{index + 1}.</PreviewLabel>
+                      <PreviewContent>{getPromptText(item.card)}</PreviewContent>
+                    </PreviewRow>
+                    <PreviewRow>
+                      <PreviewLabel>Javob:</PreviewLabel>
+                      <PreviewContent>{getAnswerText(item.card)}</PreviewContent>
+                    </PreviewRow>
+                    <PreviewRow>
+                      <PreviewLabel>Holat:</PreviewLabel>
+                      <PreviewContent
+                        style={{
+                          color: item.known ? "#22c55e" : "#ef4444",
+                          fontWeight: 700,
+                        }}
+                      >
+                        {item.known ? "Topdi" : "Topolmadi"}
+                      </PreviewContent>
+                    </PreviewRow>
+                  </PreviewItem>
+                ))}
+              </div>
+            </FlashcardBox>
+          )}
 
           {!classicCompleted ? (
-            <ClassicControls>
-              <ClassicActionBtn
-                onClick={handleClassicReplay}
-                disabled={classicIndex === 0 || totalAnswered === 0}
-                title="Oldingi karta"
-              >
-                <RotateCcw size={18} />
-              </ClassicActionBtn>
-              <ClassicActionBtn
-                $variant="fail"
-                onClick={() => handleClassicAnswer(false)}
-                title="Topolmadi"
-              >
-                <ChevronLeft size={20} />
-              </ClassicActionBtn>
-              <ClassicActionBtn
-                $variant="success"
-                onClick={() => handleClassicAnswer(true)}
-                title="Topdi"
-              >
-                <ChevronRight size={20} />
-              </ClassicActionBtn>
-            </ClassicControls>
+            <StudyMeta>
+              <span>Chapga surish: topolmadim</span>
+              <span>O‘ngga surish: topdim</span>
+            </StudyMeta>
           ) : (
             <ResultActions>
               <StudyBtn
@@ -1690,13 +2123,7 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
                   </div>
                 </div>
 
-                {!(
-                  viewingDeck.createdBy?._id === (user?._id || user?.id) ||
-                  viewingDeck.members?.some(
-                    (m) =>
-                      (m.userId?._id || m.userId) === (user?._id || user?.id),
-                  )
-                ) && (
+                {!isViewingOwnDeck && !hasJoinedViewingDeck && (
                   <button
                     onClick={() => onJoin(viewingDeck._id)}
                     style={{

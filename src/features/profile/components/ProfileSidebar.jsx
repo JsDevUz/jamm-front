@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
 import styled, { keyframes } from "styled-components";
 import {
@@ -17,6 +17,7 @@ import {
   Shield,
 } from "lucide-react";
 import UserNameWithDecoration from "../../../shared/ui/users/UserNameWithDecoration";
+import ImageLightbox from "../../../shared/ui/media/ImageLightbox";
 import useAuthStore from "../../../store/authStore";
 import packageJson from "../../../../package.json";
 
@@ -86,6 +87,7 @@ const AvatarWrap = styled.div`
   height: 76px;
   margin: -38px 0 0 18px;
   z-index: 2;
+  cursor: ${(props) => (props.$clickable ? "zoom-in" : "default")};
 `;
 
 const Avatar = styled.div`
@@ -452,6 +454,7 @@ const ProfileSidebar = ({
   onOpenDirectMessage,
 }) => {
   const { t } = useTranslation();
+  const [isAvatarPreviewOpen, setIsAvatarPreviewOpen] = useState(false);
   const displayName =
     targetUser?.nickname || targetUser?.username || t("common.userFallback");
   const logout = useAuthStore((state) => state.logout);
@@ -485,7 +488,14 @@ const ProfileSidebar = ({
         ) : null}
       </Cover>
 
-      <AvatarWrap>
+      <AvatarWrap
+        $clickable={Boolean(userAvatar)}
+        onClick={() => {
+          if (userAvatar) {
+            setIsAvatarPreviewOpen(true);
+          }
+        }}
+      >
         <Avatar>
           {userAvatar ? (
             <img src={userAvatar} alt={displayName} />
@@ -499,6 +509,11 @@ const ProfileSidebar = ({
           </AvatarEditBadge>
         ) : null}
       </AvatarWrap>
+      <ImageLightbox
+        src={isAvatarPreviewOpen ? userAvatar : null}
+        alt={displayName}
+        onClose={() => setIsAvatarPreviewOpen(false)}
+      />
 
       <Info>
         <NameRow>

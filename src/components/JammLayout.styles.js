@@ -38,6 +38,85 @@ export const AppContainer = styled.div`
   }
 `;
 
+export const NotificationPromptBanner = styled.div`
+  position: fixed;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2200;
+  width: min(520px, calc(100vw - 32px));
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1px solid color-mix(in srgb, var(--primary-color) 28%, var(--border-color));
+  background: color-mix(in srgb, var(--secondary-color) 90%, black 10%);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.24);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+
+  @media (max-width: 700px) {
+    top: max(12px, env(safe-area-inset-top, 0px));
+    width: calc(100vw - 24px);
+    align-items: flex-start;
+    flex-direction: column;
+  }
+`;
+
+export const NotificationPromptText = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  color: var(--text-color);
+`;
+
+export const NotificationPromptTitle = styled.div`
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.2;
+`;
+
+export const NotificationPromptDescription = styled.div`
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--text-secondary-color);
+`;
+
+export const NotificationPromptActions = styled.div`
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+
+  @media (max-width: 700px) {
+    width: 100%;
+    justify-content: flex-end;
+  }
+`;
+
+export const NotificationPromptButton = styled.button`
+  border: none;
+  border-radius: 10px;
+  padding: 9px 14px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    background-color 0.18s ease,
+    color 0.18s ease,
+    opacity 0.18s ease;
+  background: ${(props) =>
+    props.$secondary ? "var(--hover-color)" : "var(--primary-color)"};
+  color: ${(props) => (props.$secondary ? "var(--text-color)" : "white")};
+
+  &:hover {
+    opacity: 0.92;
+  }
+`;
+
 export const MainContent = styled.div`
   display: flex;
   flex: 1;

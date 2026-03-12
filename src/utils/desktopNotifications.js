@@ -2,6 +2,8 @@ import { RESOLVED_APP_BASE_URL } from "../config/env";
 
 const DESKTOP_NOTIFICATIONS_KEY = "jamm.desktopNotifications";
 const SOUND_NOTIFICATIONS_KEY = "jamm.soundNotifications";
+const DESKTOP_NOTIFICATIONS_BANNER_DISMISSED_KEY =
+  "jamm.desktopNotificationsBannerDismissed";
 
 const readBooleanSetting = (key, fallback = true) => {
   if (typeof window === "undefined") return fallback;
@@ -27,6 +29,12 @@ export const getSoundNotificationsEnabled = () =>
 
 export const setSoundNotificationsEnabled = (value) =>
   writeBooleanSetting(SOUND_NOTIFICATIONS_KEY, value);
+
+export const getDesktopNotificationsBannerDismissed = () =>
+  readBooleanSetting(DESKTOP_NOTIFICATIONS_BANNER_DISMISSED_KEY, false);
+
+export const setDesktopNotificationsBannerDismissed = (value) =>
+  writeBooleanSetting(DESKTOP_NOTIFICATIONS_BANNER_DISMISSED_KEY, value);
 
 export const requestDesktopNotificationPermission = async () => {
   if (typeof window === "undefined" || typeof Notification === "undefined") {

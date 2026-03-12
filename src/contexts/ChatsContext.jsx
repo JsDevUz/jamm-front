@@ -12,6 +12,7 @@ import { formatChatTime } from "../utils/dateUtils";
 import dayjs from "dayjs";
 import { buildSocketNamespaceUrl } from "../config/env";
 import { showDesktopChatNotification } from "../utils/desktopNotifications";
+import { normalizeReadByIds } from "../features/chats/chat-area/utils/chatAreaMessageUtils";
 
 const ChatsContext = createContext();
 
@@ -441,7 +442,7 @@ export const ChatsProvider = ({ children }) => {
             }
           : null,
 
-        readBy: msg.readBy || [],
+        readBy: normalizeReadByIds(msg.readBy),
       })),
       hasMore: Boolean(res.hasMore),
       nextCursor: res.nextCursor || null,
@@ -471,7 +472,7 @@ export const ChatsProvider = ({ children }) => {
       createdAt: msg.createdAt,
       edited: msg.isEdited,
       isDeleted: msg.isDeleted,
-      readBy: msg.readBy || [],
+      readBy: normalizeReadByIds(msg.readBy),
       replayTo: msg.replayTo
         ? {
             id: msg.replayTo._id || msg.replayTo.id,

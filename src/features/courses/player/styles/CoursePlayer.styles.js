@@ -292,6 +292,7 @@ export const ControlsLeft = styled.div`
   display: flex;
   align-items: center;
   gap: 8px;
+  margin-right: 8px;
 `;
 
 export const ControlsRight = styled.div`

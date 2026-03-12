@@ -660,6 +660,7 @@ const AuthPage = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const isAllowedEmail = (value) => /^[^\s@]+@gmail\.com$/i.test(value.trim());
 
   // Check for verification token in URL
   React.useEffect(() => {
@@ -698,12 +699,21 @@ const AuthPage = () => {
     e.preventDefault();
     setError("");
     setSuccess("");
+
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!isAllowedEmail(normalizedEmail)) {
+      setError("Faqat gmail.com email manzili ruxsat etiladi");
+      return;
+    }
+
     setLoading(true);
 
     try {
       const endpoint = mode === "login" ? "/auth/login" : "/auth/signup";
       const body =
-        mode === "login" ? { email, password } : { email, password, nickname };
+        mode === "login"
+          ? { email: normalizedEmail, password }
+          : { email: normalizedEmail, password, nickname };
 
       const res = await fetch(`${API_BASE_URL}${endpoint}`, {
         method: "POST",
@@ -840,7 +850,7 @@ const AuthPage = () => {
               <InputWrapper>
                 <StyledInput
                   type="email"
-                  placeholder="email@example.com"
+                  placeholder="username@gmail.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required

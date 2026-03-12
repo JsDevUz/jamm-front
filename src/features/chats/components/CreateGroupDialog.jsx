@@ -1,6 +1,6 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import styled from "styled-components";
-import { X, Upload, Check, Search, Loader } from "lucide-react";
+import { X, Upload, Search, Loader, Plus, Trash2 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import useUploadAvatar from "../../../hooks/useUploadAvatar";
 import { searchUsers as searchUsersApi } from "../../../api/chatApi";
@@ -22,6 +22,7 @@ const InputGroup = styled.div`
   display: flex;
   flex-direction: column;
   gap: 8px;
+  margin: 12px 0;;
 `;
 
 const Label = styled.label`
@@ -85,6 +86,32 @@ const UserSelection = styled.div`
   display: flex;
   flex-direction: column;
   gap: 8px;
+`;
+
+const SelectionHeader = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+`;
+
+const SelectionIconButton = styled.button`
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  border: 1px solid var(--border-color);
+  background: var(--input-color);
+  color: var(--text-color);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+
+  &:hover {
+    border-color: var(--primary-color);
+    color: var(--primary-color);
+  }
 `;
 
 const UserSearch = styled.div`
@@ -156,23 +183,101 @@ const UserBadge = styled.span`
   font-weight: 700;
 `;
 
-const CreateGroupDialog = ({ isOpen, onClose, onCreate, users = [] }) => {
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-  const [imageUrl, setImageUrl] = useState("");
-  const [selectedUsers, setSelectedUsers] = useState([]);
+const EmptyMembers = styled.div`
+  padding: 18px 14px;
+  border: 1px dashed var(--border-color);
+  border-radius: 12px;
+  color: var(--text-muted-color);
+  font-size: 13px;
+  text-align: center;
+  background: color-mix(in srgb, var(--tertiary-color) 70%, transparent);
+`;
+
+const MemberList = styled.div`
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--tertiary-color);
+`;
+
+const MemberRow = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border-color);
+
+  &:last-child {
+    border-bottom: none;
+  }
+`;
+
+const RemoveMemberButton = styled.button`
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  border: none;
+  background: transparent;
+  color: #ed4245;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+
+  &:hover {
+    background: rgba(237, 66, 69, 0.1);
+  }
+`;
+
+const FooterActionAnchor = styled.div`
+  position: relative;
+  display: inline-flex;
+`;
+
+const FooterTooltip = styled.div`
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 8px);
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.95);
+  color: white;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.22);
+  z-index: 20;
+  pointer-events: none;
+
+  &::after {
+    content: "";
+    position: absolute;
+    right: 12px;
+    top: 100%;
+    border-width: 6px 6px 0 6px;
+    border-style: solid;
+    border-color: rgba(15, 23, 42, 0.95) transparent transparent transparent;
+  }
+`;
+
+const AddMemberDialog = ({
+  isOpen,
+  onClose,
+  onSelect,
+  selectedUsers,
+  users,
+}) => {
   const [searchUser, setSearchUser] = useState("");
   const [apiResults, setApiResults] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
-  const fileInputRef = useRef(null);
-
-  const uploadAvatarMutation = useUploadAvatar({
-    onSuccess: (url) => setImageUrl(url),
-    onError: () => toast.error("Rasm yuklashda xatolik yuz berdi"),
-  });
 
   useEffect(() => {
     if (!isOpen) {
+      setSearchUser("");
       setApiResults([]);
       setIsSearching(false);
       return undefined;
@@ -199,6 +304,190 @@ const CreateGroupDialog = ({ isOpen, onClose, onCreate, users = [] }) => {
     return () => clearTimeout(timer);
   }, [isOpen, searchUser]);
 
+  const combinedUsers = [
+    ...users,
+    ...apiResults
+      .map((user) => ({
+        id: user.id || user._id,
+        name: user.name || user.nickname || user.username,
+        username: user.username,
+        avatar: user.avatar || "",
+        isOfficialProfile: user.isOfficialProfile,
+        officialBadgeLabel: user.officialBadgeLabel,
+        disableGroupInvites: user.disableGroupInvites,
+      }))
+      .filter((user) => user.id),
+  ].filter(
+    (user, index, list) =>
+      list.findIndex((candidate) => String(candidate.id) === String(user.id)) ===
+      index,
+  );
+
+  const filteredUsers = combinedUsers.filter((user) => {
+    const query = searchUser.trim().toLowerCase();
+    if (!query) return false;
+
+    return (
+      !selectedUsers.includes(String(user.id)) &&
+      !user.isSavedMessages &&
+      (user.name?.toLowerCase().includes(query) ||
+        user.username?.toLowerCase().includes(query))
+    );
+  });
+
+  if (!isOpen) return null;
+
+  const isFull = selectedUsers.length >= 40;
+
+  return (
+    <ModalOverlay onClick={onClose} $zIndex={10000}>
+      <ModalPanel
+        $width="min(100%, 440px)"
+        $maxHeight="min(82vh, 640px)"
+        $radius="18px"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <ModalHeader $padding="18px">
+          <ModalTitleBlock>
+            <ModalTitle>A'zo qo'shish</ModalTitle>
+            <ModalSubtitle>{selectedUsers.length}/40 tanlangan</ModalSubtitle>
+          </ModalTitleBlock>
+          <ModalCloseButton onClick={onClose}>
+            <X size={18} />
+          </ModalCloseButton>
+        </ModalHeader>
+
+        <ModalBody $padding="16px 18px 18px">
+          <UserSearch>
+            <Input
+              placeholder="Ism yoki @username orqali qidirish"
+              value={searchUser}
+              onChange={(e) => setSearchUser(e.target.value)}
+              style={{ paddingLeft: 30, width: "100%" }}
+              autoFocus
+            />
+            {isSearching ? (
+              <Loader
+                size={14}
+                style={{
+                  position: "absolute",
+                  left: 10,
+                  top: 12,
+                  color: "#aaa",
+                  animation: "spin 1s linear infinite",
+                }}
+              />
+            ) : (
+              <Search
+                size={14}
+                style={{
+                  position: "absolute",
+                  left: 10,
+                  top: 12,
+                  color: "#aaa",
+                }}
+              />
+            )}
+          </UserSearch>
+
+          <UserList style={{ maxHeight: "320px", marginTop: 12 }}>
+            {searchUser.trim() === "" ? (
+              <div
+                style={{
+                  padding: 20,
+                  textAlign: "center",
+                  color: "#b9bbbe",
+                  fontSize: 14,
+                }}
+              >
+                Qidirishni boshlang...
+              </div>
+            ) : filteredUsers.length === 0 ? (
+              <div
+                style={{
+                  padding: 20,
+                  textAlign: "center",
+                  color: "#b9bbbe",
+                  fontSize: 14,
+                }}
+              >
+                Hech kim topilmadi
+              </div>
+            ) : (
+              filteredUsers.map((user) => (
+                <UserItem
+                  key={user.id}
+                  style={{
+                    opacity: user.disableGroupInvites ? 0.55 : 1,
+                    pointerEvents: user.disableGroupInvites || isFull ? "none" : "auto",
+                  }}
+                  onClick={() => onSelect(String(user.id))}
+                >
+                  <UserInfo>
+                    <Avatar>
+                      {user.avatar?.length > 1 ? (
+                        <img src={user.avatar} alt={user.name || user.username} />
+                      ) : (
+                        (user.name || user.username || "").charAt(0)
+                      )}
+                    </Avatar>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                      <UserName>{user.name || user.username}</UserName>
+                      {user.username ? (
+                        <div style={{ fontSize: 11, color: "#b9bbbe" }}>
+                          @{user.username}
+                        </div>
+                      ) : null}
+                      {user.isOfficialProfile ? (
+                        <UserBadge>{user.officialBadgeLabel || "Rasmiy"}</UserBadge>
+                      ) : null}
+                    </div>
+                  </UserInfo>
+                  {isFull ? (
+                    <div style={{ fontSize: 10, color: "#ed4245" }}>
+                      Guruh to'la
+                    </div>
+                  ) : (
+                    <Plus size={16} color="var(--primary-color)" />
+                  )}
+                </UserItem>
+              ))
+            )}
+          </UserList>
+        </ModalBody>
+
+        <ModalFooter $padding="14px 18px" $background="var(--tertiary-color)">
+          <DialogActionButton $variant="ghost" onClick={onClose}>
+            Yopish
+          </DialogActionButton>
+        </ModalFooter>
+      </ModalPanel>
+    </ModalOverlay>
+  );
+};
+
+const CreateGroupDialog = ({ isOpen, onClose, onCreate, users = [] }) => {
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [imageUrl, setImageUrl] = useState("");
+  const [selectedUsers, setSelectedUsers] = useState([]);
+  const [isAddMemberOpen, setIsAddMemberOpen] = useState(false);
+  const [showCreateTooltip, setShowCreateTooltip] = useState(false);
+  const fileInputRef = useRef(null);
+
+  const uploadAvatarMutation = useUploadAvatar({
+    onSuccess: (url) => setImageUrl(url),
+    onError: () => toast.error("Rasm yuklashda xatolik yuz berdi"),
+  });
+
+  useEffect(() => {
+    if (!showCreateTooltip) return undefined;
+    const timer = window.setTimeout(() => {
+      setShowCreateTooltip(false);
+    }, 2200);
+    return () => window.clearTimeout(timer);
+  }, [showCreateTooltip]);
+
   const handleSubmit = () => {
     if (!name.trim()) return;
 
@@ -214,15 +503,12 @@ const CreateGroupDialog = ({ isOpen, onClose, onCreate, users = [] }) => {
     setDescription("");
     setImageUrl("");
     setSelectedUsers([]);
-    setSearchUser("");
-    setApiResults([]);
+    setIsAddMemberOpen(false);
     onClose();
   };
 
   const toggleUser = (userId) => {
-    const targetUser = combinedUsers.find(
-      (user) => String(user.id) === String(userId),
-    );
+    const targetUser = allUsersMap.get(String(userId));
     if (targetUser?.disableGroupInvites || targetUser?.isOfficialProfile) {
       return;
     }
@@ -237,40 +523,25 @@ const CreateGroupDialog = ({ isOpen, onClose, onCreate, users = [] }) => {
     }
   };
 
-  const combinedUsers = [
-    ...users,
-    ...apiResults
-      .map((user) => ({
-        id: user.id || user._id,
+  const allUsersMap = useMemo(() => {
+    const map = new Map();
+    users.forEach((user) => {
+      const id = user.id || user._id || user.jammId;
+      if (!id) return;
+      map.set(String(id), {
+        ...user,
+        id: String(id),
         name: user.name || user.nickname || user.username,
-        username: user.username,
-        avatar: user.avatar || "",
-        premiumStatus: user.premiumStatus,
-        selectedProfileDecorationId: user.selectedProfileDecorationId,
-        customProfileDecorationImage: user.customProfileDecorationImage,
-        isOfficialProfile: user.isOfficialProfile,
-        officialBadgeKey: user.officialBadgeKey,
-        officialBadgeLabel: user.officialBadgeLabel,
-        disableCalls: user.disableCalls,
-        disableGroupInvites: user.disableGroupInvites,
-      }))
-      .filter((user) => user.id),
-  ].filter(
-    (user, index, list) =>
-      list.findIndex((candidate) => String(candidate.id) === String(user.id)) ===
-      index,
-  );
+      });
+    });
+    return map;
+  }, [users]);
 
-  const filteredUsers = combinedUsers.filter((user) => {
-    const query = searchUser.trim().toLowerCase();
-    if (!query) return false;
-
-    return (
-      !user.isSavedMessages &&
-      (user.name?.toLowerCase().includes(query) ||
-        user.username?.toLowerCase().includes(query))
-    );
-  });
+  const currentMembers = selectedUsers
+    .map((id) => allUsersMap.get(String(id)))
+    .filter(Boolean);
+  const hasGroupName = Boolean(name.trim());
+  const needsMembers = selectedUsers.length === 0;
 
   if (!isOpen) return null;
 
@@ -364,83 +635,55 @@ const CreateGroupDialog = ({ isOpen, onClose, onCreate, users = [] }) => {
           </InputGroup>
 
           <UserSelection>
-            <Label>Ishtirokchilar ({selectedUsers.length}/40)</Label>
-            <UserSearch>
-              <Input
-                placeholder="User qidirish..."
-                value={searchUser}
-                onChange={(e) => setSearchUser(e.target.value)}
-                style={{ paddingLeft: 30 }}
-              />
-              {isSearching ? (
-                <Loader
-                  size={14}
-                  style={{
-                    position: "absolute",
-                    left: 10,
-                    top: 12,
-                    color: "#aaa",
-                    animation: "spin 1s linear infinite",
-                  }}
-                />
-              ) : (
-                <Search
-                  size={14}
-                  style={{
-                    position: "absolute",
-                    left: 10,
-                    top: 12,
-                    color: "#aaa",
-                  }}
-                />
-              )}
-            </UserSearch>
-            {searchUser.trim() !== "" && (
-              <UserList>
-                {filteredUsers.length === 0 ? (
-                  <div
-                    style={{
-                      padding: 12,
-                      color: "#b9bbbe",
-                      fontSize: 13,
-                      textAlign: "center",
-                    }}
-                  >
-                    Hech kim topilmadi
-                  </div>
-                ) : (
-                  filteredUsers.map((user) => (
-                    <UserItem
-                      key={user.id}
-                      selected={selectedUsers.includes(user.id)}
-                      style={{
-                        opacity: user.disableGroupInvites ? 0.55 : 1,
-                        pointerEvents: user.disableGroupInvites ? "none" : "auto",
-                      }}
-                      onClick={() => toggleUser(user.id)}
+            <SelectionHeader>
+              <Label>Ishtirokchilar ({selectedUsers.length}/40)</Label>
+              <SelectionIconButton
+                type="button"
+                onClick={() => setIsAddMemberOpen(true)}
+                title="A'zo qo'shish"
+              >
+                <Plus size={16} />
+              </SelectionIconButton>
+            </SelectionHeader>
+
+            {currentMembers.length === 0 ? (
+              <EmptyMembers>
+                Kamida 1 ta odam qo'shing. A'zo tanlash alohida oynada ochiladi.
+              </EmptyMembers>
+            ) : (
+              <MemberList>
+                {currentMembers.map((user) => (
+                  <MemberRow key={user.id}>
+                    <UserInfo>
+                      <Avatar>
+                        {user.avatar?.length > 1 ? (
+                          <img src={user.avatar} alt={user.name || user.username} />
+                        ) : (
+                          (user.name || user.username || "").charAt(0)
+                        )}
+                      </Avatar>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                        <UserName>{user.name || user.username}</UserName>
+                        {user.username ? (
+                          <div style={{ fontSize: 11, color: "#b9bbbe" }}>
+                            @{user.username}
+                          </div>
+                        ) : null}
+                        {user.isOfficialProfile ? (
+                          <UserBadge>{user.officialBadgeLabel || "Rasmiy"}</UserBadge>
+                        ) : null}
+                      </div>
+                    </UserInfo>
+                    <RemoveMemberButton
+                      type="button"
+                      onClick={() => toggleUser(String(user.id))}
+                      title="A'zoni olib tashlash"
                     >
-                      <UserInfo>
-                        <Avatar>
-                          {user.avatar?.length > 1 ? (
-                            <img src={user.avatar} alt={user.name} />
-                          ) : (
-                            (user.name || user.username || "").charAt(0)
-                          )}
-                        </Avatar>
-                        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                          <UserName>{user.name}</UserName>
-                          {user.isOfficialProfile ? (
-                            <UserBadge>{user.officialBadgeLabel || "Rasmiy"}</UserBadge>
-                          ) : null}
-                        </div>
-                      </UserInfo>
-                      {selectedUsers.includes(user.id) && (
-                        <Check size={16} color="var(--primary-color)" />
-                      )}
-                    </UserItem>
-                  ))
-                )}
-              </UserList>
+                      <Trash2 size={16} />
+                    </RemoveMemberButton>
+                  </MemberRow>
+                ))}
+              </MemberList>
             )}
           </UserSelection>
         </ModalBody>
@@ -449,15 +692,40 @@ const CreateGroupDialog = ({ isOpen, onClose, onCreate, users = [] }) => {
           <DialogActionButton $variant="ghost" onClick={onClose}>
             Bekor qilish
           </DialogActionButton>
-          <DialogActionButton
-            $variant="primary"
-            onClick={handleSubmit}
-            disabled={!name.trim()}
-          >
-            Guruh yaratish
-          </DialogActionButton>
+          <FooterActionAnchor>
+            {showCreateTooltip && selectedUsers.length === 0 && (
+              <FooterTooltip>Kamida 1 ta a'zo qo'shing</FooterTooltip>
+            )}
+            <DialogActionButton
+              $variant="primary"
+              onClick={() => {
+                if (needsMembers) {
+                  setShowCreateTooltip(true);
+                  return;
+                }
+                handleSubmit();
+              }}
+              disabled={!hasGroupName}
+              aria-disabled={needsMembers}
+              style={
+                needsMembers
+                  ? { opacity: 0.55, cursor: "not-allowed" }
+                  : undefined
+              }
+            >
+              Guruh yaratish
+            </DialogActionButton>
+          </FooterActionAnchor>
         </ModalFooter>
       </ModalPanel>
+
+      <AddMemberDialog
+        isOpen={isAddMemberOpen}
+        onClose={() => setIsAddMemberOpen(false)}
+        onSelect={toggleUser}
+        selectedUsers={selectedUsers}
+        users={users}
+      />
     </ModalOverlay>
   );
 };

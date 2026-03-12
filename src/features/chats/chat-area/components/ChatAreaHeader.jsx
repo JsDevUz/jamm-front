@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import styled from "styled-components";
 import {
   ArrowLeft,
@@ -24,6 +24,9 @@ const ChatHeader = styled.div`
   border-bottom: 1px solid var(--border-color);
   background-color: var(--secondary-color);
   min-height: 56px;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 5;
 
   @media (max-width: 768px) {
     padding: 12px 16px;
@@ -61,7 +64,8 @@ const HeaderButton = styled.button`
     color: var(--text-color);
   }
 
-  &:disabled {
+  &:disabled,
+  &[aria-disabled="true"] {
     opacity: 0.3;
     cursor: not-allowed;
 
@@ -69,6 +73,38 @@ const HeaderButton = styled.button`
       background-color: transparent;
       color: var(--text-secondary-color);
     }
+  }
+`;
+
+const HeaderActionAnchor = styled.div`
+  position: relative;
+  display: inline-flex;
+`;
+
+const HeaderTooltip = styled.div`
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.95);
+  color: white;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.22);
+  z-index: 20;
+  pointer-events: none;
+
+  &::after {
+    content: "";
+    position: absolute;
+    right: 12px;
+    bottom: 100%;
+    border-width: 0 6px 6px 6px;
+    border-style: solid;
+    border-color: transparent transparent rgba(15, 23, 42, 0.95) transparent;
   }
 `;
 
@@ -267,6 +303,7 @@ const canOpenInfo = (selectedNav) =>
 
 const ChatAreaHeader = ({
   onBack,
+  onToggleInfoSidebar,
   selectedNav,
   currentChat,
   displayChat,
@@ -286,7 +323,6 @@ const ChatAreaHeader = ({
   const toggleInfoSidebar = useChatAreaUiStore(
     (state) => state.toggleInfoSidebar,
   );
-  const openInfoSidebar = useChatAreaUiStore((state) => state.openInfoSidebar);
   const openEditGroupDialog = useChatAreaUiStore(
     (state) => state.openEditGroupDialog,
   );
@@ -296,6 +332,7 @@ const ChatAreaHeader = ({
   const openDeleteDialog = useChatAreaUiStore(
     (state) => state.openDeleteDialog,
   );
+  const [showOfflineCallTooltip, setShowOfflineCallTooltip] = useState(false);
 
   const activeChat = currentChat || displayChat;
   const currentUserId = currentUser?._id || currentUser?.id;
@@ -313,13 +350,25 @@ const ChatAreaHeader = ({
     (currentChat?.createdBy === currentUserId ||
       (myAdminRecord && myAdminRecord.permissions?.length > 0));
 
+  useEffect(() => {
+    if (!showOfflineCallTooltip) return undefined;
+    const timer = window.setTimeout(() => {
+      setShowOfflineCallTooltip(false);
+    }, 2200);
+    return () => window.clearTimeout(timer);
+  }, [showOfflineCallTooltip]);
+
   return (
     <ChatHeader>
       <HeaderLeft
         $clickable={canOpenInfo(selectedNav)}
         onClick={() => {
           if (canOpenInfo(selectedNav)) {
-            toggleInfoSidebar();
+            if (onToggleInfoSidebar) {
+              onToggleInfoSidebar();
+            } else {
+              toggleInfoSidebar();
+            }
           }
         }}
       >
@@ -384,21 +433,25 @@ const ChatAreaHeader = ({
           !displayChat?.isSavedMessages &&
           !isOfficial &&
           !displayChat?.disableCalls && (
-            <HeaderButton
-              onClick={() => {
-                if (isOnline) {
-                  onStartPrivateVideoCall();
-                } else {
-                  toast.error(
-                    "Foydalanuvchi offline. Hozirda qo'ng'iroq qilib bo'lmaydi.",
-                  );
-                }
-              }}
-              disabled={!isOnline}
-              title={!isOnline ? "Foydalanuvchi offline" : "Video qo'ng'iroq"}
-            >
-              <Phone size={20} />
-            </HeaderButton>
+            <HeaderActionAnchor>
+              {showOfflineCallTooltip && !isOnline && (
+                <HeaderTooltip>Online bo'lishini kuting</HeaderTooltip>
+              )}
+              <HeaderButton
+                onClick={() => {
+                  if (isOnline) {
+                    setShowOfflineCallTooltip(false);
+                    onStartPrivateVideoCall();
+                  } else {
+                    setShowOfflineCallTooltip(true);
+                  }
+                }}
+                aria-disabled={!isOnline}
+                title={!isOnline ? "Foydalanuvchi offline" : "Video qo'ng'iroq"}
+              >
+                <Phone size={20} />
+              </HeaderButton>
+            </HeaderActionAnchor>
           )}
 
         <HeaderMenuAnchor ref={headerMenuRef}>
@@ -412,7 +465,12 @@ const ChatAreaHeader = ({
             <HeaderDropdown>
               <DropdownItem
                 onClick={() => {
-                  openInfoSidebar();
+                  if (onToggleInfoSidebar) {
+                    onToggleInfoSidebar();
+                  } else {
+                    toggleInfoSidebar();
+                  }
+                  toggleHeaderMenu();
                 }}
               >
                 <Info size={18} />

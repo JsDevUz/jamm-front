@@ -39,9 +39,7 @@ const syncDayjsLocale = (language) => {
   dayjs.locale(localeMap[language] || "uz-latn");
 };
 
-const initialLanguage = normalizeLanguageCode(
-  localStorage.getItem("language") || window.navigator.language,
-);
+const initialLanguage = normalizeLanguageCode(localStorage.getItem("language") || "uz");
 
 i18n.use(initReactI18next).init({
   resources,

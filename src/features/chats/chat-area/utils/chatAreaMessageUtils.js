@@ -8,6 +8,18 @@ export const normalizeSenderId = (senderId) => {
   return senderId;
 };
 
+export const normalizeReadByIds = (readBy = []) =>
+  readBy
+    .map((entry) => {
+      if (entry && typeof entry === "object") {
+        return entry._id || entry.id || null;
+      }
+
+      return entry ?? null;
+    })
+    .filter(Boolean)
+    .map((entry) => String(entry));
+
 export const groupMessagesByDate = (messages) => {
   const grouped = [];
   let currentDate = null;
@@ -50,7 +62,7 @@ export const mapIncomingMessage = (rawMessage) => ({
   date: dayjs(rawMessage.createdAt).format("YYYY-MM-DD"),
   edited: rawMessage.isEdited,
   isDeleted: rawMessage.isDeleted,
-  readBy: rawMessage.readBy || [],
+  readBy: normalizeReadByIds(rawMessage.readBy),
   replayTo: rawMessage.replayTo
     ? {
         id: rawMessage.replayTo._id,

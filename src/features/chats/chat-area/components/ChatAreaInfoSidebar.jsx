@@ -1,9 +1,10 @@
-import React from "react";
+import React, { useState } from "react";
 import styled from "styled-components";
 import dayjs from "dayjs";
 import { Bookmark, Edit2, Link2, X } from "lucide-react";
 import { toast } from "react-hot-toast";
 import PremiumBadgeIcon from "../../../../shared/ui/badges/PremiumBadge";
+import ImageLightbox from "../../../../shared/ui/media/ImageLightbox";
 import useChatAreaUiStore from "../store/useChatAreaUiStore";
 import { RESOLVED_APP_BASE_URL } from "../../../../config/env";
 
@@ -107,6 +108,7 @@ const LargeAvatar = styled.div`
   margin-bottom: 16px;
   overflow: hidden;
   background: ${(props) => (props.$savedMessages ? "var(--primary-color)" : "var(--primary-color)")};
+  cursor: ${(props) => (props.$clickable ? "zoom-in" : "default")};
 
   img {
     width: 100%;
@@ -334,7 +336,9 @@ const ChatAreaInfoSidebar = ({
   isUserOnline,
   onMemberClick,
   onCopyLink,
+  onClose,
 }) => {
+  const [isAvatarPreviewOpen, setIsAvatarPreviewOpen] = useState(false);
   const isInfoSidebarOpen = useChatAreaUiStore(
     (state) => state.isInfoSidebarOpen,
   );
@@ -371,7 +375,15 @@ const ChatAreaInfoSidebar = ({
   return (
     <RightSidebar>
       <SidebarHeader>
-        <SidebarCloseButton onClick={closeInfoSidebar}>
+        <SidebarCloseButton
+          onClick={() => {
+            if (onClose) {
+              onClose();
+            } else {
+              closeInfoSidebar();
+            }
+          }}
+        >
           <X size={20} />
         </SidebarCloseButton>
         <SidebarTitle>
@@ -390,7 +402,15 @@ const ChatAreaInfoSidebar = ({
 
       <SidebarContent>
         <GroupProfile>
-          <LargeAvatar $savedMessages={currentChat?.isSavedMessages}>
+          <LargeAvatar
+            $savedMessages={currentChat?.isSavedMessages}
+            $clickable={Boolean(currentChat?.avatar?.length > 1)}
+            onClick={() => {
+              if (currentChat?.avatar?.length > 1) {
+                setIsAvatarPreviewOpen(true);
+              }
+            }}
+          >
             {currentChat?.isSavedMessages ? (
               <Bookmark size={40} color="white" fill="white" />
             ) : currentChat?.avatar?.length > 1 ? (
@@ -399,6 +419,11 @@ const ChatAreaInfoSidebar = ({
               currentChat.name.charAt(0)
             )}
           </LargeAvatar>
+          <ImageLightbox
+            src={isAvatarPreviewOpen ? currentChat?.avatar : null}
+            alt={currentChat?.name}
+            onClose={() => setIsAvatarPreviewOpen(false)}
+          />
           <GroupName>{currentChat.name}
             {currentChat.premiumStatus === "active" && (
               <PremiumBadgeIcon width={20} height={20} />

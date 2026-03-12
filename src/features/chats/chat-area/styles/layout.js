@@ -7,6 +7,7 @@ export const ChatContainer = styled.div`
   background-color: var(--background-color);
   height: var(--app-height, 100dvh);
   overflow: hidden;
+  box-sizing: border-box;
 
   @media (max-width: 768px) {
     width: 100%;
@@ -14,6 +15,7 @@ export const ChatContainer = styled.div`
     position: fixed;
     top: 0;
     left: 0;
+    padding-top: env(safe-area-inset-top, 0px);
     z-index: 1000;
     animation: slideInRight 0.3s ease-out;
   }

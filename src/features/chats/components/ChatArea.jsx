@@ -37,6 +37,8 @@ const ChatArea = ({
     handleDeleteChat,
     handleEditGroupSave,
     handleMemberClick,
+    handleInfoSidebarClose,
+    handleInfoSidebarToggle,
     headerMenuRef,
     isEditGroupDialogOpen,
     isOnline,
@@ -72,6 +74,7 @@ const ChatArea = ({
             isOnline={isOnline}
             lastSeenText={lastSeenText}
             onStartPrivateVideoCall={startPrivateVideoCall}
+            onToggleInfoSidebar={handleInfoSidebarToggle}
             headerMenuRef={headerMenuRef}
           />
 
@@ -93,6 +96,7 @@ const ChatArea = ({
           isUserOnline={isUserOnline}
           onMemberClick={handleMemberClick}
           onCopyLink={handleCopyChatLink}
+          onClose={handleInfoSidebarClose}
         />
 
         <OutgoingCallRequest />

@@ -226,6 +226,10 @@ const Target = styled.button`
   background: linear-gradient(135deg, #1e293b, #0f172a);
   border: 2px solid
     ${(props) => (props.$isWrong ? "#ef4444" : "rgba(255,255,255,0.1)")};
+  ${(props) =>
+    props.$isWrong
+      ? "background: linear-gradient(135deg, rgba(127, 29, 29, 0.96), rgba(69, 10, 10, 0.98));"
+      : ""}
   border-radius: 999px;
   color: #f8fafc;
   font-weight: 700;
@@ -251,12 +255,18 @@ const Target = styled.button`
     ${(props) => 6 + props.$speedBoost}s ease-in-out infinite;
 
   &:hover {
-    border-color: var(--primary-color);
-    transform: translateY(-4px) scale(1.05);
-    background: linear-gradient(135deg, #2a3852, #1a2a44);
+    border-color: ${(props) => (props.$isWrong ? "#ef4444" : "var(--primary-color)")};
+    transform: ${(props) =>
+      props.$isWrong ? "translateY(-2px) scale(1.02)" : "translateY(-4px) scale(1.05)"};
+    background: ${(props) =>
+      props.$isWrong
+        ? "linear-gradient(135deg, rgba(153, 27, 27, 0.98), rgba(69, 10, 10, 1))"
+        : "linear-gradient(135deg, #2a3852, #1a2a44)"};
     box-shadow:
-      0 15px 30px rgba(0, 0, 0, 0.4),
-      0 0 15px color-mix(in srgb, var(--primary-color) 30%, transparent);
+      ${(props) =>
+        props.$isWrong
+          ? "0 15px 30px rgba(0, 0, 0, 0.4), 0 0 18px rgba(239, 68, 68, 0.45)"
+          : "0 15px 30px rgba(0, 0, 0, 0.4), 0 0 15px color-mix(in srgb, var(--primary-color) 30%, transparent)"};
   }
 `;
 

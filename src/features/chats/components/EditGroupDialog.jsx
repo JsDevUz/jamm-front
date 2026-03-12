@@ -29,22 +29,37 @@ const Overlay = styled.div`
   justify-content: center;
   padding: 10px;
   z-index: 9999;
+
+  @media (max-width: 768px) {
+    align-items: flex-start;
+    padding: 12px;
+    overflow-y: auto;
+  }
 `;
 
 const Dialog = styled.div`
   background-color: var(--secondary-color, #2f3136);
   width: 440px;
+  max-height: min(86vh, 820px);
   border-radius: 8px;
   display: flex;
   flex-direction: column;
   overflow: hidden;
   box-shadow: 0 8px 16px rgba(0, 0, 0, 0.24);
+
+  @media (max-width: 768px) {
+    width: min(100%, 100%);
+    max-height: calc(100dvh - 24px);
+    margin: auto 0;
+    border-radius: 16px;
+  }
 `;
 
 const Header = styled.div`
   padding: 24px;
   text-align: center;
   position: relative;
+  flex-shrink: 0;
 `;
 
 const Title = styled.h2`
@@ -78,6 +93,12 @@ const Content = styled.div`
   display: flex;
   flex-direction: column;
   gap: 20px;
+  overflow-y: auto;
+  min-height: 0;
+
+  @media (max-width: 768px) {
+    padding: 0 16px 16px;
+  }
 `;
 
 const InputGroup = styled.div`
@@ -227,6 +248,13 @@ const Footer = styled.div`
   display: flex;
   justify-content: flex-end;
   gap: 12px;
+  flex-shrink: 0;
+
+  @media (max-width: 768px) {
+    position: sticky;
+    bottom: 0;
+    padding: 14px 16px calc(14px + env(safe-area-inset-bottom, 0px));
+  }
 `;
 
 const Button = styled.button`

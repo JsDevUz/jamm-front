@@ -109,7 +109,8 @@ export default function UserNameWithDecoration({
 }) {
   const decorations = useProfileDecorationsStore((state) => state.decorations);
 
-  const displayName = user?.nickname || user?.username || fallback;
+  const displayName =
+    user?.name || user?.nickname || user?.username || fallback;
 
   const decoration = useMemo(() => {
     if (

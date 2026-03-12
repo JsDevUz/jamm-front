@@ -196,6 +196,16 @@ const CoursePlayer = ({ courseId, initialLessonSlug, onClose }) => {
   const [hoverSegmentLabel, setHoverSegmentLabel] = useState("");
   const [isBuffering, setIsBuffering] = useState(false);
 
+  const isIgnorablePlaybackError = useCallback((error) => {
+    if (!error) return false;
+    const message = String(error?.message || "").toLowerCase();
+    return (
+      error.name === "AbortError" ||
+      message.includes("interrupted by a call to pause") ||
+      message.includes("play() request was interrupted")
+    );
+  }, []);
+
   const resetControlsHideTimer = useCallback(() => {
     if (hideControlsTimer.current) {
       clearTimeout(hideControlsTimer.current);
@@ -642,6 +652,7 @@ const CoursePlayer = ({ courseId, initialLessonSlug, onClose }) => {
     },
     [admin, canAccessLessons, hasPassedRequiredTestsBeforeLesson, isOwner],
   );
+  const canAccessActiveLesson = canAccessLesson(activeLesson);
 
   // Reset state when course changes
   useEffect(() => {
@@ -704,7 +715,7 @@ const CoursePlayer = ({ courseId, initialLessonSlug, onClose }) => {
       !currentLessonData ||
       !currentLessonHasMedia ||
       !isLocalVideo ||
-      !canAccessLesson(activeLesson) ||
+      !canAccessActiveLesson ||
       playbackRequested
     ) {
       return;
@@ -714,7 +725,7 @@ const CoursePlayer = ({ courseId, initialLessonSlug, onClose }) => {
     setPlaybackRequested(true);
   }, [
     activeLesson,
-    canAccessLesson,
+    canAccessActiveLesson,
     currentLessonData,
     currentLessonHasMedia,
     isLocalVideo,
@@ -858,11 +869,16 @@ const CoursePlayer = ({ courseId, initialLessonSlug, onClose }) => {
     if (!videoRef.current) return;
     setPlaybackError(null);
     if (isPlaying) {
+      shouldAutoplayAfterLoadRef.current = false;
+      shouldAutoplayNextMediaRef.current = false;
       videoRef.current.pause();
     } else {
       const playPromise = videoRef.current.play();
       if (playPromise !== undefined) {
         playPromise.catch((error) => {
+          if (isIgnorablePlaybackError(error)) {
+            return;
+          }
           if (error.name === "NotSupportedError") {
             setPlaybackError(
               t("coursePlayer.errors.formatNotSupported"),
@@ -875,7 +891,7 @@ const CoursePlayer = ({ courseId, initialLessonSlug, onClose }) => {
         });
       }
     }
-  }, [isLocalVideo, isPlaying, playbackUrl]);
+  }, [isIgnorablePlaybackError, isLocalVideo, isPlaying, playbackUrl, t]);
 
   const attemptQueuedAutoplay = useCallback(() => {
     if (
@@ -888,8 +904,13 @@ const CoursePlayer = ({ courseId, initialLessonSlug, onClose }) => {
 
     shouldAutoplayAfterLoadRef.current = false;
     shouldAutoplayNextMediaRef.current = false;
-    videoRef.current.play().catch(() => {});
-  }, []);
+    videoRef.current.play().catch((error) => {
+      if (isIgnorablePlaybackError(error)) {
+        return;
+      }
+      console.error("Queued autoplay error:", error);
+    });
+  }, [isIgnorablePlaybackError]);
 
   const skipForward = useCallback(() => {
     if (videoRef.current) videoRef.current.currentTime += 10;
@@ -997,15 +1018,75 @@ const CoursePlayer = ({ courseId, initialLessonSlug, onClose }) => {
   }, [isMuted, volume]);
 
   const toggleFullscreen = useCallback(() => {
-    if (!videoWrapperRef.current) return;
-    if (document.fullscreenElement) {
-      document.exitFullscreen();
+    const wrapper = videoWrapperRef.current;
+    const video = videoRef.current;
+    if (!wrapper && !video) return;
+
+    const doc = document;
+    const isCurrentlyFullscreen =
+      Boolean(doc.fullscreenElement) ||
+      Boolean(doc.webkitFullscreenElement) ||
+      Boolean(video?.webkitDisplayingFullscreen);
+
+    if (isCurrentlyFullscreen) {
+      if (doc.exitFullscreen) {
+        doc.exitFullscreen().catch?.(() => {});
+      } else if (doc.webkitExitFullscreen) {
+        doc.webkitExitFullscreen();
+      } else if (video?.webkitExitFullscreen) {
+        video.webkitExitFullscreen();
+      }
       setIsFullscreen(false);
-    } else {
-      videoWrapperRef.current.requestFullscreen();
+      return;
+    }
+
+    if (wrapper?.requestFullscreen) {
+      wrapper
+        .requestFullscreen()
+        .then?.(() => setIsFullscreen(true))
+        .catch?.(() => {
+          if (video?.webkitEnterFullscreen) {
+            video.webkitEnterFullscreen();
+            setIsFullscreen(true);
+          }
+        });
+      return;
+    }
+
+    if (wrapper?.webkitRequestFullscreen) {
+      wrapper.webkitRequestFullscreen();
+      setIsFullscreen(true);
+      return;
+    }
+
+    if (video?.webkitEnterFullscreen) {
+      video.webkitEnterFullscreen();
       setIsFullscreen(true);
     }
   }, []);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    const syncFullscreenState = () => {
+      setIsFullscreen(
+        Boolean(document.fullscreenElement) ||
+          Boolean(document.webkitFullscreenElement) ||
+          Boolean(video?.webkitDisplayingFullscreen),
+      );
+    };
+
+    document.addEventListener("fullscreenchange", syncFullscreenState);
+    document.addEventListener("webkitfullscreenchange", syncFullscreenState);
+    video?.addEventListener?.("webkitbeginfullscreen", syncFullscreenState);
+    video?.addEventListener?.("webkitendfullscreen", syncFullscreenState);
+
+    return () => {
+      document.removeEventListener("fullscreenchange", syncFullscreenState);
+      document.removeEventListener("webkitfullscreenchange", syncFullscreenState);
+      video?.removeEventListener?.("webkitbeginfullscreen", syncFullscreenState);
+      video?.removeEventListener?.("webkitendfullscreen", syncFullscreenState);
+    };
+  }, [currentMediaKey]);
 
   useEffect(
     () => () => {
@@ -1181,7 +1262,7 @@ const CoursePlayer = ({ courseId, initialLessonSlug, onClose }) => {
       !playbackRequested ||
       !isLocalVideo ||
       !lessonIdentifier ||
-      !canAccessLesson(activeLesson)
+      !canAccessActiveLesson
     ) {
       setPlaybackUrl(null);
       setPlaybackStreamType("direct");
@@ -1221,7 +1302,7 @@ const CoursePlayer = ({ courseId, initialLessonSlug, onClose }) => {
     };
   }, [
     activeLesson,
-    canAccessLesson,
+    canAccessActiveLesson,
     courseId,
     currentMediaItem?.mediaId,
     isLocalVideo,
@@ -1339,7 +1420,12 @@ const CoursePlayer = ({ courseId, initialLessonSlug, onClose }) => {
       }
 
       shouldAutoplayAfterLoadRef.current = false;
-      videoRef.current.play().catch(() => {});
+      videoRef.current.play().catch((error) => {
+        if (isIgnorablePlaybackError(error)) {
+          return;
+        }
+        console.error("Deferred playback error:", error);
+      });
     };
 
     const onCanPlay = () => {
@@ -1360,7 +1446,7 @@ const CoursePlayer = ({ courseId, initialLessonSlug, onClose }) => {
       cancelAnimationFrame(frame);
       video.removeEventListener("canplay", onCanPlay);
     };
-  }, [isHlsVideo, playbackUrl]);
+  }, [isHlsVideo, isIgnorablePlaybackError, playbackUrl]);
 
   if (!course) {
     return (

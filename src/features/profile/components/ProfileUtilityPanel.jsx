@@ -175,6 +175,7 @@ const PromoRow = styled.div`
 const Input = styled.input`
   flex: 1;
   height: 44px;
+  min-height: 44px;
   border-radius: 10px;
   border: 1px solid var(--border-color);
   background: var(--input-color);
@@ -183,10 +184,19 @@ const Input = styled.input`
   font-size: 14px;
   outline: none;
   min-width: 0;
+  box-sizing: border-box;
+
+  @media (max-width: 768px) {
+    height: 50px;
+    min-height: 50px;
+    font-size: 16px;
+    padding: 0 16px;
+  }
 `;
 
 const Button = styled.button`
   height: 44px;
+  min-height: 44px;
   padding: 0 14px;
   border-radius: 10px;
   border: none;
@@ -203,6 +213,13 @@ const Button = styled.button`
   opacity: ${(p) => (p.disabled ? 0.55 : 1)};
   pointer-events: ${(p) => (p.disabled ? "none" : "auto")};
   white-space: nowrap;
+  box-sizing: border-box;
+
+  @media (max-width: 768px) {
+    height: 50px;
+    min-height: 50px;
+    font-size: 14px;
+  }
 `;
 
 const DecorationsGrid = styled.div`

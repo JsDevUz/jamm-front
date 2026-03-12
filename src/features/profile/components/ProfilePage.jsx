@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import dayjs from "dayjs";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -44,6 +44,8 @@ const ProfilePage = ({ profileUserId, isFocused = false, onToggleFocus }) => {
   } = usePosts();
   const { courses } = useCourses();
   const navigate = useNavigate();
+  const isRestoringHistoryRef = useRef(false);
+  const previousActiveTabRef = useRef(null);
 
   const isMobile = window.innerWidth <= 768;
   const [activeTab, setActiveTab] = useState(() => {
@@ -113,6 +115,61 @@ const ProfilePage = ({ profileUserId, isFocused = false, onToggleFocus }) => {
 
     return () => window.clearTimeout(timer);
   }, [isOwnProfile]);
+
+  useEffect(() => {
+    const handlePopState = () => {
+      const nextTab = window.history.state?.profilePaneTab || null;
+      isRestoringHistoryRef.current = true;
+      setActiveTab(nextTab);
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
+
+  useEffect(() => {
+    const previousTab = previousActiveTabRef.current;
+
+    if (isRestoringHistoryRef.current) {
+      previousActiveTabRef.current = activeTab;
+      isRestoringHistoryRef.current = false;
+      return;
+    }
+
+    if (!activeTab) {
+      previousActiveTabRef.current = null;
+      if (window.history.state?.profilePaneTab) {
+        window.history.replaceState(
+          { ...window.history.state, profilePaneTab: null },
+          "",
+          window.location.href,
+        );
+      }
+      return;
+    }
+
+    const nextState = {
+      ...(window.history.state || {}),
+      profilePaneTab: activeTab,
+    };
+
+    if (!previousTab) {
+      window.history.pushState(nextState, "", window.location.href);
+    } else {
+      window.history.replaceState(nextState, "", window.location.href);
+    }
+
+    previousActiveTabRef.current = activeTab;
+  }, [activeTab]);
+
+  const handlePaneBack = () => {
+    if (window.history.state?.profilePaneTab) {
+      window.history.back();
+      return;
+    }
+
+    setActiveTab(null);
+  };
 
   const handleCreatePost = async (text) => {
     await createPost(text);
@@ -213,14 +270,14 @@ const ProfilePage = ({ profileUserId, isFocused = false, onToggleFocus }) => {
             onEditPost={setEditingPost}
             onDeletePost={setPostToDelete}
             onCreatePost={() => setIsCreatePostOpen(true)}
-            onBack={() => setActiveTab(null)}
+            onBack={handlePaneBack}
           />
         ) : null}
 
         {activeTab === "courses" ? (
           <ProfileCoursesPane
             courses={userCourses}
-            onBack={() => setActiveTab(null)}
+            onBack={handlePaneBack}
             onOpenCourse={(course) =>
               navigate(`/courses/${course.urlSlug || course.id || course._id}`)
             }
@@ -232,7 +289,7 @@ const ProfilePage = ({ profileUserId, isFocused = false, onToggleFocus }) => {
             profileUser={targetUser}
             profileUserId={profileUserId}
             isOwnProfile={isOwnProfile}
-            onBack={() => setActiveTab(null)}
+            onBack={handlePaneBack}
             onCountChange={setBlogCount}
           />
         ) : null}
@@ -244,7 +301,7 @@ const ProfilePage = ({ profileUserId, isFocused = false, onToggleFocus }) => {
           <ProfileUtilityPanel
             section={activeTab}
             currentUser={currentUser}
-            onBack={() => setActiveTab(null)}
+            onBack={handlePaneBack}
           />
         ) : null}
       </RightPanel>

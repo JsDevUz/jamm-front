@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import styled from "styled-components";
 import { ArrowLeft, CheckCircle, XCircle, Timer } from "lucide-react";
 import useAuthStore from "../../../store/authStore";
@@ -469,6 +469,7 @@ const SoloTestPlayer = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showExitConfirm, setShowExitConfirm] = useState(false);
   const [submittedAnswers, setSubmittedAnswers] = useState([]);
+  const selectedOptionRef = useRef(null);
 
   // Timer State
   const [timeLeft, setTimeLeft] = useState(configuredTimeLimit * 60);
@@ -629,10 +630,22 @@ const SoloTestPlayer = ({
     setTimeLeft(configuredTimeLimit * 60);
   }, [configuredTimeLimit, test._id]);
 
+  useEffect(() => {
+    if (displayMode !== "single") return;
+    selectedOptionRef.current = null;
+    if (typeof document !== "undefined") {
+      document.activeElement?.blur?.();
+    }
+  }, [currentIdx, displayMode]);
+
   const showResults = serverResults?.showResults ?? configuredShowResults;
 
   const handleSelect = (idx) => {
     if (isRevealed) return;
+    selectedOptionRef.current = idx;
+    if (typeof document !== "undefined") {
+      document.activeElement?.blur?.();
+    }
     setSelectedOption(idx);
     setIsRevealed(true);
 
@@ -894,14 +907,14 @@ const SoloTestPlayer = ({
           <QuestionBox>
             <QuestionText>{currentQ.questionText}</QuestionText>
           </QuestionBox>
-          <OptionsGrid>
+          <OptionsGrid key={`single-question-${currentIdx}`}>
             {currentQ.options.map((opt, idx) => {
               const letter =
                 ["A", "B", "D", "E", "F", "G"][idx] ||
                 String.fromCharCode(65 + idx);
               return (
                 <OptionBtn
-                  key={idx}
+                  key={`${currentIdx}-${idx}`}
                   disabled={isRevealed}
                   isSelected={selectedOption === idx}
                   isCorrect={false}

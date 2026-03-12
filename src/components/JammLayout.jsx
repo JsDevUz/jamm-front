@@ -3,6 +3,7 @@ import React, {
   lazy,
   useState,
   useEffect,
+  useRef,
   startTransition,
 } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
@@ -19,12 +20,24 @@ import {
   ContentPane,
   EmptyPane,
   MainContent,
+  NotificationPromptActions,
+  NotificationPromptBanner,
+  NotificationPromptButton,
+  NotificationPromptDescription,
+  NotificationPromptText,
+  NotificationPromptTitle,
   PaneDivider,
   PaneDividerButton,
   ScrollPane,
 } from "./JammLayout.styles";
 import usePremiumUpgradeModalStore from "../app/store/usePremiumUpgradeModalStore";
 import { getTourFlag, setTourFlag } from "../app/utils/tourStorage";
+import {
+  getDesktopNotificationsBannerDismissed,
+  getDesktopNotificationsEnabled,
+  requestDesktopNotificationPermission,
+  setDesktopNotificationsBannerDismissed,
+} from "../utils/desktopNotifications";
 
 const ChatArea = lazy(() =>
   import("../features/chats/components").then((module) => ({
@@ -120,6 +133,8 @@ const JammLayout = ({
   const [activeArenaTab, setActiveArenaTab] = useState(null);
   const [isCreateMeetOpen, setIsCreateMeetOpen] = useState(false);
   const [isRightPaneFocused, setIsRightPaneFocused] = useState(false);
+  const [showNotificationPromptBanner, setShowNotificationPromptBanner] =
+    useState(false);
   const [isCoursesTourOpen, setIsCoursesTourOpen] = useState(false);
   const [isChatsTourOpen, setIsChatsTourOpen] = useState(false);
   const [isProfileIntroTourOpen, setIsProfileIntroTourOpen] = useState(false);
@@ -130,12 +145,62 @@ const JammLayout = ({
     openPremiumUpgradeModal,
     closePremiumUpgradeModal,
   } = usePremiumUpgradeModalStore();
+  const mainContentRef = useRef(null);
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth <= 768);
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
   }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof Notification === "undefined") {
+      return;
+    }
+
+    if (!getDesktopNotificationsEnabled()) {
+      return;
+    }
+
+    if (Notification.permission !== "default") {
+      return;
+    }
+
+    requestDesktopNotificationPermission().catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof Notification === "undefined") {
+      return;
+    }
+
+    const shouldShowBanner =
+      getDesktopNotificationsEnabled() &&
+      Notification.permission === "default" &&
+      !getDesktopNotificationsBannerDismissed();
+
+    setShowNotificationPromptBanner(shouldShowBanner);
+  }, []);
+
+  const handleEnableNotifications = async () => {
+    const permission = await requestDesktopNotificationPermission();
+
+    if (permission === "granted") {
+      setDesktopNotificationsBannerDismissed(true);
+      setShowNotificationPromptBanner(false);
+      return;
+    }
+
+    if (permission === "denied") {
+      setDesktopNotificationsBannerDismissed(true);
+      setShowNotificationPromptBanner(false);
+    }
+  };
+
+  const handleDismissNotificationBanner = () => {
+    setDesktopNotificationsBannerDismissed(true);
+    setShowNotificationPromptBanner(false);
+  };
 
   useEffect(() => {
     setIsRightPaneFocused(false);
@@ -318,6 +383,136 @@ const JammLayout = ({
     });
   };
 
+  useEffect(() => {
+    if (!isMobile || typeof window === "undefined") return;
+
+    const hasChatDetailOpen =
+      ["chats", "users", "groups", "meets"].includes(selectedNav) &&
+      selectedChatId &&
+      selectedChatId !== "0" &&
+      selectedChatId !== 0;
+    const hasCourseDetailOpen =
+      selectedNav === "courses" && viewMode === "courses" && selectedCourse;
+    const hasBlockingOverlay =
+      isCreateGroupOpen ||
+      isCreateMeetOpen ||
+      isUpgradeModalOpen ||
+      isCoursesTourOpen ||
+      isChatsTourOpen ||
+      isProfileIntroTourOpen ||
+      (currentUser && !currentUser.isOnboardingCompleted);
+
+    if (hasChatDetailOpen || hasCourseDetailOpen || hasBlockingOverlay) {
+      return;
+    }
+
+    const element = mainContentRef.current;
+    if (!element) return;
+
+    let startX = 0;
+    let startY = 0;
+    let tracking = false;
+
+    const navigateChatTabs = (direction) => {
+      const orderedTabs = ["users", "groups", "meets"];
+      const currentTab =
+        selectedNav === "groups" || selectedNav === "meets"
+          ? selectedNav
+          : "users";
+      const currentIndex = orderedTabs.indexOf(currentTab);
+      const nextIndex = currentIndex + direction;
+
+      if (nextIndex < 0 || nextIndex >= orderedTabs.length) return;
+
+      const nextTab = orderedTabs[nextIndex];
+      setSelectedNav(nextTab);
+      setSelectedChatId(0);
+      navigate(`/${nextTab}`);
+    };
+
+    const navigateCourseTabs = (direction) => {
+      if (direction > 0 && viewMode === "courses") {
+        setViewMode("arena");
+        setSelectedNav("arena");
+        setActiveArenaTab(null);
+        navigate("/arena");
+        return;
+      }
+
+      if (direction < 0 && (selectedNav === "arena" || viewMode === "arena")) {
+        setViewMode("courses");
+        setSelectedNav("courses");
+        navigate("/courses");
+      }
+    };
+
+    const handleTouchStart = (event) => {
+      if (event.touches.length !== 1) return;
+
+      const target =
+        event.target instanceof Element ? event.target : event.target?.parentElement;
+      if (
+        target &&
+        target.closest("input, textarea, button, [role='button'], [contenteditable='true']")
+      ) {
+        tracking = false;
+        return;
+      }
+
+      const touch = event.touches[0];
+      startX = touch.clientX;
+      startY = touch.clientY;
+      tracking = true;
+    };
+
+    const handleTouchEnd = (event) => {
+      if (!tracking || event.changedTouches.length !== 1) return;
+      tracking = false;
+
+      const touch = event.changedTouches[0];
+      const deltaX = touch.clientX - startX;
+      const deltaY = touch.clientY - startY;
+
+      if (Math.abs(deltaX) < 70 || Math.abs(deltaY) > 50) return;
+      if (Math.abs(deltaX) < Math.abs(deltaY)) return;
+
+      const direction = deltaX < 0 ? 1 : -1;
+
+      if (["chats", "users", "groups", "meets"].includes(selectedNav)) {
+        navigateChatTabs(direction);
+        return;
+      }
+
+      if (selectedNav === "courses" || selectedNav === "arena") {
+        navigateCourseTabs(direction);
+      }
+    };
+
+    element.addEventListener("touchstart", handleTouchStart, { passive: true });
+    element.addEventListener("touchend", handleTouchEnd, { passive: true });
+
+    return () => {
+      element.removeEventListener("touchstart", handleTouchStart);
+      element.removeEventListener("touchend", handleTouchEnd);
+    };
+  }, [
+    currentUser,
+    isChatsTourOpen,
+    isCoursesTourOpen,
+    isCreateGroupOpen,
+    isCreateMeetOpen,
+    isMobile,
+    isProfileIntroTourOpen,
+    isUpgradeModalOpen,
+    navigate,
+    selectedChatId,
+    selectedCourse,
+    selectedNav,
+    setSelectedChatId,
+    setSelectedNav,
+    viewMode,
+  ]);
+
   const handleCreateGroup = async (groupData) => {
     try {
       const chatId = await createChat({
@@ -373,12 +568,40 @@ const JammLayout = ({
 
   return (
     <AppContainer>
+      {showNotificationPromptBanner && (
+        <NotificationPromptBanner>
+          <NotificationPromptText>
+            <NotificationPromptTitle>
+              Yangi xabarlar haqida bildirishnoma yoqilsinmi?
+            </NotificationPromptTitle>
+            <NotificationPromptDescription>
+              Boshqa chatda yoki boshqa ilovada bo‘lsangiz ham yangi xabarni
+              darrov ko‘rasiz.
+            </NotificationPromptDescription>
+          </NotificationPromptText>
+          <NotificationPromptActions>
+            <NotificationPromptButton
+              type="button"
+              $secondary
+              onClick={handleDismissNotificationBanner}
+            >
+              Keyinroq
+            </NotificationPromptButton>
+            <NotificationPromptButton
+              type="button"
+              onClick={handleEnableNotifications}
+            >
+              Yoqish
+            </NotificationPromptButton>
+          </NotificationPromptActions>
+        </NotificationPromptBanner>
+      )}
       <ServerSidebar
         selectedNav={selectedNav}
         onSelectNav={handleSelectNav}
         onPreloadNav={handlePreloadNav}
       />
-      <MainContent>
+      <MainContent ref={mainContentRef}>
         {selectedNav === "courses" ||
         selectedNav === "arena" ||
         selectedNav === "home" ? (

@@ -13,6 +13,7 @@ import {
   AvatarButton,
   AvatarFallback,
   AvatarImage,
+  NavBadge,
   NavButton,
   SidebarContainer,
   Spacer,
@@ -27,8 +28,12 @@ const baseNavItems = [
 
 export default function ServerSidebar({ onSelectNav, onPreloadNav }) {
   const { t } = useTranslation();
-  const { selectedNav, setSelectedNav } = useChats();
+  const { chats, selectedNav, setSelectedNav } = useChats();
   const currentUser = useAuthStore((state) => state.user);
+  const totalUnreadCount = chats.reduce(
+    (total, chat) => total + Math.max(0, Number(chat.unread) || 0),
+    0,
+  );
 
   const handleNav = (navId) => {
     if (onSelectNav) {
@@ -65,6 +70,9 @@ export default function ServerSidebar({ onSelectNav, onPreloadNav }) {
           title={t(item.labelKey)}
         >
           <item.icon size={20} />
+          {item.id === "chats" && totalUnreadCount > 0 && (
+            <NavBadge>{totalUnreadCount}</NavBadge>
+          )}
         </NavButton>
       ))}
 

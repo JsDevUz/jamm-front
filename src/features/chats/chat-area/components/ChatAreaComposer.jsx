@@ -1,6 +1,6 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import styled from "styled-components";
-import { Plus, Smile, X } from "lucide-react";
+import { Plus, SendHorizontal, Smile, X } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { CHAT_EMOJIS } from "../constants/emojis";
 import { useChatAreaContext } from "../context/ChatAreaContext";
@@ -108,7 +108,13 @@ const InputButtons = styled.div`
   display: flex;
   align-items: center;
   gap: 16px;
-  margin-right: 16px;
+  position: relative;
+  flex-shrink: 0;
+  min-width: ${(props) => (props.$side === "right" ? "72px" : "36px")};
+  justify-content: ${(props) =>
+    props.$side === "right" ? "flex-end" : "flex-start"};
+  margin-right: ${(props) => (props.$side === "left" ? "16px" : "0")};
+  margin-left: ${(props) => (props.$side === "right" ? "16px" : "0")};
 `;
 
 const InputButton = styled.button`
@@ -124,6 +130,40 @@ const InputButton = styled.button`
 
   &:hover {
     color: var(--text-color);
+  }
+`;
+
+const InlineTooltip = styled.div`
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 10px);
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--secondary-color) 92%, black 8%);
+  border: 1px solid color-mix(in srgb, var(--border-color) 72%, transparent);
+  color: var(--text-color);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.16);
+  z-index: 12;
+  pointer-events: none;
+`;
+
+const SendButton = styled(InputButton)`
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--primary-color);
+  color: white;
+  flex-shrink: 0;
+  opacity: ${(props) => (props.disabled ? 0.45 : 1)};
+  pointer-events: ${(props) => (props.disabled ? "none" : "auto")};
+  visibility: ${(props) => (props.$visible ? "visible" : "hidden")};
+
+  &:hover {
+    color: white;
+    filter: brightness(1.06);
   }
 `;
 
@@ -166,7 +206,9 @@ const EmojiPicker = styled.div`
   gap: 12px;
   max-height: min(420px, calc(var(--app-height, 100dvh) - 140px));
   overflow-y: auto;
+  overflow-x: hidden;
   scrollbar-width: none;
+  box-sizing: border-box;
 
   &::-webkit-scrollbar {
     display: none;
@@ -235,6 +277,8 @@ const EmojiSection = styled.div`
   display: flex;
   flex-direction: column;
   gap: 8px;
+  width: 100%;
+  min-width: 0;
 `;
 
 const EmojiSectionLabel = styled.div`
@@ -250,6 +294,8 @@ const EmojiGrid = styled.div`
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 6px;
+  width: 100%;
+  min-width: 0;
 `;
 
 const EmojiButton = styled.button`
@@ -277,6 +323,7 @@ const EmojiButton = styled.button`
 `;
 
 const ChatAreaComposer = () => {
+  const [showComingSoonTooltip, setShowComingSoonTooltip] = useState(false);
   const {
     currentChat,
     previewChat,
@@ -288,16 +335,28 @@ const ChatAreaComposer = () => {
     toggleEmojiPicker,
     showEmojiPicker,
     handleEmojiClick,
+    submitMessage,
     messageInputRef,
     messageInput,
     handleInputChange,
     handleSendMessage,
   } = useChatAreaContext();
+  const canSend = Boolean(messageInput.trim());
   const emojiSections = [
     { label: "Faces", emojis: CHAT_EMOJIS.slice(0, 35) },
     { label: "Mood", emojis: CHAT_EMOJIS.slice(35, 80) },
     { label: "Fun", emojis: CHAT_EMOJIS.slice(80) },
   ];
+
+  useEffect(() => {
+    if (!showComingSoonTooltip) return undefined;
+
+    const timer = window.setTimeout(() => {
+      setShowComingSoonTooltip(false);
+    }, 1600);
+
+    return () => window.clearTimeout(timer);
+  }, [showComingSoonTooltip]);
 
   if (previewChat && !currentChat && previewChat.type !== "user") {
     return (
@@ -351,11 +410,18 @@ const ChatAreaComposer = () => {
         )}
 
         <InputWrapper>
-          <InputButtons>
-            <InputButton>
+          <InputButtons $side="left">
+            {showComingSoonTooltip ? (
+              <InlineTooltip>Tez kunda...</InlineTooltip>
+            ) : null}
+            <InputButton
+              type="button"
+              onClick={() => setShowComingSoonTooltip(true)}
+              title="Tez kunda..."
+              aria-label="Tez kunda..."
+            >
               <Plus size={20} />
             </InputButton>
-          
           </InputButtons>
 
           <MessageInput
@@ -368,11 +434,20 @@ const ChatAreaComposer = () => {
             rows={1}
             maxLength={400}
           />
-          <InputButtons>
-         
+          <InputButtons $side="right">
             <InputButton onClick={toggleEmojiPicker} className="emoji-button">
               <Smile size={20} />
             </InputButton>
+            <SendButton
+              type="button"
+              onClick={submitMessage}
+              disabled={!canSend}
+              $visible={canSend}
+              title="Yuborish"
+              aria-label="Yuborish"
+            >
+              <SendHorizontal size={16} />
+            </SendButton>
           </InputButtons>
         </InputWrapper>
       </ComposerStack>

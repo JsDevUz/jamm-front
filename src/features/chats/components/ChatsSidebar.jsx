@@ -24,6 +24,8 @@ import {
   ChatMessage,
   ChatMeta,
   ChatName,
+  ChatsTabBadge,
+  ChatsTabLabel,
   ChatsTab,
   ChatsTabsRow,
   EmptyState,
@@ -346,6 +348,24 @@ const ChatsSidebar = ({
     );
   }, [meets, searchQuery, t]);
 
+  const privateUnreadTotal = useMemo(
+    () =>
+      chats.reduce((total, chat) => {
+        if (chat.isGroup) return total;
+        return total + Math.max(0, Number(chat.unread) || 0);
+      }, 0),
+    [chats],
+  );
+
+  const groupUnreadTotal = useMemo(
+    () =>
+      chats.reduce((total, chat) => {
+        if (!chat.isGroup) return total;
+        return total + Math.max(0, Number(chat.unread) || 0);
+      }, 0),
+    [chats],
+  );
+
   const handleDeleteMeet = async (event, roomId) => {
     event.preventDefault();
     event.stopPropagation();
@@ -474,7 +494,14 @@ const ChatsSidebar = ({
               navigate("/users");
             }}
           >
-            {t("chatsSidebar.tabs.private")}
+            <ChatsTabLabel>
+              {t("chatsSidebar.tabs.private")}
+              {privateUnreadTotal > 0 && (
+                <ChatsTabBadge $active={effectiveChatTab === "private"}>
+                  {privateUnreadTotal}
+                </ChatsTabBadge>
+              )}
+            </ChatsTabLabel>
           </ChatsTab>
           <ChatsTab
             data-tour="chats-tab-groups"
@@ -484,7 +511,14 @@ const ChatsSidebar = ({
               navigate("/groups");
             }}
           >
-            {t("chatsSidebar.tabs.groups")}
+            <ChatsTabLabel>
+              {t("chatsSidebar.tabs.groups")}
+              {groupUnreadTotal > 0 && (
+                <ChatsTabBadge $active={effectiveChatTab === "group"}>
+                  {groupUnreadTotal}
+                </ChatsTabBadge>
+              )}
+            </ChatsTabLabel>
           </ChatsTab>
           <ChatsTab
             data-tour="chats-tab-video"
@@ -692,10 +726,11 @@ const ChatsSidebar = ({
                     !chat.isGroup && chat.members
                       ? chat.members.find(
                           (member) =>
-                            (member._id || member.id) !== currentUserId,
+                            String(member._id || member.id) !==
+                            String(currentUserId),
                         )
                       : null;
-                  const otherUserId = otherMember?._id;
+                  const otherUserId = otherMember?._id || otherMember?.id;
                   const isOnline = otherUserId
                     ? isUserOnline(otherUserId)
                     : false;

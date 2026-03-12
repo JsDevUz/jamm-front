@@ -14,7 +14,7 @@ export const SidebarContainer = styled.div`
 
   @media (max-width: 700px) {
     position: fixed;
-    bottom: 12px;
+    bottom: calc(12px + env(safe-area-inset-bottom, 0px));
     left: 14px;
     right: 14px;
     width: auto;
@@ -22,7 +22,7 @@ export const SidebarContainer = styled.div`
     flex-direction: row;
     justify-content: space-around;
     align-items: center;
-    padding: 10px 12px;
+    padding: 10px 12px calc(10px + env(safe-area-inset-bottom, 0px));
     border-radius: 20px;
     background: rgba(var(--tertiary-color-rgb, 32, 34, 37), 0.7);
     backdrop-filter: blur(4px) saturate(160%);
@@ -35,6 +35,7 @@ export const SidebarContainer = styled.div`
 `;
 
 export const NavButton = styled.button`
+  position: relative;
   width: 48px;
   height: 48px;
   border-radius: 50%;
@@ -62,6 +63,30 @@ export const NavButton = styled.button`
     margin-bottom: 0;
     width: 44px;
     height: 44px;
+  }
+`;
+
+export const NavBadge = styled.span`
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--primary-color);
+  color: white;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  box-shadow: 0 0 0 2px var(--tertiary-color);
+
+  @media (max-width: 700px) {
+    top: -4px;
+    right: -4px;
   }
 `;
 

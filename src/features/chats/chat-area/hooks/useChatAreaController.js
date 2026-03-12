@@ -16,6 +16,7 @@ import {
   getUserAvatarInitials,
   groupMessagesByDate,
   mapIncomingMessage,
+  normalizeReadByIds,
   normalizeSenderId,
 } from "../utils/chatAreaMessageUtils";
 
@@ -50,9 +51,13 @@ export default function useChatAreaController({
   const isEditGroupDialogOpen = useChatAreaUiStore(
     (state) => state.isEditGroupDialogOpen,
   );
+  const isInfoSidebarOpen = useChatAreaUiStore(
+    (state) => state.isInfoSidebarOpen,
+  );
   const isHeaderMenuOpen = useChatAreaUiStore(
     (state) => state.isHeaderMenuOpen,
   );
+  const openInfoSidebar = useChatAreaUiStore((state) => state.openInfoSidebar);
   const closeHeaderMenu = useChatAreaUiStore((state) => state.closeHeaderMenu);
   const closeDeleteDialog = useChatAreaUiStore(
     (state) => state.closeDeleteDialog,
@@ -89,10 +94,63 @@ export default function useChatAreaController({
   const messageRefs = useRef({});
   const messagesEndRef = useRef(null);
   const messageInputRef = useRef(null);
+  const isRestoringChatInfoHistoryRef = useRef(false);
+  const previousInfoSidebarStateRef = useRef(false);
 
   useEffect(() => {
     resetChatAreaUi();
   }, [selectedChatId, resetChatAreaUi]);
+
+  useEffect(() => {
+    const handlePopState = () => {
+      const shouldShowInfoSidebar = Boolean(window.history.state?.chatInfoSidebar);
+      isRestoringChatInfoHistoryRef.current = true;
+
+      if (shouldShowInfoSidebar) {
+        openInfoSidebar();
+      } else {
+        closeInfoSidebar();
+      }
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, [closeInfoSidebar, openInfoSidebar]);
+
+  useEffect(() => {
+    const wasOpen = previousInfoSidebarStateRef.current;
+
+    if (isRestoringChatInfoHistoryRef.current) {
+      previousInfoSidebarStateRef.current = isInfoSidebarOpen;
+      isRestoringChatInfoHistoryRef.current = false;
+      return;
+    }
+
+    if (!isInfoSidebarOpen) {
+      previousInfoSidebarStateRef.current = false;
+      if (window.history.state?.chatInfoSidebar) {
+        window.history.replaceState(
+          { ...window.history.state, chatInfoSidebar: null },
+          "",
+          window.location.href,
+        );
+      }
+      return;
+    }
+
+    const nextState = {
+      ...(window.history.state || {}),
+      chatInfoSidebar: true,
+    };
+
+    if (!wasOpen) {
+      window.history.pushState(nextState, "", window.location.href);
+    } else {
+      window.history.replaceState(nextState, "", window.location.href);
+    }
+
+    previousInfoSidebarStateRef.current = true;
+  }, [isInfoSidebarOpen]);
 
   const displayChat = currentChat || previewChat;
   const currentChatName = displayChat?.name || "Chat";
@@ -104,7 +162,8 @@ export default function useChatAreaController({
           return String(memberId) !== String(currentUserId);
         })
       : null;
-  const isOnline = otherMember ? isUserOnline(otherMember._id) : false;
+  const otherMemberId = otherMember?._id || otherMember?.id;
+  const isOnline = otherMemberId ? isUserOnline(otherMemberId) : false;
   const onlineCount =
     displayChat?.type === "group" ? getOnlineCount(displayChat.members) : 0;
 
@@ -210,11 +269,24 @@ export default function useChatAreaController({
       setMessagesHasMore(Boolean(result.hasMore));
       setIsLoadingMessages(false);
 
-      const currentUserId = currentUser?._id || currentUser?.id;
+      const currentUserId = String(currentUser?._id || currentUser?.id || "");
+      const unreadMessageIds = loadedMessages
+        .filter((message) => {
+          const senderId = String(normalizeSenderId(message.senderId) || "");
+          const readBy = normalizeReadByIds(message.readBy);
+          return senderId && senderId !== currentUserId && !readBy.includes(currentUserId);
+        })
+        .map((message) => message.id || message._id)
+        .filter(Boolean);
+
+      if (unreadMessageIds.length > 0) {
+        markMessagesAsRead(currentChat.id, unreadMessageIds);
+      }
+
       const firstUnread = loadedMessages.find(
         (message) =>
-          message.senderId !== currentUserId &&
-          !message.readBy?.includes(currentUserId),
+          String(normalizeSenderId(message.senderId) || "") !== currentUserId &&
+          !normalizeReadByIds(message.readBy).includes(currentUserId),
       );
 
       setTimeout(() => {
@@ -233,7 +305,13 @@ export default function useChatAreaController({
     };
 
     loadMessages();
-  }, [currentChat?.id, currentUser?._id, currentUser?.id, fetchMessages]);
+  }, [
+    currentChat?.id,
+    currentUser?._id,
+    currentUser?.id,
+    fetchMessages,
+    markMessagesAsRead,
+  ]);
 
   const fetchMoreMessages = async () => {
     if (
@@ -363,8 +441,10 @@ export default function useChatAreaController({
     const currentUserId = currentUser?._id || currentUser?.id;
     const unreadMessages = messages.filter((message) => {
       const senderId = normalizeSenderId(message.senderId);
+      const readBy = normalizeReadByIds(message.readBy);
       return (
-        senderId !== currentUserId && !message.readBy?.includes(currentUserId)
+        String(senderId) !== String(currentUserId) &&
+        !readBy.includes(String(currentUserId))
       );
     });
 
@@ -390,7 +470,9 @@ export default function useChatAreaController({
 
           if (
             String(senderId) !== String(currentUserId) &&
-            !matchingMessage.readBy?.includes(currentUserId)
+            !normalizeReadByIds(matchingMessage.readBy).includes(
+              String(currentUserId),
+            )
           ) {
             newlyReadIds.push(matchingMessage.id || matchingMessage._id);
           }
@@ -519,6 +601,29 @@ export default function useChatAreaController({
     } catch (error) {
       console.error("Failed to start private chat", error);
     }
+  };
+
+  const handleInfoSidebarToggle = () => {
+    if (isInfoSidebarOpen && window.history.state?.chatInfoSidebar) {
+      window.history.back();
+      return;
+    }
+
+    if (isInfoSidebarOpen) {
+      closeInfoSidebar();
+      return;
+    }
+
+    openInfoSidebar();
+  };
+
+  const handleInfoSidebarClose = () => {
+    if (window.history.state?.chatInfoSidebar) {
+      window.history.back();
+      return;
+    }
+
+    closeInfoSidebar();
   };
 
   const scrollToBottom = (behavior = "auto") => {
@@ -857,21 +962,17 @@ export default function useChatAreaController({
     [messages],
   );
 
-  const handleSendMessage = async (event) => {
-    if (event.key !== "Enter" || event.shiftKey || !messageInput.trim()) {
-      return;
-    }
+  const submitMessage = async () => {
+    if (!messageInput.trim()) return;
 
-    event.preventDefault();
+    const shouldBlurAfterSend =
+      typeof window !== "undefined" &&
+      window.matchMedia("(max-width: 768px)").matches;
     const content = messageInput.trim();
     const replyToMessageId = replyMessage ? replyMessage.id : null;
 
     setMessageInput("");
     setReplyMessage(null);
-
-    setTimeout(() => {
-      messageInputRef.current?.focus();
-    }, 0);
 
     try {
       let targetChatId = currentChat?.id;
@@ -906,10 +1007,30 @@ export default function useChatAreaController({
         return [...previous, nextMessage];
       });
 
+      setTimeout(() => {
+        if (!messageInputRef.current) return;
+
+        if (shouldBlurAfterSend) {
+          messageInputRef.current.blur();
+          return;
+        }
+
+        messageInputRef.current.focus();
+      }, 0);
+
       setTimeout(() => scrollToBottom("smooth"), 100);
     } catch (error) {
       console.error("Failed to send message:", error);
     }
+  };
+
+  const handleSendMessage = async (event) => {
+    if (event.key !== "Enter" || event.shiftKey || !messageInput.trim()) {
+      return;
+    }
+
+    event.preventDefault();
+    await submitMessage();
   };
 
   const editGroupUsers = chats
@@ -976,6 +1097,7 @@ export default function useChatAreaController({
       renderMessageContent,
       formatDate: formatMessageDate,
       handleInputChange,
+      submitMessage,
       handleSendMessage,
       toggleEmojiPicker,
       handleEmojiClick,
@@ -990,6 +1112,7 @@ export default function useChatAreaController({
       fetchMoreMessages,
       handleEditMessage,
       handleInputChange,
+      submitMessage,
       handleSendMessage,
       joinGroupChat,
       messageGroups,
@@ -1017,6 +1140,8 @@ export default function useChatAreaController({
     handleDeleteChat,
     handleEditGroupSave,
     handleMemberClick,
+    handleInfoSidebarClose,
+    handleInfoSidebarToggle,
     headerMenuRef,
     isEditGroupDialogOpen,
     isOnline,

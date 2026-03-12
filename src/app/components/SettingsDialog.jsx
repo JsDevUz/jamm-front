@@ -706,7 +706,7 @@ const SettingsDialog = ({ isOpen, onClose, initialSection = "my-account" }) => {
     messageDisplay: "compact",
     twoFactorAuth: false,
     privacyMode: "friends",
-    language: "en-US",
+    language: "uz",
     region: "US",
   });
 
