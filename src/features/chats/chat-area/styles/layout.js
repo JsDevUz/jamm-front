@@ -11,9 +11,9 @@ export const ChatContainer = styled.div`
 
   @media (max-width: 768px) {
     width: 100%;
-    height: var(--app-height, 100dvh);
+    height: var(--visual-viewport-height, var(--app-height, 100dvh));
     position: fixed;
-    top: 0;
+    top: var(--visual-viewport-offset-top, 0px);
     left: 0;
     padding-top: env(safe-area-inset-top, 0px);
     z-index: 1000;
@@ -40,6 +40,10 @@ export const OuterChatWrapper = styled.div`
   height: var(--app-height, 100dvh);
   overflow: hidden;
   position: relative;
+
+  @media (max-width: 768px) {
+    height: var(--visual-viewport-height, var(--app-height, 100dvh));
+  }
 `;
 
 export const ChatMain = styled.div`

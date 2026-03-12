@@ -18,6 +18,10 @@ const syncAppHeight = () => {
     "--visual-viewport-height",
     `${viewportHeight}px`,
   );
+  document.documentElement.style.setProperty(
+    "--visual-viewport-offset-top",
+    `${viewportOffsetTop}px`,
+  );
 };
 
 const preventBrowserZoom = () => {

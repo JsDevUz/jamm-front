@@ -30,6 +30,9 @@ const ChatHeader = styled.div`
 
   @media (max-width: 768px) {
     padding: 12px 16px;
+    position: sticky;
+    top: 0;
+    z-index: 8;
   }
 
   @media (max-width: 480px) {

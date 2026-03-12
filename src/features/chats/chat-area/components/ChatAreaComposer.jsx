@@ -457,9 +457,7 @@ const ChatAreaComposer = () => {
             }}
           />
           <InputButtons $side="right">
-            <InputButton onClick={toggleEmojiPicker} className="emoji-button">
-              <Smile size={20} />
-            </InputButton>
+           
             <SendButton
               type="button"
               onClick={submitMessage}
@@ -470,6 +468,9 @@ const ChatAreaComposer = () => {
             >
               <SendHorizontal size={16} />
             </SendButton>
+             <InputButton onClick={toggleEmojiPicker} className="emoji-button">
+              <Smile size={20} />
+            </InputButton>
           </InputButtons>
         </InputWrapper>
       </ComposerStack>
