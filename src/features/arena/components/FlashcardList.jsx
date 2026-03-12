@@ -23,6 +23,8 @@ import {
   RotateCcw,
   Volume2,
   Star,
+  Settings,
+  Play,
 } from "lucide-react";
 import InfiniteScroll from "react-infinite-scroll-component";
 import CreateFlashcardDialog from "./CreateFlashcardDialog";
@@ -568,6 +570,83 @@ const ClassicDeckShell = styled.div`
   gap: 18px;
 `;
 
+const ClassicFullscreenShell = styled.div`
+  width: 100%;
+  /* min-height: 100dvh; */
+  color: var(--text-color);
+  display: flex;
+  flex-direction: column;
+
+  @media (max-width: 768px) {
+    /* min-height: var(--app-height, 100dvh); */
+  }
+`;
+
+const ClassicTopBar = styled.div`
+  display: grid;
+  grid-template-columns: 52px 1fr 52px;
+  align-items: center;
+  gap: 12px;
+  padding: 0 20px;
+  min-height: 64px;
+`;
+
+const ClassicTopIconButton = styled.button`
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--border-color) 88%, transparent);
+  background: transparent;
+  color: var(--text-color);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition:
+    background-color 0.18s ease,
+    border-color 0.18s ease,
+    transform 0.18s ease;
+
+  &:hover {
+    background: color-mix(in srgb, var(--secondary-color) 86%, transparent);
+    border-color: color-mix(in srgb, var(--text-muted-color) 32%, transparent);
+    transform: translateY(-1px);
+  }
+`;
+
+const ClassicTopCounter = styled.div`
+  text-align: center;
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: var(--text-color);
+`;
+
+const ClassicProgressTrack = styled.div`
+  position: relative;
+  width: 100%;
+  height: 8px;
+  margin: 10px 0 18px;
+  background: color-mix(in srgb, var(--secondary-color) 82%, transparent);
+  overflow: hidden;
+`;
+
+const ClassicProgressFill = styled.div`
+  height: 100%;
+  width: ${(props) => `${props.$progress}%`};
+  background: color-mix(in srgb, var(--text-color) 82%, transparent);
+  transition: width 0.22s ease;
+`;
+
+const ClassicViewport = styled.div`
+  position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 0 18px;
+`;
+
 const ClassicSummaryBar = styled.div`
   width: 100%;
   display: grid;
@@ -577,6 +656,39 @@ const ClassicSummaryBar = styled.div`
   @media (max-width: 640px) {
     grid-template-columns: 1fr;
   }
+`;
+
+const ClassicFloatingCounter = styled.div`
+  position: absolute;
+  top: 40%;
+  ${(props) => (props.$side === "left" ? "left: -20px;" : "right: -20px;")}
+  min-width: 64px;
+  min-height: 56px;
+  padding: 0 18px;
+  border-radius: ${(props) =>
+    props.$side === "left" ? "0 999px 999px 0" : "999px 0 0 999px"};
+  border: 2px solid
+    ${(props) =>
+      props.$side === "left"
+        ? "color-mix(in srgb, var(--warning-color, #f59e0b) 78%, var(--border-color))"
+        : "color-mix(in srgb, var(--success-color, #10b981) 78%, var(--border-color))"};
+  background:
+    ${(props) =>
+      props.$side === "left"
+        ? "color-mix(in srgb, var(--warning-color, #f59e0b) 10%, var(--background-color))"
+        : "color-mix(in srgb, var(--success-color, #10b981) 10%, var(--background-color))"};
+  color: ${(props) =>
+    props.$side === "left"
+      ? "var(--warning-color, #f59e0b)"
+      : "var(--success-color, #10b981)"};
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  font-weight: 900;
+  line-height: 1;
+  z-index: 4;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18);
 `;
 
 const ClassicSummaryPill = styled.div`
@@ -617,24 +729,22 @@ const ClassicSummaryPill = styled.div`
 const ClassicCardStage = styled.div`
   position: relative;
   width: 100%;
-  min-height: min(72vh, 760px);
+  flex: 1;
+  min-height: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 18px 0 8px;
+  padding: 20px 0 8px;
   perspective: 1800px;
-
-  @media (max-width: 768px) {
-    min-height: calc(var(--app-height, 100dvh) - 340px);
-  }
+  perspective-origin: center center;
 `;
 
 const ClassicGhostCard = styled.div`
   position: absolute;
-  inset: 24px 18px 24px 18px;
+  inset: 34px 18px 44px 18px;
   border-radius: 34px;
-  background: rgba(64, 71, 126, 0.28);
-  border: 1px solid rgba(127, 140, 181, 0.12);
+  background: color-mix(in srgb, var(--secondary-color) 88%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border-color) 72%, transparent);
   transform:
     translateX(${(props) => props.$offsetX || 0}px)
     translateY(${(props) => props.$offsetY || 0}px)
@@ -643,61 +753,73 @@ const ClassicGhostCard = styled.div`
   pointer-events: none;
 `;
 
-const ClassicSwipeMeter = styled.div`
-  position: absolute;
-  top: 22px;
-  ${(props) => (props.$side === "left" ? "left: 0;" : "right: 0;")}
-  min-width: 84px;
-  min-height: 48px;
-  padding: 0 18px;
-  border-radius: ${(props) =>
-    props.$side === "left" ? "0 999px 999px 0" : "999px 0 0 999px"};
-  border: 2px solid
-    ${(props) =>
-      props.$side === "left" ? "rgba(255, 164, 87, 0.9)" : "rgba(121, 241, 203, 0.9)"};
-  background:
-    ${(props) =>
-      props.$side === "left" ? "rgba(255, 164, 87, 0.16)" : "rgba(121, 241, 203, 0.16)"};
-  color: ${(props) => (props.$side === "left" ? "#ffa457" : "#79f1cb")};
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 14px;
-  font-weight: 900;
-  letter-spacing: 0.02em;
-  opacity: ${(props) => props.$opacity || 0};
-  transform: scale(${(props) => 0.94 + (props.$opacity || 0) * 0.06});
-  transition: opacity 0.12s ease, transform 0.12s ease;
-  pointer-events: none;
-`;
-
 const ClassicSwipeCard = styled.div`
   position: relative;
   width: min(100%, 820px);
-  min-height: min(62vh, 640px);
+  height: min(68vh, 720px);
+  min-height: min(68vh, 720px);
+  max-height: 100%;
   border-radius: 36px;
-  border: 1px solid rgba(127, 140, 181, 0.18);
-  background: linear-gradient(180deg, #222652 0%, #20234d 100%);
+  /* border: 1px solid
+    ${(props) =>
+      props.$swipeTone === "success"
+        ? `color-mix(in srgb, var(--success-color, #10b981) ${30 + (props.$swipeStrength || 0) * 45}%, var(--border-color))`
+        : props.$swipeTone === "danger"
+          ? `color-mix(in srgb, var(--danger-color, #ef4444) ${30 + (props.$swipeStrength || 0) * 45}%, var(--border-color))`
+          : "color-mix(in srgb, var(--border-color) 78%, transparent)"};
+  background: linear-gradient(
+    180deg,
+    ${(props) =>
+      props.$swipeTone === "success"
+        ? `color-mix(in srgb, var(--success-color, #10b981) ${10 + (props.$swipeStrength || 0) * 18}%, var(--secondary-color))`
+        : props.$swipeTone === "danger"
+          ? `color-mix(in srgb, var(--danger-color, #ef4444) ${10 + (props.$swipeStrength || 0) * 18}%, var(--secondary-color))`
+          : "color-mix(in srgb, var(--secondary-color) 94%, var(--background-color))"} 0%,
+    ${(props) =>
+      props.$swipeTone === "success"
+        ? `color-mix(in srgb, var(--success-color, #10b981) ${6 + (props.$swipeStrength || 0) * 14}%, var(--tertiary-color))`
+        : props.$swipeTone === "danger"
+          ? `color-mix(in srgb, var(--danger-color, #ef4444) ${6 + (props.$swipeStrength || 0) * 14}%, var(--tertiary-color))`
+          : "color-mix(in srgb, var(--tertiary-color) 96%, var(--background-color))"} 100%
+  );
   box-shadow:
     0 24px 80px rgba(0, 0, 0, 0.28),
-    inset 0 1px 0 rgba(255, 255, 255, 0.04);
-  padding: 28px;
+    0 24px 52px color-mix(in srgb, black 24%, transparent),
+    0 0 0
+      ${(props) =>
+        props.$swipeStrength
+          ? `${1 + (props.$swipeStrength || 0) * 4}px`
+          : "0px"}
+      ${(props) =>
+        props.$swipeTone === "success"
+          ? `color-mix(in srgb, var(--success-color, #10b981) ${14 + (props.$swipeStrength || 0) * 20}%, transparent)`
+          : props.$swipeTone === "danger"
+            ? `color-mix(in srgb, var(--danger-color, #ef4444) ${14 + (props.$swipeStrength || 0) * 20}%, transparent)`
+            : "transparent"},
+    inset 0 1px 0 color-mix(in srgb, white 6%, transparent); */
+  
   cursor: grab;
   transform-style: preserve-3d;
   transform:
     translate3d(${(props) => props.$dragX || 0}px, 0, 0)
     rotate(${(props) => ((props.$dragX || 0) / 16).toFixed(2)}deg)
-    scale(${(props) => (props.$dragging ? 1.01 : 1)});
+    rotateX(${(props) => ((props.$dragX || 0) / -140).toFixed(2)}deg)
+    scale(${(props) => (props.$dragging ? 1.01 : props.$exiting ? 0.98 : 1)});
+  opacity: ${(props) => (props.$exiting ? 0.9 : 1)};
   transition: ${(props) =>
     props.$dragging
       ? "none"
-      : "transform 0.24s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.24s ease"};
+      : props.$exiting
+        ? "transform 0.34s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.28s ease, opacity 0.28s ease"
+        : "transform 0.24s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.24s ease, opacity 0.2s ease"};
   user-select: none;
   touch-action: pan-y;
   overflow: hidden;
+  pointer-events: ${(props) => (props.$exiting ? "none" : "auto")};
 
   @media (max-width: 768px) {
-    min-height: min(56vh, 560px);
+    height: min(64vh, 640px);
+    min-height: min(64vh, 640px);
     padding: 22px;
   }
 `;
@@ -706,28 +828,63 @@ const ClassicFlipLayer = styled.div`
   position: relative;
   width: 100%;
   height: 100%;
+  min-height: 100%;
   transform-style: preserve-3d;
-  transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1);
-  transform: rotateY(${(props) => (props.$flipped ? 180 : 0)}deg);
+  -webkit-transform-style: preserve-3d;
+  will-change: transform;
+  padding: 28px;
+  border-radius: 30px;
+  transition: transform 0.62s cubic-bezier(0.22, 1, 0.36, 1);
+  transform: rotateY(${(props) => (props.$flipped ? 180 : 0)}deg)
+    translateZ(0);
+    border: 1px solid
+    ${(props) =>
+      props.$swipeTone === "success"
+        ? `color-mix(in srgb, var(--success-color, #10b981) ${30 + (props.$swipeStrength || 0) * 45}%, var(--border-color))`
+        : props.$swipeTone === "danger"
+          ? `color-mix(in srgb, var(--danger-color, #ef4444) ${30 + (props.$swipeStrength || 0) * 45}%, var(--border-color))`
+          : "color-mix(in srgb, var(--border-color) 78%, transparent)"};
+  background: linear-gradient(
+    180deg,
+    ${(props) =>
+      props.$swipeTone === "success"
+        ? `color-mix(in srgb, var(--success-color, #10b981) ${10 + (props.$swipeStrength || 0) * 18}%, var(--secondary-color))`
+        : props.$swipeTone === "danger"
+          ? `color-mix(in srgb, var(--danger-color, #ef4444) ${10 + (props.$swipeStrength || 0) * 18}%, var(--secondary-color))`
+          : "color-mix(in srgb, var(--secondary-color) 94%, var(--background-color))"} 0%,
+    ${(props) =>
+      props.$swipeTone === "success"
+        ? `color-mix(in srgb, var(--success-color, #10b981) ${6 + (props.$swipeStrength || 0) * 14}%, var(--tertiary-color))`
+        : props.$swipeTone === "danger"
+          ? `color-mix(in srgb, var(--danger-color, #ef4444) ${6 + (props.$swipeStrength || 0) * 14}%, var(--tertiary-color))`
+          : "color-mix(in srgb, var(--tertiary-color) 96%, var(--background-color))"} 100%
+  );
+  box-shadow:
+    none;
 `;
 
 const ClassicCardFace = styled.div`
   position: absolute;
   inset: 0;
+  width: 100%;
+  height: 100%;
   display: flex;
   flex-direction: column;
-  border-radius: 28px;
+  background: transparent;
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
+  transform-style: preserve-3d;
+  padding: 20px;
+  -webkit-transform-style: preserve-3d;
   overflow: hidden;
 `;
 
 const ClassicCardFront = styled(ClassicCardFace)`
-  transform: rotateY(0deg);
+  transform: rotateY(0deg) translateZ(1px);
 `;
 
 const ClassicCardBack = styled(ClassicCardFace)`
-  transform: rotateY(180deg);
+  transform: rotateY(180deg) translateZ(1px);
 `;
 
 const ClassicCardToolbar = styled.div`
@@ -735,23 +892,29 @@ const ClassicCardToolbar = styled.div`
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  color: rgba(255, 255, 255, 0.82);
+  color: color-mix(in srgb, var(--text-color) 92%, transparent);
+  position: relative;
+  z-index: 2;
+  transform: translateZ(6px);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
 `;
 
 const ClassicToolbarIcon = styled.button`
   width: 40px;
   height: 40px;
   border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid color-mix(in srgb, var(--border-color) 78%, transparent);
+  background: color-mix(in srgb, var(--secondary-color) 88%, var(--background-color));
   color: inherit;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
+  touch-action: manipulation;
 
   &:hover {
-    background: rgba(255, 255, 255, 0.08);
+    background: color-mix(in srgb, var(--hover-color) 78%, transparent);
   }
 `;
 
@@ -764,6 +927,11 @@ const ClassicCardBody = styled.div`
   justify-content: center;
   gap: 18px;
   padding: 18px 8px;
+  position: relative;
+  z-index: 1;
+  transform: translateZ(8px);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
 `;
 
 const ClassicCardImage = styled.img`
@@ -772,6 +940,8 @@ const ClassicCardImage = styled.img`
   border-radius: 18px;
   object-fit: contain;
   box-shadow: 0 10px 28px rgba(0, 0, 0, 0.24);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
 
   @media (max-width: 768px) {
     max-height: 180px;
@@ -783,16 +953,20 @@ const ClassicCardWord = styled.div`
   font-size: clamp(36px, 7vw, 74px);
   line-height: 1.05;
   font-weight: 800;
-  color: rgba(246, 248, 255, 0.94);
+  color: var(--text-color);
   text-align: center;
   word-break: break-word;
   filter: blur(${(props) => `${(props.$blur || 0).toFixed(2)}px`});
   opacity: ${(props) => 1 - (props.$fade || 0) * 0.55};
   transition: filter 0.12s ease, opacity 0.12s ease;
+  text-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  transform: translateZ(10px);
 `;
 
 const ClassicCardHint = styled.div`
-  color: rgba(199, 205, 231, 0.72);
+  color: var(--text-muted-color);
   font-size: 13px;
   font-weight: 700;
   letter-spacing: 0.04em;
@@ -805,23 +979,38 @@ const ClassicBottomRow = styled.div`
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin-top: 8px;
+  margin-top: 12px;
+  padding: 0 22px;
+  flex-shrink: 0;
 `;
 
 const ClassicGhostAction = styled.button`
   width: 52px;
   height: 52px;
   border-radius: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(255, 255, 255, 0.04);
-  color: rgba(255, 255, 255, 0.84);
+  border: 1px solid color-mix(in srgb, var(--border-color) 78%, transparent);
+  background: color-mix(in srgb, var(--secondary-color) 84%, transparent);
+  color: color-mix(in srgb, var(--text-color) 92%, transparent);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
 
   &:hover {
-    background: rgba(255, 255, 255, 0.08);
+    background: color-mix(in srgb, var(--hover-color) 78%, transparent);
+  }
+`;
+
+const ClassicPrimaryAction = styled(ClassicGhostAction)`
+  width: 58px;
+  height: 58px;
+  border-radius: 18px;
+  background: var(--primary-color);
+  border-color: color-mix(in srgb, var(--primary-color) 78%, transparent);
+  color: white;
+
+  &:hover {
+    background: color-mix(in srgb, var(--primary-color) 88%, white 12%);
   }
 `;
 
@@ -932,6 +1121,7 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
   const [classicCompleted, setClassicCompleted] = useState(false);
   const [classicDragX, setClassicDragX] = useState(0);
   const [classicDragging, setClassicDragging] = useState(false);
+  const [classicExitDirection, setClassicExitDirection] = useState(null);
   const [testDeck, setTestDeck] = useState(null);
   const [testQueue, setTestQueue] = useState([]);
   const [testIndex, setTestIndex] = useState(0);
@@ -1029,6 +1219,7 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
   const resetClassicCardMotion = () => {
     setClassicDragX(0);
     setClassicDragging(false);
+    setClassicExitDirection(null);
     classicPointerStateRef.current = {
       active: false,
       startX: 0,
@@ -1036,11 +1227,11 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
     };
   };
 
-  const speakClassicCard = (event) => {
+  const speakClassicCard = (side, event) => {
     event?.stopPropagation?.();
     const card = classicQueue[classicIndex];
     const text =
-      (classicShowBack ? getAnswerText(card) : getPromptText(card)) || "";
+      (side === "answer" ? getAnswerText(card) : getPromptText(card)) || "";
     if (!text || typeof window === "undefined" || !window.speechSynthesis) {
       return;
     }
@@ -1093,6 +1284,7 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
     setClassicShowBack(false);
     setClassicAnswers([]);
     setClassicCompleted(false);
+    setClassicExitDirection(null);
   };
 
   const buildTestOptions = (deck, currentCard) => {
@@ -1263,7 +1455,7 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
   };
 
   const handleClassicPointerDown = (event) => {
-    if (classicCompleted) return;
+    if (classicCompleted || classicExitDirection) return;
     classicPointerStateRef.current = {
       active: true,
       startX: event.clientX,
@@ -1273,7 +1465,12 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
   };
 
   const handleClassicPointerMove = (event) => {
-    if (!classicPointerStateRef.current.active || classicCompleted) return;
+    if (
+      !classicPointerStateRef.current.active ||
+      classicCompleted ||
+      classicExitDirection
+    )
+      return;
 
     const deltaX = event.clientX - classicPointerStateRef.current.startX;
     if (Math.abs(deltaX) > 8) {
@@ -1287,25 +1484,54 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
   };
 
   const handleClassicPointerEnd = () => {
-    if (!classicPointerStateRef.current.active || classicCompleted) return;
+    if (
+      !classicPointerStateRef.current.active ||
+      classicCompleted ||
+      classicExitDirection
+    )
+      return;
 
     const deltaX = classicDragX;
     const wasDragging = classicPointerStateRef.current.dragStarted;
-    resetClassicCardMotion();
+    classicPointerStateRef.current.active = false;
+    classicPointerStateRef.current.dragStarted = false;
+    setClassicDragging(false);
 
     if (!wasDragging) {
+      setClassicDragX(0);
       setClassicShowBack((prev) => !prev);
       return;
     }
 
     if (deltaX >= 110) {
-      handleClassicAnswer(true);
+      setClassicExitDirection("right");
+      setClassicDragX(
+        Math.max(
+          typeof window !== "undefined" ? window.innerWidth * 1.2 : 1200,
+          1200,
+        ),
+      );
+      window.setTimeout(() => {
+        handleClassicAnswer(true);
+      }, 260);
       return;
     }
 
     if (deltaX <= -110) {
-      handleClassicAnswer(false);
+      setClassicExitDirection("left");
+      setClassicDragX(
+        -Math.max(
+          typeof window !== "undefined" ? window.innerWidth * 1.2 : 1200,
+          1200,
+        ),
+      );
+      window.setTimeout(() => {
+        handleClassicAnswer(false);
+      }, 260);
+      return;
     }
+
+    setClassicDragX(0);
   };
 
   const handleCopyLink = (deckIdentifier) => {
@@ -1489,7 +1715,7 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
                 size={16}
                 style={{ marginRight: 8, display: "inline" }}
               />
-              Javobni ko'rish
+             "Javobni ko'rish"
             </RevealBtn>
           ) : (
             <Ratings>
@@ -1517,71 +1743,77 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
     const foundCount = classicAnswers.filter((item) => item.known).length;
     const missedCount = classicAnswers.filter((item) => !item.known).length;
     const swipeProgress = Math.min(Math.abs(classicDragX) / 120, 1);
-    const knowOpacity = classicDragX > 0 ? swipeProgress : 0;
-    const missOpacity = classicDragX < 0 ? swipeProgress : 0;
     const promptImage = getPromptImage(currentCard);
     const answerImage = getAnswerImage(currentCard);
     const promptText = getPromptText(currentCard) || "???";
     const answerText = getAnswerText(currentCard) || "???";
+    const progressValue = classicQueue.length
+      ? ((classicCompleted ? classicQueue.length : classicIndex + 1) /
+          classicQueue.length) *
+        100
+      : 0;
+    const swipeTone =
+      classicDragX > 0 ? "success" : classicDragX < 0 ? "danger" : null;
 
     return (
       <Container>
-        <StudyArea>
-          <BackBtn
-            onClick={() => {
-              setClassicDeck(null);
-              setClassicQueue([]);
-              setClassicAnswers([]);
-              setClassicCompleted(false);
-            }}
-          >
-            <ArrowLeft size={20} /> Orqaga
-          </BackBtn>
+        {!classicCompleted ? (
+          <ClassicFullscreenShell>
+            <ClassicTopBar>
+              <ClassicTopIconButton
+                type="button"
+                onClick={() => {
+                  setClassicDeck(null);
+                  setClassicQueue([]);
+                  setClassicAnswers([]);
+                  setClassicCompleted(false);
+                }}
+                title="Yopish"
+              >
+                <X size={26} />
+              </ClassicTopIconButton>
 
-          <Title>{classicDeck.title} - Flashcards</Title>
-          <StudyMeta>
-            <span>
-              {classicCompleted
-                ? `Natija: ${foundCount}/${classicQueue.length}`
-                : `Karta: ${classicIndex + 1}/${classicQueue.length}`}
-            </span>
-            <span>
-              Topdi: {foundCount} · Topolmadi: {missedCount}
-            </span>
-          </StudyMeta>
+              <ClassicTopCounter>
+                {classicIndex + 1} / {classicQueue.length}
+              </ClassicTopCounter>
 
-          {!classicCompleted ? (
-            <ClassicDeckShell>
-              <ClassicSummaryBar>
-                <ClassicSummaryPill>
-                  <strong>
-                    {classicIndex + 1}/{classicQueue.length}
-                  </strong>
-                  <span>Joriy karta</span>
-                </ClassicSummaryPill>
-                <ClassicSummaryPill $tone="success">
-                  <strong>{foundCount}</strong>
-                  <span>Topdim</span>
-                </ClassicSummaryPill>
-                <ClassicSummaryPill $tone="danger">
-                  <strong>{missedCount}</strong>
-                  <span>Topolmadim</span>
-                </ClassicSummaryPill>
-              </ClassicSummaryBar>
+             <ClassicGhostAction
+                  type="button"
+                  onClick={handleClassicReplay}
+                  disabled={classicIndex === 0 && classicAnswers.length === 0}
+                  title="Oldingi karta"
+                >
+                  <RotateCcw size={24} />
+                </ClassicGhostAction>
+            </ClassicTopBar>
+
+            <ClassicProgressTrack>
+              <ClassicProgressFill $progress={progressValue} />
+            </ClassicProgressTrack>
+
+            <ClassicViewport>
+              <ClassicFloatingCounter $side="left">
+                {missedCount}
+              </ClassicFloatingCounter>
+              <ClassicFloatingCounter $side="right">
+                {foundCount}
+              </ClassicFloatingCounter>
 
               <ClassicCardStage>
-                <ClassicGhostCard $offsetX={-18} $offsetY={-4} $rotate={-1.8} />
-                <ClassicGhostCard $offsetX={18} $offsetY={8} $rotate={2.4} $opacity={0.3} />
-                <ClassicSwipeMeter $side="left" $opacity={missOpacity}>
-                  Topolmadim
-                </ClassicSwipeMeter>
-                <ClassicSwipeMeter $side="right" $opacity={knowOpacity}>
-                  Topdim
-                </ClassicSwipeMeter>
+                <ClassicGhostCard $offsetX={-14} $offsetY={2} $rotate={-1.4} />
+                <ClassicGhostCard
+                  $offsetX={14}
+                  $offsetY={10}
+                  $rotate={1.6}
+                  $opacity={0.34}
+                />
 
                 <ClassicSwipeCard
                   $dragX={classicDragX}
                   $dragging={classicDragging}
+                  $exiting={Boolean(classicExitDirection)}
+                  $swipeTone={swipeTone}
+                  $swipeStrength={swipeProgress}
                   onPointerDown={handleClassicPointerDown}
                   onPointerMove={handleClassicPointerMove}
                   onPointerUp={handleClassicPointerEnd}
@@ -1597,29 +1829,28 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
                       <ClassicCardToolbar>
                         <ClassicToolbarIcon
                           type="button"
-                          onClick={speakClassicCard}
+                          onPointerDown={(event) => event.stopPropagation()}
+                          onPointerUp={(event) => event.stopPropagation()}
+                          onClick={(event) => speakClassicCard("prompt", event)}
                           title="Ovoz bilan eshitish"
                         >
-                          <Volume2 size={20} />
+                          <Volume2 size={22} />
                         </ClassicToolbarIcon>
-                        <ClassicToolbarIcon
-                          type="button"
-                          title="Flashcard"
-                          onClick={(event) => event.stopPropagation()}
-                        >
-                          <Star size={20} />
-                        </ClassicToolbarIcon>
+                       
                       </ClassicCardToolbar>
                       <ClassicCardBody>
                         {promptImage ? (
-                          <ClassicCardImage src={promptImage} alt="flashcard prompt" />
+                          <ClassicCardImage
+                            src={promptImage}
+                            alt="flashcard prompt"
+                          />
                         ) : null}
-                        <ClassicCardWord $blur={swipeProgress * 3.2} $fade={swipeProgress}>
+                        <ClassicCardWord
+                          $blur={swipeProgress * 3.2}
+                          $fade={swipeProgress}
+                        >
                           {promptText}
                         </ClassicCardWord>
-                        <ClassicCardHint>
-                          Ustiga bosing va flip qiling. O‘ngga sursangiz topdim, chapga sursangiz topolmadim.
-                        </ClassicCardHint>
                       </ClassicCardBody>
                     </ClassicCardFront>
 
@@ -1627,52 +1858,55 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
                       <ClassicCardToolbar>
                         <ClassicToolbarIcon
                           type="button"
-                          onClick={speakClassicCard}
+                          onPointerDown={(event) => event.stopPropagation()}
+                          onPointerUp={(event) => event.stopPropagation()}
+                          onClick={(event) => speakClassicCard("answer", event)}
                           title="Ovoz bilan eshitish"
                         >
-                          <Volume2 size={20} />
+                          <Volume2 size={22} />
                         </ClassicToolbarIcon>
-                        <ClassicToolbarIcon
-                          type="button"
-                          title="Flashcard"
-                          onClick={(event) => event.stopPropagation()}
-                        >
-                          <Star size={20} />
-                        </ClassicToolbarIcon>
+                       
                       </ClassicCardToolbar>
                       <ClassicCardBody>
                         {answerImage ? (
-                          <ClassicCardImage src={answerImage} alt="flashcard answer" />
+                          <ClassicCardImage
+                            src={answerImage}
+                            alt="flashcard answer"
+                          />
                         ) : null}
                         <ClassicCardWord>{answerText}</ClassicCardWord>
-                        <ClassicCardHint>
-                          Javob ko‘rinib turibdi. Endi surib baholang.
-                        </ClassicCardHint>
                       </ClassicCardBody>
                     </ClassicCardBack>
                   </ClassicFlipLayer>
                 </ClassicSwipeCard>
               </ClassicCardStage>
 
-              <ClassicBottomRow>
-                <ClassicGhostAction
-                  type="button"
-                  onClick={handleClassicReplay}
-                  disabled={classicIndex === 0 && classicAnswers.length === 0}
-                  title="Oldingi karta"
-                >
-                  <RotateCcw size={22} />
-                </ClassicGhostAction>
-                <ClassicGhostAction
-                  type="button"
-                  onClick={() => setClassicShowBack((prev) => !prev)}
-                  title="Flip"
-                >
-                  <RefreshCw size={22} />
-                </ClassicGhostAction>
-              </ClassicBottomRow>
-            </ClassicDeckShell>
-          ) : (
+             
+            </ClassicViewport>
+          </ClassicFullscreenShell>
+        ) : (
+          <StudyArea>
+            <BackBtn
+              onClick={() => {
+                setClassicDeck(null);
+                setClassicQueue([]);
+                setClassicAnswers([]);
+                setClassicCompleted(false);
+              }}
+            >
+              <ArrowLeft size={20} /> Orqaga
+            </BackBtn>
+
+            <Title>{classicDeck.title} - Flashcards</Title>
+            <StudyMeta>
+              <span>
+                Natija: {foundCount}/{classicQueue.length}
+              </span>
+              <span>
+                Topdi: {foundCount} · Topolmadi: {missedCount}
+              </span>
+            </StudyMeta>
+
             <FlashcardBox>
               <div
                 style={{
@@ -1707,14 +1941,6 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
                 ))}
               </div>
             </FlashcardBox>
-          )}
-
-          {!classicCompleted ? (
-            <StudyMeta>
-              <span>Chapga surish: topolmadim</span>
-              <span>O‘ngga surish: topdim</span>
-            </StudyMeta>
-          ) : (
             <ResultActions>
               <StudyBtn
                 onClick={restartClassicMissed}
@@ -1751,8 +1977,8 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
                 Asosiy oynaga qaytish
               </StudyBtn>
             </ResultActions>
-          )}
-        </StudyArea>
+          </StudyArea>
+        )}
       </Container>
     );
   }
