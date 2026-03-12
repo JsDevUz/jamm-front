@@ -8,9 +8,16 @@ import "./index.css";
 const queryClient = new QueryClient();
 
 const syncAppHeight = () => {
-  const viewportHeight =
-    window.visualViewport?.height || window.innerHeight || 0;
-  document.documentElement.style.setProperty("--app-height", `${viewportHeight}px`);
+  const viewport = window.visualViewport;
+  const viewportHeight = viewport?.height || window.innerHeight || 0;
+  const viewportOffsetTop = viewport?.offsetTop || 0;
+  const appHeight = viewportHeight + viewportOffsetTop;
+
+  document.documentElement.style.setProperty("--app-height", `${appHeight}px`);
+  document.documentElement.style.setProperty(
+    "--visual-viewport-height",
+    `${viewportHeight}px`,
+  );
 };
 
 const preventBrowserZoom = () => {

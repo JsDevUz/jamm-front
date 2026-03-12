@@ -19,6 +19,7 @@ const MessagesContainer = styled.div`
   display: flex;
   flex-direction: column;
   min-height: 0;
+  -webkit-overflow-scrolling: touch;
 
   &::-webkit-scrollbar {
     width: 8px;

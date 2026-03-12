@@ -1,15 +1,20 @@
+// ✅ iOS Safari ✅ Android Chrome ✅ visualViewport API
 import React, { useEffect, useState } from "react";
 import styled from "styled-components";
 import { Plus, SendHorizontal, Smile, X } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { CHAT_EMOJIS } from "../constants/emojis";
 import { useChatAreaContext } from "../context/ChatAreaContext";
+import useKeyboardAvoid from "../../../../shared/hooks/useKeyboardAvoid";
 
 const MessageInputContainer = styled.div`
   padding: 12px 16px calc(16px + env(safe-area-inset-bottom, 0px));
   background-color: var(--secondary-color);
   border-top: 1px solid var(--border-color);
   position: relative;
+  transition:
+    padding-bottom 0.25s ease,
+    border-color 0.25s ease;
 
   html[data-mobile-keyboard-open="true"] & {
     padding-bottom: 12px;
@@ -188,6 +193,8 @@ const MessageInput = styled.textarea`
   &::placeholder {
     color: var(--text-secondary-color);
   }
+
+  -webkit-overflow-scrolling: touch;
 `;
 
 const EmojiPicker = styled.div`
@@ -350,6 +357,7 @@ const ChatAreaComposer = () => {
     handleSendMessage,
   } = useChatAreaContext();
   const canSend = Boolean(messageInput.trim());
+  const { keyboardHeight, scrollIntoViewOnFocus } = useKeyboardAvoid();
   const emojiSections = [
     { label: "Faces", emojis: CHAT_EMOJIS.slice(0, 35) },
     { label: "Mood", emojis: CHAT_EMOJIS.slice(35, 80) },
@@ -438,9 +446,15 @@ const ChatAreaComposer = () => {
             value={messageInput}
             onChange={handleInputChange}
             onKeyDown={handleSendMessage}
+            onFocus={(event) => {
+              scrollIntoViewOnFocus(event.currentTarget);
+            }}
             placeholder="Xabar..."
             rows={1}
             maxLength={400}
+            style={{
+              scrollPaddingBottom: `${keyboardHeight}px`,
+            }}
           />
           <InputButtons $side="right">
             <InputButton onClick={toggleEmojiPicker} className="emoji-button">

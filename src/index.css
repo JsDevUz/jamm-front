@@ -7,6 +7,8 @@
 
 :root {
   --app-height: 100vh;
+  --keyboard-height: 0px;
+  --visual-viewport-height: 100vh;
 }
 
 html,

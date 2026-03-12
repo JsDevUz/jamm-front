@@ -29,7 +29,6 @@ const baseNavItems = [
 export default function ServerSidebar({
   onSelectNav,
   onPreloadNav,
-  keyboardOpen = false,
 }) {
   const { t } = useTranslation();
   const { chats, selectedNav, setSelectedNav } = useChats();
@@ -60,7 +59,7 @@ export default function ServerSidebar({
       : baseNavItems;
 
   return (
-    <SidebarContainer $keyboardOpen={keyboardOpen}>
+    <SidebarContainer>
       {navItems.map((item) => (
         <NavButton
           key={item.id}
