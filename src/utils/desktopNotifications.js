@@ -74,6 +74,7 @@ export const showDesktopChatNotification = ({
   icon,
   tag,
   path,
+  durationMs = 6000,
 }) => {
   if (!shouldShowDesktopNotification()) {
     return null;
@@ -84,6 +85,7 @@ export const showDesktopChatNotification = ({
     icon: icon || `${RESOLVED_APP_BASE_URL}/fav.png`,
     badge: `${RESOLVED_APP_BASE_URL}/fav.png`,
     tag,
+    renotify: true,
     silent: !getSoundNotificationsEnabled(),
   });
 
@@ -95,6 +97,12 @@ export const showDesktopChatNotification = ({
       window.location.href = path;
     }
   };
+
+  if (durationMs > 0) {
+    window.setTimeout(() => {
+      notification.close();
+    }, durationMs);
+  }
 
   return notification;
 };

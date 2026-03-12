@@ -236,13 +236,6 @@ const MessageBubble = styled.div`
   transition:
     transform 0.18s ease,
     background-color 0.18s ease;
-
-  @media (max-width: 768px) {
-    user-select: ${(props) => (props.$isEditing ? "text" : "none")};
-    -webkit-user-select: ${(props) => (props.$isEditing ? "text" : "none")};
-    -webkit-touch-callout: ${(props) =>
-      props.$isEditing ? "default" : "none"};
-  }
 `;
 
 const MessageText = styled.div`
@@ -341,32 +334,14 @@ const ChatAreaMessageList = () => {
     getUserAvatar,
     formatDate,
   } = useChatAreaContext();
-  const longPressTimerRef = useRef(null);
   const suppressClickRef = useRef(false);
-  const longPressTriggeredRef = useRef(false);
   const swipeGestureRef = useRef(null);
   const autoFillAttemptsRef = useRef(0);
   const [swipeState, setSwipeState] = useState({ messageId: null, offset: 0 });
 
-  useEffect(
-    () => () => {
-      if (longPressTimerRef.current) {
-        clearTimeout(longPressTimerRef.current);
-      }
-    },
-    [],
-  );
-
   useEffect(() => {
     autoFillAttemptsRef.current = 0;
   }, [currentChat?.id]);
-
-  const clearLongPressTimer = () => {
-    if (longPressTimerRef.current) {
-      clearTimeout(longPressTimerRef.current);
-      longPressTimerRef.current = null;
-    }
-  };
 
   const resetSwipeState = () => {
     swipeGestureRef.current = null;
@@ -376,7 +351,6 @@ const ChatAreaMessageList = () => {
   const handleTouchStart = (group, event) => {
     if (!event.touches?.length) return;
 
-    longPressTriggeredRef.current = false;
     const touch = event.touches[0];
     swipeGestureRef.current = {
       messageId: group.id,
@@ -421,14 +395,12 @@ const ChatAreaMessageList = () => {
       Math.abs(deltaY) > Math.abs(deltaX) &&
       Math.abs(deltaY) > 10
     ) {
-      clearLongPressTimer();
       resetSwipeState();
       return;
     }
 
     if (Math.abs(deltaX) < 10) return;
 
-    clearLongPressTimer();
     swipeGestureRef.current.isHorizontal = true;
 
     const nextOffset = Math.max(-92, Math.min(0, deltaX));
@@ -437,24 +409,14 @@ const ChatAreaMessageList = () => {
   };
 
   const handleTouchEnd = (group) => {
-    clearLongPressTimer();
-
     const finalOffset = swipeGestureRef.current?.offset ?? 0;
-    const shouldReply = !longPressTriggeredRef.current && finalOffset <= -72;
+    const shouldReply = finalOffset <= -72;
 
     resetSwipeState();
 
     if (shouldReply) {
       suppressClickRef.current = true;
       triggerReply(group);
-    }
-
-    if (longPressTriggeredRef.current) {
-      window.setTimeout(() => {
-        suppressClickRef.current = false;
-        longPressTriggeredRef.current = false;
-      }, 0);
-      return;
     }
 
     if (shouldReply) {

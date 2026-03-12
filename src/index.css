@@ -9,6 +9,12 @@
   --app-height: 100vh;
 }
 
+html,
+body {
+  width: 100%;
+  height: var(--app-height);
+}
+
 body {
   font-family: " Whitney", "Helvetica Neue", Helvetica, Arial, sans-serif;
   background-color: #36393f;

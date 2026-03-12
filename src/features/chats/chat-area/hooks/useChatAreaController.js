@@ -707,11 +707,7 @@ export default function useChatAreaController({
       case "delete":
         try {
           setMessages((previous) =>
-            previous.map((item) =>
-              item.id === message.id
-                ? { ...item, isDeleted: true, content: "Bu xabar o'chirildi" }
-                : item,
-            ),
+            previous.filter((item) => item.id !== message.id),
           );
           await deleteMessage(message.id);
         } catch (error) {

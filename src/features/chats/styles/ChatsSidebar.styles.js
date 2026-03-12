@@ -5,7 +5,7 @@ import SidebarSearchField from "../../../shared/ui/forms/SidebarSearchField";
 
 export const SidebarContainer = styled.div`
   width: 340px;
-  height: 100vh;
+  height: var(--app-height, 100dvh);
   background-color: var(--secondary-color);
   display: flex;
   border-right: 1px solid var(--border-color);
@@ -14,7 +14,7 @@ export const SidebarContainer = styled.div`
 
   @media (max-width: 768px) {
     width: 100%;
-    height: 100vh;
+    height: var(--app-height, 100dvh);
   }
 `;
 
@@ -278,15 +278,20 @@ export const SidebarItemSkeletonMeta = styled.div`
 `;
 
 export const EmptyState = styled.div`
-  padding: 32px;
+  min-height: 100%;
+  padding: 32px 24px;
   text-align: center;
   color: var(--text-muted-color);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
 `;
 
 export const EmptyStateIcon = styled.div`
   display: flex;
   justify-content: center;
-  margin-bottom: 10px;
   opacity: 0.4;
 `;
 

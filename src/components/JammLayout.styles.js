@@ -29,7 +29,7 @@ const focusedPaneStyles = `
 export const AppContainer = styled.div`
   display: flex;
   width: 100%;
-  height: 100vh;
+  height: var(--app-height, 100dvh);
   background-color: var(--background-color);
   overflow: hidden;
 
@@ -126,7 +126,7 @@ export const MainContent = styled.div`
   @media (max-width: 700px) {
     flex-direction: column;
     width: 100%;
-    height: 100vh;
+    height: var(--app-height, 100dvh);
     box-sizing: border-box;
   }
 `;

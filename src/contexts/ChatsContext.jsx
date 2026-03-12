@@ -146,7 +146,7 @@ export const ChatsProvider = ({ children }) => {
           title: senderName,
           body,
           icon: rawMsg.senderId?.avatar || undefined,
-          tag: `chat-message-${rawMsg.chatId}`,
+          tag: `chat-message-${rawMsg.chatId}-${rawMsg._id || rawMsg.id || rawMsg.createdAt || Date.now()}`,
           path: notificationPath,
         });
       }
@@ -194,6 +194,22 @@ export const ChatsProvider = ({ children }) => {
           newChats[index] = {
             ...newChats[index],
             ...data,
+            time:
+              data.lastMessageAt === null
+                ? "Oldin"
+                : data.lastMessageAt
+                  ? formatChatTime(data.lastMessageAt)
+                  : newChats[index].time,
+            date:
+              data.lastMessageAt === null
+                ? "Oldin"
+                : data.lastMessageAt
+                  ? dayjs(data.lastMessageAt).format("YYYY-MM-DD")
+                  : newChats[index].date,
+            hasMessages:
+              typeof data.lastMessage === "string"
+                ? Boolean(data.lastMessage)
+                : newChats[index].hasMessages,
           };
           return newChats;
         }

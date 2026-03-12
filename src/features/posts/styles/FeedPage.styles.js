@@ -39,6 +39,15 @@ export const FeedInner = styled.div`
   width: 100%;
   max-width: 680px;
   padding: 0 16px;
+  transition: transform 0.18s ease-out;
+  transform: translateX(
+    ${(props) =>
+      props.$swipeHintDirection === "left"
+        ? "-14px"
+        : props.$swipeHintDirection === "right"
+          ? "14px"
+          : "0"}
+  );
 `;
 
 export const FeedHeader = styled.div`

@@ -271,9 +271,13 @@ const AddMemberDialog = ({
   selectedUsers,
   users,
 }) => {
+  const MIN_SEARCH_LENGTH = 3;
   const [searchUser, setSearchUser] = useState("");
   const [apiResults, setApiResults] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
+  const normalizedSearchUser = searchUser.trim();
+  const hasMinimumSearchLength =
+    normalizedSearchUser.length >= MIN_SEARCH_LENGTH;
 
   useEffect(() => {
     if (!isOpen) {
@@ -284,14 +288,15 @@ const AddMemberDialog = ({
     }
 
     const timer = setTimeout(async () => {
-      if (!searchUser.trim()) {
+      if (!normalizedSearchUser || !hasMinimumSearchLength) {
         setApiResults([]);
+        setIsSearching(false);
         return;
       }
 
       setIsSearching(true);
       try {
-        const results = await searchUsersApi(searchUser.trim());
+        const results = await searchUsersApi(normalizedSearchUser);
         setApiResults(Array.isArray(results) ? results : []);
       } catch (error) {
         console.error("Group user search failed:", error);
@@ -302,7 +307,7 @@ const AddMemberDialog = ({
     }, 400);
 
     return () => clearTimeout(timer);
-  }, [isOpen, searchUser]);
+  }, [hasMinimumSearchLength, isOpen, normalizedSearchUser]);
 
   const combinedUsers = [
     ...users,
@@ -324,8 +329,9 @@ const AddMemberDialog = ({
   );
 
   const filteredUsers = combinedUsers.filter((user) => {
-    const query = searchUser.trim().toLowerCase();
+    const query = normalizedSearchUser.toLowerCase();
     if (!query) return false;
+    if (!hasMinimumSearchLength) return false;
 
     return (
       !selectedUsers.includes(String(user.id)) &&
@@ -360,10 +366,18 @@ const AddMemberDialog = ({
         <ModalBody $padding="16px 18px 18px">
           <UserSearch>
             <Input
+              type="search"
+              name="group-member-search"
               placeholder="Ism yoki @username orqali qidirish"
               value={searchUser}
               onChange={(e) => setSearchUser(e.target.value)}
               style={{ paddingLeft: 30, width: "100%" }}
+              autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="none"
+              spellCheck={false}
+              inputMode="search"
+              enterKeyHint="search"
               autoFocus
             />
             {isSearching ? (
@@ -391,7 +405,7 @@ const AddMemberDialog = ({
           </UserSearch>
 
           <UserList style={{ maxHeight: "320px", marginTop: 12 }}>
-            {searchUser.trim() === "" ? (
+            {normalizedSearchUser === "" ? (
               <div
                 style={{
                   padding: 20,
@@ -401,6 +415,17 @@ const AddMemberDialog = ({
                 }}
               >
                 Qidirishni boshlang...
+              </div>
+            ) : !hasMinimumSearchLength ? (
+              <div
+                style={{
+                  padding: 20,
+                  textAlign: "center",
+                  color: "#b9bbbe",
+                  fontSize: 14,
+                }}
+              >
+                Kamida 3 ta belgi kiriting
               </div>
             ) : filteredUsers.length === 0 ? (
               <div

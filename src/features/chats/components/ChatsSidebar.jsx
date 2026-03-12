@@ -1,7 +1,16 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
-import { Bookmark, Globe, Lock, Plus, Trash2, Video } from "lucide-react";
+import {
+  Bookmark,
+  Globe,
+  Lock,
+  MessageSquare,
+  Plus,
+  Trash2,
+  Users,
+  Video,
+} from "lucide-react";
 import {
   Skeleton,
   SkeletonCircle,
@@ -55,6 +64,7 @@ const ChatsSidebar = ({
   onOpenCreateMeet,
   selectedChatId,
 }) => {
+  const MIN_SEARCH_LENGTH = 3;
   const { t } = useTranslation();
   const {
     chats,
@@ -97,6 +107,27 @@ const ChatsSidebar = ({
   const isVideoTab =
     selectedNav === "meets" ||
     (selectedNav === "chats" && effectiveChatTab === "video");
+  const normalizedSearchQuery = searchQuery.trim();
+  const hasMinimumSearchLength =
+    normalizedSearchQuery.length >= MIN_SEARCH_LENGTH;
+
+  const emptyListConfig = useMemo(() => {
+    if (selectedNav === "groups") {
+      return {
+        icon: <Users size={32} />,
+        text: "Sizda hozircha guruh yo'q",
+      };
+    }
+
+    if (selectedNav === "users") {
+      return {
+        icon: <MessageSquare size={32} />,
+        text: "Sizda hozircha chat yo'q",
+      };
+    }
+
+    return null;
+  }, [selectedNav]);
 
   useEffect(() => {
     if (selectedNav === "groups") {
@@ -139,8 +170,9 @@ const ChatsSidebar = ({
       return;
     }
 
-    if (!searchQuery.trim()) {
+    if (!normalizedSearchQuery || !hasMinimumSearchLength) {
       setSearchResults([]);
+      setLoadingSearch(false);
       return;
     }
 
@@ -148,7 +180,7 @@ const ChatsSidebar = ({
       setLoadingSearch(true);
       try {
         if (effectiveChatTab === "group") {
-          const results = await searchGroups(searchQuery);
+          const results = await searchGroups(normalizedSearchQuery);
           setSearchResults(
             results.map((group) => ({
               resultType: "group",
@@ -161,7 +193,7 @@ const ChatsSidebar = ({
             })),
           );
         } else {
-          const results = await searchUsers(searchQuery);
+          const results = await searchUsers(normalizedSearchQuery);
           setSearchResults(
             results.map((user) => ({
               resultType: "user",
@@ -184,8 +216,9 @@ const ChatsSidebar = ({
   }, [
     effectiveChatTab,
     isVideoTab,
+    hasMinimumSearchLength,
+    normalizedSearchQuery,
     searchGroups,
-    searchQuery,
     searchUsers,
     selectedNav,
   ]);
@@ -274,7 +307,7 @@ const ChatsSidebar = ({
     }
 
     if (
-      searchQuery &&
+      hasMinimumSearchLength &&
       !(
         selectedNav === "users" ||
         selectedNav === "groups" ||
@@ -282,7 +315,7 @@ const ChatsSidebar = ({
       )
     ) {
       result = result.filter((chat) =>
-        chat.name.toLowerCase().includes(searchQuery.toLowerCase()),
+        chat.name.toLowerCase().includes(normalizedSearchQuery.toLowerCase()),
       );
     }
 
@@ -332,7 +365,8 @@ const ChatsSidebar = ({
     effectiveChatTab,
     isVideoTab,
     previewChat,
-    searchQuery,
+    hasMinimumSearchLength,
+    normalizedSearchQuery,
     selectedChatId,
     selectedNav,
   ]);
@@ -612,7 +646,7 @@ const ChatsSidebar = ({
           )
         ) : (
           <>
-            {searchQuery &&
+            {hasMinimumSearchLength &&
             ["private", "group"].includes(effectiveChatTab) &&
             (selectedNav === "users" ||
               selectedNav === "groups" ||
@@ -701,20 +735,29 @@ const ChatsSidebar = ({
               ) : (
                 <EmptyState>{t("chatsSidebar.search.notFound")}</EmptyState>
               )
-            ) : loading && !searchQuery ? (
+            ) : loading && !normalizedSearchQuery ? (
               <>{renderSidebarSkeleton(1)}</>
+            ) : !normalizedSearchQuery &&
+              emptyListConfig &&
+              filteredChats.length === 0 ? (
+              <EmptyState>
+                <EmptyStateIcon>{emptyListConfig.icon}</EmptyStateIcon>
+                <div>{emptyListConfig.text}</div>
+              </EmptyState>
             ) : (
               <StyledInfiniteScroll
                 dataLength={filteredChats.length}
                 next={() => fetchChats(chatsPage + 1)}
                 hasMore={
-                  chatsHasMore && activeFilter === "all" && searchQuery === ""
+                  chatsHasMore &&
+                  activeFilter === "all" &&
+                  normalizedSearchQuery === ""
                 }
                 loader={<>{renderSidebarSkeleton(2)}</>}
                 endMessage={
                   filteredChats.length > 0 &&
                   activeFilter === "all" &&
-                  searchQuery === "" ? (
+                  normalizedSearchQuery === "" ? (
                     <EndMessage>{t("chatsSidebar.allShown")}</EndMessage>
                   ) : null
                 }
@@ -793,7 +836,7 @@ const ChatsSidebar = ({
               </StyledInfiniteScroll>
             )}
 
-            {searchQuery &&
+            {hasMinimumSearchLength &&
               !["private", "group"].includes(effectiveChatTab) && (
                 <>
                   {loadingSearch ? (

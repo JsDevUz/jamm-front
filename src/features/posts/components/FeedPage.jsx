@@ -99,12 +99,14 @@ const FeedPage = () => {
   const [commentPost, setCommentPost] = useState(null);
   const [editingPost, setEditingPost] = useState(null);
   const [postToDelete, setPostToDelete] = useState(null);
+  const [swipeHintDirection, setSwipeHintDirection] = useState(null);
 
   const activePosts = activeTab === "foryou" ? forYouPosts : followingPosts;
   const activeHasMore = activeTab === "foryou" ? forYouHasMore : followingHasMore;
   const activePage = activeTab === "foryou" ? forYouPage : followingPage;
   const viewedRef = useRef(new Set());
   const viewTimeoutsRef = useRef(new Map());
+  const feedScrollRef = useRef(null);
 
   useEffect(() => {
     if (
@@ -114,6 +116,77 @@ const FeedPage = () => {
       fetchFeed(activeTab, 1);
     }
   }, [activeTab, fetchFeed, forYouPosts.length, followingPosts.length]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || window.innerWidth > 768) return undefined;
+
+    const element = feedScrollRef.current;
+    if (!element) return undefined;
+
+    let startX = 0;
+    let startY = 0;
+    let tracking = false;
+
+    const orderedTabs = ["foryou", "following"];
+
+    const triggerSwipeHint = (direction) => {
+      setSwipeHintDirection(direction);
+      window.setTimeout(() => {
+        setSwipeHintDirection((current) =>
+          current === direction ? null : current,
+        );
+      }, 180);
+    };
+
+    const handleTouchStart = (event) => {
+      if (event.touches.length !== 1) return;
+
+      const target =
+        event.target instanceof Element ? event.target : event.target?.parentElement;
+      if (
+        target &&
+        target.closest(
+          "input, textarea, button, a, [role='button'], [contenteditable='true']",
+        )
+      ) {
+        tracking = false;
+        return;
+      }
+
+      const touch = event.touches[0];
+      startX = touch.clientX;
+      startY = touch.clientY;
+      tracking = true;
+    };
+
+    const handleTouchEnd = (event) => {
+      if (!tracking || event.changedTouches.length !== 1) return;
+      tracking = false;
+
+      const touch = event.changedTouches[0];
+      const deltaX = touch.clientX - startX;
+      const deltaY = touch.clientY - startY;
+
+      if (Math.abs(deltaX) < 70 || Math.abs(deltaY) > 50) return;
+      if (Math.abs(deltaX) < Math.abs(deltaY)) return;
+
+      const currentIndex = orderedTabs.indexOf(activeTab);
+      const nextIndex = currentIndex + (deltaX < 0 ? 1 : -1);
+
+      if (nextIndex < 0 || nextIndex >= orderedTabs.length) return;
+
+      triggerSwipeHint(deltaX < 0 ? "left" : "right");
+      setActiveTab(orderedTabs[nextIndex]);
+    };
+
+    element.addEventListener("touchstart", handleTouchStart, { passive: true });
+    element.addEventListener("touchend", handleTouchEnd, { passive: true });
+
+    return () => {
+      element.removeEventListener("touchstart", handleTouchStart);
+      element.removeEventListener("touchend", handleTouchEnd);
+    };
+  }, [activeTab]);
 
   useEffect(() => {
     const scrollRoot = document.getElementById("scrollableFeed");
@@ -231,8 +304,8 @@ const FeedPage = () => {
         </FeedHeaderInner>
       </FeedHeader>
 
-      <FeedScroll id="scrollableFeed">
-        <FeedInner>
+      <FeedScroll id="scrollableFeed" ref={feedScrollRef}>
+        <FeedInner $swipeHintDirection={swipeHintDirection}>
           <FeedList
             dataLength={activePosts.length}
             next={() => fetchFeed(activeTab, activePage + 1)}
