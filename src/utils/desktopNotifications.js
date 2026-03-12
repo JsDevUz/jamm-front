@@ -65,14 +65,13 @@ export const shouldShowDesktopNotification = () => {
     return false;
   }
 
-  return document.hidden || !document.hasFocus();
+  return true;
 };
 
 export const showDesktopChatNotification = ({
   title,
   body,
   icon,
-  tag,
   path,
   durationMs = 6000,
 }) => {
@@ -84,8 +83,6 @@ export const showDesktopChatNotification = ({
     body,
     icon: icon || `${RESOLVED_APP_BASE_URL}/fav.png`,
     badge: `${RESOLVED_APP_BASE_URL}/fav.png`,
-    tag,
-    renotify: true,
     silent: !getSoundNotificationsEnabled(),
   });
 

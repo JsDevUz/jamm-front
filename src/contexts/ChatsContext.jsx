@@ -15,6 +15,7 @@ import { showDesktopChatNotification } from "../utils/desktopNotifications";
 import { normalizeReadByIds } from "../features/chats/chat-area/utils/chatAreaMessageUtils";
 
 const ChatsContext = createContext();
+const deliveredNotificationKeys = new Set();
 
 export const useChats = () => {
   return useContext(ChatsContext);
@@ -133,6 +134,21 @@ export const ChatsProvider = ({ children }) => {
       });
 
       if (shouldNotify) {
+        const notificationKey = String(
+          rawMsg._id ||
+            rawMsg.id ||
+            `${rawMsg.chatId}:${rawMsg.senderId?._id || rawMsg.senderId}:${rawMsg.createdAt || rawMsg.content}`,
+        );
+
+        if (deliveredNotificationKeys.has(notificationKey)) {
+          return;
+        }
+
+        deliveredNotificationKeys.add(notificationKey);
+        window.setTimeout(() => {
+          deliveredNotificationKeys.delete(notificationKey);
+        }, 60_000);
+
         const senderName =
           rawMsg.senderId?.nickname || rawMsg.senderId?.username || "Yangi xabar";
         const notificationPath = notificationChat?.isGroup
@@ -146,7 +162,6 @@ export const ChatsProvider = ({ children }) => {
           title: senderName,
           body,
           icon: rawMsg.senderId?.avatar || undefined,
-          tag: `chat-message-${rawMsg.chatId}-${rawMsg._id || rawMsg.id || rawMsg.createdAt || Date.now()}`,
           path: notificationPath,
         });
       }
