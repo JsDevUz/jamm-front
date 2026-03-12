@@ -535,10 +535,6 @@ const CreateTestDialog = ({ isOpen, onClose, initialTest = null }) => {
               display: "grid",
               gridTemplateColumns: "1fr",
               gap: "16px",
-              padding: "16px",
-              background: "rgba(0,0,0,0.1)",
-              borderRadius: "8px",
-              border: "1px solid var(--border-color)",
             }}
           >
             <InputGroup style={{ gridColumn: "span 1" }}>

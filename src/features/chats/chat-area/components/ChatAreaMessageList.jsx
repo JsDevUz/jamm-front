@@ -3,6 +3,7 @@ import styled from "styled-components";
 import { Check, CheckCheck, MoreVertical } from "lucide-react";
 import PremiumBadgeIcon from "../../../../shared/ui/badges/PremiumBadge";
 import { useChatAreaContext } from "../context/ChatAreaContext";
+import useKeyboardAvoid from "../../../../shared/hooks/useKeyboardAvoid";
 
 const ScrollArea = styled.div`
   display: flex;
@@ -15,11 +16,20 @@ const ScrollArea = styled.div`
 const MessagesContainer = styled.div`
   flex: 1;
   overflow-y: auto;
-  padding: 16px 8px;
+  padding: 16px 8px calc(20px + env(safe-area-inset-bottom, 0px));
   display: flex;
   flex-direction: column;
   min-height: 0;
   -webkit-overflow-scrolling: touch;
+  scroll-padding-bottom: calc(92px + env(safe-area-inset-bottom, 0px));
+  transition:
+    padding-bottom 0.25s ease,
+    scroll-padding-bottom 0.25s ease;
+
+  html[data-mobile-keyboard-open="true"] & {
+    padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px));
+    scroll-padding-bottom: calc(124px + env(safe-area-inset-bottom, 0px));
+  }
 
   &::-webkit-scrollbar {
     width: 8px;
@@ -338,7 +348,22 @@ const ChatAreaMessageList = () => {
   const suppressClickRef = useRef(false);
   const swipeGestureRef = useRef(null);
   const autoFillAttemptsRef = useRef(0);
+  const scrollContainerRef = useRef(null);
+  const shouldStickToBottomRef = useRef(true);
   const [swipeState, setSwipeState] = useState({ messageId: null, offset: 0 });
+  const { keyboardHeight } = useKeyboardAvoid();
+
+  const isNearBottom = (element, threshold = 96) => {
+    if (!element) return true;
+
+    return (
+      element.scrollHeight - element.scrollTop - element.clientHeight <= threshold
+    );
+  };
+
+  const scrollToBottom = (behavior = "smooth") => {
+    messagesEndRef.current?.scrollIntoView({ behavior, block: "end" });
+  };
 
   useEffect(() => {
     autoFillAttemptsRef.current = 0;
@@ -429,12 +454,31 @@ const ChatAreaMessageList = () => {
 
   const handleMessagesScroll = (event) => {
     const element = event.currentTarget;
+    shouldStickToBottomRef.current = isNearBottom(element);
+
     if (element.scrollTop > 120 || isLoadingMessages || !messagesHasMore) {
       return;
     }
 
     fetchMoreMessages();
   };
+
+  useEffect(() => {
+    const scrollContainer = scrollContainerRef.current;
+    if (!scrollContainer) return;
+
+    shouldStickToBottomRef.current = isNearBottom(scrollContainer);
+  }, [messages.length]);
+
+  useEffect(() => {
+    if (!keyboardHeight || !shouldStickToBottomRef.current) return;
+
+    const timer = window.setTimeout(() => {
+      scrollToBottom("smooth");
+    }, 40);
+
+    return () => window.clearTimeout(timer);
+  }, [keyboardHeight]);
 
   useEffect(() => {
     const scrollContainer = document.getElementById("scrollableChatArea");
@@ -507,6 +551,7 @@ const ChatAreaMessageList = () => {
     <ScrollArea>
       <MessagesContainer
         id="scrollableChatArea"
+        ref={scrollContainerRef}
         onContextMenu={(event) => event.preventDefault()}
         onScroll={handleMessagesScroll}
       >
@@ -657,7 +702,10 @@ const ChatAreaMessageList = () => {
             );
           })}
         </MessageContainer>
-        <div ref={messagesEndRef} />
+        <div
+          ref={messagesEndRef}
+          style={{ height: "1px", flexShrink: 0, scrollMarginBottom: "124px" }}
+        />
       </MessagesContainer>
     </ScrollArea>
   );
