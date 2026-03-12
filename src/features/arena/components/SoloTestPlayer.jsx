@@ -116,6 +116,9 @@ const OptionsGrid = styled.div`
 `;
 
 const OptionBtn = styled.button`
+  appearance: none;
+  -webkit-appearance: none;
+  -webkit-tap-highlight-color: transparent;
   padding: 14px 20px;
   border-radius: 30px;
   border: 1px solid
@@ -153,6 +156,17 @@ const OptionBtn = styled.button`
   @media (max-width: 768px) {
     padding: 12px 16px;
     gap: 12px;
+  }
+
+  &:focus {
+    outline: none;
+    box-shadow: none;
+  }
+
+  &:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 2px
+      color-mix(in srgb, var(--primary-color) 28%, transparent);
   }
 `;
 
@@ -655,6 +669,9 @@ const SoloTestPlayer = ({
     setSingleAnswers(newAnswers);
 
     setTimeout(() => {
+      if (typeof document !== "undefined") {
+        document.activeElement?.blur?.();
+      }
       if (currentIdx + 1 < questions.length) {
         setCurrentIdx(currentIdx + 1);
         setSelectedOption(null);
@@ -915,6 +932,7 @@ const SoloTestPlayer = ({
               return (
                 <OptionBtn
                   key={`${currentIdx}-${idx}`}
+                  type="button"
                   disabled={isRevealed}
                   isSelected={selectedOption === idx}
                   isCorrect={false}
@@ -922,11 +940,11 @@ const SoloTestPlayer = ({
                   showResults={false}
                   onClick={() => handleSelect(idx)}
                 >
-                  <OptionLetter
-                    isSelected={selectedOption === idx}
-                    isCorrect={false}
-                    isRevealed={false}
-                    showResults={false}
+                    <OptionLetter
+                      isSelected={selectedOption === idx}
+                      isCorrect={false}
+                      isRevealed={false}
+                      showResults={false}
                   >
                     {letter}
                   </OptionLetter>
@@ -970,6 +988,7 @@ const SoloTestPlayer = ({
                   return (
                     <OptionBtn
                       key={oIndex}
+                      type="button"
                       disabled={isFinished}
                       isSelected={isSelected}
                       isCorrect={false}

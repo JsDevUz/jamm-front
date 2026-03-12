@@ -350,6 +350,7 @@ const ChatAreaMessageList = () => {
   const autoFillAttemptsRef = useRef(0);
   const scrollContainerRef = useRef(null);
   const shouldStickToBottomRef = useRef(true);
+  const previousContainerHeightRef = useRef(0);
   const [swipeState, setSwipeState] = useState({ messageId: null, offset: 0 });
   const { keyboardHeight } = useKeyboardAvoid();
 
@@ -473,12 +474,54 @@ const ChatAreaMessageList = () => {
   useEffect(() => {
     if (!keyboardHeight || !shouldStickToBottomRef.current) return;
 
+    const isIOS =
+      typeof navigator !== "undefined" &&
+      /iPad|iPhone|iPod/.test(navigator.userAgent) &&
+      !window.MSStream;
+    const delay = isIOS ? 360 : 80;
     const timer = window.setTimeout(() => {
       scrollToBottom("smooth");
-    }, 40);
+    }, delay);
 
     return () => window.clearTimeout(timer);
   }, [keyboardHeight]);
+
+  useEffect(() => {
+    const scrollContainer = scrollContainerRef.current;
+    if (!scrollContainer || typeof ResizeObserver === "undefined") {
+      return undefined;
+    }
+
+    previousContainerHeightRef.current = scrollContainer.clientHeight;
+
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      const nextHeight =
+        entry?.contentRect?.height || scrollContainer.clientHeight || 0;
+      const previousHeight = previousContainerHeightRef.current || nextHeight;
+      const delta = nextHeight - previousHeight;
+
+      previousContainerHeightRef.current = nextHeight;
+
+      if (!shouldStickToBottomRef.current || Math.abs(delta) < 4) {
+        return;
+      }
+
+      window.requestAnimationFrame(() => {
+        scrollToBottom("auto");
+
+        window.setTimeout(() => {
+          scrollToBottom("smooth");
+        }, 120);
+      });
+    });
+
+    observer.observe(scrollContainer);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [currentChat?.id]);
 
   useEffect(() => {
     const scrollContainer = document.getElementById("scrollableChatArea");

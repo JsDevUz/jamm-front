@@ -16,6 +16,7 @@ html,
 body {
   width: 100%;
   height: var(--app-height);
+  overscroll-behavior: none;
 }
 
 body {
@@ -23,12 +24,15 @@ body {
   background-color: #36393f;
   color: #dcddde;
   overflow: hidden;
+  overscroll-behavior-y: none;
+  overscroll-behavior-x: none;
 }
 
 #root {
   width: 100vw;
   height: var(--app-height);
   display: flex;
+  overscroll-behavior: none;
 }
 
 @media (max-width: 700px) {
@@ -79,6 +83,7 @@ input {
 @media (max-width: 700px) {
   .infinite-scroll-component {
     padding-bottom: 80px;
+    overscroll-behavior-y: contain;
   }
 
   :root[data-mobile-keyboard-open="true"] .infinite-scroll-component {
