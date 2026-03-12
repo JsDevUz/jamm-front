@@ -20,7 +20,7 @@ import {
   Pencil,
   Trash2,
   MoreHorizontal,
-  RotateCcw,
+  Undo2,
   Volume2,
   Star,
   Settings,
@@ -73,6 +73,28 @@ const fadeIn = keyframes`
   }
   to {
     opacity: 1;
+  }
+`;
+
+const classicExitRight = keyframes`
+  from {
+    transform: translate3d(0, 0, 0) rotate(0deg) rotateX(0deg) scale(1);
+    opacity: 1;
+  }
+  to {
+    transform: translate3d(120vw, 0, 0) rotate(18deg) rotateX(-6deg) scale(0.98);
+    opacity: 0.88;
+  }
+`;
+
+const classicExitLeft = keyframes`
+  from {
+    transform: translate3d(0, 0, 0) rotate(0deg) rotateX(0deg) scale(1);
+    opacity: 1;
+  }
+  to {
+    transform: translate3d(-120vw, 0, 0) rotate(-18deg) rotateX(6deg) scale(0.98);
+    opacity: 0.88;
   }
 `;
 
@@ -753,6 +775,41 @@ const ClassicGhostCard = styled.div`
   pointer-events: none;
 `;
 
+const ClassicNextPreviewCard = styled.div`
+  position: absolute;
+  inset: 34px 18px 44px 18px;
+  border-radius: 34px;
+  border: 1px solid color-mix(in srgb, var(--border-color) 72%, transparent);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--secondary-color) 94%, var(--background-color)) 0%,
+    color-mix(in srgb, var(--tertiary-color) 97%, var(--background-color)) 100%
+  );
+  box-shadow:
+    0 20px 52px rgba(0, 0, 0, 0.22),
+    inset 0 1px 0 color-mix(in srgb, white 6%, transparent);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: 28px;
+  pointer-events: none;
+  overflow: hidden;
+  transform: none;
+  opacity: 1;
+`;
+
+const ClassicNextPreviewWord = styled.div`
+  max-width: 100%;
+  font-size: clamp(30px, 5vw, 60px);
+  line-height: 1.08;
+  font-weight: 800;
+  color: color-mix(in srgb, var(--text-color) 90%, transparent);
+  text-align: center;
+  word-break: break-word;
+  opacity: 0.92;
+`;
+
 const ClassicSwipeCard = styled.div`
   position: relative;
   width: min(100%, 820px);
@@ -822,6 +879,16 @@ const ClassicSwipeCard = styled.div`
     min-height: min(64vh, 640px);
     padding: 22px;
   }
+`;
+
+const ClassicOutgoingCard = styled(ClassicSwipeCard)`
+  position: absolute;
+  inset: auto;
+  z-index: 3;
+  pointer-events: none;
+  animation: ${(props) =>
+      props.$direction === "left" ? classicExitLeft : classicExitRight}
+    0.32s cubic-bezier(0.22, 1, 0.36, 1) forwards;
 `;
 
 const ClassicFlipLayer = styled.div`
@@ -1122,6 +1189,7 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
   const [classicDragX, setClassicDragX] = useState(0);
   const [classicDragging, setClassicDragging] = useState(false);
   const [classicExitDirection, setClassicExitDirection] = useState(null);
+  const [classicOutgoingCard, setClassicOutgoingCard] = useState(null);
   const [testDeck, setTestDeck] = useState(null);
   const [testQueue, setTestQueue] = useState([]);
   const [testIndex, setTestIndex] = useState(0);
@@ -1285,6 +1353,7 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
     setClassicAnswers([]);
     setClassicCompleted(false);
     setClassicExitDirection(null);
+    setClassicOutgoingCard(null);
   };
 
   const buildTestOptions = (deck, currentCard) => {
@@ -1416,7 +1485,6 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
     ];
     setClassicAnswers(nextAnswers);
     setClassicShowBack(false);
-    resetClassicCardMotion();
 
     if (classicIndex + 1 >= classicQueue.length) {
       setClassicCompleted(true);
@@ -1436,6 +1504,20 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
     setClassicCompleted(false);
     resetClassicCardMotion();
   };
+
+  useEffect(() => {
+    if (!classicDeck || classicCompleted) return;
+    resetClassicCardMotion();
+  }, [classicDeck, classicIndex, classicCompleted]);
+
+  useEffect(() => {
+    if (!classicOutgoingCard) return undefined;
+    const timer = window.setTimeout(() => {
+      setClassicOutgoingCard(null);
+      setClassicExitDirection(null);
+    }, 320);
+    return () => window.clearTimeout(timer);
+  }, [classicOutgoingCard]);
 
   const restartClassicMissed = () => {
     if (!classicDeck) return;
@@ -1504,30 +1586,36 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
     }
 
     if (deltaX >= 110) {
+      const currentCard = classicQueue[classicIndex];
+      if (!currentCard) return;
       setClassicExitDirection("right");
-      setClassicDragX(
-        Math.max(
-          typeof window !== "undefined" ? window.innerWidth * 1.2 : 1200,
-          1200,
-        ),
-      );
-      window.setTimeout(() => {
-        handleClassicAnswer(true);
-      }, 260);
+      setClassicOutgoingCard({
+        id: currentCard._id || `classic-${classicIndex}`,
+        direction: "right",
+        showBack: classicShowBack,
+        promptImage: getPromptImage(currentCard),
+        answerImage: getAnswerImage(currentCard),
+        promptText: getPromptText(currentCard) || "???",
+        answerText: getAnswerText(currentCard) || "???",
+      });
+      handleClassicAnswer(true);
       return;
     }
 
     if (deltaX <= -110) {
+      const currentCard = classicQueue[classicIndex];
+      if (!currentCard) return;
       setClassicExitDirection("left");
-      setClassicDragX(
-        -Math.max(
-          typeof window !== "undefined" ? window.innerWidth * 1.2 : 1200,
-          1200,
-        ),
-      );
-      window.setTimeout(() => {
-        handleClassicAnswer(false);
-      }, 260);
+      setClassicOutgoingCard({
+        id: currentCard._id || `classic-${classicIndex}`,
+        direction: "left",
+        showBack: classicShowBack,
+        promptImage: getPromptImage(currentCard),
+        answerImage: getAnswerImage(currentCard),
+        promptText: getPromptText(currentCard) || "???",
+        answerText: getAnswerText(currentCard) || "???",
+      });
+      handleClassicAnswer(false);
       return;
     }
 
@@ -1740,6 +1828,7 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
 
   if (classicDeck) {
     const currentCard = classicQueue[classicIndex];
+    const nextCard = classicQueue[classicIndex + 1] || null;
     const foundCount = classicAnswers.filter((item) => item.known).length;
     const missedCount = classicAnswers.filter((item) => !item.known).length;
     const swipeProgress = Math.min(Math.abs(classicDragX) / 120, 1);
@@ -1747,6 +1836,8 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
     const answerImage = getAnswerImage(currentCard);
     const promptText = getPromptText(currentCard) || "???";
     const answerText = getAnswerText(currentCard) || "???";
+    const nextPromptImage = nextCard ? getPromptImage(nextCard) : null;
+    const nextPromptText = nextCard ? getPromptText(nextCard) || "???" : "";
     const progressValue = classicQueue.length
       ? ((classicCompleted ? classicQueue.length : classicIndex + 1) /
           classicQueue.length) *
@@ -1783,7 +1874,7 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
                   disabled={classicIndex === 0 && classicAnswers.length === 0}
                   title="Oldingi karta"
                 >
-                  <RotateCcw size={24} />
+                  <Undo2 size={24} />
                 </ClassicGhostAction>
             </ClassicTopBar>
 
@@ -1801,17 +1892,87 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
 
               <ClassicCardStage>
                 <ClassicGhostCard $offsetX={-14} $offsetY={2} $rotate={-1.4} />
-                <ClassicGhostCard
-                  $offsetX={14}
-                  $offsetY={10}
-                  $rotate={1.6}
-                  $opacity={0.34}
-                />
+                {nextCard ? (
+                  <ClassicNextPreviewCard>
+                    {nextPromptImage ? (
+                      <ClassicCardImage
+                        src={nextPromptImage}
+                        alt="next flashcard prompt"
+                      />
+                    ) : null}
+                    <ClassicNextPreviewWord>
+                      {nextPromptText}
+                    </ClassicNextPreviewWord>
+                  </ClassicNextPreviewCard>
+                ) : (
+                  <ClassicGhostCard
+                    $offsetX={14}
+                    $offsetY={10}
+                    $rotate={1.6}
+                    $opacity={0.34}
+                  />
+                )}
+
+                {classicOutgoingCard ? (
+                  <ClassicOutgoingCard
+                    key={classicOutgoingCard.id}
+                    $direction={classicOutgoingCard.direction}
+                    $dragX={0}
+                    $dragging={false}
+                    $exiting={false}
+                    $swipeTone={
+                      classicOutgoingCard.direction === "right"
+                        ? "success"
+                        : "danger"
+                    }
+                    $swipeStrength={1}
+                  >
+                    <ClassicFlipLayer $flipped={classicOutgoingCard.showBack}>
+                      <ClassicCardFront>
+                        <ClassicCardToolbar>
+                          <ClassicToolbarIcon type="button" disabled>
+                            <Volume2 size={22} />
+                          </ClassicToolbarIcon>
+                        </ClassicCardToolbar>
+                        <ClassicCardBody>
+                          {classicOutgoingCard.promptImage ? (
+                            <ClassicCardImage
+                              src={classicOutgoingCard.promptImage}
+                              alt="flashcard prompt"
+                            />
+                          ) : null}
+                          <ClassicCardWord>
+                            {classicOutgoingCard.promptText}
+                          </ClassicCardWord>
+                        </ClassicCardBody>
+                      </ClassicCardFront>
+
+                      <ClassicCardBack>
+                        <ClassicCardToolbar>
+                          <ClassicToolbarIcon type="button" disabled>
+                            <Volume2 size={22} />
+                          </ClassicToolbarIcon>
+                        </ClassicCardToolbar>
+                        <ClassicCardBody>
+                          {classicOutgoingCard.answerImage ? (
+                            <ClassicCardImage
+                              src={classicOutgoingCard.answerImage}
+                              alt="flashcard answer"
+                            />
+                          ) : null}
+                          <ClassicCardWord>
+                            {classicOutgoingCard.answerText}
+                          </ClassicCardWord>
+                        </ClassicCardBody>
+                      </ClassicCardBack>
+                    </ClassicFlipLayer>
+                  </ClassicOutgoingCard>
+                ) : null}
 
                 <ClassicSwipeCard
                   $dragX={classicDragX}
                   $dragging={classicDragging}
-                  $exiting={Boolean(classicExitDirection)}
+                  $exiting={false}
                   $swipeTone={swipeTone}
                   $swipeStrength={swipeProgress}
                   onPointerDown={handleClassicPointerDown}
