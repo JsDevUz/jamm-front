@@ -453,6 +453,15 @@ const JammLayout = ({
         event.target instanceof Element ? event.target : event.target?.parentElement;
       if (
         target &&
+        target.closest(
+          "[data-disable-layout-swipe], [data-classic-flashcard-fullscreen]",
+        )
+      ) {
+        tracking = false;
+        return;
+      }
+      if (
+        target &&
         target.closest("input, textarea, button, [role='button'], [contenteditable='true']")
       ) {
         tracking = false;

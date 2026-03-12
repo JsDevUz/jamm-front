@@ -1210,6 +1210,7 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
     startX: 0,
     dragStarted: false,
   });
+  const speechVoicesRef = useRef([]);
 
   const isPremium = user?.premiumStatus === "premium";
   const limit = isPremium ? 10 : 4;
@@ -1275,6 +1276,27 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
     window.localStorage.setItem(FLASHCARD_PROMPT_SIDE_STORAGE_KEY, promptSide);
   }, [promptSide]);
 
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.speechSynthesis) {
+      return undefined;
+    }
+
+    const synth = window.speechSynthesis;
+    const syncVoices = () => {
+      const voices = synth.getVoices?.() || [];
+      if (voices.length > 0) {
+        speechVoicesRef.current = voices;
+      }
+    };
+
+    syncVoices();
+    synth.addEventListener?.("voiceschanged", syncVoices);
+
+    return () => {
+      synth.removeEventListener?.("voiceschanged", syncVoices);
+    };
+  }, []);
+
   const getPromptText = (card) =>
     promptSide === "front" ? card?.front : card?.back;
   const getPromptImage = (card) =>
@@ -1295,6 +1317,33 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
     };
   };
 
+  const resolveSpeechVoice = (text) => {
+    if (typeof window === "undefined" || !window.speechSynthesis) return null;
+
+    const voices =
+      speechVoicesRef.current.length > 0
+        ? speechVoicesRef.current
+        : window.speechSynthesis.getVoices?.() || [];
+
+    if (!voices.length) return null;
+
+    const isArabic = /[\u0600-\u06FF]/.test(text);
+    if (isArabic) {
+      return (
+        voices.find((voice) => voice.lang === "ar-SA") ||
+        voices.find((voice) => voice.lang === "ar_AE") ||
+        voices.find((voice) => voice.lang?.toLowerCase().startsWith("ar")) ||
+        null
+      );
+    }
+
+    return (
+      voices.find((voice) => voice.lang === "en-US") ||
+      voices.find((voice) => voice.lang?.toLowerCase().startsWith("en")) ||
+      null
+    );
+  };
+
   const speakClassicCard = (side, event) => {
     event?.stopPropagation?.();
     const card = classicQueue[classicIndex];
@@ -1304,11 +1353,29 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
       return;
     }
 
-    window.speechSynthesis.cancel();
+    const synth = window.speechSynthesis;
+    const isArabic = /[\u0600-\u06FF]/.test(text);
+    const voice = resolveSpeechVoice(text);
+
+    synth.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = /[\u0600-\u06FF]/.test(text) ? "ar" : "en-US";
-    utterance.rate = 0.92;
-    window.speechSynthesis.speak(utterance);
+    utterance.lang = isArabic ? "ar-SA" : "en-US";
+    utterance.rate = isArabic ? 0.9 : 0.92;
+    utterance.pitch = 1;
+
+    if (voice) {
+      utterance.voice = voice;
+      utterance.lang = voice.lang || utterance.lang;
+    }
+
+    const runSpeak = () => {
+      try {
+        synth.resume?.();
+      } catch {}
+      synth.speak(utterance);
+    };
+
+    window.setTimeout(runSpeak, isArabic ? 40 : 0);
   };
 
   const startStudy = async (deckMetadata, isRestart = false) => {
@@ -1803,7 +1870,7 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
                 size={16}
                 style={{ marginRight: 8, display: "inline" }}
               />
-             "Javobni ko'rish"
+             Javobni ko'rish
             </RevealBtn>
           ) : (
             <Ratings>
@@ -1849,7 +1916,7 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
     return (
       <Container>
         {!classicCompleted ? (
-          <ClassicFullscreenShell>
+          <ClassicFullscreenShell data-classic-flashcard-fullscreen="true">
             <ClassicTopBar>
               <ClassicTopIconButton
                 type="button"
