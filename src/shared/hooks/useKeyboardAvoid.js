@@ -12,9 +12,6 @@ const getViewportMetrics = () => {
   if (typeof window === "undefined") {
     return {
       keyboardHeight: 0,
-      viewportHeight: 0,
-      offsetTop: 0,
-      appHeight: 0,
     };
   }
 
@@ -28,9 +25,6 @@ const getViewportMetrics = () => {
 
   return {
     keyboardHeight,
-    viewportHeight,
-    offsetTop,
-    appHeight: viewportHeight + offsetTop,
   };
 };
 
@@ -45,16 +39,10 @@ export default function useKeyboardAvoid(containerRef) {
     const root = document.documentElement;
 
     const syncViewport = () => {
-      const { keyboardHeight: nextKeyboardHeight, appHeight, viewportHeight } =
-        getViewportMetrics();
+      const { keyboardHeight: nextKeyboardHeight } = getViewportMetrics();
 
       setKeyboardHeight(nextKeyboardHeight);
       root.style.setProperty("--keyboard-height", `${nextKeyboardHeight}px`);
-      root.style.setProperty("--app-height", `${appHeight}px`);
-      root.style.setProperty(
-        "--visual-viewport-height",
-        `${viewportHeight}px`,
-      );
       root.dataset.mobileKeyboardOpen = nextKeyboardHeight > 0 ? "true" : "false";
     };
 
@@ -83,7 +71,8 @@ export default function useKeyboardAvoid(containerRef) {
       const scrollTarget = () => {
         element.scrollIntoView({
           behavior: "smooth",
-          block: "center",
+          block: "nearest",
+          inline: "nearest",
         });
 
         if (containerRef?.current) {
