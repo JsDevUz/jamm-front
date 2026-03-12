@@ -10,6 +10,10 @@ const MessageInputContainer = styled.div`
   background-color: var(--secondary-color);
   border-top: 1px solid var(--border-color);
   position: relative;
+
+  html[data-mobile-keyboard-open="true"] & {
+    padding-bottom: 12px;
+  }
 `;
 
 const ComposerStack = styled.div`
@@ -219,6 +223,10 @@ const EmojiPicker = styled.div`
     left: 12px;
     bottom: calc(88px + env(safe-area-inset-bottom, 0px));
     width: auto;
+
+    html[data-mobile-keyboard-open="true"] & {
+      bottom: 72px;
+    }
   }
 `;
 
