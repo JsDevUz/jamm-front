@@ -133,6 +133,7 @@ const JammLayout = ({
   const [activeArenaTab, setActiveArenaTab] = useState(null);
   const [isCreateMeetOpen, setIsCreateMeetOpen] = useState(false);
   const [isRightPaneFocused, setIsRightPaneFocused] = useState(false);
+  const [isMobileKeyboardOpen, setIsMobileKeyboardOpen] = useState(false);
   const [showNotificationPromptBanner, setShowNotificationPromptBanner] =
     useState(false);
   const [isCoursesTourOpen, setIsCoursesTourOpen] = useState(false);
@@ -152,6 +153,77 @@ const JammLayout = ({
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
   }, []);
+
+  useEffect(() => {
+    if (!isMobile || typeof window === "undefined") {
+      setIsMobileKeyboardOpen(false);
+      if (typeof document !== "undefined") {
+        document.documentElement.dataset.mobileKeyboardOpen = "false";
+      }
+      return undefined;
+    }
+
+    const isTextInputElement = (element) => {
+      if (!(element instanceof HTMLElement)) return false;
+      if (element.isContentEditable) return true;
+      if (element instanceof HTMLTextAreaElement) return true;
+      if (!(element instanceof HTMLInputElement)) return false;
+
+      const blockedTypes = new Set([
+        "button",
+        "checkbox",
+        "file",
+        "hidden",
+        "image",
+        "radio",
+        "range",
+        "reset",
+        "submit",
+      ]);
+
+      return !blockedTypes.has((element.type || "text").toLowerCase());
+    };
+
+    const syncKeyboardState = () => {
+      const activeElement = document.activeElement;
+      const hasTextInputFocus = isTextInputElement(activeElement);
+      const viewportHeight =
+        window.visualViewport?.height || window.innerHeight || 0;
+      const viewportShrink = Math.max(0, window.innerHeight - viewportHeight);
+      const keyboardOpen = hasTextInputFocus && viewportShrink > 120;
+
+      setIsMobileKeyboardOpen(keyboardOpen);
+      document.documentElement.dataset.mobileKeyboardOpen = keyboardOpen
+        ? "true"
+        : "false";
+    };
+
+    const resetKeyboardState = () => {
+      setIsMobileKeyboardOpen(false);
+      document.documentElement.dataset.mobileKeyboardOpen = "false";
+    };
+
+    syncKeyboardState();
+
+    document.addEventListener("focusin", syncKeyboardState);
+    document.addEventListener("focusout", syncKeyboardState);
+    window.addEventListener("resize", syncKeyboardState, { passive: true });
+    window.visualViewport?.addEventListener("resize", syncKeyboardState, {
+      passive: true,
+    });
+    window.visualViewport?.addEventListener("scroll", syncKeyboardState, {
+      passive: true,
+    });
+
+    return () => {
+      document.removeEventListener("focusin", syncKeyboardState);
+      document.removeEventListener("focusout", syncKeyboardState);
+      window.removeEventListener("resize", syncKeyboardState);
+      window.visualViewport?.removeEventListener("resize", syncKeyboardState);
+      window.visualViewport?.removeEventListener("scroll", syncKeyboardState);
+      resetKeyboardState();
+    };
+  }, [isMobile]);
 
   useEffect(() => {
     if (typeof window === "undefined" || typeof Notification === "undefined") {
@@ -597,6 +669,7 @@ const JammLayout = ({
         </NotificationPromptBanner>
       )}
       <ServerSidebar
+        keyboardOpen={isMobileKeyboardOpen}
         selectedNav={selectedNav}
         onSelectNav={handleSelectNav}
         onPreloadNav={handlePreloadNav}

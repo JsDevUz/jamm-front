@@ -26,7 +26,11 @@ const baseNavItems = [
   { id: "courses", icon: GraduationCap, labelKey: "navigation.courses" },
 ];
 
-export default function ServerSidebar({ onSelectNav, onPreloadNav }) {
+export default function ServerSidebar({
+  onSelectNav,
+  onPreloadNav,
+  keyboardOpen = false,
+}) {
   const { t } = useTranslation();
   const { chats, selectedNav, setSelectedNav } = useChats();
   const currentUser = useAuthStore((state) => state.user);
@@ -56,7 +60,7 @@ export default function ServerSidebar({ onSelectNav, onPreloadNav }) {
       : baseNavItems;
 
   return (
-    <SidebarContainer>
+    <SidebarContainer $keyboardOpen={keyboardOpen}>
       {navItems.map((item) => (
         <NavButton
           key={item.id}

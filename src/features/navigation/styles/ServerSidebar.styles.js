@@ -2,7 +2,7 @@ import styled from "styled-components";
 
 export const SidebarContainer = styled.div`
   width: 72px;
-  height: 100vh;
+  height: var(--app-height, 100dvh);
   background-color: var(--tertiary-color);
   display: flex;
   flex-direction: column;
@@ -31,6 +31,13 @@ export const SidebarContainer = styled.div`
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
     z-index: 100;
     overflow: visible;
+    opacity: ${(props) => (props.$keyboardOpen ? 0 : 1)};
+    transform: ${(props) =>
+      props.$keyboardOpen ? "translateY(calc(100% + 48px))" : "translateY(0)"};
+    pointer-events: ${(props) => (props.$keyboardOpen ? "none" : "auto")};
+    transition:
+      opacity 0.18s ease,
+      transform 0.22s ease;
   }
 `;
 

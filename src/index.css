@@ -60,4 +60,8 @@ input {
   .infinite-scroll-component {
     padding-bottom: 80px;
   }
+
+  :root[data-mobile-keyboard-open="true"] .infinite-scroll-component {
+    padding-bottom: 0 !important;
+  }
 }
