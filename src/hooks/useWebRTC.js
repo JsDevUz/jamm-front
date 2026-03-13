@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { io } from "socket.io-client";
+import axiosInstance from "../api/axiosInstance";
 import useAuthStore from "../store/authStore";
 import { API_BASE_URL } from "../config/env";
 
@@ -9,7 +10,7 @@ const TURN_URLS = import.meta.env.VITE_TURN_URLS
   ? import.meta.env.VITE_TURN_URLS.split(",").map((item) => item.trim())
   : [];
 
-const ICE_SERVERS = {
+const buildFallbackIceConfig = () => ({
   iceServers: [
     { urls: "stun:stun.l.google.com:19302" },
     { urls: "stun:stun1.l.google.com:19302" },
@@ -23,7 +24,7 @@ const ICE_SERVERS = {
         ]
       : []),
   ],
-};
+});
 
 const CALL_QUALITY_PROFILES = {
   balanced: {
@@ -134,9 +135,11 @@ export function useWebRTC({
   initialMicOn = true,
   initialCamOn = true,
 }) {
+  const currentUser = useAuthStore((state) => state.user);
   const socketRef = useRef(null);
   const localStreamRef = useRef(null);
   const peerConnectionsRef = useRef({});
+  const iceConfigRef = useRef(buildFallbackIceConfig());
 
   const [localStream, setLocalStream] = useState(null);
   const [remoteStreams, setRemoteStreams] = useState([]);
@@ -354,7 +357,7 @@ export function useWebRTC({
 
   const createPeerConnection = useCallback(
     (peerId, peerDisplayName) => {
-      const pc = new RTCPeerConnection(ICE_SERVERS);
+      const pc = new RTCPeerConnection(iceConfigRef.current);
       updateRemotePeerState(peerId, {
         displayName: peerDisplayName || peerId,
         connectionState: "connecting",
@@ -538,6 +541,21 @@ export function useWebRTC({
       setError(null);
 
       try {
+        if (currentUser?._id || currentUser?.id) {
+          try {
+            const { data } = await axiosInstance.get("/video/ice-config");
+            if (Array.isArray(data?.iceServers) && data.iceServers.length > 0) {
+              iceConfigRef.current = { iceServers: data.iceServers };
+            } else {
+              iceConfigRef.current = buildFallbackIceConfig();
+            }
+          } catch {
+            iceConfigRef.current = buildFallbackIceConfig();
+          }
+        } else {
+          iceConfigRef.current = buildFallbackIceConfig();
+        }
+
         // 1. Get local media
         const stream = await navigator.mediaDevices.getUserMedia({
           video: {
@@ -773,6 +791,8 @@ export function useWebRTC({
     isCreator,
     isPrivate,
     attachSignalingListeners,
+    currentUser?._id,
+    currentUser?.id,
   ]);
 
   // ─── Creator: approve / reject ────────────────────────────────────────────────

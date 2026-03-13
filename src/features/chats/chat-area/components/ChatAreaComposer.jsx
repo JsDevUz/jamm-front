@@ -27,6 +27,18 @@ const ComposerStack = styled.div`
   gap: 8px;
 `;
 
+const LoadingNotice = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--input-color) 82%, transparent);
+  color: var(--text-secondary-color);
+  font-size: 13px;
+  font-weight: 600;
+`;
+
 const JoinPreview = styled.div`
   padding: 20px;
   text-align: center;
@@ -107,6 +119,8 @@ const InputWrapper = styled.div`
   padding: 8px 12px;
   min-height: 44px;
   transition: background-color 0.2s ease;
+  opacity: ${(props) => (props.$disabled ? 0.72 : 1)};
+  pointer-events: ${(props) => (props.$disabled ? "none" : "auto")};
 
   &:focus-within {
     background-color: var(--hover-color);
@@ -136,6 +150,8 @@ const InputButton = styled.button`
   align-items: center;
   justify-content: center;
   padding: 0;
+  opacity: ${(props) => (props.disabled ? 0.45 : 1)};
+  pointer-events: ${(props) => (props.disabled ? "none" : "auto")};
 
   &:hover {
     color: var(--text-color);
@@ -192,6 +208,11 @@ const MessageInput = styled.textarea`
 
   &::placeholder {
     color: var(--text-secondary-color);
+  }
+
+  &:disabled,
+  &:read-only {
+    cursor: not-allowed;
   }
 
   -webkit-overflow-scrolling: touch;
@@ -355,8 +376,10 @@ const ChatAreaComposer = () => {
     messageInput,
     handleInputChange,
     handleSendMessage,
+    isLoadingMessages,
   } = useChatAreaContext();
-  const canSend = Boolean(messageInput.trim());
+  const isComposerDisabled = Boolean(currentChat?.id) && isLoadingMessages;
+  const canSend = Boolean(messageInput.trim()) && !isComposerDisabled;
   const { keyboardHeight, scrollIntoViewOnFocus } = useKeyboardAvoid();
   const emojiSections = [
     { label: "Faces", emojis: CHAT_EMOJIS.slice(0, 35) },
@@ -402,6 +425,9 @@ const ChatAreaComposer = () => {
   return (
     <MessageInputContainer>
       <ComposerStack>
+        {isComposerDisabled ? (
+          <LoadingNotice>Xabarlar yuklanmoqda...</LoadingNotice>
+        ) : null}
         {replyMessage && (
           <ReplyPreview onClick={() => focusReplyTargetMessage(replyMessage.id)}>
             <ReplyPreviewRow>
@@ -425,13 +451,14 @@ const ChatAreaComposer = () => {
           </ReplyPreview>
         )}
 
-        <InputWrapper>
+        <InputWrapper $disabled={isComposerDisabled}>
           <InputButtons $side="left">
             {showComingSoonTooltip ? (
               <InlineTooltip>Tez kunda...</InlineTooltip>
             ) : null}
             <InputButton
               type="button"
+              disabled={isComposerDisabled}
               onClick={() => setShowComingSoonTooltip(true)}
               title="Tez kunda..."
               aria-label="Tez kunda..."
@@ -446,10 +473,12 @@ const ChatAreaComposer = () => {
             value={messageInput}
             onChange={handleInputChange}
             onKeyDown={handleSendMessage}
+            readOnly={isComposerDisabled}
+            disabled={isComposerDisabled}
             onFocus={(event) => {
               scrollIntoViewOnFocus(event.currentTarget);
             }}
-            placeholder="Xabar..."
+            placeholder={isComposerDisabled ? "Suhbat yuklanmoqda..." : "Xabar..."}
             rows={1}
             maxLength={400}
             style={{
@@ -460,6 +489,8 @@ const ChatAreaComposer = () => {
            
             <SendButton
               type="button"
+              onMouseDown={(event) => event.preventDefault()}
+              onPointerDown={(event) => event.preventDefault()}
               onClick={() => submitMessage({ keepFocus: true })}
               disabled={!canSend}
               $visible={canSend}
@@ -468,7 +499,12 @@ const ChatAreaComposer = () => {
             >
               <SendHorizontal size={16} />
             </SendButton>
-             <InputButton onClick={toggleEmojiPicker} className="emoji-button">
+             <InputButton
+              type="button"
+              disabled={isComposerDisabled}
+              onClick={toggleEmojiPicker}
+              className="emoji-button"
+             >
               <Smile size={20} />
             </InputButton>
           </InputButtons>

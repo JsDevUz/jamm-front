@@ -21,7 +21,8 @@
     "userFallback": "Foydalanuvchi",
     "you": "Siz",
     "message": "Xabar",
-    "actions": "Amallar"
+    "actions": "Amallar",
+    "copy": "Nusxalash"
   },
   "navigation": {
     "feed": "Gurunglar",
@@ -518,7 +519,12 @@
       "count": "{{count}} ta dars",
       "draft": "Draft",
       "free": "Bepul",
-      "edit": "Tahrirlash"
+      "edit": "Tahrirlash",
+      "copyCourse": "Kurs havolasini nusxalash",
+      "copyLesson": "Dars havolasini nusxalash",
+      "copyCourseSuccess": "Kurs havolasi nusxalandi",
+      "copyLessonSuccess": "Dars havolasi nusxalandi",
+      "copyFailed": "Havolani nusxalab bo'lmadi"
     },
     "creator": {
       "author": "Muallif",
@@ -849,6 +855,7 @@
       "courses": "Darslar",
       "appearance": "Theme",
       "language": "Language",
+      "security": "Xavfsizlik va maxfiylik",
       "premium": "Jamm Premium",
       "support": "Qo'llab-quvvatlash",
       "favorites": "Sevimlilarim",
@@ -871,6 +878,10 @@
         "title": "Language",
         "description": "Til va region parametrlarini saqlang."
       },
+      "security": {
+        "title": "Xavfsizlik va maxfiylik",
+        "description": "Dastur qulfi va maxfiy kirishni boshqaring."
+      },
       "premium": {
         "title": "Jamm Premium",
         "description": "Premium holati, promo-kod va obuna rejalarini boshqaring."
@@ -892,6 +903,41 @@
       "title": "Dasturni o'rganish",
       "description": "Shu tugma profil bo'limidan boshlab kurslar va chatlar bo'ylab to'liq qo'llanmani qayta ishga tushiradi.",
       "start": "Qo'llanmani boshlash"
+    },
+    "security": {
+      "statusTitle": "Dastur qulfi",
+      "statusDescription": "Jamm boshqa tab yoki ilovaga o'tganda avtomatik qulflanishi mumkin.",
+      "appLockLabel": "App lock",
+      "appLockMeta": "PIN faqat serverda saqlanadi va frontga berilmaydi.",
+      "enabledBadge": "Yoqilgan",
+      "disabledBadge": "O'chirilgan",
+      "passcodeTitle": "Numpad parol",
+      "passcodeDescription": "Telegram uslubida 4 xonali parol o'rnating yoki yangilang.",
+      "autoLockTitle": "Avtomatik qulf",
+      "autoLockDescription": "App fon rejimiga o'tishi bilan qayta kirishda PIN so'raladi.",
+      "enableAction": "Parol o'rnatish",
+      "changeAction": "Parolni almashtirish",
+      "disableAction": "Parolni o'chirish",
+      "newPinTitle": "Yangi parol kiriting",
+      "newPinDescription": "4 xonali app parolini belgilang.",
+      "confirmPinTitle": "Parolni tasdiqlang",
+      "confirmPinDescription": "Xuddi shu 4 xonali parolni qayta kiriting.",
+      "currentPinTitle": "Joriy parolni kiriting",
+      "currentPinDescription": "Davom etish uchun amaldagi app parolini tasdiqlang.",
+      "turnOffTitle": "App qulfini o'chirish",
+      "turnOffDescription": "Parolni olib tashlash uchun joriy PIN kerak bo'ladi.",
+      "unlockTitle": "Jamm qulflandi",
+      "unlockDescription": "Davom etish uchun 4 xonali app parolingizni kiriting.",
+      "unlockRequiredToast": "Davom etish uchun avval app parolini kiriting.",
+      "footer": "PIN faqat serverda tekshiriladi.",
+      "forgotHelp": "PIN unutdingizmi? Unda dasturdan chiqib ketib qayta kirishingiz mumkin, shunda parol so'ralmaydi.",
+      "logoutAction": "Log out",
+      "invalidPin": "Parol noto'g'ri",
+      "pinMismatch": "Tasdiqlash kodi mos kelmadi",
+      "saveError": "App parolini saqlab bo'lmadi",
+      "enabled": "App qulfi yoqildi",
+      "updated": "App paroli yangilandi",
+      "removed": "App paroli o'chirildi"
     },
     "appearance": {
       "groupTitle": "Ko'rinish",

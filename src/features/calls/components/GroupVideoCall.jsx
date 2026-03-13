@@ -420,16 +420,30 @@ const Avatar = styled.div`
 
 // ─── Waiting Room Panel ───────────────────────────────────────────────────────
 
+const WaitingBackdrop = styled.div`
+  position: absolute;
+  inset: 0;
+  z-index: 10030;
+  background: rgba(0, 0, 0, 0.42);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+`;
+
 const WaitingPanel = styled.div`
-  width: 304px;
-  flex-shrink: 0;
-  margin: 12px 12px 12px 0;
+  width: min(520px, 100%);
+  max-height: min(78dvh, 720px);
   background: color-mix(in srgb, var(--call-surface) 96%, transparent);
   border: 1px solid var(--call-border);
-  border-radius: 18px;
+  border-radius: 22px;
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.34);
+  animation: ${slideIn} 0.2s ease;
 `;
 
 const PanelHead = styled.div`
@@ -451,6 +465,7 @@ const PanelBody = styled.div`
   display: flex;
   flex-direction: column;
   gap: 8px;
+  -webkit-overflow-scrolling: touch;
 `;
 
 const KnockCard = styled.div`
@@ -1221,6 +1236,8 @@ const GroupVideoCall = ({
     },
     [minimizedPreviewStream],
   );
+  const isMobileViewport =
+    typeof window !== "undefined" && window.innerWidth <= 768;
 
   const qualityTone =
     networkQuality === "poor"
@@ -1491,7 +1508,8 @@ const GroupVideoCall = ({
 
         {/* Members Drawer */}
         {showDrawer && (
-          <WaitingPanel>
+          <WaitingBackdrop onClick={() => setShowDrawer(false)}>
+          <WaitingPanel onClick={(event) => event.stopPropagation()}>
             <PanelHead>
               <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <Users size={15} color="#7289da" />
@@ -1700,6 +1718,7 @@ const GroupVideoCall = ({
               })}
             </PanelBody>
           </WaitingPanel>
+          </WaitingBackdrop>
         )}
       </Body>
       </>
@@ -1732,9 +1751,11 @@ const GroupVideoCall = ({
             />
           )}
         </CtrlBtn>
-        <CtrlBtn $active={isScreenSharing} onClick={handleScreenShareToggle}>
-          {isScreenSharing ? <MonitorOff size={21} /> : <Monitor size={21} />}
-        </CtrlBtn>
+        {!isMobileViewport && (
+          <CtrlBtn $active={isScreenSharing} onClick={handleScreenShareToggle}>
+            {isScreenSharing ? <MonitorOff size={21} /> : <Monitor size={21} />}
+          </CtrlBtn>
+        )}
         <CtrlBtn
           $active={isHandRaised}
           onClick={toggleHandRaise}
@@ -1746,7 +1767,7 @@ const GroupVideoCall = ({
         >
           <Hand size={21} />
         </CtrlBtn>
-        {isCreator && (
+        {isCreator && !isMobileViewport && (
           <div style={{ position: "relative" }}>
             <CtrlBtn
               $active={isRecording}

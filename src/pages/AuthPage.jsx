@@ -888,7 +888,7 @@ const AuthPage = () => {
 
             <SubmitButton type="submit" disabled={loading}>
               {loading
-                ? "Yuklanmoqdaaaa..."
+                ? "Yuklanmoqda..."
                 : mode === "login"
                   ? "Kirish"
                   : "Ro'yxatdan o'tish"}

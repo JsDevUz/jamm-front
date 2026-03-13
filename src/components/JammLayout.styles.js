@@ -117,6 +117,46 @@ export const NotificationPromptButton = styled.button`
   }
 `;
 
+export const AppLockOverlay = styled.div`
+  position: fixed;
+  inset: 0;
+  z-index: 2800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background:
+    radial-gradient(circle at top, rgba(88, 101, 242, 0.2), transparent 42%),
+    rgba(8, 10, 18, 0.78);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+`;
+
+export const AppLockShell = styled.div`
+  width: min(460px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  align-items: center;
+  text-align: center;
+`;
+
+export const AppLockTitle = styled.h2`
+  margin: 0;
+  color: var(--text-color);
+  font-size: 28px;
+  font-weight: 800;
+  line-height: 1.15;
+`;
+
+export const AppLockDescription = styled.p`
+  margin: 0;
+  color: var(--text-muted-color);
+  font-size: 14px;
+  line-height: 1.6;
+  max-width: 360px;
+`;
+
 export const MainContent = styled.div`
   display: flex;
   flex: 1;

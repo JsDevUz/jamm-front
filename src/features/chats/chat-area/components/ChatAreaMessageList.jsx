@@ -233,6 +233,7 @@ const ReplyIndicatorText = styled.span`
 `;
 
 const MessageBubble = styled.div`
+  position: relative;
   width: fit-content;
   min-width: 60px;
   max-width: 100%;
@@ -246,7 +247,22 @@ const MessageBubble = styled.div`
   transform: translateX(${(props) => props.$swipeOffset ?? 0}px);
   transition:
     transform 0.18s ease,
-    background-color 0.18s ease;
+    background-color 0.18s ease,
+    opacity 0.18s ease;
+  opacity: ${(props) => (props.$navigating ? 0.72 : 1)};
+
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: ${(props) =>
+      props.$navigating
+        ? "color-mix(in srgb, var(--hover-color) 58%, transparent)"
+        : "transparent"};
+    transition: background-color 0.18s ease;
+    pointer-events: none;
+  }
 `;
 
 const MessageText = styled.div`
@@ -312,6 +328,18 @@ const LoaderText = styled.h4`
   margin: 0;
 `;
 
+const InitialLoaderState = styled.div`
+  flex: 1;
+  min-height: 220px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: var(--text-secondary-color);
+  font-size: 14px;
+  font-weight: 600;
+`;
+
 const ReceiptStatus = styled.span`
   margin-left: 4px;
   display: flex;
@@ -344,6 +372,7 @@ const ChatAreaMessageList = () => {
     handleUsernameClick,
     getUserAvatar,
     formatDate,
+    navigatingMessageId,
   } = useChatAreaContext();
   const suppressClickRef = useRef(false);
   const swipeGestureRef = useRef(null);
@@ -598,6 +627,9 @@ const ChatAreaMessageList = () => {
         onContextMenu={(event) => event.preventDefault()}
         onScroll={handleMessagesScroll}
       >
+        {isLoadingMessages && messages.length === 0 ? (
+          <InitialLoaderState>Xabarlar yuklanmoqda...</InitialLoaderState>
+        ) : null}
         {isLoadingMessages && messages.length > 0 ? (
           <LoaderText>Oldingi xabarlar yuklanmoqda...</LoaderText>
         ) : null}
@@ -654,6 +686,7 @@ const ChatAreaMessageList = () => {
                       $isOwn={isOwnMessage}
                       $hasReply={Boolean(group.replayTo)}
                       $isEditing={editingMessage?.id === group.id}
+                      $navigating={navigatingMessageId === group.id}
                       $swipeOffset={
                         swipeState.messageId === group.id
                           ? swipeState.offset
@@ -698,15 +731,15 @@ const ChatAreaMessageList = () => {
                           {group.replayTo ? (
                             <RepliedMessageRow>
                               <RepliedMessageText $isOwn={isOwnMessage}>
-                                {renderMessageContent(group.content)}
-                              </RepliedMessageText>
+                              {renderMessageContent(group.content, group.id)}
+                            </RepliedMessageText>
                               <InlineTimestamp $isOwn={isOwnMessage}>
                                 {group.timestamp}
                               </InlineTimestamp>
                             </RepliedMessageRow>
                           ) : (
                             <MessageText $isOwn={isOwnMessage}>
-                              {renderMessageContent(group.content)}
+                              {renderMessageContent(group.content, group.id)}
                             </MessageText>
                           )}
                           {group.edited && (

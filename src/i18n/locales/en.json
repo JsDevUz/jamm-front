@@ -21,7 +21,8 @@
     "userFallback": "User",
     "you": "You",
     "message": "Message",
-    "actions": "Actions"
+    "actions": "Actions",
+    "copy": "Copy"
   },
   "navigation": {
     "feed": "Posts",
@@ -517,7 +518,12 @@
       "count": "{{count}} lessons",
       "draft": "Draft",
       "free": "Free",
-      "edit": "Edit"
+      "edit": "Edit",
+      "copyCourse": "Copy course link",
+      "copyLesson": "Copy lesson link",
+      "copyCourseSuccess": "Course link copied",
+      "copyLessonSuccess": "Lesson link copied",
+      "copyFailed": "Failed to copy the link"
     },
     "creator": {
       "author": "Author",
@@ -848,6 +854,7 @@
       "courses": "Lessons",
       "appearance": "Theme",
       "language": "Language",
+      "security": "Security & privacy",
       "premium": "Jamm Premium",
       "support": "Support",
       "favorites": "Favorites",
@@ -870,6 +877,10 @@
         "title": "Language",
         "description": "Manage language and region settings."
       },
+      "security": {
+        "title": "Security & privacy",
+        "description": "Manage app lock and private access."
+      },
       "premium": {
         "title": "Jamm Premium",
         "description": "Manage premium status, promo code and plans."
@@ -891,6 +902,41 @@
       "title": "Learn the app",
       "description": "This starts the full guided tour again from the profile section and continues through courses and chats.",
       "start": "Start guided tour"
+    },
+    "security": {
+      "statusTitle": "App lock",
+      "statusDescription": "Jamm can lock itself when you switch tabs or move to another app.",
+      "appLockLabel": "App lock",
+      "appLockMeta": "Your PIN is stored and verified only on the server.",
+      "enabledBadge": "Enabled",
+      "disabledBadge": "Disabled",
+      "passcodeTitle": "Numpad passcode",
+      "passcodeDescription": "Set or change a 4-digit passcode like Telegram.",
+      "autoLockTitle": "Auto lock",
+      "autoLockDescription": "When the app goes to the background, it will ask for your PIN on return.",
+      "enableAction": "Set passcode",
+      "changeAction": "Change passcode",
+      "disableAction": "Turn off passcode",
+      "newPinTitle": "Enter a new passcode",
+      "newPinDescription": "Choose a 4-digit app passcode.",
+      "confirmPinTitle": "Confirm your passcode",
+      "confirmPinDescription": "Enter the same 4 digits again.",
+      "currentPinTitle": "Enter current passcode",
+      "currentPinDescription": "Confirm your current app passcode to continue.",
+      "turnOffTitle": "Turn off app lock",
+      "turnOffDescription": "Your current passcode is required to remove the lock.",
+      "unlockTitle": "Jamm is locked",
+      "unlockDescription": "Enter your 4-digit app passcode to continue.",
+      "unlockRequiredToast": "Enter your app passcode first to continue.",
+      "footer": "Your PIN is verified only on the server.",
+      "forgotHelp": "Forgot your PIN? You can log out and sign in again, and the app will not ask for the passcode.",
+      "logoutAction": "Log out",
+      "invalidPin": "Incorrect passcode",
+      "pinMismatch": "The confirmation code did not match",
+      "saveError": "Failed to save the app passcode",
+      "enabled": "App lock enabled",
+      "updated": "App passcode updated",
+      "removed": "App passcode removed"
     },
     "appearance": {
       "groupTitle": "Appearance",

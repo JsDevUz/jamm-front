@@ -283,3 +283,23 @@ export const CopyLessonBtn = styled(DeleteLessonBtn)`
     color: var(--primary-color);
   }
 `;
+
+export const CopyPlaylistBtn = styled.button`
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  background: transparent;
+  color: var(--text-secondary-color);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+
+  &:hover {
+    background: color-mix(in srgb, var(--primary-color) 10%, transparent);
+    color: var(--primary-color);
+    border-color: color-mix(in srgb, var(--primary-color) 35%, var(--border-color));
+  }
+`;

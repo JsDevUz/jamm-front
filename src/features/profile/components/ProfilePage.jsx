@@ -289,7 +289,7 @@ const ProfilePage = ({ profileUserId, isFocused = false, onToggleFocus }) => {
         ) : null}
 
         {isOwnProfile &&
-        ["appearance", "language", "premium", "support", "favorites", "learn"].includes(
+        ["appearance", "language", "security", "premium", "support", "favorites", "learn"].includes(
           activeTab,
         ) ? (
           <ProfileUtilityPanel

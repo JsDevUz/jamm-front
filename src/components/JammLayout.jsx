@@ -15,6 +15,8 @@ import { saveMeet, getMeets } from "../utils/meetStore";
 import useAuthStore from "../store/authStore";
 import { toast } from "react-hot-toast";
 import { APP_LIMITS, isPremiumUser } from "../constants/appLimits";
+import axiosInstance from "../api/axiosInstance";
+import { API_BASE_URL } from "../config/env";
 import {
   AppContainer,
   ContentPane,
@@ -37,6 +39,8 @@ import {
   requestDesktopNotificationPermission,
   setDesktopNotificationsBannerDismissed,
 } from "../utils/desktopNotifications";
+import AppLockPinPad from "../app/components/AppLockPinPad";
+import styled from "styled-components";
 
 const ChatArea = lazy(() =>
   import("../features/chats/components").then((module) => ({
@@ -110,6 +114,29 @@ function LazyPane({ children, message }) {
   return <Suspense fallback={null}>{children}</Suspense>;
 }
 
+const APP_LOCK_ARMED_KEY = "jamm-app-lock-armed";
+const APP_LOCK_SKIP_ONCE_KEY = "jamm-app-lock-skip-once";
+const APP_UNLOCK_TOKEN_KEY = "jamm-app-unlock-token";
+
+const LockFooter = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+`;
+
+const LockFooterLink = styled.button`
+  border: none;
+  background: transparent;
+  color: var(--primary-color);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+`;
+
 const JammLayout = ({
   initialNav = "home",
   initialResourceId = 0,
@@ -136,7 +163,13 @@ const JammLayout = ({
     useState(false);
   const [isCoursesTourOpen, setIsCoursesTourOpen] = useState(false);
   const [isChatsTourOpen, setIsChatsTourOpen] = useState(false);
+  const [isAppLocked, setIsAppLocked] = useState(false);
+  const [lockPin, setLockPin] = useState("");
+  const [lockError, setLockError] = useState("");
+  const [verifyingLock, setVerifyingLock] = useState(false);
   const currentUser = useAuthStore((state) => state.user);
+  const logout = useAuthStore((state) => state.logout);
+  const updateUser = useAuthStore((state) => state.updateUser);
   const {
     isOpen: isUpgradeModalOpen,
     message: premiumUpgradeMessage,
@@ -150,6 +183,130 @@ const JammLayout = ({
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
   }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const shouldSkipLockOnce =
+      sessionStorage.getItem(APP_LOCK_SKIP_ONCE_KEY) === "1";
+    if (shouldSkipLockOnce && currentUser?._id && currentUser?.appLockEnabled) {
+      sessionStorage.removeItem(APP_LOCK_SKIP_ONCE_KEY);
+      sessionStorage.removeItem(APP_LOCK_ARMED_KEY);
+      setIsAppLocked(false);
+      setLockPin("");
+      setLockError("");
+      setVerifyingLock(false);
+      return;
+    }
+
+    if (!currentUser?._id || !currentUser?.appLockEnabled) {
+      sessionStorage.removeItem(APP_LOCK_ARMED_KEY);
+      setIsAppLocked(false);
+      setLockPin("");
+      setLockError("");
+      setVerifyingLock(false);
+      return;
+    }
+
+    const shouldLock =
+      sessionStorage.getItem(APP_LOCK_ARMED_KEY) === "1" ||
+      currentUser?.appLockSessionUnlocked === false;
+    setIsAppLocked(shouldLock);
+    if (!shouldLock) {
+      setLockPin("");
+      setLockError("");
+      setVerifyingLock(false);
+    }
+  }, [
+    currentUser?._id,
+    currentUser?.appLockEnabled,
+    currentUser?.appLockSessionUnlocked,
+  ]);
+
+  useEffect(() => {
+    if (
+      typeof window === "undefined" ||
+      !currentUser?._id ||
+      !currentUser?.appLockEnabled
+    ) {
+      return;
+    }
+
+    const armAppLock = () => {
+      if (sessionStorage.getItem(APP_LOCK_SKIP_ONCE_KEY) === "1") {
+        sessionStorage.removeItem(APP_LOCK_ARMED_KEY);
+        return;
+      }
+      sessionStorage.setItem(APP_LOCK_ARMED_KEY, "1");
+      sessionStorage.removeItem(APP_UNLOCK_TOKEN_KEY);
+      updateUser({ appLockSessionUnlocked: false });
+      fetch(`${API_BASE_URL}/users/me/app-lock/lock-session`, {
+        method: "POST",
+        credentials: "include",
+        keepalive: true,
+      }).catch(() => {});
+      setIsAppLocked(true);
+      setLockPin("");
+      setLockError("");
+      setVerifyingLock(false);
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "hidden") {
+        armAppLock();
+      }
+    };
+
+    window.addEventListener("pagehide", armAppLock);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener("pagehide", armAppLock);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [currentUser?._id, currentUser?.appLockEnabled, updateUser]);
+
+  useEffect(() => {
+    if (!isAppLocked || lockPin.length !== 4 || verifyingLock) {
+      return;
+    }
+
+    const timer = window.setTimeout(async () => {
+      setVerifyingLock(true);
+      setLockError("");
+
+      try {
+        const { data } = await axiosInstance.post("/users/me/app-lock/verify", {
+          pin: lockPin,
+        });
+
+        if (!data?.valid) {
+          setLockPin("");
+          setLockError(t("profileUtility.security.invalidPin"));
+          setVerifyingLock(false);
+          return;
+        }
+
+        sessionStorage.removeItem(APP_LOCK_ARMED_KEY);
+        if (data?.unlockToken) {
+          sessionStorage.setItem(APP_UNLOCK_TOKEN_KEY, data.unlockToken);
+        }
+        updateUser({ appLockSessionUnlocked: true });
+        setIsAppLocked(false);
+        setLockPin("");
+        setLockError("");
+        setVerifyingLock(false);
+      } catch {
+        setLockPin("");
+        setLockError(t("profileUtility.security.invalidPin"));
+        setVerifyingLock(false);
+      }
+    }, 120);
+
+    return () => window.clearTimeout(timer);
+  }, [isAppLocked, lockPin, t, updateUser, verifyingLock]);
 
   useEffect(() => {
     if (typeof window === "undefined" || typeof Notification === "undefined") {
@@ -199,6 +356,50 @@ const JammLayout = ({
     setDesktopNotificationsBannerDismissed(true);
     setShowNotificationPromptBanner(false);
   };
+
+  const handleLockDigit = (digit) => {
+    setLockPin((currentValue) => {
+      if (verifyingLock || currentValue.length >= 4) {
+        return currentValue;
+      }
+
+      return `${currentValue}${digit}`;
+    });
+    setLockError("");
+  };
+
+  const handleLockBackspace = () => {
+    setLockPin((currentValue) => currentValue.slice(0, -1));
+    setLockError("");
+  };
+
+  const handleLockedLogout = async () => {
+    sessionStorage.removeItem(APP_LOCK_ARMED_KEY);
+    sessionStorage.removeItem(APP_UNLOCK_TOKEN_KEY);
+    setIsAppLocked(false);
+    setLockPin("");
+    setLockError("");
+    setVerifyingLock(false);
+    await logout();
+  };
+
+  useEffect(() => {
+    const handleAppLockRequired = () => {
+      setIsAppLocked(true);
+      setLockPin("");
+      setLockError("");
+      setVerifyingLock(false);
+      updateUser({ appLockSessionUnlocked: false });
+    };
+
+    window.addEventListener("jamm-app-lock-required", handleAppLockRequired);
+    return () => {
+      window.removeEventListener(
+        "jamm-app-lock-required",
+        handleAppLockRequired,
+      );
+    };
+  }, [updateUser]);
 
   useEffect(() => {
     setIsRightPaneFocused(false);
@@ -543,7 +744,29 @@ const JammLayout = ({
     ) : null;
 
   return (
-    <AppContainer>
+    <>
+      <AppLockPinPad
+        open={Boolean(
+          currentUser?._id && currentUser?.appLockEnabled && isAppLocked,
+        )}
+        title={t("profileUtility.security.unlockTitle")}
+        description={t("profileUtility.security.unlockDescription")}
+        valueLength={lockPin.length}
+        error={lockError}
+        loading={verifyingLock}
+        allowClose={false}
+        onDigit={handleLockDigit}
+        onBackspace={handleLockBackspace}
+        footer={
+          <LockFooter>
+            <span>{t("profileUtility.security.forgotHelp")}</span>
+            <LockFooterLink type="button" onClick={handleLockedLogout}>
+              {t("profileUtility.security.logoutAction")}
+            </LockFooterLink>
+          </LockFooter>
+        }
+      />
+      <AppContainer>
       {showNotificationPromptBanner && (
         <NotificationPromptBanner>
           <NotificationPromptText>
@@ -946,6 +1169,7 @@ const JammLayout = ({
         </LazyPane>
       )}
     </AppContainer>
+    </>
   );
 };
 

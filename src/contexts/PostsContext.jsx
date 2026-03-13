@@ -1,7 +1,31 @@
 import React, { createContext, useContext, useState, useCallback } from "react";
 import * as postsApi from "../api/postsApi";
 
-const PostsContext = createContext();
+const defaultPostsContextValue = {
+  forYouPosts: [],
+  forYouPage: 1,
+  forYouHasMore: true,
+  followingPosts: [],
+  followingPage: 1,
+  followingHasMore: true,
+  userPosts: [],
+  loading: false,
+  fetchFeed: async () => {},
+  createPost: async () => null,
+  editPost: async () => null,
+  likePost: async () => {},
+  viewPost: async () => {},
+  addComment: async () => {},
+  getComments: async () => [],
+  addReply: async () => null,
+  fetchUserPosts: async () => [],
+  fetchLikedPosts: async () => [],
+  deletePost: async () => {},
+  toggleFollow: async () => null,
+  getPublicProfile: async () => null,
+};
+
+const PostsContext = createContext(defaultPostsContextValue);
 
 export const usePosts = () => useContext(PostsContext);
 

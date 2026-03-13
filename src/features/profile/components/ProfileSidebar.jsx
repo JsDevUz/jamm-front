@@ -11,6 +11,7 @@ import {
   GraduationCap,
   Headphones,
   Heart,
+  Lock,
   LogOut,
   MessageSquare,
   Palette,
@@ -420,6 +421,12 @@ const ownTabs = [
     labelKey: "profile.tabs.language",
     icon: Globe,
     color: "#0ea5e9",
+  },
+  {
+    key: "security",
+    labelKey: "profile.tabs.security",
+    icon: Lock,
+    color: "#ef4444",
   },
   {
     key: "premium",

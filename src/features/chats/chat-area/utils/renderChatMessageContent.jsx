@@ -80,13 +80,16 @@ const parseMessageContent = (content) => {
   return parts.length ? parts : [{ type: "text", content }];
 };
 
-export const renderChatMessageContent = (content, onMentionClick) => {
+export const renderChatMessageContent = (
+  content,
+  { onMentionClick, onLinkClick } = {},
+) => {
   return parseMessageContent(content).map((part, index) => {
     if (part.type === "mention") {
       return (
         <MentionText
           key={`${part.type}-${index}`}
-          onClick={(event) => onMentionClick(part.username, event)}
+          onClick={(event) => onMentionClick?.(part.username, event)}
         >
           {part.content}
         </MentionText>
@@ -98,8 +101,7 @@ export const renderChatMessageContent = (content, onMentionClick) => {
         <MessageLink
           key={`${part.type}-${index}`}
           href={part.url}
-          target="_blank"
-          rel="noopener noreferrer"
+          onClick={(event) => onLinkClick?.(part.url, event)}
         >
           {part.content}
         </MessageLink>
@@ -109,4 +111,3 @@ export const renderChatMessageContent = (content, onMentionClick) => {
     return <span key={`${part.type}-${index}`}>{part.content}</span>;
   });
 };
-

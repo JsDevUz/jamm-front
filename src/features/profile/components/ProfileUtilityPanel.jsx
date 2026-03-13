@@ -6,6 +6,7 @@ import {
   Heart,
   Headphones,
   ImagePlus,
+  Lock,
   Palette,
   Shield,
   Sparkles,
@@ -38,6 +39,7 @@ import {
   ProfilePaneEmptyState as EmptyState,
 } from "../ui/ProfilePane";
 import { ProfileMobileBackButton } from "../ui";
+import AppLockPinPad from "../../../app/components/AppLockPinPad";
 
 const MobileBackBtn = styled(ProfileMobileBackButton)``;
 
@@ -340,6 +342,16 @@ const DangerButton = styled(Button)`
   color: #ef4444;
 `;
 
+const SecurityStack = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+`;
+
+const SecurityStatus = styled(Badge)`
+  min-width: 110px;
+`;
+
 const FavoritesStack = styled.div`
   display: flex;
   flex-direction: column;
@@ -381,6 +393,7 @@ const ProfileUtilityPanel = ({ section, currentUser, onBack }) => {
   const navigate = useNavigate();
   const authUser = useAuthStore((state) => state.user);
   const setAuth = useAuthStore((state) => state.setAuth);
+  const updateUser = useAuthStore((state) => state.updateUser);
   const decorations = useProfileDecorationsStore((state) => state.decorations);
   const fetchDecorations = useProfileDecorationsStore(
     (state) => state.fetchDecorations,
@@ -402,6 +415,19 @@ const ProfileUtilityPanel = ({ section, currentUser, onBack }) => {
   const [likedBlogs, setLikedBlogs] = useState([]);
   const [likedLessons, setLikedLessons] = useState([]);
   const [loadingFavorites, setLoadingFavorites] = useState(false);
+  const [appLockEnabled, setAppLockEnabled] = useState(
+    Boolean(currentUser?.appLockEnabled),
+  );
+  const [pinPadState, setPinPadState] = useState({
+    open: false,
+    mode: "setup",
+    step: "new",
+    pin: "",
+    firstPin: "",
+    currentPin: "",
+    error: "",
+    loading: false,
+  });
 
   const languages = useMemo(
     () => [
@@ -432,6 +458,11 @@ const ProfileUtilityPanel = ({ section, currentUser, onBack }) => {
         title: t("profileUtility.sections.language.title"),
         description: t("profileUtility.sections.language.description"),
       },
+      security: {
+        icon: Lock,
+        title: t("profileUtility.sections.security.title"),
+        description: t("profileUtility.sections.security.description"),
+      },
       premium: {
         icon: Shield,
         title: t("profileUtility.sections.premium.title"),
@@ -460,6 +491,10 @@ const ProfileUtilityPanel = ({ section, currentUser, onBack }) => {
     () => sectionMeta[section] || sectionMeta.appearance,
     [section, sectionMeta],
   );
+  useEffect(() => {
+    setAppLockEnabled(Boolean(currentUser?.appLockEnabled));
+  }, [currentUser?.appLockEnabled]);
+
   useEffect(() => {
     if (section !== "language") return;
     const normalizedLanguage = normalizeLanguageCode(language);
@@ -522,6 +557,179 @@ const ProfileUtilityPanel = ({ section, currentUser, onBack }) => {
     const { data } = await axiosInstance.get("/users/me");
     setAuth({ ...(authUser || {}), ...data });
   };
+
+  const resetPinPad = () => {
+    setPinPadState({
+      open: false,
+      mode: "setup",
+      step: "new",
+      pin: "",
+      firstPin: "",
+      currentPin: "",
+      error: "",
+      loading: false,
+    });
+  };
+
+  const openPinPad = (mode) => {
+    setPinPadState({
+      open: true,
+      mode,
+      step: mode === "disable" ? "current" : mode === "change" ? "current" : "new",
+      pin: "",
+      firstPin: "",
+      currentPin: "",
+      error: "",
+      loading: false,
+    });
+  };
+
+  const updatePinPadStatus = (updates) => {
+    setPinPadState((current) => ({ ...current, ...updates }));
+  };
+
+  const persistAppLockEnabled = (enabled) => {
+    setAppLockEnabled(enabled);
+    updateUser({ appLockEnabled: enabled });
+  };
+
+  const handlePinPadBackspace = () => {
+    setPinPadState((current) => ({
+      ...current,
+      error: "",
+      pin: current.pin.slice(0, -1),
+    }));
+  };
+
+  const handlePinPadDigit = (digit) => {
+    setPinPadState((current) => {
+      if (current.loading || current.pin.length >= 4) {
+        return current;
+      }
+
+      return {
+        ...current,
+        error: "",
+        pin: `${current.pin}${digit}`,
+      };
+    });
+  };
+
+  const handlePinPadSubmit = async (completedPin) => {
+    if (pinPadState.loading) return;
+
+    if (pinPadState.mode === "disable") {
+      updatePinPadStatus({ loading: true, error: "" });
+      try {
+        const { data } = await axiosInstance.post("/users/me/app-lock/remove", {
+          pin: completedPin,
+        });
+        persistAppLockEnabled(Boolean(data?.enabled));
+        sessionStorage.removeItem("jamm-app-lock-armed");
+        toast.success(t("profileUtility.security.removed"));
+        resetPinPad();
+      } catch (error) {
+        updatePinPadStatus({
+          loading: false,
+          pin: "",
+          error:
+            error?.response?.data?.message || t("profileUtility.security.invalidPin"),
+        });
+      }
+      return;
+    }
+
+    if (pinPadState.step === "current") {
+      updatePinPadStatus({ loading: true, error: "" });
+      try {
+        const { data } = await axiosInstance.post("/users/me/app-lock/verify", {
+          pin: completedPin,
+        });
+        if (!data?.valid) {
+          updatePinPadStatus({
+            loading: false,
+            pin: "",
+            error: t("profileUtility.security.invalidPin"),
+          });
+          return;
+        }
+
+        updatePinPadStatus({
+          loading: false,
+          currentPin: completedPin,
+          pin: "",
+          step: "new",
+        });
+      } catch {
+        updatePinPadStatus({
+          loading: false,
+          pin: "",
+          error: t("profileUtility.security.invalidPin"),
+        });
+      }
+      return;
+    }
+
+    if (pinPadState.step === "new") {
+      updatePinPadStatus({
+        pin: "",
+        firstPin: completedPin,
+        step: "confirm",
+        error: "",
+      });
+      return;
+    }
+
+    if (pinPadState.step === "confirm") {
+      if (completedPin !== pinPadState.firstPin) {
+        updatePinPadStatus({
+          pin: "",
+          firstPin: "",
+          step: "new",
+          error: t("profileUtility.security.pinMismatch"),
+        });
+        return;
+      }
+
+      updatePinPadStatus({ loading: true, error: "" });
+      try {
+        const payload = { pin: completedPin };
+        if (pinPadState.currentPin) {
+          payload.currentPin = pinPadState.currentPin;
+        }
+        const { data } = await axiosInstance.post("/users/me/app-lock", payload);
+        persistAppLockEnabled(Boolean(data?.enabled));
+        toast.success(
+          pinPadState.mode === "change"
+            ? t("profileUtility.security.updated")
+            : t("profileUtility.security.enabled"),
+        );
+        resetPinPad();
+      } catch (error) {
+        updatePinPadStatus({
+          loading: false,
+          pin: "",
+          firstPin: "",
+          currentPin: "",
+          step: pinPadState.mode === "change" ? "current" : "new",
+          error:
+            error?.response?.data?.message || t("profileUtility.security.saveError"),
+        });
+      }
+    }
+  };
+
+  useEffect(() => {
+    if (!pinPadState.open || pinPadState.pin.length !== 4 || pinPadState.loading) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      handlePinPadSubmit(pinPadState.pin);
+    }, 120);
+
+    return () => window.clearTimeout(timer);
+  }, [pinPadState.loading, pinPadState.open, pinPadState.pin]);
 
   const openSupportChat = async (username) => {
     try {
@@ -1017,6 +1225,85 @@ const ProfileUtilityPanel = ({ section, currentUser, onBack }) => {
     </CardsGrid>
   );
 
+  const pinPadTitle =
+    pinPadState.mode === "disable"
+      ? t("profileUtility.security.turnOffTitle")
+      : pinPadState.mode === "change" && pinPadState.step === "current"
+        ? t("profileUtility.security.currentPinTitle")
+        : pinPadState.step === "confirm"
+          ? t("profileUtility.security.confirmPinTitle")
+          : t("profileUtility.security.newPinTitle");
+
+  const pinPadDescription =
+    pinPadState.mode === "disable"
+      ? t("profileUtility.security.turnOffDescription")
+      : pinPadState.step === "current"
+        ? t("profileUtility.security.currentPinDescription")
+        : pinPadState.step === "confirm"
+          ? t("profileUtility.security.confirmPinDescription")
+          : t("profileUtility.security.newPinDescription");
+
+  const renderSecurity = () => (
+    <SecurityStack>
+      <Group>
+        <GroupHeader>
+          <h4>{t("profileUtility.security.statusTitle")}</h4>
+          <p>{t("profileUtility.security.statusDescription")}</p>
+        </GroupHeader>
+        <SettingRow>
+          <SettingMeta>
+            <strong>{t("profileUtility.security.appLockLabel")}</strong>
+            <span>{t("profileUtility.security.appLockMeta")}</span>
+          </SettingMeta>
+          <SecurityStatus $active={appLockEnabled}>
+            <Lock size={14} />
+            {appLockEnabled
+              ? t("profileUtility.security.enabledBadge")
+              : t("profileUtility.security.disabledBadge")}
+          </SecurityStatus>
+        </SettingRow>
+      </Group>
+
+      <CardsGrid>
+        <InfoCard>
+          <h4>{t("profileUtility.security.passcodeTitle")}</h4>
+          <p>{t("profileUtility.security.passcodeDescription")}</p>
+          <Button onClick={() => openPinPad(appLockEnabled ? "change" : "setup")}>
+            <Lock size={14} />
+            {appLockEnabled
+              ? t("profileUtility.security.changeAction")
+              : t("profileUtility.security.enableAction")}
+          </Button>
+        </InfoCard>
+
+        <InfoCard>
+          <h4>{t("profileUtility.security.autoLockTitle")}</h4>
+          <p>{t("profileUtility.security.autoLockDescription")}</p>
+          <DangerButton
+            disabled={!appLockEnabled}
+            onClick={() => openPinPad("disable")}
+          >
+            <Lock size={14} />
+            {t("profileUtility.security.disableAction")}
+          </DangerButton>
+        </InfoCard>
+      </CardsGrid>
+
+      <AppLockPinPad
+        open={pinPadState.open}
+        title={pinPadTitle}
+        description={pinPadDescription}
+        valueLength={pinPadState.pin.length}
+        error={pinPadState.error}
+        loading={pinPadState.loading}
+        onClose={resetPinPad}
+        onDigit={handlePinPadDigit}
+        onBackspace={handlePinPadBackspace}
+        footer={t("profileUtility.security.footer")}
+      />
+    </SecurityStack>
+  );
+
   return (
     <Wrapper data-tour={`profile-pane-${section}`}>
       <Header>
@@ -1028,6 +1315,7 @@ const ProfileUtilityPanel = ({ section, currentUser, onBack }) => {
       <Body>
         {section === "appearance" && renderAppearance()}
         {section === "language" && renderLanguage()}
+        {section === "security" && renderSecurity()}
         {section === "premium" && renderPremium()}
         {section === "support" && renderSupport()}
         {section === "favorites" && renderFavorites()}

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "react-hot-toast";
+import { useLocation } from "react-router-dom";
 import {
   createChat as createDirectChat,
   getPublicProfile,
@@ -49,6 +50,7 @@ export default function useChatAreaController({
   const { isUserOnline, getOnlineCount } = usePresence();
   const { startPrivateCall } = useCall();
   const currentUser = useAuthStore((state) => state.user);
+  const location = useLocation();
   const isEditGroupDialogOpen = useChatAreaUiStore(
     (state) => state.isEditGroupDialogOpen,
   );
@@ -88,6 +90,7 @@ export default function useChatAreaController({
   const [clickCount, setClickCount] = useState(0);
   const [clickedMessageId, setClickedMessageId] = useState(null);
   const [clickTimer, setClickTimer] = useState(null);
+  const [navigatingMessageId, setNavigatingMessageId] = useState(null);
 
   const typingTimeoutRef = useRef(null);
   const previewLocationRef = useRef(null);
@@ -101,6 +104,11 @@ export default function useChatAreaController({
   useEffect(() => {
     resetChatAreaUi();
   }, [selectedChatId, resetChatAreaUi]);
+
+  useEffect(() => {
+    if (!navigatingMessageId) return;
+    setNavigatingMessageId(null);
+  }, [location.pathname, location.search, location.hash, navigatingMessageId]);
 
   useEffect(() => {
     const handlePopState = () => {
@@ -846,12 +854,14 @@ export default function useChatAreaController({
     }
   };
 
-  const handleMentionClick = async (username, event) => {
+  const handleMentionClick = async (username, event, messageId = null) => {
     event.stopPropagation();
+    setNavigatingMessageId(messageId);
 
     try {
       const user = await getUserByUsername(username);
       if (!user || !navigate) {
+        setNavigatingMessageId(null);
         toast.error("Bunday foydalanuvchi topilmadi");
         return;
       }
@@ -862,6 +872,7 @@ export default function useChatAreaController({
         currentUser &&
         String(targetUserId) === String(currentUser._id || currentUser.id)
       ) {
+        setNavigatingMessageId(null);
         toast.error("Siz o'zingiz bilan suhbat qura olmaysiz");
         return;
       }
@@ -888,15 +899,66 @@ export default function useChatAreaController({
 
       if (chatId?.jammId) {
         navigate(`/users/${chatId.jammId}`);
+        return;
       }
+
+      setNavigatingMessageId(null);
     } catch (error) {
+      setNavigatingMessageId(null);
       console.error("Error handling mention click:", error);
       toast.error("Foydalanuvchini qidirishda xatolik yuz berdi");
     }
   };
 
-  const renderMessageContent = (content) =>
-    renderChatMessageContent(content, handleMentionClick);
+  const isInternalMessageUrl = (url) => {
+    try {
+      const parsedUrl = new URL(
+        url,
+        typeof window !== "undefined" ? window.location.origin : RESOLVED_APP_BASE_URL,
+      );
+      const hostname = parsedUrl.hostname.replace(/^www\./, "");
+      const currentHostname =
+        typeof window !== "undefined"
+          ? window.location.hostname.replace(/^www\./, "")
+          : "";
+
+      return hostname === "jamm.uz" || hostname === currentHostname;
+    } catch {
+      return false;
+    }
+  };
+
+  const normalizeInternalPath = (url) => {
+    const parsedUrl = new URL(
+      url,
+      typeof window !== "undefined" ? window.location.origin : RESOLVED_APP_BASE_URL,
+    );
+    return `${parsedUrl.pathname}${parsedUrl.search}${parsedUrl.hash}`;
+  };
+
+  const handleMessageLinkClick = (url, event, messageId = null) => {
+    if (!navigate) return;
+
+    if (!isInternalMessageUrl(url)) {
+      event.preventDefault();
+      event.stopPropagation();
+      window.open(url, "_blank", "noopener,noreferrer");
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    setNavigatingMessageId(messageId);
+    navigate(normalizeInternalPath(url));
+  };
+
+  const renderMessageContent = (content, messageId = null) =>
+    renderChatMessageContent(content, {
+      onMentionClick: (username, event) =>
+        handleMentionClick(username, event, messageId),
+      onLinkClick: (url, event) =>
+        handleMessageLinkClick(url, event, messageId),
+    });
 
   const handleEmojiClick = (emoji) => {
     setMessageInput((previous) => previous + emoji);
@@ -1104,6 +1166,7 @@ export default function useChatAreaController({
       handleUsernameClick,
       getUserAvatar: getUserAvatarInitials,
       renderMessageContent,
+      navigatingMessageId,
       formatDate: formatMessageDate,
       handleInputChange,
       submitMessage,

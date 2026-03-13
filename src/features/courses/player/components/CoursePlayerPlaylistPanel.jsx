@@ -19,6 +19,7 @@ import toast from "react-hot-toast";
 import { RESOLVED_APP_BASE_URL } from "../../../../config/env";
 import {
   AddLessonBtn,
+  CopyPlaylistBtn,
   CopyLessonBtn,
   DeleteLessonBtn,
   DraftBadge,
@@ -73,9 +74,9 @@ const CoursePlayerPlaylistPanel = () => {
       await navigator.clipboard.writeText(
         `${RESOLVED_APP_BASE_URL}/courses/${courseSlug}/${lessonSlug}`,
       );
-      toast.success("Lesson havolasi nusxalandi");
+      toast.success(t("coursePlayer.playlist.copyLessonSuccess"));
     } catch {
-      toast.error("Lesson havolasini nusxalab bo'lmadi");
+      toast.error(t("coursePlayer.playlist.copyFailed"));
     }
   };
 
@@ -84,16 +85,16 @@ const CoursePlayerPlaylistPanel = () => {
       const courseSlug = course?.urlSlug || course?._id || course?.id;
 
       if (!courseSlug) {
-        toast.error("Kurs havolasini nusxalab bo'lmadi");
+        toast.error(t("coursePlayer.playlist.copyFailed"));
         return;
       }
 
       await navigator.clipboard.writeText(
         `${RESOLVED_APP_BASE_URL}/courses/${courseSlug}`,
       );
-      toast.success("Kurs havolasi nusxalandi");
+      toast.success(t("coursePlayer.playlist.copyCourseSuccess"));
     } catch {
-      toast.error("Kurs havolasini nusxalab bo'lmadi");
+      toast.error(t("coursePlayer.playlist.copyFailed"));
     }
   };
 
@@ -111,12 +112,13 @@ const CoursePlayerPlaylistPanel = () => {
           <PlaylistCount>
             {t("coursePlayer.playlist.count", { count: course.lessons.length })}
           </PlaylistCount>
-          <CopyLessonBtn
+          <CopyPlaylistBtn
             onClick={handleCopyCourseLink}
-            title="Kurs havolasini nusxalash"
+            title={t("coursePlayer.playlist.copyCourse")}
+            aria-label={t("common.copy")}
           >
             <Copy size={14} />
-          </CopyLessonBtn>
+          </CopyPlaylistBtn>
           {admin && (
             <AddLessonBtn
               onClick={openLessonCreator}
@@ -202,7 +204,8 @@ const CoursePlayerPlaylistPanel = () => {
 
                 <CopyLessonBtn
                   onClick={(event) => handleCopyLessonLink(event, lesson)}
-                  title="Lesson havolasini nusxalash"
+                  title={t("coursePlayer.playlist.copyLesson")}
+                  aria-label={t("common.copy")}
                 >
                   <Copy size={14} />
                 </CopyLessonBtn>

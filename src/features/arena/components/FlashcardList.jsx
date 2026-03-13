@@ -514,14 +514,13 @@ const RatingBtn = styled.button`
       if (props.type === "easy") return "rgba(34, 197, 94, 0.35)";
       return "var(--border-color)";
     }};
-  background:
-    ${(props) => {
-      if (props.type === "fail") return "rgba(239, 68, 68, 0.12)";
-      if (props.type === "hard") return "rgba(249, 115, 22, 0.12)";
-      if (props.type === "good") return "rgba(59, 130, 246, 0.12)";
-      if (props.type === "easy") return "rgba(34, 197, 94, 0.12)";
-      return "var(--secondary-color)";
-    }};
+  background: ${(props) => {
+    if (props.type === "fail") return "rgba(239, 68, 68, 0.12)";
+    if (props.type === "hard") return "rgba(249, 115, 22, 0.12)";
+    if (props.type === "good") return "rgba(59, 130, 246, 0.12)";
+    if (props.type === "easy") return "rgba(34, 197, 94, 0.12)";
+    return "var(--secondary-color)";
+  }};
   color: var(--text-color);
   font-size: 13px;
   font-weight: 700;
@@ -609,7 +608,7 @@ const ClassicTopBar = styled.div`
   grid-template-columns: 52px 1fr 52px;
   align-items: center;
   gap: 12px;
-  padding: 0 20px;
+  padding: 0;
   min-height: 64px;
 `;
 
@@ -694,11 +693,10 @@ const ClassicFloatingCounter = styled.div`
       props.$side === "left"
         ? "color-mix(in srgb, var(--warning-color, #f59e0b) 78%, var(--border-color))"
         : "color-mix(in srgb, var(--success-color, #10b981) 78%, var(--border-color))"};
-  background:
-    ${(props) =>
-      props.$side === "left"
-        ? "color-mix(in srgb, var(--warning-color, #f59e0b) 10%, var(--background-color))"
-        : "color-mix(in srgb, var(--success-color, #10b981) 10%, var(--background-color))"};
+  background: ${(props) =>
+    props.$side === "left"
+      ? "color-mix(in srgb, var(--warning-color, #f59e0b) 10%, var(--background-color))"
+      : "color-mix(in srgb, var(--success-color, #10b981) 10%, var(--background-color))"};
   color: ${(props) =>
     props.$side === "left"
       ? "var(--warning-color, #f59e0b)"
@@ -724,13 +722,12 @@ const ClassicSummaryPill = styled.div`
         : props.$tone === "danger"
           ? "rgba(255, 164, 87, 0.34)"
           : "rgba(163, 176, 217, 0.22)"};
-  background:
-    ${(props) =>
-      props.$tone === "success"
-        ? "rgba(121, 241, 203, 0.1)"
-        : props.$tone === "danger"
-          ? "rgba(255, 164, 87, 0.1)"
-          : "rgba(255, 255, 255, 0.04)"};
+  background: ${(props) =>
+    props.$tone === "success"
+      ? "rgba(121, 241, 203, 0.1)"
+      : props.$tone === "danger"
+        ? "rgba(255, 164, 87, 0.1)"
+        : "rgba(255, 255, 255, 0.04)"};
   color: var(--text-color);
   display: flex;
   flex-direction: column;
@@ -767,8 +764,7 @@ const ClassicGhostCard = styled.div`
   border-radius: 34px;
   background: color-mix(in srgb, var(--secondary-color) 88%, transparent);
   border: 1px solid color-mix(in srgb, var(--border-color) 72%, transparent);
-  transform:
-    translateX(${(props) => props.$offsetX || 0}px)
+  transform: translateX(${(props) => props.$offsetX || 0}px)
     translateY(${(props) => props.$offsetY || 0}px)
     rotate(${(props) => props.$rotate || 0}deg);
   opacity: ${(props) => props.$opacity || 0.42};
@@ -819,46 +815,43 @@ const ClassicSwipeCard = styled.div`
   border-radius: 36px;
   /* border: 1px solid
     ${(props) =>
-      props.$swipeTone === "success"
-        ? `color-mix(in srgb, var(--success-color, #10b981) ${30 + (props.$swipeStrength || 0) * 45}%, var(--border-color))`
-        : props.$swipeTone === "danger"
-          ? `color-mix(in srgb, var(--danger-color, #ef4444) ${30 + (props.$swipeStrength || 0) * 45}%, var(--border-color))`
-          : "color-mix(in srgb, var(--border-color) 78%, transparent)"};
+    props.$swipeTone === "success"
+      ? `color-mix(in srgb, var(--success-color, #10b981) ${30 + (props.$swipeStrength || 0) * 45}%, var(--border-color))`
+      : props.$swipeTone === "danger"
+        ? `color-mix(in srgb, var(--danger-color, #ef4444) ${30 + (props.$swipeStrength || 0) * 45}%, var(--border-color))`
+        : "color-mix(in srgb, var(--border-color) 78%, transparent)"};
   background: linear-gradient(
     180deg,
     ${(props) =>
-      props.$swipeTone === "success"
-        ? `color-mix(in srgb, var(--success-color, #10b981) ${10 + (props.$swipeStrength || 0) * 18}%, var(--secondary-color))`
-        : props.$swipeTone === "danger"
-          ? `color-mix(in srgb, var(--danger-color, #ef4444) ${10 + (props.$swipeStrength || 0) * 18}%, var(--secondary-color))`
-          : "color-mix(in srgb, var(--secondary-color) 94%, var(--background-color))"} 0%,
+    props.$swipeTone === "success"
+      ? `color-mix(in srgb, var(--success-color, #10b981) ${10 + (props.$swipeStrength || 0) * 18}%, var(--secondary-color))`
+      : props.$swipeTone === "danger"
+        ? `color-mix(in srgb, var(--danger-color, #ef4444) ${10 + (props.$swipeStrength || 0) * 18}%, var(--secondary-color))`
+        : "color-mix(in srgb, var(--secondary-color) 94%, var(--background-color))"} 0%,
     ${(props) =>
-      props.$swipeTone === "success"
-        ? `color-mix(in srgb, var(--success-color, #10b981) ${6 + (props.$swipeStrength || 0) * 14}%, var(--tertiary-color))`
-        : props.$swipeTone === "danger"
-          ? `color-mix(in srgb, var(--danger-color, #ef4444) ${6 + (props.$swipeStrength || 0) * 14}%, var(--tertiary-color))`
-          : "color-mix(in srgb, var(--tertiary-color) 96%, var(--background-color))"} 100%
+    props.$swipeTone === "success"
+      ? `color-mix(in srgb, var(--success-color, #10b981) ${6 + (props.$swipeStrength || 0) * 14}%, var(--tertiary-color))`
+      : props.$swipeTone === "danger"
+        ? `color-mix(in srgb, var(--danger-color, #ef4444) ${6 + (props.$swipeStrength || 0) * 14}%, var(--tertiary-color))`
+        : "color-mix(in srgb, var(--tertiary-color) 96%, var(--background-color))"} 100%
   );
   box-shadow:
     0 24px 80px rgba(0, 0, 0, 0.28),
     0 24px 52px color-mix(in srgb, black 24%, transparent),
     0 0 0
       ${(props) =>
-        props.$swipeStrength
-          ? `${1 + (props.$swipeStrength || 0) * 4}px`
-          : "0px"}
+    props.$swipeStrength ? `${1 + (props.$swipeStrength || 0) * 4}px` : "0px"}
       ${(props) =>
-        props.$swipeTone === "success"
-          ? `color-mix(in srgb, var(--success-color, #10b981) ${14 + (props.$swipeStrength || 0) * 20}%, transparent)`
-          : props.$swipeTone === "danger"
-            ? `color-mix(in srgb, var(--danger-color, #ef4444) ${14 + (props.$swipeStrength || 0) * 20}%, transparent)`
-            : "transparent"},
+    props.$swipeTone === "success"
+      ? `color-mix(in srgb, var(--success-color, #10b981) ${14 + (props.$swipeStrength || 0) * 20}%, transparent)`
+      : props.$swipeTone === "danger"
+        ? `color-mix(in srgb, var(--danger-color, #ef4444) ${14 + (props.$swipeStrength || 0) * 20}%, transparent)`
+        : "transparent"},
     inset 0 1px 0 color-mix(in srgb, white 6%, transparent); */
-  
+
   cursor: grab;
   transform-style: preserve-3d;
-  transform:
-    translate3d(${(props) => props.$dragX || 0}px, 0, 0)
+  transform: translate3d(${(props) => props.$dragX || 0}px, 0, 0)
     rotate(${(props) => ((props.$dragX || 0) / 16).toFixed(2)}deg)
     rotateX(${(props) => ((props.$dragX || 0) / -140).toFixed(2)}deg)
     scale(${(props) => (props.$dragging ? 1.01 : props.$exiting ? 0.98 : 1)});
@@ -902,9 +895,8 @@ const ClassicFlipLayer = styled.div`
   padding: 28px;
   border-radius: 30px;
   transition: transform 0.62s cubic-bezier(0.22, 1, 0.36, 1);
-  transform: rotateY(${(props) => (props.$flipped ? 180 : 0)}deg)
-    translateZ(0);
-    border: 1px solid
+  transform: rotateY(${(props) => (props.$flipped ? 180 : 0)}deg) translateZ(0);
+  border: 1px solid
     ${(props) =>
       props.$swipeTone === "success"
         ? `color-mix(in srgb, var(--success-color, #10b981) ${30 + (props.$swipeStrength || 0) * 45}%, var(--border-color))`
@@ -914,20 +906,21 @@ const ClassicFlipLayer = styled.div`
   background: linear-gradient(
     180deg,
     ${(props) =>
-      props.$swipeTone === "success"
-        ? `color-mix(in srgb, var(--success-color, #10b981) ${10 + (props.$swipeStrength || 0) * 18}%, var(--secondary-color))`
-        : props.$swipeTone === "danger"
-          ? `color-mix(in srgb, var(--danger-color, #ef4444) ${10 + (props.$swipeStrength || 0) * 18}%, var(--secondary-color))`
-          : "color-mix(in srgb, var(--secondary-color) 94%, var(--background-color))"} 0%,
+        props.$swipeTone === "success"
+          ? `color-mix(in srgb, var(--success-color, #10b981) ${10 + (props.$swipeStrength || 0) * 18}%, var(--secondary-color))`
+          : props.$swipeTone === "danger"
+            ? `color-mix(in srgb, var(--danger-color, #ef4444) ${10 + (props.$swipeStrength || 0) * 18}%, var(--secondary-color))`
+            : "color-mix(in srgb, var(--secondary-color) 94%, var(--background-color))"}
+      0%,
     ${(props) =>
-      props.$swipeTone === "success"
-        ? `color-mix(in srgb, var(--success-color, #10b981) ${6 + (props.$swipeStrength || 0) * 14}%, var(--tertiary-color))`
-        : props.$swipeTone === "danger"
-          ? `color-mix(in srgb, var(--danger-color, #ef4444) ${6 + (props.$swipeStrength || 0) * 14}%, var(--tertiary-color))`
-          : "color-mix(in srgb, var(--tertiary-color) 96%, var(--background-color))"} 100%
+        props.$swipeTone === "success"
+          ? `color-mix(in srgb, var(--success-color, #10b981) ${6 + (props.$swipeStrength || 0) * 14}%, var(--tertiary-color))`
+          : props.$swipeTone === "danger"
+            ? `color-mix(in srgb, var(--danger-color, #ef4444) ${6 + (props.$swipeStrength || 0) * 14}%, var(--tertiary-color))`
+            : "color-mix(in srgb, var(--tertiary-color) 96%, var(--background-color))"}
+      100%
   );
-  box-shadow:
-    none;
+  box-shadow: none;
 `;
 
 const ClassicCardFace = styled.div`
@@ -972,7 +965,11 @@ const ClassicToolbarIcon = styled.button`
   height: 40px;
   border-radius: 12px;
   border: 1px solid color-mix(in srgb, var(--border-color) 78%, transparent);
-  background: color-mix(in srgb, var(--secondary-color) 88%, var(--background-color));
+  background: color-mix(
+    in srgb,
+    var(--secondary-color) 88%,
+    var(--background-color)
+  );
   color: inherit;
   display: inline-flex;
   align-items: center;
@@ -1025,7 +1022,9 @@ const ClassicCardWord = styled.div`
   word-break: break-word;
   filter: blur(${(props) => `${(props.$blur || 0).toFixed(2)}px`});
   opacity: ${(props) => 1 - (props.$fade || 0) * 0.55};
-  transition: filter 0.12s ease, opacity 0.12s ease;
+  transition:
+    filter 0.12s ease,
+    opacity 0.12s ease;
   text-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
@@ -1870,7 +1869,7 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
                 size={16}
                 style={{ marginRight: 8, display: "inline" }}
               />
-             Javobni ko'rish
+              Javobni ko'rish
             </RevealBtn>
           ) : (
             <Ratings>
@@ -1935,14 +1934,14 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
                 {classicIndex + 1} / {classicQueue.length}
               </ClassicTopCounter>
 
-             <ClassicGhostAction
-                  type="button"
-                  onClick={handleClassicReplay}
-                  disabled={classicIndex === 0 && classicAnswers.length === 0}
-                  title="Oldingi karta"
-                >
-                  <Undo2 size={24} />
-                </ClassicGhostAction>
+              <ClassicGhostAction
+                type="button"
+                onClick={handleClassicReplay}
+                disabled={classicIndex === 0 && classicAnswers.length === 0}
+                title="Oldingi karta"
+              >
+                <Undo2 size={24} />
+              </ClassicGhostAction>
             </ClassicTopBar>
 
             <ClassicProgressTrack>
@@ -2064,7 +2063,6 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
                         >
                           <Volume2 size={22} />
                         </ClassicToolbarIcon>
-                       
                       </ClassicCardToolbar>
                       <ClassicCardBody>
                         {promptImage ? (
@@ -2093,7 +2091,6 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
                         >
                           <Volume2 size={22} />
                         </ClassicToolbarIcon>
-                       
                       </ClassicCardToolbar>
                       <ClassicCardBody>
                         {answerImage ? (
@@ -2108,8 +2105,6 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
                   </ClassicFlipLayer>
                 </ClassicSwipeCard>
               </ClassicCardStage>
-
-             
             </ClassicViewport>
           </ClassicFullscreenShell>
         ) : (
@@ -2148,11 +2143,15 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
                   <PreviewItem key={`${item.card._id || index}-${index}`}>
                     <PreviewRow>
                       <PreviewLabel>{index + 1}.</PreviewLabel>
-                      <PreviewContent>{getPromptText(item.card)}</PreviewContent>
+                      <PreviewContent>
+                        {getPromptText(item.card)}
+                      </PreviewContent>
                     </PreviewRow>
                     <PreviewRow>
                       <PreviewLabel>Javob:</PreviewLabel>
-                      <PreviewContent>{getAnswerText(item.card)}</PreviewContent>
+                      <PreviewContent>
+                        {getAnswerText(item.card)}
+                      </PreviewContent>
                     </PreviewRow>
                     <PreviewRow>
                       <PreviewLabel>Holat:</PreviewLabel>
