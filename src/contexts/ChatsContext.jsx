@@ -60,6 +60,7 @@ export const ChatsProvider = ({ children }) => {
     return 0;
   });
   const [chatSocket, setChatSocket] = useState(null);
+  const [chatReconnectKey, setChatReconnectKey] = useState(0);
   const [typingUsers, setTypingUsers] = useState({});
   const [previewChat, setPreviewChat] = useState(null);
 
@@ -81,6 +82,7 @@ export const ChatsProvider = ({ children }) => {
 
     socket.on("connect", () => {
       console.log("Connected to /chats namespace");
+      setChatReconnectKey((prev) => prev + 1);
     });
 
     setChatSocket(socket);
@@ -411,6 +413,25 @@ export const ChatsProvider = ({ children }) => {
     }
   }, []);
 
+  useEffect(() => {
+    const currentUserId = authUser?._id || authUser?.id;
+    if (!currentUserId) return undefined;
+
+    const handleOnline = () => {
+      fetchChats(1);
+      setChatReconnectKey((prev) => prev + 1);
+    };
+
+    window.addEventListener("online", handleOnline);
+    return () => window.removeEventListener("online", handleOnline);
+  }, [authUser?._id, authUser?.id, fetchChats]);
+
+  useEffect(() => {
+    const currentUserId = authUser?._id || authUser?.id;
+    if (!currentUserId || chatReconnectKey === 0) return;
+    fetchChats(1);
+  }, [authUser?._id, authUser?.id, chatReconnectKey, fetchChats]);
+
   const ensureChatsLoaded = useCallback(async () => {
     if (hasLoadedChatsRef.current) return;
     await fetchChats(1);
@@ -656,6 +677,7 @@ export const ChatsProvider = ({ children }) => {
     selectedChatId,
     setSelectedChatId,
     chatSocket,
+    chatReconnectKey,
     typingUsers,
     sendTypingStatus,
     searchGlobalUsers,

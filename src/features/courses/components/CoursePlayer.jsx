@@ -5,6 +5,7 @@ import {
   Pause,
   Volume2,
   VolumeX,
+  Copy,
   Maximize,
   Minimize,
   Clock,
@@ -22,6 +23,7 @@ import {
   AlertCircle,
   ArrowLeft,
 } from "lucide-react";
+import toast from "react-hot-toast";
 import { useCourses } from "../../../contexts/CoursesContext";
 import { useChats } from "../../../contexts/ChatsContext";
 import { useNavigate } from "react-router-dom";
@@ -288,6 +290,26 @@ const CoursePlayer = ({ courseId, initialLessonSlug, onClose }) => {
       currentMediaItem?.videoUrl ||
       activeMediaIndex,
   );
+
+  const handleCopyCurrentLessonLink = useCallback(async () => {
+    const courseSlug = course?.urlSlug || course?._id || course?.id;
+    const lessonSlug =
+      currentLessonData?.urlSlug || currentLessonData?._id || currentLessonData?.id;
+
+    if (!courseSlug || !lessonSlug) {
+      toast.error("Dars havolasini nusxalab bo'lmadi");
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(
+        `${window.location.origin}/courses/${courseSlug}/${lessonSlug}`,
+      );
+      toast.success("Dars havolasi nusxalandi");
+    } catch {
+      toast.error("Dars havolasini nusxalab bo'lmadi");
+    }
+  }, [course, currentLessonData]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1758,6 +1780,14 @@ const CoursePlayer = ({ courseId, initialLessonSlug, onClose }) => {
                       fill={currentLessonData.liked ? "currentColor" : "none"}
                     />
                     {currentLessonData.likes || 0} {t("coursePlayer.meta.likes")}
+                  </LikeButton>
+                  <LikeButton
+                    onClick={handleCopyCurrentLessonLink}
+                    title="Dars havolasini nusxalash"
+                    aria-label="Dars havolasini nusxalash"
+                  >
+                    <Copy size={14} />
+                    {t("common.copy")}
                   </LikeButton>
                   <MetaItem>
                     <BookOpen size={14} />

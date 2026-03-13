@@ -79,6 +79,24 @@ const CoursePlayerPlaylistPanel = () => {
     }
   };
 
+  const handleCopyCourseLink = async () => {
+    try {
+      const courseSlug = course?.urlSlug || course?._id || course?.id;
+
+      if (!courseSlug) {
+        toast.error("Kurs havolasini nusxalab bo'lmadi");
+        return;
+      }
+
+      await navigator.clipboard.writeText(
+        `${RESOLVED_APP_BASE_URL}/courses/${courseSlug}`,
+      );
+      toast.success("Kurs havolasi nusxalandi");
+    } catch {
+      toast.error("Kurs havolasini nusxalab bo'lmadi");
+    }
+  };
+
   return (
     <PlaylistPanel>
       <PlaylistHeader>
@@ -93,6 +111,12 @@ const CoursePlayerPlaylistPanel = () => {
           <PlaylistCount>
             {t("coursePlayer.playlist.count", { count: course.lessons.length })}
           </PlaylistCount>
+          <CopyLessonBtn
+            onClick={handleCopyCourseLink}
+            title="Kurs havolasini nusxalash"
+          >
+            <Copy size={14} />
+          </CopyLessonBtn>
           {admin && (
             <AddLessonBtn
               onClick={openLessonCreator}

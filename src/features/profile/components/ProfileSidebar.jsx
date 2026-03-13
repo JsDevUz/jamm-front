@@ -14,6 +14,7 @@ import {
   LogOut,
   MessageSquare,
   Palette,
+  Sparkles,
   Shield,
 } from "lucide-react";
 import UserNameWithDecoration from "../../../shared/ui/users/UserNameWithDecoration";
@@ -437,6 +438,12 @@ const ownTabs = [
     labelKey: "profile.tabs.favorites",
     icon: Heart,
     color: "#ec4899",
+  },
+  {
+    key: "learn",
+    labelKey: "profile.tabs.learn",
+    icon: Sparkles,
+    color: "#8b5cf6",
   },
 ];
 

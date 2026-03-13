@@ -667,11 +667,14 @@
     "members": "A'zolar ({{count}})",
     "waitingMembers": "Kutayotganlar ({{count}})",
     "joinedMembers": "Qo'shilganlar ({{count}})",
-    "cameraOff": "Kamera o'chirilgan"
+    "cameraOff": "Kamera o'chirilgan",
+    "screenShareUnavailable": "iPhone brauzerlarida ekran ulashish hozircha qo'llanmaydi",
+    "screenShareFailed": "Ekran ulashishni boshlab bo'lmadi"
   },
   "privateCall": {
     "titleFallback": "Shaxsiy qo'ng'iroq",
     "calling": "Qo'ng'iroq davom etmoqda",
+    "callEnded": "Aloqa yakunlandi",
     "localLabel": "Siz",
     "remoteLabel": "Suhbatdosh",
     "screenShareLabel": "Ekran ulashish"
@@ -848,7 +851,8 @@
       "language": "Language",
       "premium": "Jamm Premium",
       "support": "Qo'llab-quvvatlash",
-      "favorites": "Sevimlilarim"
+      "favorites": "Sevimlilarim",
+      "learn": "Dasturni o'rganish"
     },
     "stats": {
       "members": "A'zolar",
@@ -878,7 +882,16 @@
       "favorites": {
         "title": "Sevimlilarim",
         "description": "Saqlangan kontentlar uchun alohida bo'lim."
+      },
+      "learn": {
+        "title": "Dasturni o'rganish",
+        "description": "Profil, kurslar va chatlar bo'yicha qo'llanmani qayta ishga tushiring."
       }
+    },
+    "learn": {
+      "title": "Dasturni o'rganish",
+      "description": "Shu tugma profil bo'limidan boshlab kurslar va chatlar bo'ylab to'liq qo'llanmani qayta ishga tushiradi.",
+      "start": "Qo'llanmani boshlash"
     },
     "appearance": {
       "groupTitle": "Ko'rinish",

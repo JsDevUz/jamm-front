@@ -666,11 +666,14 @@
     "members": "Members ({{count}})",
     "waitingMembers": "Waiting ({{count}})",
     "joinedMembers": "Joined ({{count}})",
-    "cameraOff": "Camera off"
+    "cameraOff": "Camera off",
+    "screenShareUnavailable": "Screen sharing is not supported in iPhone browsers yet",
+    "screenShareFailed": "Failed to start screen sharing"
   },
   "privateCall": {
     "titleFallback": "Private call",
     "calling": "Call in progress",
+    "callEnded": "Call ended",
     "localLabel": "You",
     "remoteLabel": "Participant",
     "screenShareLabel": "Screen share"
@@ -847,7 +850,8 @@
       "language": "Language",
       "premium": "Jamm Premium",
       "support": "Support",
-      "favorites": "Favorites"
+      "favorites": "Favorites",
+      "learn": "Learn the app"
     },
     "stats": {
       "members": "Members",
@@ -877,7 +881,16 @@
       "favorites": {
         "title": "Favorites",
         "description": "A separate section for saved content."
+      },
+      "learn": {
+        "title": "Learn the app",
+        "description": "Restart the guided walkthrough for profile, courses, and chats."
       }
+    },
+    "learn": {
+      "title": "Learn the app",
+      "description": "This starts the full guided tour again from the profile section and continues through courses and chats.",
+      "start": "Start guided tour"
     },
     "appearance": {
       "groupTitle": "Appearance",

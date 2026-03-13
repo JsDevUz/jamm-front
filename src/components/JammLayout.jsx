@@ -31,7 +31,6 @@ import {
   ScrollPane,
 } from "./JammLayout.styles";
 import usePremiumUpgradeModalStore from "../app/store/usePremiumUpgradeModalStore";
-import { getTourFlag, setTourFlag } from "../app/utils/tourStorage";
 import {
   getDesktopNotificationsBannerDismissed,
   getDesktopNotificationsEnabled,
@@ -137,7 +136,6 @@ const JammLayout = ({
     useState(false);
   const [isCoursesTourOpen, setIsCoursesTourOpen] = useState(false);
   const [isChatsTourOpen, setIsChatsTourOpen] = useState(false);
-  const [isProfileIntroTourOpen, setIsProfileIntroTourOpen] = useState(false);
   const currentUser = useAuthStore((state) => state.user);
   const {
     isOpen: isUpgradeModalOpen,
@@ -207,59 +205,30 @@ const JammLayout = ({
   }, [selectedNav, selectedChatId, selectedCourse, activeArenaTab, isMobile]);
 
   useEffect(() => {
-    if (!currentUser?.isOnboardingCompleted) return;
     if (selectedNav !== "courses" || viewMode !== "courses") return;
-    if (getTourFlag("jamm-tour-courses-v1") === "done") return;
+    if (sessionStorage.getItem("jamm-tour-manual-sequence") !== "courses")
+      return;
 
     const timer = window.setTimeout(() => {
       setIsCoursesTourOpen(true);
-    }, 450);
+    }, 300);
 
     return () => window.clearTimeout(timer);
-  }, [currentUser?.isOnboardingCompleted, selectedNav, viewMode]);
+  }, [selectedNav, viewMode]);
 
   useEffect(() => {
-    if (!currentUser?.isOnboardingCompleted) return;
     if (!["chats", "users", "groups", "meets"].includes(selectedNav)) return;
     if (selectedChatId && selectedChatId !== "0" && selectedChatId !== 0)
       return;
-    if (getTourFlag("jamm-tour-profile-v1") !== "done") return;
-    if (getTourFlag("jamm-tour-chats-v1") === "done") return;
+    if (sessionStorage.getItem("jamm-tour-manual-sequence") !== "chats")
+      return;
 
     const timer = window.setTimeout(() => {
       setIsChatsTourOpen(true);
-    }, 450);
+    }, 300);
 
     return () => window.clearTimeout(timer);
-  }, [currentUser?.isOnboardingCompleted, selectedNav, selectedChatId]);
-
-  useEffect(() => {
-    if (!currentUser?.isOnboardingCompleted) return;
-    if (selectedNav === "profile") return;
-    if (getTourFlag("jamm-tour-profile-v1") === "done") return;
-    if (sessionStorage.getItem("jamm-tour-profile-started") === "done") return;
-
-    let attempts = 0;
-    let timeoutId = null;
-
-    const tryOpenProfileIntro = () => {
-      const target = document.querySelector('[data-tour="nav-profile"]');
-      if (target) {
-        setIsProfileIntroTourOpen(true);
-        return;
-      }
-
-      if (attempts >= 15) return;
-      attempts += 1;
-      timeoutId = window.setTimeout(tryOpenProfileIntro, 120);
-    };
-
-    timeoutId = window.setTimeout(tryOpenProfileIntro, 500);
-
-    return () => {
-      if (timeoutId) window.clearTimeout(timeoutId);
-    };
-  }, [currentUser?.isOnboardingCompleted, selectedNav]);
+  }, [selectedNav, selectedChatId]);
 
   // Sync URL params → state. When URL is /a/:chatId, auto-detect nav type
   // from the current chat so selectedNav is ALWAYS meaningful (never "a").
@@ -399,7 +368,6 @@ const JammLayout = ({
       isUpgradeModalOpen ||
       isCoursesTourOpen ||
       isChatsTourOpen ||
-      isProfileIntroTourOpen ||
       (currentUser && !currentUser.isOnboardingCompleted);
 
     if (hasChatDetailOpen || hasCourseDetailOpen || hasBlockingOverlay) {
@@ -511,7 +479,6 @@ const JammLayout = ({
     isCreateGroupOpen,
     isCreateMeetOpen,
     isMobile,
-    isProfileIntroTourOpen,
     isUpgradeModalOpen,
     navigate,
     selectedChatId,
@@ -858,7 +825,16 @@ const JammLayout = ({
         <LazyPane message="Tour yuklanmoqda...">
           <FeatureTour
             isOpen={isCoursesTourOpen}
-            onClose={() => setIsCoursesTourOpen(false)}
+            onClose={() => {
+              setIsCoursesTourOpen(false);
+
+              if (sessionStorage.getItem("jamm-tour-manual-sequence") === "courses") {
+                sessionStorage.setItem("jamm-tour-manual-sequence", "chats");
+                setSelectedNav("users");
+                setSelectedChatId(0);
+                navigate("/users");
+              }
+            }}
             storageKey="jamm-tour-courses-v1"
             steps={[
               {
@@ -894,7 +870,12 @@ const JammLayout = ({
         <LazyPane message="Tour yuklanmoqda...">
           <FeatureTour
             isOpen={isChatsTourOpen}
-            onClose={() => setIsChatsTourOpen(false)}
+            onClose={() => {
+              setIsChatsTourOpen(false);
+              if (sessionStorage.getItem("jamm-tour-manual-sequence") === "chats") {
+                sessionStorage.removeItem("jamm-tour-manual-sequence");
+              }
+            }}
             storageKey="jamm-tour-chats-v1"
             onStepChange={(stepIndex) => {
               setSelectedChatId(0);
@@ -951,34 +932,6 @@ const JammLayout = ({
                 selector: '[data-tour="chats-content"]',
                 title: t("featureTour.chats.contentTitle"),
                 description: t("featureTour.chats.contentDescription"),
-              },
-            ]}
-          />
-        </LazyPane>
-      )}
-      {isProfileIntroTourOpen && (
-        <LazyPane message="Tour yuklanmoqda...">
-          <FeatureTour
-            isOpen={isProfileIntroTourOpen}
-            onClose={() => {
-              sessionStorage.setItem("jamm-tour-profile-started", "done");
-              setTourFlag("jamm-tour-profile-v1", "done");
-              setIsProfileIntroTourOpen(false);
-            }}
-            steps={[
-              {
-                selector: '[data-tour="nav-profile"]',
-                title: t("featureTour.profile.entryTitle"),
-                description: t("featureTour.profile.entryDescription"),
-                onNext: async () => {
-                  sessionStorage.setItem("jamm-tour-profile-autostart", "1");
-                  sessionStorage.setItem("jamm-tour-profile-started", "done");
-                  setTourFlag("jamm-tour-profile-v1", "done");
-                  setIsProfileIntroTourOpen(false);
-                  setSelectedNav("profile");
-                  setSelectedChatId(0);
-                  navigate("/profile");
-                },
               },
             ]}
           />

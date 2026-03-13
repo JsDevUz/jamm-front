@@ -163,6 +163,17 @@ const Avatar = styled.div`
   justify-content: center;
   color: white;
   font-size: 12px;
+  overflow: hidden;
+  flex-shrink: 0;
+
+  img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    max-width: 100%;
+    object-fit: cover;
+    border-radius: inherit;
+  }
 `;
 
 const UserName = styled.span`

@@ -27,7 +27,6 @@ import {
   RightPanel,
 } from "../styles/ProfilePage.styles";
 import FeatureTour from "../../../app/components/tours/FeatureTour";
-import { getTourFlag } from "../../../app/utils/tourStorage";
 
 const ProfilePage = ({ profileUserId, isFocused = false, onToggleFocus }) => {
   const { t } = useTranslation();
@@ -96,24 +95,19 @@ const ProfilePage = ({ profileUserId, isFocused = false, onToggleFocus }) => {
   }, [isOwnProfile, myId, profileUserId]);
 
   useEffect(() => {
-    if (!isOwnProfile) return;
+    if (!isOwnProfile) return undefined;
 
-    const shouldAutostart =
-      sessionStorage.getItem("jamm-tour-profile-autostart") === "1";
-    if (!shouldAutostart && getTourFlag("jamm-tour-profile-v1") === "done") {
-      return;
-    }
-
-    const timer = window.setTimeout(() => {
+    const handleStartGuidedTour = () => {
+      sessionStorage.setItem("jamm-tour-manual-sequence", "profile");
       setActiveTab(null);
+      setIsProfileEditOpen(false);
       setIsProfileTourOpen(true);
-    }, 450);
+    };
 
-    if (shouldAutostart) {
-      sessionStorage.removeItem("jamm-tour-profile-autostart");
-    }
-
-    return () => window.clearTimeout(timer);
+    window.addEventListener("jamm:start-guided-tour", handleStartGuidedTour);
+    return () => {
+      window.removeEventListener("jamm:start-guided-tour", handleStartGuidedTour);
+    };
   }, [isOwnProfile]);
 
   useEffect(() => {
@@ -295,7 +289,7 @@ const ProfilePage = ({ profileUserId, isFocused = false, onToggleFocus }) => {
         ) : null}
 
         {isOwnProfile &&
-        ["appearance", "language", "premium", "support", "favorites"].includes(
+        ["appearance", "language", "premium", "support", "favorites", "learn"].includes(
           activeTab,
         ) ? (
           <ProfileUtilityPanel
@@ -340,6 +334,10 @@ const ProfilePage = ({ profileUserId, isFocused = false, onToggleFocus }) => {
         onClose={() => {
           setIsProfileTourOpen(false);
           setIsProfileEditOpen(false);
+          if (sessionStorage.getItem("jamm-tour-manual-sequence") === "profile") {
+            sessionStorage.setItem("jamm-tour-manual-sequence", "courses");
+            navigate("/courses");
+          }
         }}
         storageKey="jamm-tour-profile-v1"
         onStepChange={(stepIndex) => {

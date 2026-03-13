@@ -878,7 +878,7 @@ export function useWebRTC({
           socketRef.current?.emit("offer", { targetId: peerId, sdp: offer });
         } catch {}
       }
-      return;
+      return true;
     }
 
     // Start screen share
@@ -915,8 +915,10 @@ export function useWebRTC({
           socketRef.current?.emit("offer", { targetId: peerId, sdp: offer });
         } catch {}
       }
+      return true;
     } catch (err) {
       console.error("Screen share error:", err);
+      return false;
     }
   }, [isScreenSharing, roomId]);
 

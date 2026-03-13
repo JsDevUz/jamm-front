@@ -39,6 +39,7 @@ export default function useChatAreaController({
     deleteChat,
     leaveChat,
     chatSocket,
+    chatReconnectKey,
     markMessagesAsRead,
     typingUsers,
     sendTypingStatus,
@@ -274,7 +275,11 @@ export default function useChatAreaController({
         .filter((message) => {
           const senderId = String(normalizeSenderId(message.senderId) || "");
           const readBy = normalizeReadByIds(message.readBy);
-          return senderId && senderId !== currentUserId && !readBy.includes(currentUserId);
+          return (
+            senderId &&
+            senderId !== currentUserId &&
+            !readBy.includes(currentUserId)
+          );
         })
         .map((message) => message.id || message._id)
         .filter(Boolean);
@@ -311,6 +316,7 @@ export default function useChatAreaController({
     currentUser?.id,
     fetchMessages,
     markMessagesAsRead,
+    chatReconnectKey,
   ]);
 
   const fetchMoreMessages = async () => {
@@ -348,10 +354,16 @@ export default function useChatAreaController({
   useEffect(() => {
     if (!chatSocket || !currentChat) return;
 
-    chatSocket.emit("join_chat", { chatId: currentChat.id });
+    const joinCurrentChat = () => {
+      chatSocket.emit("join_chat", { chatId: currentChat.id });
+    };
+
+    joinCurrentChat();
+    chatSocket.on("connect", joinCurrentChat);
 
     return () => {
       chatSocket.emit("leave_chat", { chatId: currentChat.id });
+      chatSocket.off("connect", joinCurrentChat);
     };
   }, [chatSocket, currentChat?.id]);
 
@@ -958,12 +970,13 @@ export default function useChatAreaController({
     [messages],
   );
 
-  const submitMessage = async () => {
+  const submitMessage = async ({ keepFocus = false } = {}) => {
     if (!messageInput.trim()) return;
 
     const shouldBlurAfterSend =
       typeof window !== "undefined" &&
-      window.matchMedia("(max-width: 768px)").matches;
+      window.matchMedia("(max-width: 768px)").matches &&
+      !keepFocus;
     const content = messageInput.trim();
     const replyToMessageId = replyMessage ? replyMessage.id : null;
 

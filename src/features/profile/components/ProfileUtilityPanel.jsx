@@ -8,8 +8,8 @@ import {
   ImagePlus,
   Palette,
   Shield,
-  Sticker,
   Sparkles,
+  Sticker,
   Zap,
 } from "lucide-react";
 import toast from "react-hot-toast";
@@ -446,6 +446,11 @@ const ProfileUtilityPanel = ({ section, currentUser, onBack }) => {
         icon: Heart,
         title: t("profileUtility.sections.favorites.title"),
         description: t("profileUtility.sections.favorites.description"),
+      },
+      learn: {
+        icon: Sparkles,
+        title: t("profileUtility.sections.learn.title"),
+        description: t("profileUtility.sections.learn.description"),
       },
     }),
     [t],
@@ -995,6 +1000,23 @@ const ProfileUtilityPanel = ({ section, currentUser, onBack }) => {
     </FavoritesStack>
   );
 
+  const renderLearn = () => (
+    <CardsGrid>
+      <InfoCard>
+        <h4>{t("profileUtility.learn.title")}</h4>
+        <p>{t("profileUtility.learn.description")}</p>
+        <Button
+          onClick={() => {
+            window.dispatchEvent(new Event("jamm:start-guided-tour"));
+          }}
+        >
+          <Sparkles size={14} />
+          {t("profileUtility.learn.start")}
+        </Button>
+      </InfoCard>
+    </CardsGrid>
+  );
+
   return (
     <Wrapper data-tour={`profile-pane-${section}`}>
       <Header>
@@ -1009,6 +1031,7 @@ const ProfileUtilityPanel = ({ section, currentUser, onBack }) => {
         {section === "premium" && renderPremium()}
         {section === "support" && renderSupport()}
         {section === "favorites" && renderFavorites()}
+        {section === "learn" && renderLearn()}
       </Body>
     </Wrapper>
   );

@@ -123,6 +123,7 @@ export const ChatItem = styled.div`
   cursor: pointer;
   transition: background-color 0.2s ease;
   color: var(--text-secondary-color);
+  -webkit-tap-highlight-color: transparent;
 
   &:hover {
     background-color: var(--hover-color);
@@ -146,6 +147,13 @@ export const ChatLink = styled(Link)`
   text-decoration: none;
   color: inherit;
   display: block;
+  -webkit-tap-highlight-color: transparent;
+
+  @media (max-width: 768px) {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
 `;
 
 export const AvatarWrapper = styled.div`

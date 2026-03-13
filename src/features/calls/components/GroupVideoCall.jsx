@@ -2,6 +2,7 @@ import React, { useRef, useEffect, useState, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import styled, { keyframes, css } from "styled-components";
 import { createPortal } from "react-dom";
+import { toast } from "react-hot-toast";
 import {
   Mic,
   MicOff,
@@ -114,11 +115,22 @@ const TopBar = styled.div`
   border-bottom: 1px solid var(--call-border);
   backdrop-filter: blur(10px);
   flex-shrink: 0;
+
+  @media (max-width: 768px) {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    padding: 12px 14px;
+  }
 `;
 
 const CallInfo = styled.div`
   display: flex;
   flex-direction: column;
+
+  @media (max-width: 768px) {
+    gap: 4px;
+  }
 `;
 const CallTitle = styled.span`
   color: var(--call-text);
@@ -134,6 +146,11 @@ const CallSub = styled.span`
 const TopActions = styled.div`
   display: flex;
   gap: 8px;
+
+  @media (max-width: 768px) {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
 `;
 
 const TinyBtn = styled.button`
@@ -182,18 +199,16 @@ const PiPFrame = styled.div`
 const MinimizedBody = styled.button`
   flex: 1;
   border: none;
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--call-surface) 84%, transparent),
-    color-mix(in srgb, var(--call-panel) 90%, transparent)
-  );
+  background: var(--call-surface);
   color: var(--call-text);
-  padding: 16px;
+  padding: 0;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
   text-align: left;
   cursor: pointer;
+  position: relative;
+  overflow: hidden;
 `;
 
 const MiniTitle = styled.div`
@@ -211,6 +226,36 @@ const MiniActions = styled.div`
   display: flex;
   align-items: center;
   gap: 10px;
+`;
+
+const MiniPreview = styled.div`
+  position: absolute;
+  inset: 0;
+  background: color-mix(in srgb, var(--call-panel) 88%, black 12%);
+`;
+
+const MiniPreviewVideo = styled.video`
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background: black;
+  transform: ${(props) => (props.$mirror ? "scaleX(-1)" : "none")};
+`;
+
+const MiniOverlay = styled.div`
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 16px;
+  background: linear-gradient(
+    180deg,
+    rgba(0, 0, 0, 0.24) 0%,
+    rgba(0, 0, 0, 0.08) 36%,
+    rgba(0, 0, 0, 0.58) 100%
+  );
 `;
 
 // ─── Video Grid ───────────────────────────────────────────────────────────────
@@ -1148,6 +1193,34 @@ const GroupVideoCall = ({
     remoteStreams.length +
     (screenStream ? 1 : 0) +
     remoteScreenStreams.length;
+  const primaryRemote = remoteStreams[0] || null;
+  const primaryRemoteState = primaryRemote
+    ? remotePeerStates[primaryRemote.peerId]
+    : null;
+  const primaryRemoteCameraVisible =
+    Boolean(primaryRemote?.stream) &&
+    primaryRemoteState?.hasVideo !== false &&
+    primaryRemoteState?.videoMuted !== true;
+  const minimizedPreviewStream =
+    remoteScreenStreams[0]?.stream ||
+    (primaryRemoteCameraVisible ? primaryRemote?.stream : null) ||
+    screenStream ||
+    (isCamOn ? localStream : null) ||
+    localStream ||
+    null;
+  const minimizedPreviewMirror =
+    !remoteScreenStreams[0]?.stream &&
+    !primaryRemoteCameraVisible &&
+    !screenStream &&
+    Boolean(localStream);
+  const minimizedPreviewRef = useCallback(
+    (node) => {
+      if (node && minimizedPreviewStream) {
+        node.srcObject = minimizedPreviewStream;
+      }
+    },
+    [minimizedPreviewStream],
+  );
 
   const qualityTone =
     networkQuality === "poor"
@@ -1155,6 +1228,27 @@ const GroupVideoCall = ({
       : networkQuality === "limited"
         ? "var(--call-primary)"
         : "var(--call-success)";
+
+  const handleScreenShareToggle = useCallback(async () => {
+    const isIOS =
+      typeof navigator !== "undefined" &&
+      /iPad|iPhone|iPod/.test(navigator.userAgent) &&
+      !window.MSStream;
+    const supportsScreenShare =
+      typeof navigator !== "undefined" &&
+      Boolean(navigator.mediaDevices?.getDisplayMedia);
+
+    if (!isScreenSharing && (!supportsScreenShare || isIOS)) {
+      toast.error(t("groupCall.screenShareUnavailable"));
+      return;
+    }
+
+    const success = await toggleScreenShare();
+
+    if (!isScreenSharing && success === false) {
+      toast.error(t("groupCall.screenShareFailed"));
+    }
+  }, [isScreenSharing, t, toggleScreenShare]);
 
   const topBarContent = (
     <TopBar>
@@ -1228,30 +1322,18 @@ const GroupVideoCall = ({
         type="button"
         onClick={pipContainer ? handleMaximizeFromPiP : onMaximize}
       >
-        <div>
-          <MiniTitle>{roomTitle || chatTitle || t("groupCall.roomDefault")}</MiniTitle>
-          <MiniMeta>
-            {t("groupCall.participants", { count: totalTiles })} •{" "}
-            {isPrivate ? t("groupCall.privateRoom") : t("groupCall.publicRoom")}
-          </MiniMeta>
-        </div>
-        <MiniActions>
-          <MiniMeta>{roomId}</MiniMeta>
-          {isMicOn ? <Mic size={16} color="#43b581" /> : <MicOff size={16} color="#f04747" />}
-          {isCamOn ? <Video size={16} color="#43b581" /> : <VideoOff size={16} color="#f04747" />}
-        </MiniActions>
-      </MinimizedBody>
-    </>
-  );
-
-  if (isMinimized && pipContainer) {
-    return createPortal(<PiPFrame>{minimizedContent}</PiPFrame>, pipContainer);
-  }
-
-  return (
-    <Overlay $minimized={isMinimized}>
-      {isMinimized ? (
-        <MinimizedBody type="button" onClick={onMaximize}>
+        <MiniPreview>
+          {minimizedPreviewStream ? (
+            <MiniPreviewVideo
+              ref={minimizedPreviewRef}
+              autoPlay
+              muted={minimizedPreviewMirror}
+              playsInline
+              $mirror={minimizedPreviewMirror}
+            />
+          ) : null}
+        </MiniPreview>
+        <MiniOverlay>
           <div>
             <MiniTitle>{roomTitle || chatTitle || t("groupCall.roomDefault")}</MiniTitle>
             <MiniMeta>
@@ -1264,6 +1346,44 @@ const GroupVideoCall = ({
             {isMicOn ? <Mic size={16} color="#43b581" /> : <MicOff size={16} color="#f04747" />}
             {isCamOn ? <Video size={16} color="#43b581" /> : <VideoOff size={16} color="#f04747" />}
           </MiniActions>
+        </MiniOverlay>
+      </MinimizedBody>
+    </>
+  );
+
+  if (isMinimized && pipContainer) {
+    return createPortal(<PiPFrame>{minimizedContent}</PiPFrame>, pipContainer);
+  }
+
+  return (
+    <Overlay $minimized={isMinimized}>
+      {isMinimized ? (
+        <MinimizedBody type="button" onClick={onMaximize}>
+          <MiniPreview>
+            {minimizedPreviewStream ? (
+              <MiniPreviewVideo
+                ref={minimizedPreviewRef}
+                autoPlay
+                muted={minimizedPreviewMirror}
+                playsInline
+                $mirror={minimizedPreviewMirror}
+              />
+            ) : null}
+          </MiniPreview>
+          <MiniOverlay>
+            <div>
+              <MiniTitle>{roomTitle || chatTitle || t("groupCall.roomDefault")}</MiniTitle>
+              <MiniMeta>
+                {t("groupCall.participants", { count: totalTiles })} •{" "}
+                {isPrivate ? t("groupCall.privateRoom") : t("groupCall.publicRoom")}
+              </MiniMeta>
+            </div>
+            <MiniActions>
+              <MiniMeta>{roomId}</MiniMeta>
+              {isMicOn ? <Mic size={16} color="#43b581" /> : <MicOff size={16} color="#f04747" />}
+              {isCamOn ? <Video size={16} color="#43b581" /> : <VideoOff size={16} color="#f04747" />}
+            </MiniActions>
+          </MiniOverlay>
         </MinimizedBody>
       ) : (
       <>
@@ -1612,7 +1732,7 @@ const GroupVideoCall = ({
             />
           )}
         </CtrlBtn>
-        <CtrlBtn $active={isScreenSharing} onClick={toggleScreenShare}>
+        <CtrlBtn $active={isScreenSharing} onClick={handleScreenShareToggle}>
           {isScreenSharing ? <MonitorOff size={21} /> : <Monitor size={21} />}
         </CtrlBtn>
         <CtrlBtn

@@ -460,7 +460,7 @@ const ChatAreaComposer = () => {
            
             <SendButton
               type="button"
-              onClick={submitMessage}
+              onClick={() => submitMessage({ keepFocus: true })}
               disabled={!canSend}
               $visible={canSend}
               title="Yuborish"

@@ -252,17 +252,49 @@ const MiniBody = styled.button`
   flex: 1;
   border: none;
   background: var(--call-surface);
-  padding: 14px;
+  padding: 0;
   color: var(--call-text);
   display: flex;
   flex-direction: column;
   justify-content: space-between;
   text-align: left;
   cursor: pointer;
+  position: relative;
+  overflow: hidden;
+`;
+
+const MiniPreview = styled.div`
+  position: absolute;
+  inset: 0;
+  background: color-mix(in srgb, var(--call-panel) 88%, black 12%);
+`;
+
+const MiniPreviewVideo = styled.video`
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background: black;
+  transform: ${(props) => (props.$mirror ? "scaleX(-1)" : "none")};
+`;
+
+const MiniOverlay = styled.div`
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 14px;
+  background: linear-gradient(
+    180deg,
+    rgba(0, 0, 0, 0.28) 0%,
+    rgba(0, 0, 0, 0.08) 34%,
+    rgba(0, 0, 0, 0.56) 100%
+  );
 `;
 
 const MiniMeta = styled.div`
-  color: var(--call-muted);
+  color: rgba(255, 255, 255, 0.82);
   font-size: 12px;
   line-height: 1.45;
 `;
@@ -271,7 +303,7 @@ const MiniStatus = styled.div`
   display: flex;
   align-items: center;
   gap: 10px;
-  color: var(--call-muted);
+  color: rgba(255, 255, 255, 0.82);
 `;
 
 const PrivateVideoCall = ({
@@ -285,6 +317,7 @@ const PrivateVideoCall = ({
   const currentUser = useAuthStore((state) => state.user);
   const displayName = currentUser?.nickname || currentUser?.username || t("privateCall.localLabel");
   const [isMinimized, setIsMinimized] = useState(false);
+  const [isLocalPrimary, setIsLocalPrimary] = useState(false);
   const [pipWindow, setPipWindow] = useState(null);
   const [pipContainer, setPipContainer] = useState(null);
   const pipCloseIntentRef = useRef(false);
@@ -314,9 +347,30 @@ const PrivateVideoCall = ({
 
   const remotePeer = remoteStreams[0];
   const remotePeerState = remotePeer ? remotePeerStates[remotePeer.peerId] : null;
-  const remoteName = remotePeer?.displayName || remoteUser?.name || t("privateCall.remoteLabel");
+  const isReadablePeerName = (value) => {
+    if (!value || typeof value !== "string") return false;
+    const normalized = value.trim();
+    if (!normalized) return false;
+    if (normalized === roomId) return false;
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(normalized)) {
+      return false;
+    }
+    if (/^[A-Za-z0-9_-]{18,}$/.test(normalized)) {
+      return false;
+    }
+    return true;
+  };
+  const remoteName =
+    remoteUser?.nickname ||
+    remoteUser?.username ||
+    remoteUser?.name ||
+    (isReadablePeerName(remotePeer?.displayName) ? remotePeer.displayName : null) ||
+    t("privateCall.remoteLabel");
   const remoteCameraVisible =
     Boolean(remotePeer?.stream) && remotePeerState?.hasVideo !== false && remotePeerState?.videoMuted !== true;
+  const localCameraVisible = Boolean(localStream) && isCamOn;
+  const swapAvailable =
+    localCameraVisible && (Boolean(remoteScreenStreams[0]?.stream) || remoteCameraVisible);
   const remoteVideoRef = useCallback(
     (node) => {
       if (node && remotePeer?.stream) {
@@ -341,6 +395,33 @@ const PrivateVideoCall = ({
     },
     [remoteScreenStreams],
   );
+  const miniPreviewStream =
+    remoteScreenStreams[0]?.stream ||
+    (remoteCameraVisible ? remotePeer?.stream : null) ||
+    localStream ||
+    null;
+  const miniPreviewShouldMirror = !remoteScreenStreams[0]?.stream && !remoteCameraVisible && Boolean(localStream);
+  const miniVideoRef = useCallback(
+    (node) => {
+      if (node && miniPreviewStream) {
+        node.srcObject = miniPreviewStream;
+      }
+    },
+    [miniPreviewStream],
+  );
+  useEffect(() => {
+    if (!swapAvailable && isLocalPrimary) {
+      setIsLocalPrimary(false);
+    }
+  }, [isLocalPrimary, swapAvailable]);
+
+  const handleSwapFeeds = useCallback(() => {
+    if (!swapAvailable) return;
+    setIsLocalPrimary((prev) => !prev);
+  }, [swapAvailable]);
+
+  const mainShowsLocal = isLocalPrimary && localCameraVisible;
+  const tileShowsRemote = mainShowsLocal;
 
   const handleLeave = useCallback(() => {
     leaveCall();
@@ -453,17 +534,37 @@ const PrivateVideoCall = ({
         </HeaderActions>
       </Header>
       <MiniBody type="button" onClick={() => setIsMinimized(false)}>
-        <div>
-          <Title>{remoteName}</Title>
-          <MiniMeta>
-            {remotePeerState?.connectionState || joinStatus || t("privateCall.calling")}
-          </MiniMeta>
-        </div>
-        <MiniStatus>
-          {isMicOn ? <Mic size={16} color="#43b581" /> : <MicOff size={16} color="#f04747" />}
-          {isCamOn ? <Video size={16} color="#43b581" /> : <VideoOff size={16} color="#f04747" />}
-          {isScreenSharing ? <Monitor size={16} color="var(--primary-color)" /> : null}
-        </MiniStatus>
+        <MiniPreview>
+          {miniPreviewStream ? (
+            <MiniPreviewVideo
+              ref={miniVideoRef}
+              autoPlay
+              muted={miniPreviewShouldMirror}
+              playsInline
+              $mirror={miniPreviewShouldMirror}
+            />
+          ) : (
+            <Placeholder>
+              <PlaceholderInner>
+                <Avatar>{remoteName?.charAt(0)?.toUpperCase() || "?"}</Avatar>
+                <MiniMeta>{remoteName}</MiniMeta>
+              </PlaceholderInner>
+            </Placeholder>
+          )}
+        </MiniPreview>
+        <MiniOverlay>
+          <div>
+            <Title>{remoteName}</Title>
+            <MiniMeta>
+              {remotePeerState?.connectionState || joinStatus || t("privateCall.calling")}
+            </MiniMeta>
+          </div>
+          <MiniStatus>
+            {isMicOn ? <Mic size={16} color="#43b581" /> : <MicOff size={16} color="#f04747" />}
+            {isCamOn ? <Video size={16} color="#43b581" /> : <VideoOff size={16} color="#f04747" />}
+            {isScreenSharing ? <Monitor size={16} color="var(--primary-color)" /> : null}
+          </MiniStatus>
+        </MiniOverlay>
       </MiniBody>
     </>
   );
@@ -494,23 +595,27 @@ const PrivateVideoCall = ({
               <ActionButton type="button" onClick={handleMinimize}>
                 <Minimize2 size={16} />
               </ActionButton>
-              <ActionButton type="button" onClick={handleLeave}>
+              {/* <ActionButton type="button" onClick={handleLeave}>
                 <PhoneOff size={16} />
-              </ActionButton>
+              </ActionButton> */}
             </HeaderActions>
           </Header>
 
           <Body>
             <MainStage>
-              {remoteScreenStreams.length > 0 ? (
+              {mainShowsLocal ? (
+                <VideoStage ref={localVideoRef} autoPlay muted playsInline $mirror />
+              ) : remoteScreenStreams.length > 0 ? (
                 <VideoStage ref={remoteScreenRef} autoPlay playsInline />
               ) : remoteCameraVisible ? (
                 <VideoStage ref={remoteVideoRef} autoPlay playsInline />
               ) : (
                 <Placeholder>
                   <PlaceholderInner>
-                    <Avatar>{remoteName?.charAt(0)?.toUpperCase() || "?"}</Avatar>
-                    <Title>{remoteName}</Title>
+                    <Avatar>
+                      {(mainShowsLocal ? displayName : remoteName)?.charAt(0)?.toUpperCase() || "?"}
+                    </Avatar>
+                    <Title>{mainShowsLocal ? displayName : remoteName}</Title>
                     <Subtitle>
                       {error ||
                         (joinStatus === "joined"
@@ -522,13 +627,15 @@ const PrivateVideoCall = ({
               )}
 
               <RemoteState>
-                {remotePeerState?.audioMuted ? <MicOff size={14} /> : <Mic size={14} />}
-                {remotePeerState?.videoMuted || remotePeerState?.hasVideo === false ? (
+                {mainShowsLocal ? <Mic size={14} /> : remotePeerState?.audioMuted ? <MicOff size={14} /> : <Mic size={14} />}
+                {mainShowsLocal ? (
+                  localCameraVisible ? <Video size={14} /> : <VideoOff size={14} />
+                ) : remotePeerState?.videoMuted || remotePeerState?.hasVideo === false ? (
                   <VideoOff size={14} />
                 ) : (
                   <Video size={14} />
                 )}
-                <span>{remoteName}</span>
+                <span>{mainShowsLocal ? displayName : remoteName}</span>
               </RemoteState>
 
               <Label>
@@ -540,8 +647,16 @@ const PrivateVideoCall = ({
                 ) : null}
               </Label>
 
-              <LocalTile type="button" onClick={handleMinimize}>
-                {isCamOn && localStream ? (
+              <LocalTile
+                type="button"
+                onClick={handleSwapFeeds}
+                aria-label={swapAvailable ? t("privateCall.swapFeeds", "Swap video feeds") : t("privateCall.localLabel")}
+              >
+                {tileShowsRemote && remoteScreenStreams.length > 0 ? (
+                  <VideoStage ref={remoteScreenRef} autoPlay playsInline />
+                ) : tileShowsRemote && remoteCameraVisible ? (
+                  <VideoStage ref={remoteVideoRef} autoPlay playsInline />
+                ) : localCameraVisible && localStream ? (
                   <VideoStage
                     ref={localVideoRef}
                     autoPlay
@@ -552,8 +667,10 @@ const PrivateVideoCall = ({
                 ) : (
                   <Placeholder>
                     <PlaceholderInner>
-                      <Avatar $small>{displayName?.charAt(0)?.toUpperCase() || "?"}</Avatar>
-                      <MiniMeta>{t("privateCall.localLabel")}</MiniMeta>
+                      <Avatar $small>
+                        {(tileShowsRemote ? remoteName : displayName)?.charAt(0)?.toUpperCase() || "?"}
+                      </Avatar>
+                      <MiniMeta>{tileShowsRemote ? remoteName : t("privateCall.localLabel")}</MiniMeta>
                     </PlaceholderInner>
                   </Placeholder>
                 )}

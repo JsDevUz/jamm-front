@@ -9,6 +9,7 @@ import { usePresence } from "./PresenceContext";
 import useAuthStore from "../store/authStore";
 import { toast } from "react-hot-toast";
 import { v4 as uuidv4 } from "uuid";
+import i18n from "../i18n";
 
 const CallContext = createContext();
 
@@ -61,6 +62,13 @@ export const CallProvider = ({ children }) => {
     const handleCancelled = (data) => {
       if (incomingCall && incomingCall.roomId === data.roomId) {
         setIncomingCall(null);
+      }
+      if (activeCall && activeCall.roomId === data.roomId) {
+        setActiveCall(null);
+        toast(i18n.t("privateCall.callEnded"));
+      }
+      if (outgoingCall && outgoingCall.roomId === data.roomId) {
+        setOutgoingCall(null);
       }
     };
 
@@ -133,9 +141,22 @@ export const CallProvider = ({ children }) => {
   }, [socket, outgoingCall]);
 
   const endActiveCall = useCallback(() => {
+    if (socket && activeCall?.roomId && activeCall?.remoteUser) {
+      const targetUserId =
+        activeCall.remoteUser._id ||
+        activeCall.remoteUser.id ||
+        null;
+      if (targetUserId) {
+        socket.emit("call:cancel", {
+          toUserId: targetUserId,
+          roomId: activeCall.roomId,
+        });
+      }
+    }
+
     // WebRTC logout is handled by the component cleanup
     setActiveCall(null);
-  }, []);
+  }, [socket, activeCall]);
 
   const value = {
     incomingCall,

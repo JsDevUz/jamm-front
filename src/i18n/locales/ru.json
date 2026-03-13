@@ -666,11 +666,14 @@
     "members": "Участники ({{count}})",
     "waitingMembers": "Ожидают ({{count}})",
     "joinedMembers": "Подключились ({{count}})",
-    "cameraOff": "Камера выключена"
+    "cameraOff": "Камера выключена",
+    "screenShareUnavailable": "Показ экрана пока не поддерживается в браузерах iPhone",
+    "screenShareFailed": "Не удалось начать показ экрана"
   },
   "privateCall": {
     "titleFallback": "Личный звонок",
     "calling": "Звонок идет",
+    "callEnded": "Звонок завершен",
     "localLabel": "Вы",
     "remoteLabel": "Собеседник",
     "screenShareLabel": "Показ экрана"
