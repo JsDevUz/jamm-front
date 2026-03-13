@@ -78,23 +78,23 @@ const fadeIn = keyframes`
 
 const classicExitRight = keyframes`
   from {
-    transform: translate3d(0, 0, 0) rotate(0deg) rotateX(0deg) scale(1);
+    transform: translate(-50%, -50%) translate3d(${(props) => props.$startX || 0}px, 0, 0) rotate(${(props) => (props.$startX || 0) / 16}deg) scale(1.02);
     opacity: 1;
   }
   to {
-    transform: translate3d(120vw, 0, 0) rotate(18deg) rotateX(-6deg) scale(0.98);
-    opacity: 0.88;
+    transform: translate(-50%, -50%) translate3d(160vw, 10vh, 0) rotate(35deg) scale(0.9);
+    opacity: 0;
   }
 `;
 
 const classicExitLeft = keyframes`
   from {
-    transform: translate3d(0, 0, 0) rotate(0deg) rotateX(0deg) scale(1);
+    transform: translate(-50%, -50%) translate3d(${(props) => props.$startX || 0}px, 0, 0) rotate(${(props) => (props.$startX || 0) / 16}deg) scale(1.02);
     opacity: 1;
   }
   to {
-    transform: translate3d(-120vw, 0, 0) rotate(-18deg) rotateX(6deg) scale(0.98);
-    opacity: 0.88;
+    transform: translate(-50%, -50%) translate3d(-160vw, 10vh, 0) rotate(-35deg) scale(0.9);
+    opacity: 0;
   }
 `;
 
@@ -593,13 +593,16 @@ const ClassicDeckShell = styled.div`
 
 const ClassicFullscreenShell = styled.div`
   width: 100%;
-  /* min-height: 100dvh; */
+  height: 100dvh;
+  min-height: 100dvh;
   color: var(--text-color);
   display: flex;
   flex-direction: column;
+  flex: 1 1 auto;
 
   @media (max-width: 768px) {
-    /* min-height: var(--app-height, 100dvh); */
+    height: var(--app-height, 100dvh);
+    min-height: var(--app-height, 100dvh);
   }
 `;
 
@@ -661,11 +664,16 @@ const ClassicProgressFill = styled.div`
 
 const ClassicViewport = styled.div`
   position: relative;
-  flex: 1;
+  flex: 1 1 auto;
   display: flex;
   flex-direction: column;
   min-height: 0;
+  height: calc(100dvh - 110px);
   padding: 0 18px;
+
+  @media (max-width: 768px) {
+    height: calc(var(--app-height, 100dvh) - 110px);
+  }
 `;
 
 const ClassicSummaryBar = styled.div`
@@ -681,7 +689,7 @@ const ClassicSummaryBar = styled.div`
 
 const ClassicFloatingCounter = styled.div`
   position: absolute;
-  top: 40%;
+  top: 50%;
   ${(props) => (props.$side === "left" ? "left: -20px;" : "right: -20px;")}
   min-width: 64px;
   min-height: 56px;
@@ -748,7 +756,8 @@ const ClassicSummaryPill = styled.div`
 const ClassicCardStage = styled.div`
   position: relative;
   width: 100%;
-  flex: 1;
+  flex: 1 1 auto;
+  height: 100%;
   min-height: 0;
   display: flex;
   align-items: center;
@@ -766,14 +775,53 @@ const ClassicGhostCard = styled.div`
   border: 1px solid color-mix(in srgb, var(--border-color) 72%, transparent);
   transform: translateX(${(props) => props.$offsetX || 0}px)
     translateY(${(props) => props.$offsetY || 0}px)
-    rotate(${(props) => props.$rotate || 0}deg);
+    rotate(${(props) => props.$rotate || 0}deg)
+    scale(${(props) => props.$scale || 1});
   opacity: ${(props) => props.$opacity || 0.42};
   pointer-events: none;
+  z-index: ${(props) => props.$zIndex || 1};
+  transition: transform 0.3s ease-out, opacity 0.3s ease-out;
+`;
+
+const ClassicStackCard = styled.div`
+  position: absolute;
+  top: 300px;
+  left: 50%;
+  width: min(100%, 820px);
+  height: min(68vh, 720px);
+  min-height: min(68vh, 720px);
+  max-height: 100%;
+  border-radius: 34px;
+  background: color-mix(in srgb, var(--secondary-color) 96%, var(--background-color));
+  border: 1px solid color-mix(in srgb, var(--border-color) 72%, transparent);
+  box-shadow:
+    0 10px 26px rgba(0, 0, 0, 0.16),
+    0 0 0 1px color-mix(in srgb, var(--border-color) 26%, transparent);
+  transform: translate(-50%, -50%)
+             translate3d(${(props) => props.$offsetX || 0}px, ${(props) => props.$offsetY || 0}px, -100px)
+             rotate(${(props) => props.$rotate || 0}deg)
+             scale(${(props) => props.$scale || 1});
+  opacity: ${(props) => props.$opacity || 1};
+  z-index: ${(props) => props.$zIndex || 1};
+  pointer-events: none;
+  transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.4s ease;
+
+  @media (max-width: 768px) {
+    /* top: calc(50% + 148px); */
+    width: min(100%, 820px);
+    height: min(64vh, 640px);
+    min-height: min(64vh, 640px);
+  }
 `;
 
 const ClassicNextPreviewCard = styled.div`
   position: absolute;
-  inset: 34px 18px 44px 18px;
+  top: 300px;
+  left: 50%;
+  width: min(100%, 820px);
+  height: min(68vh, 720px);
+  min-height: min(68vh, 720px);
+  max-height: 100%;
   border-radius: 34px;
   border: 1px solid color-mix(in srgb, var(--border-color) 72%, transparent);
   background: linear-gradient(
@@ -791,8 +839,20 @@ const ClassicNextPreviewCard = styled.div`
   padding: 28px;
   pointer-events: none;
   overflow: hidden;
-  transform: none;
-  opacity: 1;
+  transform: translate(-50%, -50%)
+    scale(${(props) => 0.92 + (props.$reveal || 0) * 0.08});
+  opacity: ${(props) => props.$reveal || 0};
+  z-index: 4;
+  transition:
+    transform 0.18s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.16s ease-out;
+
+  @media (max-width: 768px) {
+    /* top: calc(50% + 148px); */
+    height: min(64vh, 640px);
+    min-height: min(64vh, 640px);
+    /* padding: 22px; */
+  }
 `;
 
 const ClassicNextPreviewWord = styled.div`
@@ -804,10 +864,14 @@ const ClassicNextPreviewWord = styled.div`
   text-align: center;
   word-break: break-word;
   opacity: 0.92;
+  transform: scale(${(props) => 0.9 + (props.$reveal || 0) * 0.1});
+  transition: transform 0.18s cubic-bezier(0.22, 1, 0.36, 1);
 `;
 
 const ClassicSwipeCard = styled.div`
-  position: relative;
+  position: absolute;
+  top: 300px;
+  left: 50%;
   width: min(100%, 820px);
   height: min(68vh, 720px);
   min-height: min(68vh, 720px);
@@ -851,37 +915,39 @@ const ClassicSwipeCard = styled.div`
 
   cursor: grab;
   transform-style: preserve-3d;
-  transform: translate3d(${(props) => props.$dragX || 0}px, 0, 0)
+  transform: translate(-50%, -50%)
+    translate3d(${(props) => props.$dragX || 0}px, 0, 0)
     rotate(${(props) => ((props.$dragX || 0) / 16).toFixed(2)}deg)
     rotateX(${(props) => ((props.$dragX || 0) / -140).toFixed(2)}deg)
-    scale(${(props) => (props.$dragging ? 1.01 : props.$exiting ? 0.98 : 1)});
-  opacity: ${(props) => (props.$exiting ? 0.9 : 1)};
+    scale(${(props) => (props.$dragging ? 1.02 : props.$exiting ? 0.95 : 1)});
+  opacity: ${(props) => (props.$exiting ? 0 : 1)};
   transition: ${(props) =>
     props.$dragging
       ? "none"
       : props.$exiting
-        ? "transform 0.34s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.28s ease, opacity 0.28s ease"
-        : "transform 0.24s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.24s ease, opacity 0.2s ease"};
+        ? "transform 0.5s cubic-bezier(0.19, 1, 0.22, 1), opacity 0.4s ease-out"
+        : "transform 0.4s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.3s ease, opacity 0.2s ease"};
   user-select: none;
   touch-action: pan-y;
   overflow: hidden;
   pointer-events: ${(props) => (props.$exiting ? "none" : "auto")};
+  z-index: 6;
 
   @media (max-width: 768px) {
+    /* top: calc(50% + 148px); */
     height: min(64vh, 640px);
     min-height: min(64vh, 640px);
-    padding: 22px;
+    /* padding: 22px; */
   }
 `;
 
 const ClassicOutgoingCard = styled(ClassicSwipeCard)`
   position: absolute;
-  inset: auto;
-  z-index: 3;
+  z-index: 8;
   pointer-events: none;
   animation: ${(props) =>
       props.$direction === "left" ? classicExitLeft : classicExitRight}
-    0.32s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+    0.5s cubic-bezier(0.25, 1, 0.5, 1) forwards;
 `;
 
 const ClassicFlipLayer = styled.div`
@@ -958,6 +1024,16 @@ const ClassicCardToolbar = styled.div`
   transform: translateZ(6px);
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
+`;
+
+const ClassicCardToolbarSpacer = styled(ClassicCardToolbar)`
+  pointer-events: none;
+  opacity: ${(props) => props.$reveal || 0};
+  transform: translateY(${(props) => 8 - (props.$reveal || 0) * 8}px)
+    scale(${(props) => 0.92 + (props.$reveal || 0) * 0.08});
+  transition:
+    opacity 0.18s ease-out,
+    transform 0.18s cubic-bezier(0.22, 1, 0.36, 1);
 `;
 
 const ClassicToolbarIcon = styled.button`
@@ -1188,7 +1264,7 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
   const [classicDragX, setClassicDragX] = useState(0);
   const [classicDragging, setClassicDragging] = useState(false);
   const [classicExitDirection, setClassicExitDirection] = useState(null);
-  const [classicOutgoingCard, setClassicOutgoingCard] = useState(null);
+  const [classicOutgoingCard, setClassicOutgoingCard] = useState(null); // Keep for backwards compatibility if needed, but we'll try to rely on current card animation
   const [testDeck, setTestDeck] = useState(null);
   const [testQueue, setTestQueue] = useState([]);
   const [testIndex, setTestIndex] = useState(0);
@@ -1541,23 +1617,19 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
   const handleClassicAnswer = (known) => {
     const currentCard = classicQueue[classicIndex];
     if (!currentCard) return;
+    const isLast = classicIndex + 1 >= classicQueue.length;
 
-    const nextAnswers = [
-      ...classicAnswers,
+    setClassicAnswers((prev) => [
+      ...prev,
       {
         card: currentCard,
         known,
       },
-    ];
-    setClassicAnswers(nextAnswers);
+    ]);
     setClassicShowBack(false);
-
-    if (classicIndex + 1 >= classicQueue.length) {
-      setClassicCompleted(true);
-      return;
+    if (!isLast) {
+      setClassicIndex((prev) => prev + 1);
     }
-
-    setClassicIndex((prev) => prev + 1);
   };
 
   const handleClassicReplay = () => {
@@ -1579,9 +1651,12 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
   useEffect(() => {
     if (!classicOutgoingCard) return undefined;
     const timer = window.setTimeout(() => {
+      if (classicOutgoingCard.isLast) {
+        setClassicCompleted(true);
+      }
       setClassicOutgoingCard(null);
-      setClassicExitDirection(null);
-    }, 320);
+      resetClassicCardMotion();
+    }, 500);
     return () => window.clearTimeout(timer);
   }, [classicOutgoingCard]);
 
@@ -1603,7 +1678,7 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
   };
 
   const handleClassicPointerDown = (event) => {
-    if (classicCompleted || classicExitDirection) return;
+    if (classicCompleted || classicOutgoingCard) return;
     classicPointerStateRef.current = {
       active: true,
       startX: event.clientX,
@@ -1616,7 +1691,7 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
     if (
       !classicPointerStateRef.current.active ||
       classicCompleted ||
-      classicExitDirection
+      classicOutgoingCard
     )
       return;
 
@@ -1627,7 +1702,8 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
     }
 
     if (classicPointerStateRef.current.dragStarted) {
-      setClassicDragX(Math.max(-180, Math.min(180, deltaX)));
+      // Increased cap for more natural feel
+      setClassicDragX(deltaX);
     }
   };
 
@@ -1635,7 +1711,7 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
     if (
       !classicPointerStateRef.current.active ||
       classicCompleted ||
-      classicExitDirection
+      classicOutgoingCard
     )
       return;
 
@@ -1651,37 +1727,40 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
       return;
     }
 
-    if (deltaX >= 110) {
+    if (Math.abs(deltaX) >= 110) {
+      const direction = deltaX > 0 ? "right" : "left";
       const currentCard = classicQueue[classicIndex];
       if (!currentCard) return;
-      setClassicExitDirection("right");
-      setClassicOutgoingCard({
-        id: currentCard._id || `classic-${classicIndex}`,
-        direction: "right",
-        showBack: classicShowBack,
-        promptImage: getPromptImage(currentCard),
-        answerImage: getAnswerImage(currentCard),
-        promptText: getPromptText(currentCard) || "???",
-        answerText: getAnswerText(currentCard) || "???",
-      });
-      handleClassicAnswer(true);
-      return;
-    }
+      const known = direction === "right";
+      const isLast = classicIndex + 1 >= classicQueue.length;
 
-    if (deltaX <= -110) {
-      const currentCard = classicQueue[classicIndex];
-      if (!currentCard) return;
-      setClassicExitDirection("left");
+      setClassicExitDirection(direction);
+      setClassicDragX(0);
+      setClassicDragging(false);
+      setClassicAnswers((prev) => [
+        ...prev,
+        {
+          card: currentCard,
+          known,
+        },
+      ]);
+      setClassicShowBack(false);
+      if (!isLast) {
+        setClassicIndex((prev) => prev + 1);
+      }
       setClassicOutgoingCard({
-        id: currentCard._id || `classic-${classicIndex}`,
-        direction: "left",
+        id: currentCard._id || `outgoing-${classicIndex}-${Date.now()}`,
+        card: currentCard,
+        known,
+        isLast,
+        direction,
+        startX: deltaX,
         showBack: classicShowBack,
         promptImage: getPromptImage(currentCard),
         answerImage: getAnswerImage(currentCard),
         promptText: getPromptText(currentCard) || "???",
         answerText: getAnswerText(currentCard) || "???",
       });
-      handleClassicAnswer(false);
       return;
     }
 
@@ -1895,6 +1974,7 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
   if (classicDeck) {
     const currentCard = classicQueue[classicIndex];
     const nextCard = classicQueue[classicIndex + 1] || null;
+    const previewCard = classicOutgoingCard ? currentCard : nextCard;
     const foundCount = classicAnswers.filter((item) => item.known).length;
     const missedCount = classicAnswers.filter((item) => !item.known).length;
     const swipeProgress = Math.min(Math.abs(classicDragX) / 120, 1);
@@ -1902,8 +1982,8 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
     const answerImage = getAnswerImage(currentCard);
     const promptText = getPromptText(currentCard) || "???";
     const answerText = getAnswerText(currentCard) || "???";
-    const nextPromptImage = nextCard ? getPromptImage(nextCard) : null;
-    const nextPromptText = nextCard ? getPromptText(nextCard) || "???" : "";
+    const nextPromptImage = previewCard ? getPromptImage(previewCard) : null;
+    const nextPromptText = previewCard ? getPromptText(previewCard) || "???" : "";
     const progressValue = classicQueue.length
       ? ((classicCompleted ? classicQueue.length : classicIndex + 1) /
           classicQueue.length) *
@@ -1911,6 +1991,9 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
       : 0;
     const swipeTone =
       classicDragX > 0 ? "success" : classicDragX < 0 ? "danger" : null;
+    const nextPreviewReveal = classicOutgoingCard
+      ? 1
+      : Math.max(0, Math.min(1, (swipeProgress - 0.9) / 0.1));
 
     return (
       <Container>
@@ -1957,153 +2040,131 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
               </ClassicFloatingCounter>
 
               <ClassicCardStage>
-                <ClassicGhostCard $offsetX={-14} $offsetY={2} $rotate={-1.4} />
-                {nextCard ? (
-                  <ClassicNextPreviewCard>
-                    {nextPromptImage ? (
-                      <ClassicCardImage
-                        src={nextPromptImage}
-                        alt="next flashcard prompt"
-                      />
-                    ) : null}
-                    <ClassicNextPreviewWord>
-                      {nextPromptText}
-                    </ClassicNextPreviewWord>
+                {previewCard && (
+                  <ClassicNextPreviewCard $reveal={nextPreviewReveal}>
+                    <ClassicCardToolbarSpacer $reveal={nextPreviewReveal}>
+                      <ClassicToolbarIcon type="button" tabIndex={-1} aria-hidden="true">
+                        <Volume2 size={22} />
+                      </ClassicToolbarIcon>
+                      <ClassicToolbarIcon type="button" tabIndex={-1} aria-hidden="true">
+                        <Star size={22} />
+                      </ClassicToolbarIcon>
+                    </ClassicCardToolbarSpacer>
+                    <ClassicCardBody>
+                      {nextPromptImage && <ClassicCardImage src={nextPromptImage} />}
+                      <ClassicNextPreviewWord $reveal={nextPreviewReveal}>
+                        {nextPromptText}
+                      </ClassicNextPreviewWord>
+                    </ClassicCardBody>
                   </ClassicNextPreviewCard>
-                ) : (
-                  <ClassicGhostCard
-                    $offsetX={14}
-                    $offsetY={10}
-                    $rotate={1.6}
-                    $opacity={0.34}
-                  />
                 )}
 
-                {classicOutgoingCard ? (
+                {classicQueue.slice(classicIndex + 2, classicIndex + 4).map((card, idx) => {
+                  const depth = idx + 1;
+                  const rotate =
+                    depth === 1 ? -5.5 : depth === 2 ? 5 : depth * 4;
+                  const offsetX =
+                    depth === 1 ? -18 : depth === 2 ? 22 : depth * 18;
+                  const offsetY =
+                    depth === 1 ? 18 : depth === 2 ? 30 : depth * 14;
+                  return (
+                    <ClassicStackCard
+                      key={card._id || `stack-${idx}`}
+                      $offsetX={offsetX}
+                      $offsetY={offsetY}
+                      $rotate={rotate}
+                      $scale={1}
+                      $opacity={1 - depth * 0.18}
+                      $zIndex={2 - depth}
+                    />
+                  );
+                })}
+
+                {/* Exiting Card Logic */}
+                {classicOutgoingCard && (
                   <ClassicOutgoingCard
                     key={classicOutgoingCard.id}
                     $direction={classicOutgoingCard.direction}
+                    $startX={classicOutgoingCard.startX}
                     $dragX={0}
                     $dragging={false}
-                    $exiting={false}
-                    $swipeTone={
-                      classicOutgoingCard.direction === "right"
-                        ? "success"
-                        : "danger"
-                    }
+                    $exiting={true}
+                    $swipeTone={classicOutgoingCard.direction === "right" ? "success" : "danger"}
                     $swipeStrength={1}
                   >
                     <ClassicFlipLayer $flipped={classicOutgoingCard.showBack}>
                       <ClassicCardFront>
+                        <ClassicCardBody>
+                          {classicOutgoingCard.promptImage && (
+                            <ClassicCardImage src={classicOutgoingCard.promptImage} />
+                          )}
+                          <ClassicCardWord>{classicOutgoingCard.promptText}</ClassicCardWord>
+                        </ClassicCardBody>
+                      </ClassicCardFront>
+                      <ClassicCardBack>
+                        <ClassicCardBody>
+                          {classicOutgoingCard.answerImage && (
+                            <ClassicCardImage src={classicOutgoingCard.answerImage} />
+                          )}
+                          <ClassicCardWord>{classicOutgoingCard.answerText}</ClassicCardWord>
+                        </ClassicCardBody>
+                      </ClassicCardBack>
+                    </ClassicFlipLayer>
+                  </ClassicOutgoingCard>
+                )}
+
+                {!classicCompleted && currentCard && !classicOutgoingCard && (
+                  <ClassicSwipeCard
+                    $dragX={classicDragX}
+                    $dragging={classicDragging}
+                    $exiting={false}
+                    $swipeTone={swipeTone}
+                    $swipeStrength={swipeProgress}
+                    onPointerDown={handleClassicPointerDown}
+                    onPointerMove={handleClassicPointerMove}
+                    onPointerUp={handleClassicPointerEnd}
+                    onPointerCancel={handleClassicPointerEnd}
+                    onPointerLeave={() => {
+                      if (classicDragging) handleClassicPointerEnd();
+                    }}
+                  >
+                    <ClassicFlipLayer $flipped={classicShowBack}>
+                      <ClassicCardFront>
                         <ClassicCardToolbar>
-                          <ClassicToolbarIcon type="button" disabled>
+                          <ClassicToolbarIcon
+                            type="button"
+                            onPointerDown={(event) => event.stopPropagation()}
+                            onClick={(event) => speakClassicCard("prompt", event)}
+                          >
                             <Volume2 size={22} />
                           </ClassicToolbarIcon>
                         </ClassicCardToolbar>
                         <ClassicCardBody>
-                          {classicOutgoingCard.promptImage ? (
-                            <ClassicCardImage
-                              src={classicOutgoingCard.promptImage}
-                              alt="flashcard prompt"
-                            />
-                          ) : null}
-                          <ClassicCardWord>
-                            {classicOutgoingCard.promptText}
+                          {promptImage && <ClassicCardImage src={promptImage} />}
+                          <ClassicCardWord $blur={swipeProgress * 2} $fade={swipeProgress}>
+                            {promptText}
                           </ClassicCardWord>
                         </ClassicCardBody>
                       </ClassicCardFront>
 
                       <ClassicCardBack>
                         <ClassicCardToolbar>
-                          <ClassicToolbarIcon type="button" disabled>
+                          <ClassicToolbarIcon
+                            type="button"
+                            onPointerDown={(event) => event.stopPropagation()}
+                            onClick={(event) => speakClassicCard("answer", event)}
+                          >
                             <Volume2 size={22} />
                           </ClassicToolbarIcon>
                         </ClassicCardToolbar>
                         <ClassicCardBody>
-                          {classicOutgoingCard.answerImage ? (
-                            <ClassicCardImage
-                              src={classicOutgoingCard.answerImage}
-                              alt="flashcard answer"
-                            />
-                          ) : null}
-                          <ClassicCardWord>
-                            {classicOutgoingCard.answerText}
-                          </ClassicCardWord>
+                          {answerImage && <ClassicCardImage src={answerImage} />}
+                          <ClassicCardWord>{answerText}</ClassicCardWord>
                         </ClassicCardBody>
                       </ClassicCardBack>
                     </ClassicFlipLayer>
-                  </ClassicOutgoingCard>
-                ) : null}
-
-                <ClassicSwipeCard
-                  $dragX={classicDragX}
-                  $dragging={classicDragging}
-                  $exiting={false}
-                  $swipeTone={swipeTone}
-                  $swipeStrength={swipeProgress}
-                  onPointerDown={handleClassicPointerDown}
-                  onPointerMove={handleClassicPointerMove}
-                  onPointerUp={handleClassicPointerEnd}
-                  onPointerCancel={handleClassicPointerEnd}
-                  onPointerLeave={() => {
-                    if (classicDragging) {
-                      handleClassicPointerEnd();
-                    }
-                  }}
-                >
-                  <ClassicFlipLayer $flipped={classicShowBack}>
-                    <ClassicCardFront>
-                      <ClassicCardToolbar>
-                        <ClassicToolbarIcon
-                          type="button"
-                          onPointerDown={(event) => event.stopPropagation()}
-                          onPointerUp={(event) => event.stopPropagation()}
-                          onClick={(event) => speakClassicCard("prompt", event)}
-                          title="Ovoz bilan eshitish"
-                        >
-                          <Volume2 size={22} />
-                        </ClassicToolbarIcon>
-                      </ClassicCardToolbar>
-                      <ClassicCardBody>
-                        {promptImage ? (
-                          <ClassicCardImage
-                            src={promptImage}
-                            alt="flashcard prompt"
-                          />
-                        ) : null}
-                        <ClassicCardWord
-                          $blur={swipeProgress * 3.2}
-                          $fade={swipeProgress}
-                        >
-                          {promptText}
-                        </ClassicCardWord>
-                      </ClassicCardBody>
-                    </ClassicCardFront>
-
-                    <ClassicCardBack>
-                      <ClassicCardToolbar>
-                        <ClassicToolbarIcon
-                          type="button"
-                          onPointerDown={(event) => event.stopPropagation()}
-                          onPointerUp={(event) => event.stopPropagation()}
-                          onClick={(event) => speakClassicCard("answer", event)}
-                          title="Ovoz bilan eshitish"
-                        >
-                          <Volume2 size={22} />
-                        </ClassicToolbarIcon>
-                      </ClassicCardToolbar>
-                      <ClassicCardBody>
-                        {answerImage ? (
-                          <ClassicCardImage
-                            src={answerImage}
-                            alt="flashcard answer"
-                          />
-                        ) : null}
-                        <ClassicCardWord>{answerText}</ClassicCardWord>
-                      </ClassicCardBody>
-                    </ClassicCardBack>
-                  </ClassicFlipLayer>
-                </ClassicSwipeCard>
+                  </ClassicSwipeCard>
+                )}
               </ClassicCardStage>
             </ClassicViewport>
           </ClassicFullscreenShell>
