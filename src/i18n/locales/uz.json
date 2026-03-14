@@ -26,7 +26,7 @@
   },
   "navigation": {
     "feed": "Gurunglar",
-    "blogs": "Bloglar",
+    "articles": "Maqolalar",
     "chats": "Chatlar",
     "courses": "Kurslar",
     "profile": "Profilim",
@@ -122,10 +122,10 @@
       "coursesTabDescription": "Qo'shgan kurslaringiz va darslaringiz shu tabda turadi.",
       "coursesPaneTitle": "Darslar oynasi",
       "coursesPaneDescription": "Kurslar ro'yxatini ochib, shu yerdan kurs sahifasiga o'tasiz.",
-      "blogsTabTitle": "Bloglar bo'limi",
-      "blogsTabDescription": "Blog yozuvlari va ularni boshqarish shu tabda.",
-      "blogsPaneTitle": "Bloglar oynasi",
-      "blogsPaneDescription": "Bloglarni yaratish, o'qish va tahrirlash shu yerda ochiladi.",
+      "articlesTabTitle": "Maqolalar bo'limi",
+      "articlesTabDescription": "Maqola yozuvlari va ularni boshqarish shu tabda.",
+      "articlesPaneTitle": "Maqolalar oynasi",
+      "articlesPaneDescription": "Maqolalarni yaratish, o'qish va tahrirlash shu yerda ochiladi.",
       "appearanceTabTitle": "Theme bo'limi",
       "appearanceTabDescription": "Interfeys ko'rinishini shu yerda boshqarasiz.",
       "languageTabTitle": "Til bo'limi",
@@ -137,7 +137,7 @@
       "supportTabTitle": "Qo'llab-quvvatlash bo'limi",
       "supportTabDescription": "Yordam va aloqa ma'lumotlari shu bo'limda turadi.",
       "favoritesTabTitle": "Sevimlilarim bo'limi",
-      "favoritesTabDescription": "Like bosgan dars, gurung va bloglar shu yerda yig'iladi.",
+      "favoritesTabDescription": "Like bosgan dars, gurung va maqolalar shu yerda yig'iladi.",
       "premiumPaneTitle": "Premium oynasi",
       "premiumPaneDescription": "Tariflar, promo-kodlar va profil bezaklarini shu yerda boshqarasiz."
     }
@@ -216,12 +216,12 @@
       "days": "{{count}} kun oldin"
     }
   },
-  "blogs": {
-    "searchPlaceholder": "Blog qidirish...",
-    "createTitle": "Yangi blog",
-    "notFound": "Blog topilmadi.",
-    "selectToRead": "O‘qish uchun blog tanlang.",
-    "backToList": "Bloglar",
+  "articles": {
+    "searchPlaceholder": "Maqola qidirish...",
+    "createTitle": "Yangi maqola",
+    "notFound": "Maqola topilmadi.",
+    "selectToRead": "O‘qish uchun maqola tanlang.",
+    "backToList": "Maqolalar",
     "noExcerpt": "Tavsif yo'q",
     "author": "Muallif",
     "comments": "izoh",
@@ -851,7 +851,7 @@
     "settings": "Sozlamalar",
     "tabs": {
       "groups": "Gurunglar",
-      "blogs": "Bloglar",
+      "articles": "Maqolalar",
       "courses": "Darslar",
       "appearance": "Theme",
       "language": "Language",
@@ -864,7 +864,7 @@
     "stats": {
       "members": "A'zolar",
       "posts": "Gurunglar",
-      "blogs": "Bloglar",
+      "articles": "Maqolalar",
       "courses": "Darslar"
     }
   },
@@ -1002,9 +1002,9 @@
       "postsTitle": "Like bosgan gurunglar",
       "postsDescription": "Yoqtirgan gurunglaringiz ro'yxati.",
       "postsEmpty": "Hozircha like bosilgan gurunglar yo'q.",
-      "blogsTitle": "Like bosgan bloglar",
-      "blogsDescription": "Yoqtirgan bloglaringiz shu yerda turadi.",
-      "blogsEmpty": "Hozircha like bosilgan bloglar yo'q."
+      "articlesTitle": "Like bosgan maqolalar",
+      "articlesDescription": "Yoqtirgan maqolalaringiz shu yerda turadi.",
+      "articlesEmpty": "Hozircha like bosilgan maqolalar yo'q."
     }
   },
   "premiumModal": {
@@ -1022,7 +1022,7 @@
     },
     "sections": {
       "posts": { "title": "Gurunglar", "description": "Kunlik post va komment limitlari." },
-      "blogs": { "title": "Bloglar", "description": "Blog yaratish va kontent sig'imi." },
+      "articles": { "title": "Maqolalar", "description": "Maqola yaratish va kontent sig'imi." },
       "groups": { "title": "Guruhlar va chat", "description": "Guruhlar va xabar limitlari." },
       "meets": { "title": "Video qo'ng'iroqlar", "description": "Meet yaratish va qatnashchi sig'imi." },
       "courses": { "title": "Kurslar va darslar", "description": "Lesson media, test va homework limitlari." },
@@ -1034,14 +1034,14 @@
       "postCommentsPerPost": "Har gurungga komment",
       "postWords": "Gurung matni",
       "postCommentChars": "Komment uzunligi",
-      "blogsPerUser": "Blog soni",
-      "blogCommentsPerBlog": "Har blogga komment",
-      "blogImagesPerBlog": "Blog rasmi",
-      "blogWords": "Blog matni",
-      "blogTitleChars": "Blog sarlavhasi",
-      "blogExcerptChars": "Qisqa tavsif",
-      "blogTagChars": "Tag sig'imi",
-      "blogCommentChars": "Blog kommenti",
+      "articlesPerUser": "Maqola soni",
+      "articleCommentsPerArticle": "Har maqolaga komment",
+      "articleImagesPerArticle": "Maqola rasmi",
+      "articleWords": "Maqola matni",
+      "articleTitleChars": "Maqola sarlavhasi",
+      "articleExcerptChars": "Qisqa tavsif",
+      "articleTagChars": "Tag sig'imi",
+      "articleCommentChars": "Maqola kommenti",
       "groupsCreated": "Ochsa bo'ladigan guruh",
       "groupsJoined": "Qo'shilsa bo'ladigan guruh",
       "messageChars": "Xabar uzunligi",

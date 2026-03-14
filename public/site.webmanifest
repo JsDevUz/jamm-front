@@ -1,7 +1,7 @@
 {
   "name": "Jamm",
   "short_name": "Jamm",
-  "description": "Chatlar, kurslar, arena mashqlari, bloglar va video uchrashuvlar uchun yagona platforma.",
+  "description": "Chatlar, kurslar, arena mashqlari, maqolalar va video uchrashuvlar uchun yagona platforma.",
   "start_url": "/chats",
   "scope": "/",
   "display": "standalone",

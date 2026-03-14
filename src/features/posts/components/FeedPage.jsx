@@ -1,9 +1,11 @@
 import React, { useEffect, useRef, useState } from "react";
 import dayjs from "dayjs";
 import {
+  Download,
   Eye,
   Flame,
   Heart,
+  Loader2,
   MessageCircle,
   Pencil,
   Plus,
@@ -54,6 +56,11 @@ import {
   PostDot,
   PostHandle,
   PostHeader,
+  PostImageBlur,
+  PostImageOverlay,
+  PostImageReal,
+  PostImagesGrid,
+  PostImageTile,
   PostText,
   PostTime,
   Tab,
@@ -73,6 +80,71 @@ const colorOf = (value) =>
   avatarColors[(value || "A").charCodeAt(0) % avatarColors.length];
 
 const renderText = renderInlineMarkup;
+
+const FeedPostImages = ({ post }) => {
+  const [revealedImages, setRevealedImages] = useState({});
+  const [loadingImages, setLoadingImages] = useState({});
+
+  const images = Array.isArray(post?.images) ? post.images : [];
+  if (!images.length) return null;
+
+  return (
+    <PostImagesGrid $count={images.length}>
+      {images.map((image, index) => {
+        const key = image.url || `${post._id}-${index}`;
+        const isRevealed = Boolean(revealedImages[key]);
+        const isLoading = Boolean(loadingImages[key]);
+
+        return (
+          <PostImageTile
+            key={key}
+            type="button"
+            $count={images.length}
+            onClick={() => {
+              if (isRevealed) return;
+              setLoadingImages((prev) => ({ ...prev, [key]: true }));
+              setRevealedImages((prev) => ({ ...prev, [key]: true }));
+            }}
+          >
+            <PostImageBlur
+              src={image.blurDataUrl || image.url}
+              alt=""
+              aria-hidden="true"
+              $hidden={isRevealed}
+            />
+
+            {!isRevealed ? (
+              <PostImageOverlay>
+                <Download size={18} />
+              </PostImageOverlay>
+            ) : null}
+
+            {isRevealed ? (
+              <>
+                <PostImageReal
+                  src={image.url}
+                  alt="Feed image"
+                  loading="lazy"
+                  onLoad={() =>
+                    setLoadingImages((prev) => ({ ...prev, [key]: false }))
+                  }
+                  onError={() =>
+                    setLoadingImages((prev) => ({ ...prev, [key]: false }))
+                  }
+                />
+                {isLoading ? (
+                  <PostImageOverlay>
+                    <Loader2 size={18} />
+                  </PostImageOverlay>
+                ) : null}
+              </>
+            ) : null}
+          </PostImageTile>
+        );
+      })}
+    </PostImagesGrid>
+  );
+};
 
 const FeedPage = () => {
   const { t } = useTranslation();
@@ -250,14 +322,14 @@ const FeedPage = () => {
     currentUser?.nickname || currentUser?.username || t("common.you");
   const avatarLetter = displayName.charAt(0).toUpperCase();
 
-  const handleCreate = async (text) => {
-    await createPost(text);
+  const handleCreate = async (payload) => {
+    await createPost(payload);
     if (activeTab !== "foryou") setActiveTab("foryou");
   };
 
-  const handleEdit = async (text) => {
+  const handleEdit = async (payload) => {
     if (!editingPost?._id) return;
-    await editPost(editingPost._id, text);
+    await editPost(editingPost._id, payload);
     setEditingPost(null);
   };
 
@@ -400,6 +472,7 @@ const FeedPage = () => {
                       </PostHeader>
 
                       <PostText>{renderText(post.content)}</PostText>
+                      <FeedPostImages post={post} />
 
                       <PostActions>
                         <ActionButton
@@ -476,8 +549,10 @@ const FeedPage = () => {
         onSubmit={editingPost ? handleEdit : handleCreate}
         currentUser={currentUser}
         initialContent={editingPost?.content || ""}
+        initialImages={editingPost?.images || []}
         title={editingPost ? t("feed.editTitle") : t("feed.createTitle")}
         submitLabel={editingPost ? t("common.save") : t("common.send")}
+        allowImages={!editingPost}
       />
 
       {commentPost && (

@@ -28,9 +28,9 @@ export const SearchWrap = styled.div`
 
 export const SearchInput = styled(SidebarSearchField)``;
 
-export const AddBlogButton = styled(SidebarIconButton)``;
+export const AddArticleButton = styled(SidebarIconButton)``;
 
-export const BlogList = styled.div`
+export const ArticleList = styled.div`
   flex: 1;
   overflow-y: auto;
 `;
@@ -39,7 +39,7 @@ export const StyledInfiniteScroll = styled(InfiniteScroll)`
   overflow: visible;
 `;
 
-export const BlogItem = styled.button`
+export const ArticleItem = styled.button`
   width: 100%;
   border: none;
   border-bottom: 1px solid var(--border-color);
@@ -58,7 +58,7 @@ export const BlogItem = styled.button`
   }
 `;
 
-export const BlogItemActions = styled.div`
+export const ArticleItemActions = styled.div`
   display: flex;
   align-items: flex-start;
   gap: 6px;
@@ -111,7 +111,7 @@ export const Meta = styled.div`
   font-size: 12px;
 `;
 
-export const BlogCopyButton = styled(SidebarIconButton)`
+export const ArticleCopyButton = styled(SidebarIconButton)`
   width: 32px;
   height: 32px;
   min-width: 32px;
@@ -125,7 +125,7 @@ export const EmptyState = styled.div`
   color: var(--text-muted-color);
 `;
 
-export const BlogItemSkeleton = styled.div`
+export const ArticleItemSkeleton = styled.div`
   padding: 16px;
   display: flex;
   align-items: flex-start;
@@ -133,7 +133,7 @@ export const BlogItemSkeleton = styled.div`
   border-bottom: 1px solid var(--border-color);
 `;
 
-export const BlogItemSkeletonThumb = styled(Skeleton)`
+export const ArticleItemSkeletonThumb = styled(Skeleton)`
   width: 72px;
   min-width: 72px;
   height: 72px;
@@ -141,7 +141,7 @@ export const BlogItemSkeletonThumb = styled(Skeleton)`
   margin-bottom: 0;
 `;
 
-export const BlogItemSkeletonBody = styled.div`
+export const ArticleItemSkeletonBody = styled.div`
   flex: 1;
   min-width: 0;
 `;

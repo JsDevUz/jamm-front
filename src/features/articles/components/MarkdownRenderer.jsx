@@ -335,7 +335,7 @@ const buildBlocks = (markdown, options = {}) => {
       flushParagraph(paragraphLines, blocks, keyRef);
       flushList(listState, blocks, keyRef);
       const imageSrc = imageMatch[2];
-      const imageAlt = imageMatch[1] || "Blog image";
+      const imageAlt = imageMatch[1] || "Article image";
       const imageNode = (
         <img
           key={`img-node-${keyRef.current}`}
@@ -453,7 +453,7 @@ const MarkdownRenderer = ({ content, className, enableImageLightbox = false }) =
         >
           <LightboxImage
             src={lightboxImage.src}
-            alt={lightboxImage.alt || "Blog image"}
+            alt={lightboxImage.alt || "Article image"}
           />
         </LightboxOverlay>
       )}

@@ -28,6 +28,28 @@ const getViewportMetrics = () => {
   };
 };
 
+const isEditableElement = (element) => {
+  if (!element) return false;
+
+  const tagName = String(element.tagName || "").toLowerCase();
+  return (
+    tagName === "input" ||
+    tagName === "textarea" ||
+    element.isContentEditable === true
+  );
+};
+
+const resetViewportVariables = (root) => {
+  if (typeof window === "undefined" || !root) return;
+
+  const fallbackHeight = window.innerHeight || 0;
+  root.style.setProperty("--keyboard-height", "0px");
+  root.style.setProperty("--app-height", `${fallbackHeight}px`);
+  root.style.setProperty("--visual-viewport-height", `${fallbackHeight}px`);
+  root.style.setProperty("--visual-viewport-offset-top", "0px");
+  root.dataset.mobileKeyboardOpen = "false";
+};
+
 export default function useKeyboardAvoid(containerRef) {
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const isiOS = useMemo(() => isIosDevice(), []);
@@ -38,6 +60,7 @@ export default function useKeyboardAvoid(containerRef) {
     const viewport = window.visualViewport;
     const root = document.documentElement;
     let frameId = null;
+    let resetTimeoutId = null;
     let lastKeyboardHeight = -1;
 
     const syncViewport = () => {
@@ -62,7 +85,35 @@ export default function useKeyboardAvoid(containerRef) {
 
     syncViewport();
 
+    const scheduleKeyboardReset = (delay = 0) => {
+      if (resetTimeoutId) {
+        window.clearTimeout(resetTimeoutId);
+      }
+
+      resetTimeoutId = window.setTimeout(() => {
+        const activeElement = document.activeElement;
+        if (!isEditableElement(activeElement)) {
+          lastKeyboardHeight = 0;
+          setKeyboardHeight(0);
+          resetViewportVariables(root);
+        }
+      }, delay);
+    };
+
+    const handleFocusOut = () => {
+      // iOS Safari often updates visualViewport late when keyboard closes.
+      scheduleKeyboardReset(80);
+    };
+
+    const handlePageShow = () => {
+      scheduleKeyboardReset(0);
+      syncViewport();
+    };
+
     window.addEventListener("resize", syncViewport, { passive: true });
+    window.addEventListener("focusout", handleFocusOut, { passive: true });
+    window.addEventListener("pageshow", handlePageShow, { passive: true });
+    window.addEventListener("popstate", handlePageShow, { passive: true });
 
     if (viewport) {
       viewport.addEventListener("resize", syncViewport, { passive: true });
@@ -73,11 +124,16 @@ export default function useKeyboardAvoid(containerRef) {
       if (frameId) {
         window.cancelAnimationFrame(frameId);
       }
+      if (resetTimeoutId) {
+        window.clearTimeout(resetTimeoutId);
+      }
       window.removeEventListener("resize", syncViewport);
+      window.removeEventListener("focusout", handleFocusOut);
+      window.removeEventListener("pageshow", handlePageShow);
+      window.removeEventListener("popstate", handlePageShow);
       viewport?.removeEventListener("resize", syncViewport);
       viewport?.removeEventListener("scroll", syncViewport);
-      root.style.setProperty("--keyboard-height", "0px");
-      root.dataset.mobileKeyboardOpen = "false";
+      resetViewportVariables(root);
     };
   }, []);
 

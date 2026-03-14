@@ -45,6 +45,13 @@ export const sendMessage = async ({ chatId, content, replayToId }) => {
   return data;
 };
 
+export const editMessage = async ({ messageId, content }) => {
+  const { data } = await axiosInstance.put(`/chats/messages/${messageId}`, {
+    content,
+  });
+  return data;
+};
+
 export const deleteMessage = async (messageId) => {
   await axiosInstance.delete(`/chats/messages/${messageId}`);
 };

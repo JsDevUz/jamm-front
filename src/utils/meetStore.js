@@ -13,14 +13,16 @@ export async function getMeets() {
 }
 
 export async function saveMeet({ roomId, title, isPrivate, isCreator }) {
-  if (!isCreator) return; // Only save if creator
+  if (!isCreator) return null;
   try {
-    await axiosInstance.post(
+    const { data } = await axiosInstance.post(
       `${API_BASE_URL}/meets`,
       { roomId, title, isPrivate },
     );
+    return data;
   } catch (error) {
     console.error("Failed to save meet", error);
+    throw error;
   }
 }
 
@@ -30,6 +32,14 @@ export async function removeMeet(roomId) {
   } catch (error) {
     console.error("Failed to remove meet", error);
   }
+}
+
+export async function updateMeetPrivacy(roomId, isPrivate) {
+  const { data } = await axiosInstance.patch(
+    `${API_BASE_URL}/meets/${roomId}/privacy`,
+    { isPrivate },
+  );
+  return data;
 }
 
 export async function getMeetById(roomId) {

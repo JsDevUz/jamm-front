@@ -26,7 +26,7 @@
   },
   "navigation": {
     "feed": "Posts",
-    "blogs": "Blogs",
+    "articles": "Articles",
     "chats": "Chats",
     "courses": "Courses",
     "profile": "My profile",
@@ -122,10 +122,10 @@
       "coursesTabDescription": "Your courses and lessons are available from here.",
       "coursesPaneTitle": "Courses panel",
       "coursesPaneDescription": "Browse your courses here and jump into the course page.",
-      "blogsTabTitle": "Blogs tab",
-      "blogsTabDescription": "Your blog posts and blog management live in this tab.",
-      "blogsPaneTitle": "Blogs panel",
-      "blogsPaneDescription": "Create, read and edit your blog posts in this view.",
+      "articlesTabTitle": "Articles tab",
+      "articlesTabDescription": "Your articles and article management live in this tab.",
+      "articlesPaneTitle": "Articles panel",
+      "articlesPaneDescription": "Create, read and edit your articles in this view.",
       "appearanceTabTitle": "Theme tab",
       "appearanceTabDescription": "Use this tab to control how the interface looks.",
       "languageTabTitle": "Language tab",
@@ -137,7 +137,7 @@
       "supportTabTitle": "Support tab",
       "supportTabDescription": "Help and support contacts are available here.",
       "favoritesTabTitle": "Favorites tab",
-      "favoritesTabDescription": "Your liked lessons, posts and blogs are collected here.",
+      "favoritesTabDescription": "Your liked lessons, posts and articles are collected here.",
       "premiumPaneTitle": "Premium panel",
       "premiumPaneDescription": "Manage plans, promo codes and profile decorations from this panel."
     }
@@ -216,12 +216,12 @@
       "days": "{{count}} days ago"
     }
   },
-  "blogs": {
-    "searchPlaceholder": "Search blogs...",
-    "createTitle": "New blog",
-    "notFound": "Blog not found.",
-    "selectToRead": "Select a blog to read.",
-    "backToList": "Blogs",
+  "articles": {
+    "searchPlaceholder": "Search articles...",
+    "createTitle": "New article",
+    "notFound": "Article not found.",
+    "selectToRead": "Select an article to read.",
+    "backToList": "Articles",
     "noExcerpt": "No description",
     "author": "Author",
     "comments": "comments",
@@ -850,7 +850,7 @@
     "settings": "Settings",
     "tabs": {
       "groups": "Posts",
-      "blogs": "Blogs",
+      "articles": "Articles",
       "courses": "Lessons",
       "appearance": "Theme",
       "language": "Language",
@@ -863,7 +863,7 @@
     "stats": {
       "members": "Members",
       "posts": "Posts",
-      "blogs": "Blogs",
+      "articles": "Articles",
       "courses": "Lessons"
     }
   },
@@ -1001,9 +1001,9 @@
       "postsTitle": "Liked posts",
       "postsDescription": "A list of posts you liked.",
       "postsEmpty": "No liked posts yet.",
-      "blogsTitle": "Liked blogs",
-      "blogsDescription": "Blogs you liked appear here.",
-      "blogsEmpty": "No liked blogs yet."
+      "articlesTitle": "Liked articles",
+      "articlesDescription": "Articles you liked appear here.",
+      "articlesEmpty": "No liked articles yet."
     }
   },
   "premiumModal": {
@@ -1021,7 +1021,7 @@
     },
     "sections": {
       "posts": { "title": "Posts", "description": "Daily post and comment limits." },
-      "blogs": { "title": "Blogs", "description": "Blog creation and content capacity." },
+      "articles": { "title": "Articles", "description": "Article creation and content capacity." },
       "groups": { "title": "Groups and chat", "description": "Group and messaging limits." },
       "meets": { "title": "Video calls", "description": "Meet creation and participant capacity." },
       "courses": { "title": "Courses and lessons", "description": "Lesson media, tests, and homework limits." },
@@ -1033,14 +1033,14 @@
       "postCommentsPerPost": "Comments per post",
       "postWords": "Post text",
       "postCommentChars": "Comment length",
-      "blogsPerUser": "Blogs",
-      "blogCommentsPerBlog": "Comments per blog",
-      "blogImagesPerBlog": "Blog images",
-      "blogWords": "Blog text",
-      "blogTitleChars": "Blog title",
-      "blogExcerptChars": "Short description",
-      "blogTagChars": "Tag capacity",
-      "blogCommentChars": "Blog comment",
+      "articlesPerUser": "Articles",
+      "articleCommentsPerArticle": "Comments per article",
+      "articleImagesPerArticle": "Article images",
+      "articleWords": "Article text",
+      "articleTitleChars": "Article title",
+      "articleExcerptChars": "Short description",
+      "articleTagChars": "Tag capacity",
+      "articleCommentChars": "Article comment",
       "groupsCreated": "Groups created",
       "groupsJoined": "Groups joined",
       "messageChars": "Message length",

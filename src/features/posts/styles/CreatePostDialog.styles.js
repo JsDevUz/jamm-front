@@ -95,6 +95,66 @@ export const TextareaWrapper = styled.div`
   gap: 4px;
 `;
 
+export const AttachmentsGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 8px;
+
+  @media (max-width: 640px) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+`;
+
+export const AttachmentCard = styled.div`
+  position: relative;
+  aspect-ratio: 1;
+  overflow: hidden;
+  border-radius: 14px;
+  background: var(--input-color);
+  border: 1px solid var(--border-color);
+
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+`;
+
+export const AttachmentRemoveButton = styled.button`
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 999px;
+  background: rgba(10, 12, 20, 0.78);
+  color: white;
+  cursor: pointer;
+  backdrop-filter: blur(10px);
+`;
+
+export const AttachmentStatus = styled.div`
+  position: absolute;
+  inset: auto 8px 8px 8px;
+  min-height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 8px;
+  border-radius: 10px;
+  background: rgba(10, 12, 20, 0.72);
+  color: white;
+  font-size: 12px;
+  font-weight: 600;
+  backdrop-filter: blur(10px);
+`;
+
 export const AuthorName = styled.div`
   font-size: 14px;
   font-weight: 700;

@@ -34,7 +34,9 @@ import {
 } from "lucide-react";
 import { useWebRTC } from "../../../hooks/useWebRTC";
 import useAuthStore from "../../../store/authStore";
+import useMeetCallStore from "../../../store/meetCallStore";
 import { RESOLVED_APP_BASE_URL } from "../../../config/env";
+import { updateMeetPrivacy } from "../../../utils/meetStore";
 
 const slideIn = keyframes`
   from { opacity: 0; transform: translateY(24px); }
@@ -468,6 +470,60 @@ const PanelBody = styled.div`
   -webkit-overflow-scrolling: touch;
 `;
 
+const PrivacyRow = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px 14px;
+  border-bottom: 1px solid color-mix(in srgb, var(--call-border) 82%, transparent);
+  margin-bottom: 10px;
+`;
+
+const PrivacyMeta = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+
+  strong {
+    color: var(--call-text);
+    font-size: 13px;
+  }
+
+  span {
+    color: var(--call-muted);
+    font-size: 12px;
+    line-height: 1.4;
+  }
+`;
+
+const PrivacyToggle = styled.button`
+  position: relative;
+  width: 52px;
+  height: 30px;
+  border: none;
+  border-radius: 999px;
+  background: ${(props) =>
+    props.$active
+      ? "color-mix(in srgb, var(--warning-color) 72%, black 8%)"
+      : "color-mix(in srgb, var(--call-border) 82%, transparent)"};
+  cursor: pointer;
+  transition: background 0.18s ease, opacity 0.18s ease;
+  opacity: ${(props) => (props.disabled ? 0.5 : 1)};
+
+  &::after {
+    content: "";
+    position: absolute;
+    top: 3px;
+    left: ${(props) => (props.$active ? "25px" : "3px")};
+    width: 24px;
+    height: 24px;
+    border-radius: 999px;
+    background: white;
+    transition: left 0.18s ease;
+  }
+`;
+
 const KnockCard = styled.div`
   background: color-mix(in srgb, var(--call-panel) 88%, transparent);
   border: 1px solid var(--call-border);
@@ -896,6 +952,7 @@ const GroupVideoCall = ({
   const pipCloseIntentRef = useRef(false);
 
   const currentUser = useAuthStore((state) => state.user);
+  const updateActiveCall = useMeetCallStore((state) => state.updateActiveCall);
 
   const displayName =
     preferredDisplayName?.trim() ||
@@ -924,6 +981,7 @@ const GroupVideoCall = ({
     leaveCall,
     error,
     roomTitle,
+    roomIsPrivate,
     remoteIsRecording,
     emitRecording,
     forceMuteMic,
@@ -934,6 +992,7 @@ const GroupVideoCall = ({
     raisedHands,
     toggleHandRaise,
     kickPeer,
+    setRoomPrivacy,
     networkQuality,
     qualityProfile,
   } = useWebRTC({
@@ -946,6 +1005,43 @@ const GroupVideoCall = ({
     initialMicOn,
     initialCamOn,
   });
+
+  const [privacyUpdating, setPrivacyUpdating] = useState(false);
+
+  useEffect(() => {
+    updateActiveCall?.({ isPrivate: roomIsPrivate });
+  }, [roomIsPrivate, updateActiveCall]);
+
+  const handleToggleRoomPrivacy = useCallback(async () => {
+    if (!isCreator || privacyUpdating) return;
+
+    const nextIsPrivate = !roomIsPrivate;
+    setPrivacyUpdating(true);
+    setRoomPrivacy(nextIsPrivate);
+    updateActiveCall?.({ isPrivate: nextIsPrivate });
+
+    try {
+      await updateMeetPrivacy(roomId, nextIsPrivate);
+      toast.success(
+        nextIsPrivate
+          ? "Endi kirish tasdiq bilan bo'ladi"
+          : "Endi kirish tasdiqsiz bo'ladi",
+      );
+    } catch (error) {
+      setRoomPrivacy(!nextIsPrivate);
+      updateActiveCall?.({ isPrivate: !nextIsPrivate });
+      toast.error("Meet kirish sozlamasini saqlab bo'lmadi");
+    } finally {
+      setPrivacyUpdating(false);
+    }
+  }, [
+    isCreator,
+    privacyUpdating,
+    roomIsPrivate,
+    roomId,
+    setRoomPrivacy,
+    updateActiveCall,
+  ]);
 
   // ─── Recording logic ─────────────────────────────────────────────────────────
   const [isRecording, setIsRecording] = useState(false);
@@ -1272,7 +1368,7 @@ const GroupVideoCall = ({
       <CallInfo>
         <CallTitle>
           {roomTitle || chatTitle || "Meet"}
-          {isPrivate && (
+          {roomIsPrivate && (
             <span
               style={{
                 fontSize: 11,
@@ -1355,7 +1451,7 @@ const GroupVideoCall = ({
             <MiniTitle>{roomTitle || chatTitle || t("groupCall.roomDefault")}</MiniTitle>
             <MiniMeta>
               {t("groupCall.participants", { count: totalTiles })} •{" "}
-              {isPrivate ? t("groupCall.privateRoom") : t("groupCall.publicRoom")}
+              {roomIsPrivate ? t("groupCall.privateRoom") : t("groupCall.publicRoom")}
             </MiniMeta>
           </div>
           <MiniActions>
@@ -1392,7 +1488,7 @@ const GroupVideoCall = ({
               <MiniTitle>{roomTitle || chatTitle || t("groupCall.roomDefault")}</MiniTitle>
               <MiniMeta>
                 {t("groupCall.participants", { count: totalTiles })} •{" "}
-                {isPrivate ? t("groupCall.privateRoom") : t("groupCall.publicRoom")}
+                {roomIsPrivate ? t("groupCall.privateRoom") : t("groupCall.publicRoom")}
               </MiniMeta>
             </div>
             <MiniActions>
@@ -1521,56 +1617,78 @@ const GroupVideoCall = ({
             </PanelHead>
             <PanelBody>
               {/* Waiting section — only creator of private room */}
-              {isCreator && isPrivate && (
+              {isCreator && (
                 <>
-                  <SectionLabel
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "4px",
-                    }}
-                  >
-                    <Timer size={12} />{" "}
-                    {t("groupCall.waitingMembers", {
-                      count: knockRequests.length,
-                    })}
-                  </SectionLabel>
-                  {knockRequests.length === 0 ? (
-                    <div
-                      style={{
-                        padding: "8px 14px",
-                        color: "#4f545c",
-                        fontSize: 12,
-                      }}
-                    >
-                      Hech kim kutmayapti
-                    </div>
-                  ) : (
-                    knockRequests.map(({ peerId, displayName: n }) => (
-                      <KnockCard key={peerId}>
-                        <KnockName
+                  <PrivacyRow>
+                    <PrivacyMeta>
+                      <strong>Meetga kirishni tasdiqlash</strong>
+                      <span>
+                        {roomIsPrivate
+                          ? "Yoqilgan. Yangi kiruvchilar avval kutadi."
+                          : "O‘chiq. Link bilan kirganlar darrov qo‘shiladi."}
+                      </span>
+                    </PrivacyMeta>
+                    <PrivacyToggle
+                      type="button"
+                      $active={roomIsPrivate}
+                      disabled={privacyUpdating}
+                      onClick={handleToggleRoomPrivacy}
+                      aria-label="Meetga kirish tasdiqlash rejimini almashtirish"
+                    />
+                  </PrivacyRow>
+
+                  {roomIsPrivate ? (
+                    <>
+                      <SectionLabel
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "4px",
+                        }}
+                      >
+                        <Timer size={12} />{" "}
+                        {t("groupCall.waitingMembers", {
+                          count: knockRequests.length,
+                        })}
+                      </SectionLabel>
+                      {knockRequests.length === 0 ? (
+                        <div
                           style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: "6px",
+                            padding: "8px 14px",
+                            color: "#4f545c",
+                            fontSize: 12,
                           }}
                         >
-                          <User size={14} /> {n}
-                        </KnockName>
-                        <KnockActions>
-                          <KnockBtn
-                            $approve
-                            onClick={() => approveKnock(peerId)}
-                          >
-                            <CheckCircle size={12} /> Qabul
-                          </KnockBtn>
-                          <KnockBtn onClick={() => rejectKnock(peerId)}>
-                            <XCircle size={12} /> Rad
-                          </KnockBtn>
-                        </KnockActions>
-                      </KnockCard>
-                    ))
-                  )}
+                          Hech kim kutmayapti
+                        </div>
+                      ) : (
+                        knockRequests.map(({ peerId, displayName: n }) => (
+                          <KnockCard key={peerId}>
+                            <KnockName
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "6px",
+                              }}
+                            >
+                              <User size={14} /> {n}
+                            </KnockName>
+                            <KnockActions>
+                              <KnockBtn
+                                $approve
+                                onClick={() => approveKnock(peerId)}
+                              >
+                                <CheckCircle size={12} /> Qabul
+                              </KnockBtn>
+                              <KnockBtn onClick={() => rejectKnock(peerId)}>
+                                <XCircle size={12} /> Rad
+                              </KnockBtn>
+                            </KnockActions>
+                          </KnockCard>
+                        ))
+                      )}
+                    </>
+                  ) : null}
                 </>
               )}
 
@@ -1629,91 +1747,91 @@ const GroupVideoCall = ({
                   peerState.hasVideo !== false && peerState.videoMuted !== true;
 
                 return (
-                <MemberRow key={peerId}>
-                  <MemberAvatar>
-                    {n?.charAt(0)?.toUpperCase() || "?"}
-                  </MemberAvatar>
-                  <MemberInfo>
-                    <MemberName>
-                      {raisedHands.has(peerId) && (
-                        <Hand size={14} color="#faa61a" fill="#faa61a" />
-                      )}
-                      {n}
-                    </MemberName>
-                    <MemberStatusRow>
-                      <MemberStatusBadge
-                        $tone={isPeerMicOn ? "success" : "danger"}
-                      >
-                        {isPeerMicOn ? (
-                          <Mic size={11} />
-                        ) : (
-                          <MicOff size={11} />
+                  <MemberRow key={peerId}>
+                    <MemberAvatar>
+                      {n?.charAt(0)?.toUpperCase() || "?"}
+                    </MemberAvatar>
+                    <MemberInfo>
+                      <MemberName>
+                        {raisedHands.has(peerId) && (
+                          <Hand size={14} color="#faa61a" fill="#faa61a" />
                         )}
-                        {isPeerMicOn ? "Mikrofon on" : "Mikrofon off"}
-                      </MemberStatusBadge>
-                      <MemberStatusBadge
-                        $tone={isPeerCamOn ? "success" : "danger"}
-                      >
-                        {isPeerCamOn ? (
-                          <Video size={11} />
-                        ) : (
-                          <VideoOff size={11} />
-                        )}
-                        {isPeerCamOn ? "Kamera on" : "Kamera off"}
-                      </MemberStatusBadge>
-                    </MemberStatusRow>
-                  </MemberInfo>
-                  <MemberIcons>
-                    {isCreator ? (
-                      <>
-                        <MemberActionBtn
-                          onClick={() =>
-                            isPeerMicOn ? forceMuteMic(peerId) : allowMic(peerId)
-                          }
-                          title={isPeerMicOn ? "Mic o'chirish" : "Mic ruxsat"}
-                          $danger={isPeerMicOn}
-                          $success={!isPeerMicOn}
+                        {n}
+                      </MemberName>
+                      <MemberStatusRow>
+                        <MemberStatusBadge
+                          $tone={isPeerMicOn ? "success" : "danger"}
                         >
-                          {isPeerMicOn ? <MicOff size={16} /> : <Mic size={16} />}
-                        </MemberActionBtn>
-                        <MemberActionBtn
-                          onClick={() =>
-                            isPeerCamOn ? forceMuteCam(peerId) : allowCam(peerId)
-                          }
-                          title={isPeerCamOn ? "Cam o'chirish" : "Cam ruxsat"}
-                          $danger={isPeerCamOn}
-                          $success={!isPeerCamOn}
+                          {isPeerMicOn ? (
+                            <Mic size={11} />
+                          ) : (
+                            <MicOff size={11} />
+                          )}
+                          {isPeerMicOn ? "Mikrofon on" : "Mikrofon off"}
+                        </MemberStatusBadge>
+                        <MemberStatusBadge
+                          $tone={isPeerCamOn ? "success" : "danger"}
                         >
                           {isPeerCamOn ? (
-                            <VideoOff size={16} />
+                            <Video size={11} />
                           ) : (
-                            <Video size={16} />
+                            <VideoOff size={11} />
                           )}
-                        </MemberActionBtn>
-                        <MemberActionBtn
-                          onClick={() => kickPeer(peerId)}
-                          title="Chiqarib yuborish"
-                          $danger
-                        >
-                          <UserMinus size={16} />
-                        </MemberActionBtn>
-                      </>
-                    ) : (
-                      <>
-                        {isPeerMicOn ? (
-                          <Mic size={13} color="var(--call-success)" />
-                        ) : (
-                          <MicOff size={13} color="var(--call-danger)" />
-                        )}
-                        {isPeerCamOn ? (
-                          <Video size={13} color="var(--call-success)" />
-                        ) : (
-                          <VideoOff size={13} color="var(--call-danger)" />
-                        )}
-                      </>
-                    )}
-                  </MemberIcons>
-                </MemberRow>
+                          {isPeerCamOn ? "Kamera on" : "Kamera off"}
+                        </MemberStatusBadge>
+                      </MemberStatusRow>
+                    </MemberInfo>
+                    <MemberIcons>
+                      {isCreator ? (
+                        <>
+                          <MemberActionBtn
+                            onClick={() =>
+                              isPeerMicOn ? forceMuteMic(peerId) : allowMic(peerId)
+                            }
+                            title={isPeerMicOn ? "Mic o'chirish" : "Mic ruxsat"}
+                            $danger={isPeerMicOn}
+                            $success={!isPeerMicOn}
+                          >
+                            {isPeerMicOn ? <MicOff size={16} /> : <Mic size={16} />}
+                          </MemberActionBtn>
+                          <MemberActionBtn
+                            onClick={() =>
+                              isPeerCamOn ? forceMuteCam(peerId) : allowCam(peerId)
+                            }
+                            title={isPeerCamOn ? "Cam o'chirish" : "Cam ruxsat"}
+                            $danger={isPeerCamOn}
+                            $success={!isPeerCamOn}
+                          >
+                            {isPeerCamOn ? (
+                              <VideoOff size={16} />
+                            ) : (
+                              <Video size={16} />
+                            )}
+                          </MemberActionBtn>
+                          <MemberActionBtn
+                            onClick={() => kickPeer(peerId)}
+                            title="Chiqarib yuborish"
+                            $danger
+                          >
+                            <UserMinus size={16} />
+                          </MemberActionBtn>
+                        </>
+                      ) : (
+                        <>
+                          {isPeerMicOn ? (
+                            <Mic size={13} color="var(--call-success)" />
+                          ) : (
+                            <MicOff size={13} color="var(--call-danger)" />
+                          )}
+                          {isPeerCamOn ? (
+                            <Video size={13} color="var(--call-success)" />
+                          ) : (
+                            <VideoOff size={13} color="var(--call-danger)" />
+                          )}
+                        </>
+                      )}
+                    </MemberIcons>
+                  </MemberRow>
                 );
               })}
             </PanelBody>

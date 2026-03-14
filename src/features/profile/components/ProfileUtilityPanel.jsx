@@ -22,7 +22,7 @@ import { usePosts } from "../../../contexts/PostsContext";
 import { useCourses } from "../../../contexts/CoursesContext";
 import useAuthStore from "../../../store/authStore";
 import axiosInstance from "../../../api/axiosInstance";
-import { fetchLikedBlogs } from "../../../api/blogsApi";
+import { fetchLikedArticles } from "../../../api/articlesApi";
 import {
   updateProfileDecoration,
   uploadProfileDecorationImage,
@@ -412,7 +412,7 @@ const ProfileUtilityPanel = ({ section, currentUser, onBack }) => {
   const [uploadingDecorationImage, setUploadingDecorationImage] = useState(false);
   const decorationFileInputRef = useRef(null);
   const [likedPosts, setLikedPosts] = useState([]);
-  const [likedBlogs, setLikedBlogs] = useState([]);
+  const [likedArticles, setLikedArticles] = useState([]);
   const [likedLessons, setLikedLessons] = useState([]);
   const [loadingFavorites, setLoadingFavorites] = useState(false);
   const [appLockEnabled, setAppLockEnabled] = useState(
@@ -537,13 +537,13 @@ const ProfileUtilityPanel = ({ section, currentUser, onBack }) => {
     const loadFavorites = async () => {
       setLoadingFavorites(true);
       try {
-        const [posts, blogs, lessons] = await Promise.all([
+        const [posts, articles, lessons] = await Promise.all([
           fetchLikedPosts(),
-          fetchLikedBlogs(),
+          fetchLikedArticles(),
           fetchLikedLessons(),
         ]);
         setLikedPosts(Array.isArray(posts) ? posts : []);
-        setLikedBlogs(Array.isArray(blogs) ? blogs : []);
+        setLikedArticles(Array.isArray(articles) ? articles : []);
         setLikedLessons(Array.isArray(lessons) ? lessons : []);
       } finally {
         setLoadingFavorites(false);
@@ -1176,22 +1176,22 @@ const ProfileUtilityPanel = ({ section, currentUser, onBack }) => {
 
       <Group>
         <GroupHeader>
-          <h4>{t("profileUtility.favorites.blogsTitle")}</h4>
-          <p>{t("profileUtility.favorites.blogsDescription")}</p>
+          <h4>{t("profileUtility.favorites.articlesTitle")}</h4>
+          <p>{t("profileUtility.favorites.articlesDescription")}</p>
         </GroupHeader>
         <div style={{ padding: "0 14px 14px" }}>
-          {likedBlogs.length ? (
+          {likedArticles.length ? (
             <CardsGrid>
-              {likedBlogs.map((blog) => (
+              {likedArticles.map((article) => (
                 <FavoriteCard
-                  key={blog._id}
-                  onClick={() => navigate(`/blogs/${blog.slug || blog._id}`)}
+                  key={article._id}
+                  onClick={() => navigate(`/articles/${article.slug || article._id}`)}
                 >
-                  <FavoriteTitle>{blog.title}</FavoriteTitle>
+                  <FavoriteTitle>{article.title}</FavoriteTitle>
                   <FavoriteMeta>
-                    {blog.author?.nickname || blog.author?.username || t("common.author")}
+                    {article.author?.nickname || article.author?.username || t("common.author")}
                     {" · "}
-                    {blog.likes || 0} {t("common.like")}
+                    {article.likes || 0} {t("common.like")}
                   </FavoriteMeta>
                 </FavoriteCard>
               ))}
@@ -1200,7 +1200,7 @@ const ProfileUtilityPanel = ({ section, currentUser, onBack }) => {
             <EmptyState>
               {loadingFavorites
                 ? t("common.loading")
-                : t("profileUtility.favorites.blogsEmpty")}
+                : t("profileUtility.favorites.articlesEmpty")}
             </EmptyState>
           )}
         </div>

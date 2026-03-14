@@ -5,10 +5,10 @@ import InfiniteScroll from "react-infinite-scroll-component";
 import dayjs from "dayjs";
 import useAuthStore from "../../../store/authStore";
 import {
-  addBlogComment,
-  addBlogReply,
-  getBlogComments,
-} from "../../../api/blogsApi";
+  addArticleComment,
+  addArticleReply,
+  getArticleComments,
+} from "../../../api/articlesApi";
 import { SidebarIconButton as ButtonWrapper } from "../../../shared/ui/buttons/IconButton";
 import UserNameWithDecoration from "../../../shared/ui/users/UserNameWithDecoration";
 
@@ -236,7 +236,7 @@ const timeAgo = (iso) => {
 
 const avatarInitial = (name) => (name || "U").charAt(0).toUpperCase();
 
-const BlogComments = ({ blog, onClose, onCommentsCountChange }) => {
+const ArticleComments = ({ article, onClose, onCommentsCountChange }) => {
   const currentUser = useAuthStore((state) => state.user);
   const [comments, setComments] = useState([]);
   const [page, setPage] = useState(1);
@@ -248,7 +248,7 @@ const BlogComments = ({ blog, onClose, onCommentsCountChange }) => {
   const inputRef = useRef(null);
 
   const loadComments = async (nextPage = 1) => {
-    const response = await getBlogComments(blog._id, nextPage, 10);
+    const response = await getArticleComments(article._id, nextPage, 10);
     const items = response?.data || [];
     setComments(items);
     setPage(nextPage);
@@ -257,7 +257,7 @@ const BlogComments = ({ blog, onClose, onCommentsCountChange }) => {
   };
 
   useEffect(() => {
-    if (!blog?._id) return;
+    if (!article?._id) return;
 
     const load = async () => {
       setLoading(true);
@@ -269,11 +269,11 @@ const BlogComments = ({ blog, onClose, onCommentsCountChange }) => {
     };
 
     load();
-  }, [blog?._id]);
+  }, [article?._id]);
 
   const fetchMore = async () => {
     const nextPage = page + 1;
-    const response = await getBlogComments(blog._id, nextPage, 10);
+    const response = await getArticleComments(article._id, nextPage, 10);
     setComments((prev) => [...prev, ...(response?.data || [])]);
     setPage(nextPage);
     setHasMore(nextPage < (response?.totalPages || 1));
@@ -286,8 +286,8 @@ const BlogComments = ({ blog, onClose, onCommentsCountChange }) => {
     setSending(true);
     try {
       if (replyingTo) {
-        await addBlogReply({
-          blogId: blog._id,
+        await addArticleReply({
+          articleId: article._id,
           commentId: replyingTo.commentId,
           content: text.trim(),
           replyToUser: replyingTo.nickname,
@@ -295,8 +295,8 @@ const BlogComments = ({ blog, onClose, onCommentsCountChange }) => {
         await loadComments(1);
         setReplyingTo(null);
       } else {
-        const response = await addBlogComment({
-          blogId: blog._id,
+        const response = await addArticleComment({
+          articleId: article._id,
           content: text.trim(),
         });
         await loadComments(1);
@@ -309,25 +309,25 @@ const BlogComments = ({ blog, onClose, onCommentsCountChange }) => {
     }
   };
 
-  if (!blog) return null;
+  if (!article) return null;
 
   return (
     <Overlay onClick={onClose}>
       <Modal onClick={(event) => event.stopPropagation()}>
         <Header>
-          <Title>Blog izohlari</Title>
+          <Title>Article izohlari</Title>
           <ButtonWrapper onClick={onClose}>
             <X size={18} />
           </ButtonWrapper>
         </Header>
 
-        <CommentsBody id="blog-comments-scroll">
+        <CommentsBody id="article-comments-scroll">
           <InfiniteScroll
             dataLength={comments.length}
             next={fetchMore}
             hasMore={hasMore}
             loader={<Empty>Yuklanmoqda...</Empty>}
-            scrollableTarget="blog-comments-scroll"
+            scrollableTarget="article-comments-scroll"
             style={{ overflow: "visible" }}
           >
             {loading && comments.length === 0 ? (
@@ -462,4 +462,4 @@ const BlogComments = ({ blog, onClose, onCommentsCountChange }) => {
   );
 };
 
-export default BlogComments;
+export default ArticleComments;

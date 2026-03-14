@@ -4,12 +4,12 @@ import { ArrowLeft, Eye, Heart, MessageCircle } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import {
-  getBlog,
-  getBlogContent,
-  likeBlog,
-  viewBlog,
-} from "../../../api/blogsApi";
-import BlogComments from "./BlogComments";
+  getArticle,
+  getArticleContent,
+  likeArticle,
+  viewArticle,
+} from "../../../api/articlesApi";
+import ArticleComments from "./ArticleComments";
 import MarkdownRenderer from "./MarkdownRenderer";
 import UserNameWithDecoration from "../../../shared/ui/users/UserNameWithDecoration";
 import {
@@ -27,21 +27,21 @@ import {
   Pane,
   Title,
   Wrap,
-} from "../styles/BlogReaderPane.styles";
+} from "../styles/ArticleReaderPane.styles";
 
-const BlogReaderPane = ({ blogIdentifier, onBack }) => {
+const ArticleReaderPane = ({ articleIdentifier, onBack }) => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const viewedRef = useRef(new Set());
-  const [blog, setBlog] = useState(null);
+  const [article, setArticle] = useState(null);
   const [content, setContent] = useState("");
   const [loading, setLoading] = useState(true);
   const [commentOpen, setCommentOpen] = useState(false);
   const [coverLightboxOpen, setCoverLightboxOpen] = useState(false);
 
   useEffect(() => {
-    if (!blogIdentifier || blogIdentifier === "0") {
-      setBlog(null);
+    if (!articleIdentifier || articleIdentifier === "0") {
+      setArticle(null);
       setContent("");
       setLoading(false);
       return;
@@ -49,22 +49,22 @@ const BlogReaderPane = ({ blogIdentifier, onBack }) => {
 
     const load = async () => {
       setLoading(true);
-      setBlog(null);
+      setArticle(null);
       setContent("");
       try {
         const [detail, markdown] = await Promise.all([
-          getBlog(blogIdentifier),
-          getBlogContent(blogIdentifier),
+          getArticle(articleIdentifier),
+          getArticleContent(articleIdentifier),
         ]);
-        setBlog(detail);
+        setArticle(detail);
         setContent(markdown?.content || "");
 
         if (detail.previouslySeen) {
           viewedRef.current.add(detail._id);
         } else if (!viewedRef.current.has(detail._id)) {
           viewedRef.current.add(detail._id);
-          const viewStats = await viewBlog(detail._id);
-          setBlog((prev) =>
+          const viewStats = await viewArticle(detail._id);
+          setArticle((prev) =>
             prev
               ? {
                   ...prev,
@@ -75,7 +75,7 @@ const BlogReaderPane = ({ blogIdentifier, onBack }) => {
           );
         }
       } catch {
-        setBlog(null);
+        setArticle(null);
         setContent("");
       } finally {
         setLoading(false);
@@ -83,36 +83,36 @@ const BlogReaderPane = ({ blogIdentifier, onBack }) => {
     };
 
     load();
-  }, [blogIdentifier]);
+  }, [articleIdentifier]);
 
   useEffect(() => {
-    if (!blog?._id) return;
+    if (!article?._id) return;
 
-    const preferredSlug = blog.slug || blog._id;
+    const preferredSlug = article.slug || article._id;
     const currentPath = window.location.pathname;
-    const nextPath = `/blogs/${preferredSlug}`;
+    const nextPath = `/articles/${preferredSlug}`;
 
     if (currentPath !== nextPath) {
       window.history.replaceState(null, "", nextPath);
     }
-  }, [blog?._id, blog?.slug]);
+  }, [article?._id, article?.slug]);
 
   const handleLike = async () => {
-    if (!blog?._id) return;
-    const response = await likeBlog(blog._id);
-    setBlog((prev) => (prev ? { ...prev, ...response } : prev));
+    if (!article?._id) return;
+    const response = await likeArticle(article._id);
+    setArticle((prev) => (prev ? { ...prev, ...response } : prev));
   };
 
-  if (!blogIdentifier || blogIdentifier === "0") {
-    return <Empty>{t("blogs.selectToRead")}</Empty>;
+  if (!articleIdentifier || articleIdentifier === "0") {
+    return <Empty>{t("articles.selectToRead")}</Empty>;
   }
 
   if (loading) {
     return <Empty>{t("common.loading")}</Empty>;
   }
 
-  if (!blog) {
-    return <Empty>{t("blogs.notFound")}</Empty>;
+  if (!article) {
+    return <Empty>{t("articles.notFound")}</Empty>;
   }
 
   return (
@@ -121,43 +121,43 @@ const BlogReaderPane = ({ blogIdentifier, onBack }) => {
         <BackButton
           onClick={() => {
             onBack?.();
-            navigate("/blogs");
+            navigate("/articles");
           }}
         >
           <ArrowLeft size={16} />
-          {t("blogs.backToList")}
+          {t("articles.backToList")}
         </BackButton>
 
-        {blog.coverImage ? (
+        {article.coverImage ? (
           <CoverButton type="button" onClick={() => setCoverLightboxOpen(true)}>
-            <CoverImage src={blog.coverImage} alt={blog.title} />
+            <CoverImage src={article.coverImage} alt={article.title} />
           </CoverButton>
         ) : null}
 
-        <Title>{blog.title}</Title>
-        {blog.excerpt ? <Excerpt>{blog.excerpt}</Excerpt> : null}
+        <Title>{article.title}</Title>
+        {article.excerpt ? <Excerpt>{article.excerpt}</Excerpt> : null}
 
         <Meta>
           <UserNameWithDecoration
-            user={blog.author}
-            fallback={t("blogs.author")}
+            user={article.author}
+            fallback={t("articles.author")}
             showPremiumBadge={false}
           />
-          <span>{dayjs(blog.publishedAt || blog.createdAt).format("DD MMM YYYY · HH:mm")}</span>
+          <span>{dayjs(article.publishedAt || article.createdAt).format("DD MMM YYYY · HH:mm")}</span>
         </Meta>
 
         <Actions>
-          <ActionButton $active={blog.liked} onClick={handleLike}>
-            <Heart size={16} fill={blog.liked ? "currentColor" : "none"} />
-            {blog.likes}
+          <ActionButton $active={article.liked} onClick={handleLike}>
+            <Heart size={16} fill={article.liked ? "currentColor" : "none"} />
+            {article.likes}
           </ActionButton>
           <ActionButton onClick={() => setCommentOpen(true)}>
             <MessageCircle size={16} />
-            {blog.comments}
+            {article.comments}
           </ActionButton>
           <ActionButton as="div">
             <Eye size={16} />
-            {blog.views}
+            {article.views}
           </ActionButton>
         </Actions>
 
@@ -166,26 +166,26 @@ const BlogReaderPane = ({ blogIdentifier, onBack }) => {
       </Wrap>
 
       {commentOpen && (
-        <BlogComments
-          blog={blog}
+        <ArticleComments
+          article={article}
           onClose={() => setCommentOpen(false)}
           onCommentsCountChange={(count) =>
-            setBlog((prev) => (prev ? { ...prev, comments: count } : prev))
+            setArticle((prev) => (prev ? { ...prev, comments: count } : prev))
           }
         />
       )}
 
-      {coverLightboxOpen && blog.coverImage && (
+      {coverLightboxOpen && article.coverImage && (
         <LightboxOverlay
           type="button"
           onClick={() => setCoverLightboxOpen(false)}
-          aria-label={t("blogs.coverClose")}
+          aria-label={t("articles.coverClose")}
         >
-          <LightboxImage src={blog.coverImage} alt={blog.title} />
+          <LightboxImage src={article.coverImage} alt={article.title} />
         </LightboxOverlay>
       )}
     </Pane>
   );
 };
 
-export default BlogReaderPane;
+export default ArticleReaderPane;

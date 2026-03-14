@@ -70,9 +70,9 @@ export const PostsProvider = ({ children }) => {
   }, []);
 
   /* ── Create post ── */
-  const createPost = useCallback(async (content) => {
+  const createPost = useCallback(async (payload) => {
     try {
-      const post = await postsApi.createPost(content);
+      const post = await postsApi.createPost(payload);
       setForYouPosts((prev) => [post, ...prev]);
       return post;
     } catch (e) {
@@ -81,9 +81,9 @@ export const PostsProvider = ({ children }) => {
     }
   }, []);
 
-  const editPost = useCallback(async (postId, content) => {
+  const editPost = useCallback(async (postId, payload) => {
     try {
-      const post = await postsApi.updatePost(postId, content);
+      const post = await postsApi.updatePost(postId, payload);
       const updater = (prev) =>
         prev.map((item) => (item._id === postId ? { ...item, ...post } : item));
       setForYouPosts(updater);

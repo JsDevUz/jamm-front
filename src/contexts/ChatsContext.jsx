@@ -34,11 +34,10 @@ export const ChatsProvider = ({ children }) => {
     const knownNavs = [
       "home",
       "feed",
-      "blogs",
+      "articles",
       "chats",
       "users",
       "groups",
-      "meets",
       "courses",
       "arena",
       "profile",
@@ -50,7 +49,7 @@ export const ChatsProvider = ({ children }) => {
     const parts = window.location.pathname.split("/").filter(Boolean);
     if (
       (parts[0] === "a" ||
-        parts[0] === "blogs" ||
+        parts[0] === "articles" ||
         parts[0] === "users" ||
         parts[0] === "groups" ||
         parts[0] === "chats") &&
@@ -533,8 +532,18 @@ export const ChatsProvider = ({ children }) => {
               msg.replayTo.senderId?.username ||
               msg.replayTo.user,
             content: msg.replayTo.content,
-          }
+      }
         : null,
+    };
+  }, []);
+
+  const editMessage = useCallback(async (messageId, content) => {
+    const msg = await chatApi.editMessage({ messageId, content });
+    return {
+      id: msg._id,
+      content: msg.content,
+      edited: msg.isEdited,
+      createdAt: msg.createdAt,
     };
   }, []);
 
@@ -666,6 +675,7 @@ export const ChatsProvider = ({ children }) => {
     leaveChat,
     fetchMessages,
     sendMessage,
+    editMessage,
     markMessagesAsRead,
     resolveChatSlug,
     searchUsers,

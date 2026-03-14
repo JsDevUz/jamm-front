@@ -3,11 +3,8 @@ import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import {
   Bookmark,
-  Globe,
-  Lock,
   MessageSquare,
   Plus,
-  Trash2,
   Users,
   Video,
 } from "lucide-react";
@@ -19,7 +16,6 @@ import {
 import UserNameWithDecoration from "../../../shared/ui/users/UserNameWithDecoration";
 import { useChats } from "../../../contexts/ChatsContext";
 import { usePresence } from "../../../contexts/PresenceContext";
-import { getMeets, removeMeet } from "../../../utils/meetStore";
 import useAuthStore from "../../../store/authStore";
 import { SidebarIconButton as ButtonWrapper } from "../../../shared/ui/buttons/IconButton";
 import {
@@ -43,7 +39,6 @@ import {
   FilterButton,
   FilterContainer,
   HeaderSearch,
-  MeetDeleteButton,
   OnlineDot,
   OnlineSubtext,
   SearchLoadingBody,
@@ -88,25 +83,11 @@ const ChatsSidebar = ({
   const [loadingSearch, setLoadingSearch] = useState(false);
   const [chatTab, setChatTab] = useState(() => {
     if (selectedNav === "groups") return "group";
-    if (selectedNav === "meets") return "video";
     return "private";
   });
-  const [meets, setMeets] = useState([]);
-  const [loadingMeets, setLoadingMeets] = useState(false);
-  const meetsFetchedRef = useRef(false);
 
   const effectiveChatTab =
-    selectedNav === "groups"
-      ? "group"
-      : selectedNav === "users"
-        ? "private"
-        : selectedNav === "meets"
-          ? "video"
-          : chatTab;
-
-  const isVideoTab =
-    selectedNav === "meets" ||
-    (selectedNav === "chats" && effectiveChatTab === "video");
+    selectedNav === "groups" ? "group" : "private";
   const normalizedSearchQuery = searchQuery.trim();
   const hasMinimumSearchLength =
     normalizedSearchQuery.length >= MIN_SEARCH_LENGTH;
@@ -132,15 +113,13 @@ const ChatsSidebar = ({
   useEffect(() => {
     if (selectedNav === "groups") {
       setChatTab("group");
-    } else if (selectedNav === "users") {
+    } else {
       setChatTab("private");
-    } else if (selectedNav === "meets") {
-      setChatTab("video");
     }
   }, [selectedNav]);
 
   useEffect(() => {
-    if (!chats.length || isVideoTab) return;
+    if (!chats.length) return;
 
     const memberIds = new Set();
     chats.forEach((chat) => {
@@ -153,7 +132,7 @@ const ChatsSidebar = ({
     if (memberIds.size > 0) {
       fetchBulkStatuses(Array.from(memberIds));
     }
-  }, [chats, fetchBulkStatuses, isVideoTab]);
+  }, [chats, fetchBulkStatuses]);
 
   useEffect(() => {
     const supportsRemoteSearch =
@@ -161,11 +140,7 @@ const ChatsSidebar = ({
       selectedNav === "groups" ||
       selectedNav === "chats";
 
-    if (
-      isVideoTab ||
-      !supportsRemoteSearch ||
-      !["private", "group"].includes(effectiveChatTab)
-    ) {
+    if (!supportsRemoteSearch || !["private", "group"].includes(effectiveChatTab)) {
       setSearchResults([]);
       return;
     }
@@ -215,23 +190,12 @@ const ChatsSidebar = ({
     return () => clearTimeout(timer);
   }, [
     effectiveChatTab,
-    isVideoTab,
     hasMinimumSearchLength,
     normalizedSearchQuery,
     searchGroups,
     searchUsers,
     selectedNav,
   ]);
-
-  useEffect(() => {
-    if (!isVideoTab || meetsFetchedRef.current) return;
-
-    meetsFetchedRef.current = true;
-    setLoadingMeets(true);
-    getMeets()
-      .then((data) => setMeets(Array.isArray(data) ? data : []))
-      .finally(() => setLoadingMeets(false));
-  }, [isVideoTab]);
 
   const handleStartPrivateChat = async (targetUser) => {
     const currentUserId = currentUser?._id || currentUser?.id;
@@ -330,7 +294,6 @@ const ChatsSidebar = ({
     }
 
     if (
-      !isVideoTab &&
       (selectedNav === "users" ||
         (selectedNav === "chats" && effectiveChatTab === "private")) &&
       previewChat &&
@@ -363,24 +326,12 @@ const ChatsSidebar = ({
     activeFilter,
     chats,
     effectiveChatTab,
-    isVideoTab,
     previewChat,
     hasMinimumSearchLength,
     normalizedSearchQuery,
     selectedChatId,
     selectedNav,
   ]);
-
-  const filteredMeets = useMemo(() => {
-    const normalizedQuery = searchQuery.trim().toLowerCase();
-    if (!normalizedQuery) return meets;
-
-    return meets.filter((meet) =>
-      String(meet.title || t("chatsSidebar.meets.untitled"))
-        .toLowerCase()
-        .includes(normalizedQuery),
-    );
-  }, [meets, searchQuery, t]);
 
   const privateUnreadTotal = useMemo(
     () =>
@@ -399,14 +350,6 @@ const ChatsSidebar = ({
       }, 0),
     [chats],
   );
-
-  const handleDeleteMeet = async (event, roomId) => {
-    event.preventDefault();
-    event.stopPropagation();
-    await removeMeet(roomId);
-    const nextMeets = await getMeets();
-    setMeets(Array.isArray(nextMeets) ? nextMeets : []);
-  };
 
   const renderSidebarSkeleton = (count = 6) =>
     [...Array(count)].map((_, index) => (
@@ -433,7 +376,8 @@ const ChatsSidebar = ({
 
   const hasHeaderAction =
     selectedNav === "groups" ||
-    isVideoTab ||
+    selectedNav === "users" ||
+    (selectedNav === "chats" && effectiveChatTab === "private") ||
     (selectedNav === "chats" && effectiveChatTab === "group");
 
   const renderAvatarContent = (chat) => {
@@ -505,20 +449,20 @@ const ChatsSidebar = ({
             <Plus size={18} />
           </ButtonWrapper>
         )}
-        {isVideoTab && (
+        {(selectedNav === "users" ||
+          (selectedNav === "chats" && effectiveChatTab === "private")) && (
           <ButtonWrapper
             onClick={onOpenCreateMeet}
             title={t("chatsSidebar.createMeet")}
           >
-            <Plus size={18} />
+            <Video size={18} />
           </ButtonWrapper>
         )}
       </TopHeader>
 
       {(selectedNav === "chats" ||
         selectedNav === "users" ||
-        selectedNav === "groups" ||
-        selectedNav === "meets") && (
+        selectedNav === "groups") && (
         <ChatsTabsRow data-tour="chats-tabs">
           <ChatsTab
             data-tour="chats-tab-private"
@@ -554,16 +498,6 @@ const ChatsSidebar = ({
               )}
             </ChatsTabLabel>
           </ChatsTab>
-          <ChatsTab
-            data-tour="chats-tab-video"
-            $active={effectiveChatTab === "video"}
-            onClick={() => {
-              setChatTab("video");
-              navigate("/meets");
-            }}
-          >
-            {t("chatsSidebar.tabs.video")}
-          </ChatsTab>
         </ChatsTabsRow>
       )}
 
@@ -591,60 +525,6 @@ const ChatsSidebar = ({
       )}
 
       <ChatList id="sidebarScrollArea" data-tour="chats-list">
-        {isVideoTab ? (
-          loadingMeets ? (
-            <>{renderSidebarSkeleton(1)}</>
-          ) : filteredMeets.length === 0 ? (
-            <EmptyState>
-              <EmptyStateIcon>
-                <Video size={32} />
-              </EmptyStateIcon>
-              <div>
-                {searchQuery.trim()
-                  ? t("chatsSidebar.meets.notFound")
-                  : t("chatsSidebar.meets.empty")}
-              </div>
-            </EmptyState>
-          ) : (
-            filteredMeets.map((meet) => (
-              <ChatLink key={meet.roomId} to={`/join/${meet.roomId}`}>
-                <ChatItem>
-                  <AvatarWrapper>
-                    <ChatAvatar $isGroup>
-                      <Video size={18} />
-                    </ChatAvatar>
-                  </AvatarWrapper>
-                  <ChatInfo>
-                    <ChatName>
-                      {meet.title || t("chatsSidebar.meets.untitled")}
-                    </ChatName>
-                    <ChatMessage>
-                      {meet.isPrivate ? (
-                        <Lock size={12} />
-                      ) : (
-                        <Globe size={12} />
-                      )}
-                      <span>
-                        {meet.isCreator
-                          ? t("chatsSidebar.meets.admin")
-                          : t("chatsSidebar.meets.participant")}
-                      </span>
-                    </ChatMessage>
-                  </ChatInfo>
-                  <ChatMeta>
-                    <ChatTime>{timeAgo(meet.createdAt)}</ChatTime>
-                    <MeetDeleteButton
-                      onClick={(event) => handleDeleteMeet(event, meet.roomId)}
-                      title={t("chatsSidebar.delete")}
-                    >
-                      <Trash2 size={12} />
-                    </MeetDeleteButton>
-                  </ChatMeta>
-                </ChatItem>
-              </ChatLink>
-            ))
-          )
-        ) : (
           <>
             {hasMinimumSearchLength &&
             ["private", "group"].includes(effectiveChatTab) &&
@@ -836,70 +716,7 @@ const ChatsSidebar = ({
               </StyledInfiniteScroll>
             )}
 
-            {hasMinimumSearchLength &&
-              !["private", "group"].includes(effectiveChatTab) && (
-                <>
-                  {loadingSearch ? (
-                    <SearchLoadingContainer>
-                      {[...Array(3)].map((_, index) => (
-                        <SkeletonRow key={index}>
-                          <SkeletonCircle size="40px" />
-                          <SearchLoadingBody>
-                            <Skeleton height="14px" width="60%" mb="6px" />
-                            <Skeleton height="12px" width="40%" mb="0" />
-                          </SearchLoadingBody>
-                        </SkeletonRow>
-                      ))}
-                    </SearchLoadingContainer>
-                  ) : (
-                    searchResults
-                      .filter((user) => {
-                        const targetUserId = user.id || user._id;
-                        const currentUserId =
-                          currentUser?._id || currentUser?.id;
-                        if (targetUserId === currentUserId) return false;
-
-                        const alreadyInList = filteredChats.some(
-                          (chat) =>
-                            !chat.isGroup &&
-                            !chat.isSavedMessages &&
-                            chat.members?.some(
-                              (member) =>
-                                (member._id || member.id) === targetUserId,
-                            ),
-                        );
-
-                        return !alreadyInList;
-                      })
-                      .map((user) => (
-                        <SearchResultItem
-                          key={user.id}
-                          onClick={() => handleStartPrivateChat(user)}
-                        >
-                          <ChatAvatar>
-                            {user.avatar?.length > 1 ? (
-                              <AvatarImage src={user.avatar} alt={user.name} />
-                            ) : (
-                              (user.name || "?").charAt(0)
-                            )}
-                          </ChatAvatar>
-                          <ChatInfo>
-                            <ChatName>
-                              <UserNameWithDecoration
-                                user={user}
-                                fallback={t("common.userFallback")}
-                                size="sm"
-                              />
-                            </ChatName>
-                            <ChatMessage>@{user.username}</ChatMessage>
-                          </ChatInfo>
-                        </SearchResultItem>
-                      ))
-                  )}
-                </>
-              )}
           </>
-        )}
       </ChatList>
     </SidebarContainer>
   );

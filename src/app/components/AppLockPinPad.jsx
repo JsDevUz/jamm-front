@@ -1,11 +1,11 @@
 import React from "react";
-import styled from "styled-components";
+import styled, { keyframes } from "styled-components";
 import { Delete, Lock, X } from "lucide-react";
 
 const Overlay = styled.div`
   position: fixed;
   inset: 0;
-  z-index: 2600;
+  z-index: 30050;
   background: rgba(8, 10, 18, 0.78);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
@@ -22,6 +22,19 @@ const Dialog = styled.div`
   background: color-mix(in srgb, var(--secondary-color) 92%, black 8%);
   box-shadow: 0 28px 80px rgba(0, 0, 0, 0.34);
   overflow: hidden;
+`;
+
+const loadingPulse = keyframes`
+  0%,
+  100% {
+    transform: scale(0.82);
+    opacity: 0.5;
+  }
+
+  50% {
+    transform: scale(1.18);
+    opacity: 1;
+  }
 `;
 
 const Header = styled.div`
@@ -90,6 +103,9 @@ const PinDot = styled.div`
   background: ${(props) =>
     props.$filled ? "var(--primary-color)" : "transparent"};
   transition: 0.18s ease;
+  transform: scale(1);
+  animation: ${(props) => (props.$loading ? loadingPulse : "none")} 0.9s ease-in-out infinite;
+  animation-delay: ${(props) => (props.$loading ? `${props.$index * 0.12}s` : "0s")};
 `;
 
 const ErrorText = styled.div`
@@ -98,6 +114,16 @@ const ErrorText = styled.div`
   text-align: center;
   color: #ef4444;
   font-size: 13px;
+  font-weight: 600;
+`;
+
+const LoadingText = styled.div`
+  min-height: 18px;
+  margin-top: -4px;
+  padding: 0 24px 4px;
+  text-align: center;
+  color: var(--text-muted-color);
+  font-size: 12px;
   font-weight: 600;
 `;
 
@@ -176,7 +202,12 @@ const AppLockPinPad = ({
 
         <PinPreview>
           {Array.from({ length: maxLength }).map((_, index) => (
-            <PinDot key={index} $filled={index < valueLength} />
+            <PinDot
+              key={index}
+              $filled={loading || index < valueLength}
+              $loading={loading}
+              $index={index}
+            />
           ))}
         </PinPreview>
 

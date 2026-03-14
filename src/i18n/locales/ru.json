@@ -26,7 +26,7 @@
   },
   "navigation": {
     "feed": "Посты",
-    "blogs": "Блоги",
+    "articles": "Статьи",
     "chats": "Чаты",
     "courses": "Курсы",
     "profile": "Мой профиль",
@@ -122,10 +122,10 @@
       "coursesTabDescription": "Здесь находятся ваши курсы и уроки.",
       "coursesPaneTitle": "Панель курсов",
       "coursesPaneDescription": "Отсюда можно открыть курс и перейти на его страницу.",
-      "blogsTabTitle": "Вкладка блогов",
-      "blogsTabDescription": "Публикации блога и управление ими находятся здесь.",
-      "blogsPaneTitle": "Панель блогов",
-      "blogsPaneDescription": "В этом окне можно создавать, читать и редактировать блоги.",
+      "articlesTabTitle": "Вкладка статей",
+      "articlesTabDescription": "Публикации статей и управление ими находятся здесь.",
+      "articlesPaneTitle": "Панель статей",
+      "articlesPaneDescription": "В этом окне можно создавать, читать и редактировать статьи.",
       "appearanceTabTitle": "Вкладка темы",
       "appearanceTabDescription": "Через неё управляется внешний вид интерфейса.",
       "languageTabTitle": "Вкладка языка",
@@ -137,7 +137,7 @@
       "supportTabTitle": "Вкладка поддержки",
       "supportTabDescription": "Здесь находятся помощь и контакты поддержки.",
       "favoritesTabTitle": "Вкладка избранного",
-      "favoritesTabDescription": "Здесь собираются понравившиеся уроки, посты и блоги.",
+      "favoritesTabDescription": "Здесь собираются понравившиеся уроки, посты и статьи.",
       "premiumPaneTitle": "Панель Premium",
       "premiumPaneDescription": "Здесь можно управлять тарифами, промокодами и украшениями профиля."
     }
@@ -216,12 +216,12 @@
       "days": "{{count}} дн назад"
     }
   },
-  "blogs": {
-    "searchPlaceholder": "Поиск блогов...",
-    "createTitle": "Новый блог",
-    "notFound": "Блог не найден.",
-    "selectToRead": "Выберите блог для чтения.",
-    "backToList": "Блоги",
+  "articles": {
+    "searchPlaceholder": "Поиск статей...",
+    "createTitle": "Новая статья",
+    "notFound": "Статья не найдена.",
+    "selectToRead": "Выберите статью для чтения.",
+    "backToList": "Статьи",
     "noExcerpt": "Нет описания",
     "author": "Автор",
     "comments": "комментарии",
@@ -850,7 +850,7 @@
     "settings": "Настройки",
     "tabs": {
       "groups": "Посты",
-      "blogs": "Блоги",
+      "articles": "Статьи",
       "courses": "Уроки",
       "appearance": "Тема",
       "language": "Язык",
@@ -863,7 +863,7 @@
     "stats": {
       "members": "Участники",
       "posts": "Посты",
-      "blogs": "Блоги",
+      "articles": "Статьи",
       "courses": "Уроки"
     }
   },
@@ -1001,9 +1001,9 @@
       "postsTitle": "Понравившиеся посты",
       "postsDescription": "Список постов, которые вам понравились.",
       "postsEmpty": "Понравившихся постов пока нет.",
-      "blogsTitle": "Понравившиеся блоги",
-      "blogsDescription": "Здесь отображаются понравившиеся вам блоги.",
-      "blogsEmpty": "Понравившихся блогов пока нет."
+      "articlesTitle": "Понравившиеся статьи",
+      "articlesDescription": "Здесь отображаются понравившиеся вам статьи.",
+      "articlesEmpty": "Понравившихся статей пока нет."
     }
   },
   "premiumModal": {
@@ -1021,7 +1021,7 @@
     },
     "sections": {
       "posts": { "title": "Посты", "description": "Дневные лимиты постов и комментариев." },
-      "blogs": { "title": "Блоги", "description": "Создание блогов и объём контента." },
+      "articles": { "title": "Статьи", "description": "Создание статей и объём контента." },
       "groups": { "title": "Группы и чат", "description": "Лимиты групп и сообщений." },
       "meets": { "title": "Видеозвонки", "description": "Создание meet и лимит участников." },
       "courses": { "title": "Курсы и уроки", "description": "Лимиты медиа, тестов и домашнего задания в уроках." },
@@ -1033,14 +1033,14 @@
       "postCommentsPerPost": "Комментариев на пост",
       "postWords": "Текст поста",
       "postCommentChars": "Длина комментария",
-      "blogsPerUser": "Блогов",
-      "blogCommentsPerBlog": "Комментариев на блог",
-      "blogImagesPerBlog": "Изображений в блоге",
-      "blogWords": "Текст блога",
-      "blogTitleChars": "Заголовок блога",
-      "blogExcerptChars": "Краткое описание",
-      "blogTagChars": "Ёмкость тега",
-      "blogCommentChars": "Комментарий к блогу",
+      "articlesPerUser": "Блогов",
+      "articleCommentsPerArticle": "Комментариев на статью",
+      "articleImagesPerArticle": "Изображений в статье",
+      "articleWords": "Текст статьи",
+      "articleTitleChars": "Заголовок статьи",
+      "articleExcerptChars": "Краткое описание",
+      "articleTagChars": "Ёмкость тега",
+      "articleCommentChars": "Комментарий к статье",
       "groupsCreated": "Созданных групп",
       "groupsJoined": "Вступлений в группы",
       "messageChars": "Длина сообщения",

@@ -1,10 +1,10 @@
 import React from "react";
 import {
-  BookOpen,
   Flame,
   GraduationCap,
   LayoutDashboard,
   MessagesSquare,
+  Newspaper,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useChats } from "../../../contexts/ChatsContext";
@@ -22,7 +22,7 @@ import {
 const baseNavItems = [
   { id: "feed", icon: Flame, labelKey: "navigation.feed" },
   { id: "chats", icon: MessagesSquare, labelKey: "navigation.chats" },
-  { id: "blogs", icon: BookOpen, labelKey: "navigation.blogs" },
+  { id: "articles", icon: Newspaper, labelKey: "navigation.articles" },
   { id: "courses", icon: GraduationCap, labelKey: "navigation.courses" },
 ];
 

@@ -6,9 +6,9 @@ import useAuthStore from "../../../store/authStore";
 import { usePosts } from "../../../contexts/PostsContext";
 import { useCourses } from "../../../contexts/CoursesContext";
 import { useNavigate } from "react-router-dom";
-import { fetchUserBlogs as fetchProfileBlogs } from "../../../api/blogsApi";
+import { fetchUserArticles as fetchProfileArticles } from "../../../api/articlesApi";
 import {
-  ProfileBlogsPanel,
+  ProfileArticlesPanel,
   ProfileEditDialog,
   ProfileUtilityPanel,
 } from ".";
@@ -59,7 +59,7 @@ const ProfilePage = ({ profileUserId, isFocused = false, onToggleFocus }) => {
   const [isProfileEditOpen, setIsProfileEditOpen] = useState(false);
   const [otherUser, setOtherUser] = useState(null);
   const [isFollowing, setIsFollowing] = useState(false);
-  const [blogCount, setBlogCount] = useState(0);
+  const [articleCount, setArticleCount] = useState(0);
   const [editingPost, setEditingPost] = useState(null);
   const [postToDelete, setPostToDelete] = useState(null);
   const [isProfileTourOpen, setIsProfileTourOpen] = useState(false);
@@ -83,15 +83,26 @@ const ProfilePage = ({ profileUserId, isFocused = false, onToggleFocus }) => {
   }, [profileUserId, myId, isOwnProfile, fetchUserPosts, getPublicProfile]);
 
   useEffect(() => {
+    if (!profileUserId || !otherUser?.jammId) return;
+
+    const routeId = String(profileUserId);
+    const canonicalId = String(otherUser.jammId);
+
+    if (routeId !== canonicalId) {
+      navigate(`/profile/${canonicalId}`, { replace: true });
+    }
+  }, [navigate, otherUser?.jammId, profileUserId]);
+
+  useEffect(() => {
     const identifier = isOwnProfile ? myId : profileUserId;
     if (!identifier) {
-      setBlogCount(0);
+      setArticleCount(0);
       return;
     }
 
-    fetchProfileBlogs(identifier)
-      .then((items) => setBlogCount(items?.length || 0))
-      .catch(() => setBlogCount(0));
+    fetchProfileArticles(identifier)
+      .then((items) => setArticleCount(items?.length || 0))
+      .catch(() => setArticleCount(0));
   }, [isOwnProfile, myId, profileUserId]);
 
   useEffect(() => {
@@ -165,14 +176,14 @@ const ProfilePage = ({ profileUserId, isFocused = false, onToggleFocus }) => {
     setActiveTab(null);
   };
 
-  const handleCreatePost = async (text) => {
-    await createPost(text);
+  const handleCreatePost = async (payload) => {
+    await createPost(payload);
     if (myId) fetchUserPosts(myId);
   };
 
-  const handleEditPost = async (text) => {
+  const handleEditPost = async (payload) => {
     if (!editingPost?._id) return;
-    await editPost(editingPost._id, text);
+    await editPost(editingPost._id, payload);
     setEditingPost(null);
   };
 
@@ -226,7 +237,7 @@ const ProfilePage = ({ profileUserId, isFocused = false, onToggleFocus }) => {
         targetUser={targetUser}
         isOwnProfile={isOwnProfile}
         isFollowing={isFollowing}
-        blogCount={blogCount}
+        articleCount={articleCount}
         postCount={userPosts.length}
         courseCount={userCourses.length}
         onToggleFollow={handleToggleFollow}
@@ -278,13 +289,13 @@ const ProfilePage = ({ profileUserId, isFocused = false, onToggleFocus }) => {
           />
         ) : null}
 
-        {activeTab === "blogs" ? (
-          <ProfileBlogsPanel
+        {activeTab === "articles" ? (
+          <ProfileArticlesPanel
             profileUser={targetUser}
             profileUserId={profileUserId}
             isOwnProfile={isOwnProfile}
             onBack={handlePaneBack}
-            onCountChange={setBlogCount}
+            onCountChange={setArticleCount}
           />
         ) : null}
 
@@ -309,8 +320,10 @@ const ProfilePage = ({ profileUserId, isFocused = false, onToggleFocus }) => {
         onSubmit={editingPost ? handleEditPost : handleCreatePost}
         currentUser={currentUser}
         initialContent={editingPost?.content || ""}
+        initialImages={editingPost?.images || []}
         title={editingPost ? "Gurungni tahrirlash" : "Yangi Gurung"}
         submitLabel={editingPost ? "Saqlash" : "Yuborish"}
+        allowImages={!editingPost}
       />
 
       <ProfileEditDialog
@@ -365,9 +378,9 @@ const ProfilePage = ({ profileUserId, isFocused = false, onToggleFocus }) => {
             description: t("featureTour.profile.coursesTabDescription"),
           },
           {
-            selector: '[data-tour="profile-tab-blogs"]',
-            title: t("featureTour.profile.blogsTabTitle"),
-            description: t("featureTour.profile.blogsTabDescription"),
+            selector: '[data-tour="profile-tab-articles"]',
+            title: t("featureTour.profile.articlesTabTitle"),
+            description: t("featureTour.profile.articlesTabDescription"),
           },
           {
             selector: '[data-tour="profile-tab-appearance"]',

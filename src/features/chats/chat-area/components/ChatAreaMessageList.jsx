@@ -1,6 +1,13 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import styled from "styled-components";
-import { Check, CheckCheck, MoreVertical } from "lucide-react";
+import {
+  Check,
+  CheckCheck,
+  ChevronDown,
+  MoreVertical,
+  Timer,
+  X,
+} from "lucide-react";
 import PremiumBadgeIcon from "../../../../shared/ui/badges/PremiumBadge";
 import { useChatAreaContext } from "../context/ChatAreaContext";
 import useKeyboardAvoid from "../../../../shared/hooks/useKeyboardAvoid";
@@ -11,6 +18,7 @@ const ScrollArea = styled.div`
   flex: 1;
   min-width: 0;
   min-height: 0;
+  position: relative;
 `;
 
 const MessagesContainer = styled.div`
@@ -114,6 +122,14 @@ const UserAvatar = styled.div`
   font-weight: 600;
   flex-shrink: 0;
   cursor: pointer;
+  overflow: hidden;
+
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
 `;
 
 const BubbleRow = styled.div`
@@ -302,25 +318,6 @@ const EditedIndicator = styled.span`
   margin-left: 4px;
 `;
 
-const EditContainer = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-`;
-
-const EditInput = styled.input`
-  background: none;
-  border: none;
-  color: var(--text-color);
-  font-size: 14px;
-  outline: none;
-  width: 100%;
-  padding: 4px;
-  border-radius: 4px;
-  background-color: color-mix(in srgb, var(--input-color) 72%, transparent);
-`;
-
 const LoaderText = styled.h4`
   text-align: center;
   padding: 10px;
@@ -346,6 +343,86 @@ const ReceiptStatus = styled.span`
   align-items: center;
 `;
 
+const FailedReceiptButton = styled.button`
+  margin-left: 4px;
+  width: 18px;
+  height: 18px;
+  border: none;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #ef4444;
+  background: color-mix(in srgb, #ef4444 14%, transparent);
+  cursor: pointer;
+  transition:
+    transform 0.18s ease,
+    background-color 0.18s ease,
+    color 0.18s ease;
+
+  &:hover {
+    color: #f87171;
+    background: color-mix(in srgb, #ef4444 20%, transparent);
+  }
+
+  &:active {
+    transform: scale(0.94);
+  }
+`;
+
+const NewMessagesButton = styled.button`
+  position: absolute;
+  right: 16px;
+  bottom: calc(92px + env(safe-area-inset-bottom, 0px));
+  z-index: 6;
+  border: none;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--hover-color) 92%, transparent);
+  color: white;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.24);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  cursor: pointer;
+  transition:
+    transform 0.18s ease,
+    opacity 0.18s ease,
+    background-color 0.18s ease;
+
+  &:hover {
+    transform: translateY(-1px);
+  }
+
+  &:active {
+    transform: translateY(0) scale(0.98);
+  }
+
+  html[data-mobile-keyboard-open="true"] & {
+    bottom: calc(136px + env(safe-area-inset-bottom, 0px));
+  }
+
+  @media (max-width: 768px) {
+    right: 12px;
+    bottom: calc(96px + env(safe-area-inset-bottom, 0px));
+    padding: 10px;
+  }
+`;
+
+const NewMessagesChip = styled.span`
+  min-width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  background: white;
+  color: var(--hover-color);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 0 6px;
+`;
+
 const ChatAreaMessageList = () => {
   const {
     messages,
@@ -359,10 +436,6 @@ const ChatAreaMessageList = () => {
     selectedNav,
     messageRefs,
     messagesEndRef,
-    editingMessage,
-    editInput,
-    setEditInput,
-    handleEditMessage,
     handleMessageDoubleClick,
     renderMessageContent,
     focusReplyTargetMessage,
@@ -370,9 +443,11 @@ const ChatAreaMessageList = () => {
     setReplyMessage,
     messageInputRef,
     handleUsernameClick,
+    handleMemberProfileOpen,
     getUserAvatar,
     formatDate,
     navigatingMessageId,
+    dismissLocalMessage,
   } = useChatAreaContext();
   const suppressClickRef = useRef(false);
   const swipeGestureRef = useRef(null);
@@ -380,8 +455,15 @@ const ChatAreaMessageList = () => {
   const scrollContainerRef = useRef(null);
   const shouldStickToBottomRef = useRef(true);
   const previousContainerHeightRef = useRef(0);
+  const previousLastMessageIdRef = useRef(null);
+  const previousMessageCountRef = useRef(0);
   const [swipeState, setSwipeState] = useState({ messageId: null, offset: 0 });
+  const [newMessagesCount, setNewMessagesCount] = useState(0);
   const { keyboardHeight } = useKeyboardAvoid();
+  const currentChatMembers = useMemo(
+    () => currentChat?.members || [],
+    [currentChat?.members],
+  );
 
   const isNearBottom = (element, threshold = 96) => {
     if (!element) return true;
@@ -397,6 +479,9 @@ const ChatAreaMessageList = () => {
 
   useEffect(() => {
     autoFillAttemptsRef.current = 0;
+    previousLastMessageIdRef.current = null;
+    previousMessageCountRef.current = 0;
+    setNewMessagesCount(0);
   }, [currentChat?.id]);
 
   const resetSwipeState = () => {
@@ -486,6 +571,10 @@ const ChatAreaMessageList = () => {
     const element = event.currentTarget;
     shouldStickToBottomRef.current = isNearBottom(element);
 
+    if (shouldStickToBottomRef.current) {
+      setNewMessagesCount(0);
+    }
+
     if (element.scrollTop > 120 || isLoadingMessages || !messagesHasMore) {
       return;
     }
@@ -498,7 +587,67 @@ const ChatAreaMessageList = () => {
     if (!scrollContainer) return;
 
     shouldStickToBottomRef.current = isNearBottom(scrollContainer);
+    if (shouldStickToBottomRef.current) {
+      setNewMessagesCount(0);
+    }
   }, [messages.length]);
+
+  useEffect(() => {
+    const currentUserId = String(currentUser?._id || currentUser?.id || "");
+    const lastMessage = messages[messages.length - 1];
+    const lastMessageId = lastMessage?.id || lastMessage?._id || null;
+    const previousLastMessageId = previousLastMessageIdRef.current;
+    const previousMessageCount = previousMessageCountRef.current;
+
+    if (!lastMessageId) {
+      previousLastMessageIdRef.current = null;
+      previousMessageCountRef.current = messages.length;
+      return;
+    }
+
+    if (!previousLastMessageId) {
+      previousLastMessageIdRef.current = lastMessageId;
+      previousMessageCountRef.current = messages.length;
+      return;
+    }
+
+    const appendedAtBottom =
+      messages.length >= previousMessageCount &&
+      String(lastMessageId) !== String(previousLastMessageId);
+
+    if (appendedAtBottom) {
+      const appendedMessages = messages
+        .slice(previousMessageCount)
+        .filter((message) => {
+          const senderId = String(
+            (message?.senderId?._id || message?.senderId?.id || message?.senderId || ""),
+          );
+
+          return (
+            senderId &&
+            senderId !== currentUserId &&
+            message?.deliveryStatus !== "failed"
+          );
+        });
+
+      if (appendedMessages.length > 0) {
+        if (shouldStickToBottomRef.current) {
+          setNewMessagesCount(0);
+        } else {
+          setNewMessagesCount((previous) => previous + appendedMessages.length);
+        }
+      }
+    }
+
+    previousLastMessageIdRef.current = lastMessageId;
+    previousMessageCountRef.current = messages.length;
+  }, [messages, currentUser?._id, currentUser?.id]);
+
+  const handleJumpToBottom = () => {
+    setNewMessagesCount(0);
+    shouldStickToBottomRef.current = true;
+    scrollToBottom("smooth");
+  };
 
   useEffect(() => {
     if (!keyboardHeight || !shouldStickToBottomRef.current) return;
@@ -650,6 +799,23 @@ const ChatAreaMessageList = () => {
                 : group.senderId;
             const isOwnMessage =
               currentUserId && String(senderId) === String(currentUserId);
+            const senderMember = !isOwnMessage
+              ? currentChatMembers.find(
+                  (member) =>
+                    String(member?._id || member?.id || "") ===
+                    String(senderId || ""),
+                )
+              : null;
+            const avatarSource =
+              senderMember?.avatar ||
+              (typeof group.avatar === "string" && group.avatar.length > 1
+                ? group.avatar
+                : "");
+            const senderDisplayName =
+              senderMember?.nickname ||
+              senderMember?.username ||
+              senderMember?.name ||
+              group.user;
 
             return (
               <MessageWrapper
@@ -674,10 +840,22 @@ const ChatAreaMessageList = () => {
                   {!isOwnMessage && selectedNav === "groups" && (
                     <UserAvatar
                       onClick={(event) =>
-                        handleUsernameClick(group.user, event)
+                        handleMemberProfileOpen(
+                          senderMember || {
+                            _id: senderId,
+                            id: senderId,
+                          },
+                          event,
+                        )
                       }
+                      title={`${senderDisplayName} profilini ochish`}
+                      aria-label={`${senderDisplayName} profilini ochish`}
                     >
-                      {getUserAvatar(group.user)}
+                      {avatarSource ? (
+                        <img src={avatarSource} alt={senderDisplayName} />
+                      ) : (
+                        getUserAvatar(group.user)
+                      )}
                     </UserAvatar>
                   )}
 
@@ -685,7 +863,6 @@ const ChatAreaMessageList = () => {
                     <MessageBubble
                       $isOwn={isOwnMessage}
                       $hasReply={Boolean(group.replayTo)}
-                      $isEditing={editingMessage?.id === group.id}
                       $navigating={navigatingMessageId === group.id}
                       $swipeOffset={
                         swipeState.messageId === group.id
@@ -702,51 +879,34 @@ const ChatAreaMessageList = () => {
                       onTouchCancel={() => handleTouchEnd(group)}
                       onTouchMove={(event) => handleTouchMove(group, event)}
                     >
-                      {editingMessage?.id === group.id ? (
-                        <EditContainer>
-                          <EditInput
-                            className="edit-input"
-                            type="text"
-                            value={editInput}
-                            onChange={(event) =>
-                              setEditInput(event.target.value)
-                            }
-                            onKeyDown={handleEditMessage}
-                            placeholder="Xabarni tahrirlang..."
-                            maxLength={400}
-                            autoFocus
-                          />
-                        </EditContainer>
-                      ) : (
-                        <>
-                          {!isOwnMessage && displayChat?.type === "group" && (
-                            <SenderInlineName>
-                              {group.user}
-                              {group.senderId?.premiumStatus === "active" && (
-                                <PremiumBadgeIcon width={14} height={14} />
-                              )}
-                            </SenderInlineName>
-                          )}
-                          {renderReplyPreview(group, isOwnMessage)}
-                          {group.replayTo ? (
-                            <RepliedMessageRow>
-                              <RepliedMessageText $isOwn={isOwnMessage}>
-                              {renderMessageContent(group.content, group.id)}
-                            </RepliedMessageText>
-                              <InlineTimestamp $isOwn={isOwnMessage}>
-                                {group.timestamp}
-                              </InlineTimestamp>
-                            </RepliedMessageRow>
-                          ) : (
-                            <MessageText $isOwn={isOwnMessage}>
-                              {renderMessageContent(group.content, group.id)}
-                            </MessageText>
-                          )}
-                          {group.edited && (
-                            <EditedIndicator>(tahrirlandi)</EditedIndicator>
-                          )}
-                        </>
-                      )}
+                      <>
+                        {!isOwnMessage && displayChat?.type === "group" && (
+                          <SenderInlineName>
+                            {group.user}
+                            {group.senderId?.premiumStatus === "active" && (
+                              <PremiumBadgeIcon width={14} height={14} />
+                            )}
+                          </SenderInlineName>
+                        )}
+                        {renderReplyPreview(group, isOwnMessage)}
+                        {group.replayTo ? (
+                          <RepliedMessageRow>
+                            <RepliedMessageText $isOwn={isOwnMessage}>
+                            {renderMessageContent(group.content, group.id)}
+                          </RepliedMessageText>
+                            <InlineTimestamp $isOwn={isOwnMessage}>
+                              {group.timestamp}
+                            </InlineTimestamp>
+                          </RepliedMessageRow>
+                        ) : (
+                          <MessageText $isOwn={isOwnMessage}>
+                            {renderMessageContent(group.content, group.id)}
+                          </MessageText>
+                        )}
+                        {group.edited && (
+                          <EditedIndicator>(tahrirlandi)</EditedIndicator>
+                        )}
+                      </>
                     </MessageBubble>
                   </MessageContentColumn>
 
@@ -763,7 +923,24 @@ const ChatAreaMessageList = () => {
                   {!group.replayTo && <span>{group.timestamp}</span>}
                   {isOwnMessage && !group.isDeleted && (
                     <ReceiptStatus>
-                      {group.readBy && group.readBy.length > 0 ? (
+                      {group.deliveryStatus === "failed" ? (
+                        <FailedReceiptButton
+                          type="button"
+                          title="Yuborilmadi. Olib tashlash"
+                          aria-label="Yuborilmadi. Olib tashlash"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            dismissLocalMessage(group.id);
+                          }}
+                        >
+                          <X size={12} />
+                        </FailedReceiptButton>
+                      ) : group.deliveryStatus === "pending" ? (
+                        <Timer
+                          size={14}
+                          color="var(--text-secondary-color)"
+                        />
+                      ) : group.readBy && group.readBy.length > 0 ? (
                         <CheckCheck
                           size={14}
                           color="var(--success-color, var(--primary-color))"
@@ -783,6 +960,17 @@ const ChatAreaMessageList = () => {
           style={{ height: "1px", flexShrink: 0, scrollMarginBottom: "124px" }}
         />
       </MessagesContainer>
+      {newMessagesCount > 0 ? (
+        <NewMessagesButton
+          type="button"
+          onClick={handleJumpToBottom}
+          aria-label="Yangi xabarlarga tushish"
+          title="Yangi xabarlarga tushish"
+        >
+          <ChevronDown size={18} />
+          <NewMessagesChip>{newMessagesCount > 99 ? "99+" : newMessagesCount}</NewMessagesChip>
+        </NewMessagesButton>
+      ) : null}
     </ScrollArea>
   );
 };

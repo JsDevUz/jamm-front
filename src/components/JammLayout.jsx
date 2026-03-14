@@ -11,10 +11,8 @@ import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { useChats } from "../contexts/ChatsContext";
 import { SystemLoadingScreen } from "../app/components/SystemStateScreen";
-import { saveMeet, getMeets } from "../utils/meetStore";
 import useAuthStore from "../store/authStore";
 import { toast } from "react-hot-toast";
-import { APP_LIMITS, isPremiumUser } from "../constants/appLimits";
 import axiosInstance from "../api/axiosInstance";
 import { API_BASE_URL } from "../config/env";
 import {
@@ -78,19 +76,19 @@ const ArenaDashboard = lazy(() =>
     default: module.ArenaDashboard,
   })),
 );
-const BlogReaderPane = lazy(() =>
-  import("../features/blogs/components").then((module) => ({
-    default: module.BlogReaderPane,
+const ArticleReaderPane = lazy(() =>
+  import("../features/articles/components").then((module) => ({
+    default: module.ArticleReaderPane,
   })),
 );
-const BlogsSidebar = lazy(() =>
-  import("../features/blogs/components").then((module) => ({
-    default: module.BlogsSidebar,
+const ArticlesSidebar = lazy(() =>
+  import("../features/articles/components").then((module) => ({
+    default: module.ArticlesSidebar,
   })),
 );
-const UniversalDialog = lazy(() =>
+const CreateMeetDialog = lazy(() =>
   import("../features/calls/components").then((module) => ({
-    default: module.UniversalDialog,
+    default: module.CreateMeetDialog,
   })),
 );
 import { ServerSidebar } from "../features/navigation/components";
@@ -117,6 +115,8 @@ function LazyPane({ children, message }) {
 const APP_LOCK_ARMED_KEY = "jamm-app-lock-armed";
 const APP_LOCK_SKIP_ONCE_KEY = "jamm-app-lock-skip-once";
 const APP_UNLOCK_TOKEN_KEY = "jamm-app-unlock-token";
+const APP_LOCK_CLEARED_EVENT = "jamm-app-lock-cleared";
+const APP_LOCK_TOAST_SHOWN_KEY = "jamm-app-lock-toast-shown";
 
 const LockFooter = styled.div`
   display: flex;
@@ -234,11 +234,26 @@ const JammLayout = ({
       return;
     }
 
+    const dismissActiveKeyboard = () => {
+      const activeElement = document.activeElement;
+
+      if (
+        activeElement &&
+        typeof activeElement.blur === "function" &&
+        (activeElement.tagName === "INPUT" ||
+          activeElement.tagName === "TEXTAREA" ||
+          activeElement.isContentEditable)
+      ) {
+        activeElement.blur();
+      }
+    };
+
     const armAppLock = () => {
       if (sessionStorage.getItem(APP_LOCK_SKIP_ONCE_KEY) === "1") {
         sessionStorage.removeItem(APP_LOCK_ARMED_KEY);
         return;
       }
+      dismissActiveKeyboard();
       sessionStorage.setItem(APP_LOCK_ARMED_KEY, "1");
       sessionStorage.removeItem(APP_UNLOCK_TOKEN_KEY);
       updateUser({ appLockSessionUnlocked: false });
@@ -269,6 +284,24 @@ const JammLayout = ({
   }, [currentUser?._id, currentUser?.appLockEnabled, updateUser]);
 
   useEffect(() => {
+    if (!isAppLocked || typeof document === "undefined") {
+      return;
+    }
+
+    const activeElement = document.activeElement;
+
+    if (
+      activeElement &&
+      typeof activeElement.blur === "function" &&
+      (activeElement.tagName === "INPUT" ||
+        activeElement.tagName === "TEXTAREA" ||
+        activeElement.isContentEditable)
+    ) {
+      activeElement.blur();
+    }
+  }, [isAppLocked]);
+
+  useEffect(() => {
     if (!isAppLocked || lockPin.length !== 4 || verifyingLock) {
       return;
     }
@@ -290,6 +323,7 @@ const JammLayout = ({
         }
 
         sessionStorage.removeItem(APP_LOCK_ARMED_KEY);
+        sessionStorage.removeItem(APP_LOCK_TOAST_SHOWN_KEY);
         if (data?.unlockToken) {
           sessionStorage.setItem(APP_UNLOCK_TOKEN_KEY, data.unlockToken);
         }
@@ -298,6 +332,7 @@ const JammLayout = ({
         setLockPin("");
         setLockError("");
         setVerifyingLock(false);
+        window.dispatchEvent(new CustomEvent(APP_LOCK_CLEARED_EVENT));
       } catch {
         setLockPin("");
         setLockError(t("profileUtility.security.invalidPin"));
@@ -376,10 +411,12 @@ const JammLayout = ({
   const handleLockedLogout = async () => {
     sessionStorage.removeItem(APP_LOCK_ARMED_KEY);
     sessionStorage.removeItem(APP_UNLOCK_TOKEN_KEY);
+    sessionStorage.removeItem(APP_LOCK_TOAST_SHOWN_KEY);
     setIsAppLocked(false);
     setLockPin("");
     setLockError("");
     setVerifyingLock(false);
+    window.dispatchEvent(new CustomEvent(APP_LOCK_CLEARED_EVENT));
     await logout();
   };
 
@@ -418,7 +455,7 @@ const JammLayout = ({
   }, [selectedNav, viewMode]);
 
   useEffect(() => {
-    if (!["chats", "users", "groups", "meets"].includes(selectedNav)) return;
+    if (!["chats", "users", "groups"].includes(selectedNav)) return;
     if (selectedChatId && selectedChatId !== "0" && selectedChatId !== 0)
       return;
     if (sessionStorage.getItem("jamm-tour-manual-sequence") !== "chats")
@@ -443,6 +480,8 @@ const JammLayout = ({
     if (initialNav === "a" || initialNav === "chats") {
       // Direct message routing - always show chats
       if (selectedNav !== "chats") setSelectedNav("chats");
+    } else if (initialNav === "meets") {
+      if (selectedNav !== "users") setSelectedNav("users");
     } else if (initialNav === "users" || initialNav === "groups") {
       if (selectedNav !== initialNav) setSelectedNav(initialNav);
     } else if (initialNav === "arena") {
@@ -523,7 +562,7 @@ const JammLayout = ({
         import("../features/chats/components"),
         import("../features/calls/components"),
       ]),
-    blogs: () => import("../features/blogs/components"),
+    articles: () => import("../features/articles/components"),
     courses: () => import("../features/courses/components"),
     arena: () => import("../features/arena/components"),
     profile: () => import("../features/profile/components"),
@@ -554,10 +593,18 @@ const JammLayout = ({
   };
 
   useEffect(() => {
+    if (selectedNav !== "meets") return;
+
+    setSelectedNav("users");
+    setSelectedChatId(0);
+    navigate("/users", { replace: true });
+  }, [navigate, selectedNav, setSelectedChatId, setSelectedNav]);
+
+  useEffect(() => {
     if (!isMobile || typeof window === "undefined") return;
 
     const hasChatDetailOpen =
-      ["chats", "users", "groups", "meets"].includes(selectedNav) &&
+      ["chats", "users", "groups"].includes(selectedNav) &&
       selectedChatId &&
       selectedChatId !== "0" &&
       selectedChatId !== 0;
@@ -583,11 +630,8 @@ const JammLayout = ({
     let tracking = false;
 
     const navigateChatTabs = (direction) => {
-      const orderedTabs = ["users", "groups", "meets"];
-      const currentTab =
-        selectedNav === "groups" || selectedNav === "meets"
-          ? selectedNav
-          : "users";
+      const orderedTabs = ["users", "groups"];
+      const currentTab = selectedNav === "groups" ? "groups" : "users";
       const currentIndex = orderedTabs.indexOf(currentTab);
       const nextIndex = currentIndex + direction;
 
@@ -656,7 +700,7 @@ const JammLayout = ({
 
       const direction = deltaX < 0 ? 1 : -1;
 
-      if (["chats", "users", "groups", "meets"].includes(selectedNav)) {
+      if (["chats", "users", "groups"].includes(selectedNav)) {
         navigateChatTabs(direction);
         return;
       }
@@ -894,23 +938,23 @@ const JammLayout = ({
           <LazyPane message="Admin panel yuklanmoqda...">
             <AdminPanel />
           </LazyPane>
-        ) : selectedNav === "blogs" ? (
+        ) : selectedNav === "articles" ? (
           <>
             {!isMobile || !selectedChatId || selectedChatId === "0" ? (
-              <LazyPane message="Bloglar yuklanmoqda...">
-                <BlogsSidebar selectedBlogId={selectedChatId} />
+              <LazyPane message="Maqolalar yuklanmoqda...">
+                <ArticlesSidebar selectedArticleId={selectedChatId} />
               </LazyPane>
             ) : null}
             {renderPaneDivider(
               Boolean(selectedChatId && selectedChatId !== "0"),
             )}
             <ContentPane $focused={isRightPaneFocused}>
-              <LazyPane message="Blog yuklanmoqda...">
-                <BlogReaderPane
-                  blogIdentifier={selectedChatId}
+              <LazyPane message="Maqola yuklanmoqda...">
+                <ArticleReaderPane
+                  articleIdentifier={selectedChatId}
                   onBack={() => {
                     setSelectedChatId(0);
-                    navigate("/blogs");
+                    navigate("/articles");
                   }}
                 />
               </LazyPane>
@@ -955,9 +999,7 @@ const JammLayout = ({
                 </LazyPane>
               ) : (
                 <EmptyPane>
-                  {selectedNav === "meets"
-                    ? t("layout.selectMeet")
-                    : t("layout.selectChat")}
+                  {t("layout.selectChat")}
                 </EmptyPane>
               )}
             </ContentPane>
@@ -1006,39 +1048,11 @@ const JammLayout = ({
       )}
       {isCreateMeetOpen && (
         <LazyPane message="Video qo‘ng‘iroq oynasi yuklanmoqda...">
-          <UniversalDialog
+          <CreateMeetDialog
             isOpen={isCreateMeetOpen}
             onClose={() => setIsCreateMeetOpen(false)}
-            onCreateCall={async ({ title, isPrivate }) => {
-              if (currentUser) {
-                const isPremium = isPremiumUser(currentUser);
-                const myMeets = await getMeets();
-                const createdMeets = myMeets.filter(
-                  (m) =>
-                    m.creator === currentUser?._id ||
-                    m.creator?._id === currentUser?._id,
-                );
-                const limit = isPremium
-                  ? APP_LIMITS.meetsCreated.premium
-                  : APP_LIMITS.meetsCreated.ordinary;
-
-                if (createdMeets.length >= limit) {
-                  setIsCreateMeetOpen(false);
-                  openPremiumUpgradeModal({
-                    message: t("premiumModal.meetCreateLimit", {
-                      count: limit,
-                    }),
-                    source: "meet-create",
-                  });
-                  return;
-                }
-              }
-
-              const roomId =
-                title.toLowerCase().replace(/\s+/g, "-") +
-                "-" +
-                Date.now().toString().slice(-4);
-              await saveMeet({ roomId, title, isPrivate, isCreator: true });
+            onStart={(roomId) => {
+              setIsCreateMeetOpen(false);
               navigate(`/join/${roomId}`);
             }}
           />
@@ -1112,11 +1126,6 @@ const JammLayout = ({
                 navigate("/groups", { replace: true });
                 return;
               }
-              if (stepIndex === 4) {
-                setSelectedNav("meets");
-                navigate("/meets", { replace: true });
-                return;
-              }
               setSelectedNav("users");
               navigate("/users", { replace: true });
             }}
@@ -1140,11 +1149,6 @@ const JammLayout = ({
                 selector: '[data-tour="chats-tab-groups"]',
                 title: t("featureTour.chats.groupsTabTitle"),
                 description: t("featureTour.chats.groupsTabDescription"),
-              },
-              {
-                selector: '[data-tour="chats-tab-video"]',
-                title: t("featureTour.chats.videoTabTitle"),
-                description: t("featureTour.chats.videoTabDescription"),
               },
               {
                 selector: '[data-tour="chats-list"]',

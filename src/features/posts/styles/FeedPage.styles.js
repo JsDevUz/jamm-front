@@ -263,6 +263,62 @@ export const PostText = styled.div`
   }
 `;
 
+export const PostImagesGrid = styled.div`
+  display: grid;
+  grid-template-columns: ${(props) =>
+    props.$count === 1
+      ? "minmax(0, 1fr)"
+      : props.$count === 2
+        ? "repeat(2, minmax(0, 1fr))"
+        : "repeat(2, minmax(0, 1fr))"};
+  gap: 8px;
+  margin: 2px 0 12px;
+`;
+
+export const PostImageTile = styled.button`
+  position: relative;
+  aspect-ratio: ${(props) => (props.$count === 1 ? "1.18 / 1" : "1 / 1")};
+  border: none;
+  border-radius: 16px;
+  overflow: hidden;
+  padding: 0;
+  background: var(--input-color);
+  cursor: pointer;
+`;
+
+export const PostImageBlur = styled.img`
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: blur(18px);
+  transform: scale(1.08);
+  opacity: ${(props) => (props.$hidden ? 0 : 1)};
+  transition: opacity 0.2s ease;
+`;
+
+export const PostImageReal = styled.img`
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+`;
+
+export const PostImageOverlay = styled.div`
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(10, 12, 20, 0.22);
+  color: white;
+  backdrop-filter: blur(2px);
+
+  svg {
+    filter: drop-shadow(0 3px 10px rgba(0, 0, 0, 0.24));
+  }
+`;
+
 export const PostActions = styled.div`
   display: flex;
   align-items: center;

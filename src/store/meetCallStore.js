@@ -12,6 +12,10 @@ const useMeetCallStore = create((set) => ({
 
   minimizeCall: () => set({ isMinimized: true }),
   maximizeCall: () => set({ isMinimized: false }),
+  updateActiveCall: (patch) =>
+    set((state) => ({
+      activeCall: state.activeCall ? { ...state.activeCall, ...patch } : state.activeCall,
+    })),
   endCall: () =>
     set({
       activeCall: null,

@@ -15,7 +15,14 @@ export default function AppRoutes() {
 
         <Route path="/login" element={<AuthPage />} />
         <Route path="/join/:roomId" element={<JoinCallPage />} />
-
+        <Route
+          path="/meets"
+          element={
+            <ProtectedRoute>
+              <Navigate to="/users" replace />
+            </ProtectedRoute>
+          }
+        />
         <Route path="/arena" element={<AppWrapper forcedNav="arena" />} />
         <Route path="/arena/:resourceId" element={<AppWrapper forcedNav="arena" />} />
         <Route

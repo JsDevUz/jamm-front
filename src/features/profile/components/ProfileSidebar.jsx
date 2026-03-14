@@ -2,7 +2,6 @@ import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
 import styled, { keyframes } from "styled-components";
 import {
-  BookOpen,
   Calendar,
   Camera,
   ChevronRight,
@@ -14,6 +13,7 @@ import {
   Lock,
   LogOut,
   MessageSquare,
+  Newspaper,
   Palette,
   Sparkles,
   Shield,
@@ -396,9 +396,9 @@ const primaryTabs = [
     color: "#3ba55d",
   },
   {
-    key: "blogs",
-    labelKey: "profile.tabs.blogs",
-    icon: BookOpen,
+    key: "articles",
+    labelKey: "profile.tabs.articles",
+    icon: Newspaper,
     color: "#2563eb",
   },
   {
@@ -460,7 +460,7 @@ const ProfileSidebar = ({
   targetUser,
   isOwnProfile,
   isFollowing,
-  blogCount,
+  articleCount,
   postCount,
   courseCount,
   onToggleFollow,
@@ -483,7 +483,7 @@ const ProfileSidebar = ({
       label: t("profile.stats.members"),
     },
     { value: String(postCount), label: t("profile.stats.posts") },
-    { value: String(blogCount), label: t("profile.stats.blogs") },
+    { value: String(articleCount), label: t("profile.stats.articles") },
     { value: String(courseCount), label: t("profile.stats.courses") },
   ];
 

@@ -9,13 +9,20 @@ export const fetchFeed = async (type = "foryou", page = 1, limit = 10) => {
 };
 
 // --- Posts CRUD ---
-export const createPost = async (content) => {
-  const { data } = await axiosInstance.post("/posts", { content });
+export const uploadPostImage = async (file) => {
+  const formData = new FormData();
+  formData.append("file", file);
+  const { data } = await axiosInstance.post("/posts/upload-image", formData);
   return data;
 };
 
-export const updatePost = async (postId, content) => {
-  const { data } = await axiosInstance.patch(`/posts/${postId}`, { content });
+export const createPost = async (payload) => {
+  const { data } = await axiosInstance.post("/posts", payload);
+  return data;
+};
+
+export const updatePost = async (postId, payload) => {
+  const { data } = await axiosInstance.patch(`/posts/${postId}`, payload);
   return data;
 };
 

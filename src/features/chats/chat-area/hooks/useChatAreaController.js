@@ -84,7 +84,6 @@ export default function useChatAreaController({
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const [replyMessage, setReplyMessage] = useState(null);
   const [editingMessage, setEditingMessage] = useState(null);
-  const [editInput, setEditInput] = useState("");
   const [contextMenu, setContextMenu] = useState(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [clickCount, setClickCount] = useState(0);
@@ -103,6 +102,7 @@ export default function useChatAreaController({
 
   useEffect(() => {
     resetChatAreaUi();
+    setEditingMessage(null);
   }, [selectedChatId, resetChatAreaUi]);
 
   useEffect(() => {
@@ -388,6 +388,16 @@ export default function useChatAreaController({
           return previous;
         }
 
+        const optimisticIndex = previous.findIndex((message) =>
+          isMatchingOptimisticMessage(message, nextMessage),
+        );
+
+        if (optimisticIndex !== -1) {
+          const nextMessages = [...previous];
+          nextMessages[optimisticIndex] = nextMessage;
+          return nextMessages;
+        }
+
         return [...previous, nextMessage];
       });
 
@@ -434,6 +444,8 @@ export default function useChatAreaController({
             return {
               ...message,
               readBy: [...(message.readBy || []), readByUserId],
+              deliveryStatus:
+                message.deliveryStatus === "failed" ? "failed" : "read",
             };
           }
 
@@ -570,20 +582,6 @@ export default function useChatAreaController({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [closeHeaderMenu, isHeaderMenuOpen]);
 
-  useEffect(() => {
-    if (!editingMessage) return undefined;
-
-    const handleClickOutside = (event) => {
-      if (!event.target.closest(".edit-input")) {
-        setEditingMessage(null);
-        setEditInput("");
-      }
-    };
-
-    document.addEventListener("click", handleClickOutside);
-    return () => document.removeEventListener("click", handleClickOutside);
-  }, [editingMessage]);
-
   const handleMemberClick = async (targetUser) => {
     const currentUserId = currentUser?._id || currentUser?.id;
     const targetId = targetUser._id || targetUser.id;
@@ -648,6 +646,81 @@ export default function useChatAreaController({
 
   const scrollToBottom = (behavior = "auto") => {
     messagesEndRef.current?.scrollIntoView({ behavior });
+  };
+
+  const createOptimisticMessage = (content, sourceReplyMessage = null) => {
+    const createdAt = new Date().toISOString();
+    const currentUserId = currentUser?._id || currentUser?.id;
+    const currentUserName =
+      currentUser?.nickname || currentUser?.username || currentUser?.name || "You";
+
+    return {
+      id: `temp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      user: currentUserName,
+      senderId: currentUserId,
+      avatar:
+        currentUser?.avatar ||
+        currentUserName.slice(0, 1).toUpperCase() ||
+        "U",
+      username: currentUser?.username,
+      premiumStatus: currentUser?.premiumStatus,
+      selectedProfileDecorationId: currentUser?.selectedProfileDecorationId,
+      customProfileDecorationImage: currentUser?.customProfileDecorationImage,
+      isOfficialProfile: currentUser?.isOfficialProfile,
+      officialBadgeKey: currentUser?.officialBadgeKey,
+      officialBadgeLabel: currentUser?.officialBadgeLabel,
+      content,
+      timestamp: new Date(createdAt).toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+      date: createdAt.split("T")[0],
+      createdAt,
+      edited: false,
+      isDeleted: false,
+      readBy: [],
+      replayTo: sourceReplyMessage
+        ? {
+            id: sourceReplyMessage.id,
+            user: sourceReplyMessage.user,
+            content: sourceReplyMessage.content,
+          }
+        : null,
+      deliveryStatus: "pending",
+      isLocalOnly: true,
+    };
+  };
+
+  const isMatchingOptimisticMessage = (message, nextMessage) => {
+    if (message.deliveryStatus !== "pending") return false;
+
+    const currentUserId = String(currentUser?._id || currentUser?.id || "");
+    const messageSenderId = String(normalizeSenderId(message.senderId) || "");
+    const nextSenderId = String(normalizeSenderId(nextMessage.senderId) || "");
+
+    if (!currentUserId || messageSenderId !== currentUserId || nextSenderId !== currentUserId) {
+      return false;
+    }
+
+    if (String(message.content || "").trim() !== String(nextMessage.content || "").trim()) {
+      return false;
+    }
+
+    if (String(message.replayTo?.id || "") !== String(nextMessage.replayTo?.id || "")) {
+      return false;
+    }
+
+    const optimisticTime = new Date(message.createdAt || 0).getTime();
+    const nextTime = new Date(nextMessage.createdAt || Date.now()).getTime();
+    return Math.abs(nextTime - optimisticTime) < 120000;
+  };
+
+  const dismissLocalMessage = (messageId) => {
+    setMessages((previous) =>
+      previous.filter(
+        (message) => String(message.id || message._id) !== String(messageId),
+      ),
+    );
   };
 
   const focusReplyTargetMessage = (messageId) => {
@@ -726,10 +799,10 @@ export default function useChatAreaController({
     switch (action) {
       case "delete":
         try {
-          setMessages((previous) =>
-            previous.filter((item) => item.id !== message.id),
-          );
-          await deleteMessage(message.id);
+          dismissLocalMessage(message.id);
+          if (!message.isLocalOnly && message.deliveryStatus !== "failed") {
+            await deleteMessage(message.id);
+          }
         } catch (error) {
           console.error("Failed to delete message", error);
         }
@@ -737,9 +810,20 @@ export default function useChatAreaController({
       case "edit":
         if (message.isDeleted) return;
         setEditingMessage(message);
-        setEditInput(message.content);
+        setReplyMessage(null);
+        setMessageInput(message.content || "");
+        setShowEmojiPicker(false);
+        setTimeout(() => {
+          if (!messageInputRef.current) return;
+          messageInputRef.current.focus();
+          messageInputRef.current.setSelectionRange(
+            messageInputRef.current.value.length,
+            messageInputRef.current.value.length,
+          );
+        }, 0);
         break;
       case "reply":
+        setEditingMessage(null);
         setReplyMessage(message);
         setMessageInput("");
         setTimeout(() => {
@@ -758,33 +842,12 @@ export default function useChatAreaController({
     setContextMenu(null);
   };
 
-  const handleEditMessage = async (event) => {
-    if (event.key === "Enter" && editInput.trim()) {
-      try {
-        const nextContent = editInput.trim();
-        const editedMessageId = editingMessage.id;
-
-        setMessages((previous) =>
-          previous.map((message) =>
-            message.id === editingMessage.id
-              ? { ...message, content: nextContent, edited: true }
-              : message,
-          ),
-        );
-
-        setEditingMessage(null);
-        setEditInput("");
-        await editMessage(editedMessageId, nextContent);
-      } catch (error) {
-        console.error("Failed to edit message", error);
-      }
-      return;
-    }
-
-    if (event.key === "Escape") {
-      setEditingMessage(null);
-      setEditInput("");
-    }
+  const cancelEditMessage = () => {
+    setEditingMessage(null);
+    setMessageInput("");
+    setTimeout(() => {
+      messageInputRef.current?.focus();
+    }, 0);
   };
 
   const handleInputChange = (event) => {
@@ -854,6 +917,19 @@ export default function useChatAreaController({
     }
   };
 
+  const handleMemberProfileOpen = (targetUser, event) => {
+    event?.stopPropagation?.();
+
+    if (!targetUser || !navigate) return;
+
+    const targetProfileId =
+      targetUser.jammId || targetUser._id || targetUser.id || null;
+
+    if (!targetProfileId) return;
+
+    navigate(`/profile/${targetProfileId}`);
+  };
+
   const handleMentionClick = async (username, event, messageId = null) => {
     event.stopPropagation();
     setNavigatingMessageId(messageId);
@@ -867,13 +943,36 @@ export default function useChatAreaController({
       }
 
       const targetUserId = user._id || user.id;
+      const currentUserId = currentUser?._id || currentUser?.id;
 
       if (
         currentUser &&
-        String(targetUserId) === String(currentUser._id || currentUser.id)
+        String(targetUserId) === String(currentUserId)
       ) {
+        const savedMessagesChat = chats.find(
+          (chat) => !chat.isGroup && chat.isSavedMessages,
+        );
+
+        if (savedMessagesChat?.jammId || savedMessagesChat?.urlSlug) {
+          navigate(
+            `/users/${savedMessagesChat.jammId || savedMessagesChat.urlSlug}`,
+          );
+          return;
+        }
+
+        const chatId = await createChat({
+          isGroup: false,
+          memberIds: [String(currentUserId)],
+        });
+
+        if (chatId?.jammId || chatId?.urlSlug || chatId?._id || chatId?.id) {
+          navigate(
+            `/users/${chatId.jammId || chatId.urlSlug || chatId._id || chatId.id}`,
+          );
+          return;
+        }
+
         setNavigatingMessageId(null);
-        toast.error("Siz o'zingiz bilan suhbat qura olmaysiz");
         return;
       }
 
@@ -963,6 +1062,10 @@ export default function useChatAreaController({
   const handleEmojiClick = (emoji) => {
     setMessageInput((previous) => previous + emoji);
 
+    if (showEmojiPicker) {
+      return;
+    }
+
     setTimeout(() => {
       if (!messageInputRef.current) return;
       messageInputRef.current.focus();
@@ -974,7 +1077,7 @@ export default function useChatAreaController({
   };
 
   const toggleEmojiPicker = (event) => {
-    event.stopPropagation();
+    event?.stopPropagation?.();
     setShowEmojiPicker((previous) => !previous);
 
     if (showEmojiPicker) {
@@ -1040,10 +1143,19 @@ export default function useChatAreaController({
       window.matchMedia("(max-width: 768px)").matches &&
       !keepFocus;
     const content = messageInput.trim();
-    const replyToMessageId = replyMessage ? replyMessage.id : null;
+    const sourceReplyMessage = replyMessage;
+    const replyToMessageId = sourceReplyMessage ? sourceReplyMessage.id : null;
+    const optimisticMessage = createOptimisticMessage(
+      content,
+      sourceReplyMessage,
+    );
+    const editingTargetMessage = editingMessage;
 
     setMessageInput("");
     setReplyMessage(null);
+    if (editingTargetMessage) {
+      setEditingMessage(null);
+    }
 
     try {
       let targetChatId = currentChat?.id;
@@ -1061,6 +1173,49 @@ export default function useChatAreaController({
 
       if (!targetChatId) return;
 
+      if (editingTargetMessage?.id) {
+        const previousContent = editingTargetMessage.content;
+
+        setMessages((previous) =>
+          previous.map((message) =>
+            String(message.id) === String(editingTargetMessage.id)
+              ? { ...message, content, edited: true }
+              : message,
+          ),
+        );
+
+        try {
+          await editMessage(editingTargetMessage.id, content);
+        } catch (error) {
+          setMessages((previous) =>
+            previous.map((message) =>
+              String(message.id) === String(editingTargetMessage.id)
+                ? { ...message, content: previousContent }
+                : message,
+            ),
+          );
+          setEditingMessage(editingTargetMessage);
+          setMessageInput(content);
+          console.error("Failed to edit message:", error);
+        }
+
+        setTimeout(() => {
+          if (!messageInputRef.current) return;
+
+          if (shouldBlurAfterSend) {
+            messageInputRef.current.blur();
+            return;
+          }
+
+          messageInputRef.current.focus();
+        }, 0);
+
+        return;
+      }
+
+      setMessages((previous) => [...previous, optimisticMessage]);
+      setTimeout(() => scrollToBottom("smooth"), 0);
+
       const nextMessage = await sendMessage(
         targetChatId,
         content,
@@ -1068,14 +1223,34 @@ export default function useChatAreaController({
       );
 
       setMessages((previous) => {
-        if (
-          !nextMessage ||
-          previous.some((message) => message.id === nextMessage.id)
-        ) {
+        if (!nextMessage) {
           return previous;
         }
 
-        return [...previous, nextMessage];
+        const existingServerMessageIndex = previous.findIndex(
+          (message) => String(message.id) === String(nextMessage.id),
+        );
+        const optimisticIndex = previous.findIndex(
+          (message) => String(message.id) === String(optimisticMessage.id),
+        );
+
+        if (existingServerMessageIndex !== -1 && optimisticIndex === -1) {
+          return previous;
+        }
+
+        if (existingServerMessageIndex !== -1 && optimisticIndex !== -1) {
+          return previous.filter(
+            (message) => String(message.id) !== String(optimisticMessage.id),
+          );
+        }
+
+        if (optimisticIndex === -1) {
+          return [...previous, nextMessage];
+        }
+
+        const nextMessages = [...previous];
+        nextMessages[optimisticIndex] = nextMessage;
+        return nextMessages;
       });
 
       setTimeout(() => {
@@ -1092,6 +1267,13 @@ export default function useChatAreaController({
       setTimeout(() => scrollToBottom("smooth"), 100);
     } catch (error) {
       console.error("Failed to send message:", error);
+      setMessages((previous) =>
+        previous.map((message) =>
+          String(message.id) === String(optimisticMessage.id)
+            ? { ...message, deliveryStatus: "failed" }
+            : message,
+        ),
+      );
     }
   };
 
@@ -1142,6 +1324,7 @@ export default function useChatAreaController({
       previewChat,
       navigate,
       joinGroupChat,
+      setShowEmojiPicker,
       messages,
       messagesHasMore,
       isLoadingMessages,
@@ -1150,8 +1333,7 @@ export default function useChatAreaController({
       replyMessage,
       setReplyMessage,
       editingMessage,
-      editInput,
-      setEditInput,
+      cancelEditMessage,
       showEmojiPicker,
       messageInput,
       messageRefs,
@@ -1162,14 +1344,15 @@ export default function useChatAreaController({
       focusReplyTargetMessage,
       showContextMenu,
       handleContextMenuAction,
-      handleEditMessage,
       handleUsernameClick,
+      handleMemberProfileOpen,
       getUserAvatar: getUserAvatarInitials,
       renderMessageContent,
       navigatingMessageId,
       formatDate: formatMessageDate,
       handleInputChange,
       submitMessage,
+      dismissLocalMessage,
       handleSendMessage,
       toggleEmojiPicker,
       handleEmojiClick,
@@ -1179,14 +1362,15 @@ export default function useChatAreaController({
       currentChat,
       currentUser,
       displayChat,
-      editInput,
       editingMessage,
+      cancelEditMessage,
       fetchMoreMessages,
-      handleEditMessage,
       handleInputChange,
       submitMessage,
+      dismissLocalMessage,
       handleSendMessage,
       joinGroupChat,
+      handleMemberProfileOpen,
       messageGroups,
       messageInput,
       messages,
@@ -1196,6 +1380,7 @@ export default function useChatAreaController({
       previewChat,
       replyMessage,
       selectedNav,
+      setShowEmojiPicker,
       showEmojiPicker,
     ],
   );

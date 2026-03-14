@@ -120,7 +120,7 @@ export const NotificationPromptButton = styled.button`
 export const AppLockOverlay = styled.div`
   position: fixed;
   inset: 0;
-  z-index: 2800;
+  z-index: 30040;
   display: flex;
   align-items: center;
   justify-content: center;

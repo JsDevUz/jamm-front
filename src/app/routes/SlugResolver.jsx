@@ -5,13 +5,12 @@ const AppWrapper = lazy(() => import("./AppWrapper"));
 
 const knownRoutes = [
   "feed",
-  "blogs",
+  "articles",
   "chats",
   "users",
   "groups",
   "courses",
   "arena",
-  "meets",
   "profile",
   "admin",
   "login",
@@ -34,7 +33,7 @@ export default function SlugResolver() {
       navigate(`/courses/${nav}`, { replace: true });
       return;
     } else if (nav?.startsWith(":")) {
-      navigate(`/blogs/${nav}`, { replace: true });
+      navigate(`/articles/${nav}`, { replace: true });
       return;
     } else if (nav?.startsWith("-")) {
       slugToResolve = nav;

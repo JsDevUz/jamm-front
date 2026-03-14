@@ -157,6 +157,7 @@ export function useWebRTC({
   const [joinStatus, setJoinStatus] = useState("idle");
   const [error, setError] = useState(null);
   const [roomTitle, setRoomTitle] = useState(chatTitle || "");
+  const [roomIsPrivate, setRoomIsPrivate] = useState(isPrivate);
   const [remoteIsRecording, setRemoteIsRecording] = useState(false);
   const [networkQuality, setNetworkQuality] = useState("good");
   const [qualityProfile, setQualityProfile] = useState(
@@ -636,8 +637,11 @@ export function useWebRTC({
         }
 
         // 5b. Listen for room-info (title, isPrivate) from server
-        socket.on("room-info", ({ title }) => {
+        socket.on("room-info", ({ title, isPrivate: nextIsPrivate }) => {
           if (title) setRoomTitle(title);
+          if (typeof nextIsPrivate === "boolean") {
+            setRoomIsPrivate(nextIsPrivate);
+          }
         });
 
         // 5c. Screen share signals from peers
@@ -1019,6 +1023,17 @@ export function useWebRTC({
     socketRef.current?.emit(next ? "hand-raised" : "hand-lowered", { roomId });
   }, [isHandRaised, roomId]);
 
+  const setRoomPrivacy = useCallback(
+    (nextIsPrivate) => {
+      setRoomIsPrivate(Boolean(nextIsPrivate));
+      socketRef.current?.emit("set-room-privacy", {
+        roomId,
+        isPrivate: Boolean(nextIsPrivate),
+      });
+    },
+    [roomId],
+  );
+
   return {
     localStream,
     remoteStreams,
@@ -1040,6 +1055,7 @@ export function useWebRTC({
     leaveCall,
     error,
     roomTitle,
+    roomIsPrivate,
     remoteIsRecording,
     emitRecording,
     forceMuteMic,
@@ -1050,6 +1066,7 @@ export function useWebRTC({
     raisedHands,
     toggleHandRaise,
     kickPeer,
+    setRoomPrivacy,
     networkQuality,
     qualityProfile,
   };

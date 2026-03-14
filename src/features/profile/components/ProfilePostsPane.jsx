@@ -2,9 +2,11 @@ import React from "react";
 import styled from "styled-components";
 import {
   ArrowLeft,
+  Download,
   Edit2,
   Eye,
   Heart,
+  Loader2,
   MessageCircle,
   MessageSquare,
   Plus,
@@ -99,6 +101,51 @@ const PostText = styled.div`
   }
 `;
 
+const PostImagesGrid = styled.div`
+  display: grid;
+  grid-template-columns: ${(props) =>
+    props.$count === 1 ? "minmax(0, 1fr)" : "repeat(2, minmax(0, 1fr))"};
+  gap: 8px;
+  margin-top: 10px;
+`;
+
+const PostImageTile = styled.button`
+  position: relative;
+  aspect-ratio: ${(props) => (props.$count === 1 ? "1.18 / 1" : "1 / 1")};
+  border: none;
+  border-radius: 14px;
+  overflow: hidden;
+  padding: 0;
+  background: var(--input-color);
+  cursor: pointer;
+`;
+
+const PostImageBlur = styled.img`
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: blur(18px);
+  transform: scale(1.08);
+`;
+
+const PostImageReal = styled.img`
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+`;
+
+const PostImageOverlay = styled.div`
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(10, 12, 20, 0.22);
+  color: white;
+`;
+
 const PostActions = styled.div`
   display: flex;
   align-items: center;
@@ -126,6 +173,63 @@ const OwnerActions = styled.div`
   margin-top: 10px;
   flex-wrap: wrap;
 `;
+
+const ProfilePostImages = ({ post }) => {
+  const [revealedImages, setRevealedImages] = React.useState({});
+  const [loadingImages, setLoadingImages] = React.useState({});
+  const images = Array.isArray(post?.images) ? post.images : [];
+
+  if (!images.length) return null;
+
+  return (
+    <PostImagesGrid $count={images.length}>
+      {images.map((image, index) => {
+        const key = image.url || `${post._id}-${index}`;
+        const isRevealed = Boolean(revealedImages[key]);
+        const isLoading = Boolean(loadingImages[key]);
+
+        return (
+          <PostImageTile
+            key={key}
+            type="button"
+            $count={images.length}
+            onClick={() => {
+              if (isRevealed) return;
+              setLoadingImages((prev) => ({ ...prev, [key]: true }));
+              setRevealedImages((prev) => ({ ...prev, [key]: true }));
+            }}
+          >
+            <PostImageBlur src={image.blurDataUrl || image.url} alt="" />
+            {!isRevealed ? (
+              <PostImageOverlay>
+                <Download size={16} />
+              </PostImageOverlay>
+            ) : (
+              <>
+                <PostImageReal
+                  src={image.url}
+                  alt="Post image"
+                  loading="lazy"
+                  onLoad={() =>
+                    setLoadingImages((prev) => ({ ...prev, [key]: false }))
+                  }
+                  onError={() =>
+                    setLoadingImages((prev) => ({ ...prev, [key]: false }))
+                  }
+                />
+                {isLoading ? (
+                  <PostImageOverlay>
+                    <Loader2 size={16} />
+                  </PostImageOverlay>
+                ) : null}
+              </>
+            )}
+          </PostImageTile>
+        );
+      })}
+    </PostImagesGrid>
+  );
+};
 
 const ProfilePostsPane = ({
   posts,
@@ -185,6 +289,7 @@ const ProfilePostsPane = ({
             </PostHeader>
 
             <PostText>{renderText(post.content)}</PostText>
+            <ProfilePostImages post={post} />
 
             <PostActions>
               <ActionBtn

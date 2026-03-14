@@ -15,20 +15,20 @@ import {
 import toast from "react-hot-toast";
 import useAuthStore from "../../../store/authStore";
 import {
-  createBlog,
-  deleteBlog,
-  fetchUserBlogs,
-  getBlog,
-  getBlogContent,
-  likeBlog,
-  updateBlog,
-  viewBlog,
-} from "../../../api/blogsApi";
+  createArticle,
+  deleteArticle,
+  fetchUserArticles,
+  getArticle,
+  getArticleContent,
+  likeArticle,
+  updateArticle,
+  viewArticle,
+} from "../../../api/articlesApi";
 import {
-  BlogComments,
-  BlogEditorDialog,
+  ArticleComments,
+  ArticleEditorDialog,
   MarkdownRenderer,
-} from "../../blogs/components";
+} from "../../articles/components";
 import {
   ProfileMobileBackButton,
   ProfilePaneEmptyState,
@@ -96,7 +96,7 @@ const Empty = styled(ProfilePaneEmptyState)`
   min-height: 340px;
 `;
 
-const BlogCard = styled.button`
+const ArticleCard = styled.button`
   width: 100%;
   border: none;
   background: ${(p) =>
@@ -109,14 +109,14 @@ const BlogCard = styled.button`
   cursor: pointer;
 `;
 
-const BlogCardHeader = styled.div`
+const ArticleCardHeader = styled.div`
   display: flex;
   align-items: flex-start;
   gap: 8px;
   margin-bottom: 4px;
 `;
 
-const BlogCardCopyButton = styled(SidebarIconButton)`
+const ArticleCardCopyButton = styled(SidebarIconButton)`
   width: 32px;
   height: 32px;
   min-width: 32px;
@@ -143,14 +143,14 @@ const CoverThumb = styled.div`
   }
 `;
 
-const BlogTitle = styled.h3`
+const ArticleTitle = styled.h3`
   margin: 0 0 4px;
   color: var(--text-color);
   font-size: 16px;
   line-height: 1.25;
 `;
 
-const BlogExcerpt = styled.p`
+const ArticleExcerpt = styled.p`
   margin: 0 0 10px;
   color: var(--text-secondary-color);
   font-size: 13px;
@@ -272,7 +272,7 @@ const Skeleton = styled.div`
 const resolveIdentifier = (profileUser, explicitId) =>
   explicitId || String(profileUser?._id || profileUser?.id || "");
 
-const ProfileBlogsPanel = ({
+const ProfileArticlesPanel = ({
   profileUser,
   profileUserId,
   isOwnProfile,
@@ -280,14 +280,14 @@ const ProfileBlogsPanel = ({
   onCountChange,
 }) => {
   const currentUser = useAuthStore((state) => state.user);
-  const [blogs, setBlogs] = useState([]);
+  const [articles, setArticles] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [selectedBlog, setSelectedBlog] = useState(null);
+  const [selectedArticle, setSelectedArticle] = useState(null);
   const [selectedContent, setSelectedContent] = useState("");
   const [contentLoading, setContentLoading] = useState(false);
-  const [commentBlog, setCommentBlog] = useState(null);
+  const [commentArticle, setCommentArticle] = useState(null);
   const [editorOpen, setEditorOpen] = useState(false);
-  const [editingBlog, setEditingBlog] = useState(null);
+  const [editingArticle, setEditingArticle] = useState(null);
   const [saving, setSaving] = useState(false);
   const [showDetailOnly, setShowDetailOnly] = useState(false);
   const viewedRef = useRef(new Set());
@@ -297,27 +297,27 @@ const ProfileBlogsPanel = ({
     [profileUser, profileUserId],
   );
 
-  const applyBlogPatch = (blogId, patch) => {
-    setBlogs((prev) =>
-      prev.map((blog) => (blog._id === blogId ? { ...blog, ...patch } : blog)),
+  const applyArticlePatch = (articleId, patch) => {
+    setArticles((prev) =>
+      prev.map((article) => (article._id === articleId ? { ...article, ...patch } : article)),
     );
-    setSelectedBlog((prev) =>
-      prev && prev._id === blogId ? { ...prev, ...patch } : prev,
+    setSelectedArticle((prev) =>
+      prev && prev._id === articleId ? { ...prev, ...patch } : prev,
     );
   };
 
-  const loadBlogs = async () => {
+  const loadArticles = async () => {
     if (!identifier) return;
     setLoading(true);
     try {
-      const items = await fetchUserBlogs(identifier);
-      setBlogs(items || []);
+      const items = await fetchUserArticles(identifier);
+      setArticles(items || []);
       onCountChange?.(items?.length || 0);
 
-      if (selectedBlog?._id) {
+      if (selectedArticle?._id) {
         const nextSelected =
-          items?.find((item) => item._id === selectedBlog._id) || null;
-        setSelectedBlog(nextSelected);
+          items?.find((item) => item._id === selectedArticle._id) || null;
+        setSelectedArticle(nextSelected);
         setShowDetailOnly(Boolean(nextSelected));
         if (!nextSelected) {
           setSelectedContent("");
@@ -327,147 +327,147 @@ const ProfileBlogsPanel = ({
       }
 
       if (!items?.length) {
-        setSelectedBlog(null);
+        setSelectedArticle(null);
         setSelectedContent("");
         setShowDetailOnly(false);
       }
     } catch (error) {
-      toast.error("Bloglarni yuklab bo'lmadi");
+      toast.error("Maqolalarni yuklab bo'lmadi");
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    loadBlogs();
+    loadArticles();
   }, [identifier]);
 
   useEffect(() => {
-    if (!selectedBlog?._id) return;
+    if (!selectedArticle?._id) return;
 
     const loadDetail = async () => {
       setContentLoading(true);
       try {
         const [detail, content] = await Promise.all([
-          getBlog(selectedBlog._id),
-          getBlogContent(selectedBlog._id),
+          getArticle(selectedArticle._id),
+          getArticleContent(selectedArticle._id),
         ]);
-        applyBlogPatch(detail._id, detail);
-        setSelectedBlog(detail);
+        applyArticlePatch(detail._id, detail);
+        setSelectedArticle(detail);
         setSelectedContent(content?.content || "");
 
         if (detail.previouslySeen) {
           viewedRef.current.add(detail._id);
-        } else if (!viewedRef.current.has(selectedBlog._id)) {
-          viewedRef.current.add(selectedBlog._id);
-          const viewed = await viewBlog(selectedBlog._id);
-          applyBlogPatch(selectedBlog._id, {
+        } else if (!viewedRef.current.has(selectedArticle._id)) {
+          viewedRef.current.add(selectedArticle._id);
+          const viewed = await viewArticle(selectedArticle._id);
+          applyArticlePatch(selectedArticle._id, {
             views: viewed?.views || 0,
             previouslySeen: true,
           });
         }
       } catch (error) {
-        toast.error("Blog ochilmadi");
+        toast.error("Article ochilmadi");
       } finally {
         setContentLoading(false);
       }
     };
 
     loadDetail();
-  }, [selectedBlog?._id]);
+  }, [selectedArticle?._id]);
 
   const handleSave = async (payload) => {
     setSaving(true);
     try {
-      if (editingBlog?._id) {
-        const updated = await updateBlog(editingBlog._id, payload);
-        applyBlogPatch(updated._id, updated);
-        setSelectedBlog(updated);
+      if (editingArticle?._id) {
+        const updated = await updateArticle(editingArticle._id, payload);
+        applyArticlePatch(updated._id, updated);
+        setSelectedArticle(updated);
         setSelectedContent(payload.markdown);
-        toast.success("Blog yangilandi");
+        toast.success("Article yangilandi");
       } else {
-        const created = await createBlog(payload);
-        setBlogs((prev) => {
+        const created = await createArticle(payload);
+        setArticles((prev) => {
           const next = [created, ...prev];
           onCountChange?.(next.length);
           return next;
         });
-        setSelectedBlog(created);
+        setSelectedArticle(created);
         setSelectedContent(payload.markdown);
         setShowDetailOnly(true);
-        toast.success("Blog yaratildi");
+        toast.success("Article yaratildi");
       }
 
       setEditorOpen(false);
-      setEditingBlog(null);
+      setEditingArticle(null);
     } catch (error) {
-      toast.error("Blogni saqlab bo'lmadi");
+      toast.error("Articleni saqlab bo'lmadi");
     } finally {
       setSaving(false);
     }
   };
 
   const handleDelete = async () => {
-    if (!selectedBlog?._id) return;
-    if (!window.confirm("Blog o'chirilsinmi?")) return;
+    if (!selectedArticle?._id) return;
+    if (!window.confirm("Article o'chirilsinmi?")) return;
 
     try {
-      await deleteBlog(selectedBlog._id);
-      const nextBlogs = blogs.filter((item) => item._id !== selectedBlog._id);
-      setBlogs(nextBlogs);
-      setSelectedBlog(null);
+      await deleteArticle(selectedArticle._id);
+      const nextArticles = articles.filter((item) => item._id !== selectedArticle._id);
+      setArticles(nextArticles);
+      setSelectedArticle(null);
       setSelectedContent("");
       setShowDetailOnly(false);
-      onCountChange?.(nextBlogs.length);
-      toast.success("Blog o'chirildi");
+      onCountChange?.(nextArticles.length);
+      toast.success("Article o'chirildi");
     } catch (error) {
-      toast.error("Blogni o'chirib bo'lmadi");
+      toast.error("Articleni o'chirib bo'lmadi");
     }
   };
 
-  const handleLike = async (blogId) => {
+  const handleLike = async (articleId) => {
     try {
-      const response = await likeBlog(blogId);
-      applyBlogPatch(blogId, response);
+      const response = await likeArticle(articleId);
+      applyArticlePatch(articleId, response);
     } catch (error) {
       toast.error("Like yuborilmadi");
     }
   };
 
-  const handleCopyBlogLink = async (event, slug) => {
+  const handleCopyArticleLink = async (event, slug) => {
     event?.stopPropagation?.();
     try {
-      await navigator.clipboard.writeText(`${RESOLVED_APP_BASE_URL}/blogs/${slug}`);
-      toast.success("Blog havolasi nusxalandi");
+      await navigator.clipboard.writeText(`${RESOLVED_APP_BASE_URL}/articles/${slug}`);
+      toast.success("Maqola havolasi nusxalandi");
     } catch {
-      toast.error("Blog havolasini nusxalab bo'lmadi");
+      toast.error("Maqola havolasini nusxalab bo'lmadi");
     }
   };
 
-  const selectedEditorBlog =
-    editingBlog && editingBlog._id
+  const selectedEditorArticle =
+    editingArticle && editingArticle._id
       ? {
-          ...editingBlog,
+          ...editingArticle,
           markdown:
-            selectedBlog?._id === editingBlog._id ? selectedContent : "",
+            selectedArticle?._id === editingArticle._id ? selectedContent : "",
         }
       : null;
 
   return (
-    <ProfilePaneWrapper data-tour="profile-pane-blogs">
+    <ProfilePaneWrapper data-tour="profile-pane-articles">
       {!showDetailOnly && (
         <ProfilePaneHeader>
           <MobileBackBtn onClick={onBack}>
             <ArrowLeft size={20} />
           </MobileBackBtn>
-          <ProfilePaneTitle>Bloglar</ProfilePaneTitle>
+          <ProfilePaneTitle>Maqolalar</ProfilePaneTitle>
           {isOwnProfile && (
             <ButtonWrapper
               onClick={() => {
-                setEditingBlog(null);
+                setEditingArticle(null);
                 setEditorOpen(true);
               }}
-              title="Yangi blog"
+              title="Yangi maqola"
             >
               <Plus size={18} />
             </ButtonWrapper>
@@ -485,59 +485,59 @@ const ProfileBlogsPanel = ({
                 <Skeleton height="16px" />
                 <Skeleton height="16px" />
               </div>
-            ) : blogs.length === 0 ? (
+            ) : articles.length === 0 ? (
               <Empty>
                 <BookOpen size={30} />
                 <span>
                   {isOwnProfile
-                    ? "Hali blog yo'q. Birinchi maqolangizni yarating."
-                    : "Bu foydalanuvchining hali blogi yo'q."}
+                    ? "Hali maqola yo'q. Birinchi maqolangizni yarating."
+                    : "Bu foydalanuvchining hali maqolasi yo'q."}
                 </span>
               </Empty>
             ) : (
-              blogs.map((blog) => (
-                <BlogCard
-                  key={blog._id}
-                  active={selectedBlog?._id === blog._id}
+              articles.map((article) => (
+                <ArticleCard
+                  key={article._id}
+                  active={selectedArticle?._id === article._id}
                   onClick={() => {
-                    setSelectedBlog(blog);
+                    setSelectedArticle(article);
                     setShowDetailOnly(true);
                   }}
                 >
                   <CoverThumb>
-                    {blog.coverImage ? (
-                      <img src={blog.coverImage} alt={blog.title} />
+                    {article.coverImage ? (
+                      <img src={article.coverImage} alt={article.title} />
                     ) : null}
                   </CoverThumb>
-                  <BlogCardHeader>
-                    <BlogTitle>{blog.title}</BlogTitle>
-                    <BlogCardCopyButton
-                      title="Blog havolasini nusxalash"
+                  <ArticleCardHeader>
+                    <ArticleTitle>{article.title}</ArticleTitle>
+                    <ArticleCardCopyButton
+                      title="Maqola havolasini nusxalash"
                       onClick={(event) =>
-                        handleCopyBlogLink(event, blog.slug || blog._id)
+                        handleCopyArticleLink(event, article.slug || article._id)
                       }
                     >
                       <Copy size={15} />
-                    </BlogCardCopyButton>
-                  </BlogCardHeader>
-                  <BlogExcerpt>{blog.excerpt || "Tavsif yo'q"}</BlogExcerpt>
+                    </ArticleCardCopyButton>
+                  </ArticleCardHeader>
+                  <ArticleExcerpt>{article.excerpt || "Tavsif yo'q"}</ArticleExcerpt>
                   <MetaRow>
                     <span>
-                      {dayjs(blog.publishedAt || blog.createdAt).format(
+                      {dayjs(article.publishedAt || article.createdAt).format(
                         "DD MMM YYYY",
                       )}
                     </span>
-                    <span>{blog.likes} like</span>
-                    <span>{blog.comments} izoh</span>
-                    <span>{blog.views} ko'rish</span>
+                    <span>{article.likes} like</span>
+                    <span>{article.comments} izoh</span>
+                    <span>{article.views} ko'rish</span>
                   </MetaRow>
-                </BlogCard>
+                </ArticleCard>
               ))
             )}
           </ListPane>
         )}
 
-        {showDetailOnly && selectedBlog && (
+        {showDetailOnly && selectedArticle && (
           <DetailPane>
             {contentLoading ? (
               <DetailWrap>
@@ -552,28 +552,28 @@ const ProfileBlogsPanel = ({
                   <BackToListBtn
                     onClick={() => {
                       setShowDetailOnly(false);
-                      setSelectedBlog(null);
+                      setSelectedArticle(null);
                       setSelectedContent("");
                     }}
                   >
                     <ArrowLeft size={16} />
-                    Bloglar ro'yxati
+                    Maqolalar ro'yxati
                   </BackToListBtn>
                 </DetailTopBar>
-                {selectedBlog.coverImage ? (
+                {selectedArticle.coverImage ? (
                   <HeroImage
-                    src={selectedBlog.coverImage}
-                    alt={selectedBlog.title}
+                    src={selectedArticle.coverImage}
+                    alt={selectedArticle.title}
                   />
                 ) : null}
-                <DetailTitle>{selectedBlog.title}</DetailTitle>
-                {selectedBlog.excerpt ? (
-                  <DetailExcerpt>{selectedBlog.excerpt}</DetailExcerpt>
+                <DetailTitle>{selectedArticle.title}</DetailTitle>
+                {selectedArticle.excerpt ? (
+                  <DetailExcerpt>{selectedArticle.excerpt}</DetailExcerpt>
                 ) : null}
 
-                {selectedBlog.tags?.length > 0 && (
+                {selectedArticle.tags?.length > 0 && (
                   <Tags>
-                    {selectedBlog.tags.map((tag) => (
+                    {selectedArticle.tags.map((tag) => (
                       <Tag key={tag}>#{tag}</Tag>
                     ))}
                   </Tags>
@@ -582,41 +582,41 @@ const ProfileBlogsPanel = ({
                 <MetaRow>
                   <span>
                     {dayjs(
-                      selectedBlog.publishedAt || selectedBlog.createdAt,
+                      selectedArticle.publishedAt || selectedArticle.createdAt,
                     ).format("DD MMMM YYYY · HH:mm")}
                   </span>
                   <span>
-                    {selectedBlog.author?.nickname ||
-                      selectedBlog.author?.username ||
+                    {selectedArticle.author?.nickname ||
+                      selectedArticle.author?.username ||
                       currentUser?.nickname}
                   </span>
                 </MetaRow>
 
                 <ActionRow>
                   <ActionBtn
-                    active={selectedBlog.liked}
+                    active={selectedArticle.liked}
                     activeColor="#ef4444"
-                    onClick={() => handleLike(selectedBlog._id)}
+                    onClick={() => handleLike(selectedArticle._id)}
                   >
                     <Heart
                       size={16}
-                      fill={selectedBlog.liked ? "#ef4444" : "none"}
+                      fill={selectedArticle.liked ? "#ef4444" : "none"}
                     />
-                    {selectedBlog.likes}
+                    {selectedArticle.likes}
                   </ActionBtn>
-                  <SecondaryBtn onClick={() => setCommentBlog(selectedBlog)}>
+                  <SecondaryBtn onClick={() => setCommentArticle(selectedArticle)}>
                     <MessageCircle size={16} />
-                    {selectedBlog.comments}
+                    {selectedArticle.comments}
                   </SecondaryBtn>
                   <SecondaryBtn as="div">
                     <Eye size={16} />
-                    {selectedBlog.views}
+                    {selectedArticle.views}
                   </SecondaryBtn>
                   <SecondaryBtn
                     onClick={(event) =>
-                      handleCopyBlogLink(
+                      handleCopyArticleLink(
                         event,
-                        selectedBlog.slug || selectedBlog._id,
+                        selectedArticle.slug || selectedArticle._id,
                       )
                     }
                   >
@@ -626,8 +626,8 @@ const ProfileBlogsPanel = ({
                   {isOwnProfile && (
                     <SecondaryBtn
                       onClick={() => {
-                        setEditingBlog({
-                          ...selectedBlog,
+                        setEditingArticle({
+                          ...selectedArticle,
                           markdown: selectedContent,
                         });
                         setEditorOpen(true);
@@ -653,23 +653,23 @@ const ProfileBlogsPanel = ({
         )}
       </Shell>
 
-      <BlogEditorDialog
+      <ArticleEditorDialog
         isOpen={editorOpen}
         onClose={() => {
           setEditorOpen(false);
-          setEditingBlog(null);
+          setEditingArticle(null);
         }}
         onSubmit={handleSave}
-        initialBlog={selectedEditorBlog}
+        initialArticle={selectedEditorArticle}
         saving={saving}
       />
 
-      {commentBlog && (
-        <BlogComments
-          blog={commentBlog}
-          onClose={() => setCommentBlog(null)}
+      {commentArticle && (
+        <ArticleComments
+          article={commentArticle}
+          onClose={() => setCommentArticle(null)}
           onCommentsCountChange={(count) => {
-            applyBlogPatch(commentBlog._id, { comments: count });
+            applyArticlePatch(commentArticle._id, { comments: count });
           }}
         />
       )}
@@ -677,4 +677,4 @@ const ProfileBlogsPanel = ({
   );
 };
 
-export default ProfileBlogsPanel;
+export default ProfileArticlesPanel;

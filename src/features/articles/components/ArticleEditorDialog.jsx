@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import MarkdownRenderer from "./MarkdownRenderer";
-import { uploadBlogImage } from "../../../api/blogsApi";
+import { uploadArticleImage } from "../../../api/articlesApi";
 import useAuthStore from "../../../store/authStore";
 import {
   APP_LIMITS,
@@ -70,30 +70,30 @@ const Overlay = styled.div`
 `;
 
 const Dialog = styled.div`
-  --blog-editor-text: var(--text-color);
-  --blog-editor-muted: var(--text-muted-color);
-  --blog-editor-surface: color-mix(
+  --article-editor-text: var(--text-color);
+  --article-editor-muted: var(--text-muted-color);
+  --article-editor-surface: color-mix(
     in srgb,
     var(--secondary-color) 84%,
     black 16%
   );
-  --blog-editor-surface-2: color-mix(
+  --article-editor-surface-2: color-mix(
     in srgb,
     var(--tertiary-color) 86%,
     black 14%
   );
-  --blog-editor-surface-3: color-mix(
+  --article-editor-surface-3: color-mix(
     in srgb,
     var(--input-color) 88%,
     black 12%
   );
-  --blog-editor-border: color-mix(in srgb, var(--border-color) 80%, white 20%);
-  --blog-editor-soft: color-mix(
+  --article-editor-border: color-mix(in srgb, var(--border-color) 80%, white 20%);
+  --article-editor-soft: color-mix(
     in srgb,
     var(--background-color) 76%,
     transparent
   );
-  --blog-editor-primary: var(--primary-color);
+  --article-editor-primary: var(--primary-color);
 
   width: min(1320px, 100%);
   max-width: 100vw;
@@ -102,8 +102,8 @@ const Dialog = styled.div`
   box-sizing: border-box;
   background: linear-gradient(
     180deg,
-    color-mix(in srgb, var(--blog-editor-surface) 92%, white 8%) 0%,
-    var(--blog-editor-surface-2) 100%
+    color-mix(in srgb, var(--article-editor-surface) 92%, white 8%) 0%,
+    var(--article-editor-surface-2) 100%
   );
   border-radius: 28px;
   overflow: hidden;
@@ -128,8 +128,8 @@ const Header = styled.div`
   box-sizing: border-box;
   gap: 16px;
   padding: 18px 22px;
-  border-bottom: 1px solid var(--blog-editor-border);
-  background: color-mix(in srgb, var(--blog-editor-surface) 86%, transparent);
+  border-bottom: 1px solid var(--article-editor-border);
+  background: color-mix(in srgb, var(--article-editor-surface) 86%, transparent);
   backdrop-filter: blur(16px);
 
   @media (max-width: 820px) {
@@ -146,7 +146,7 @@ const Header = styled.div`
 
 const HeaderMeta = styled.div`
   min-width: 0;
-  color: var(--blog-editor-text);
+  color: var(--article-editor-text);
 
   h3 {
     margin: 0 0 4px;
@@ -156,7 +156,7 @@ const HeaderMeta = styled.div`
   p {
     margin: 0;
     font-size: 13px;
-    color: var(--blog-editor-muted);
+    color: var(--article-editor-muted);
   }
 
   @media (max-width: 640px) {
@@ -196,7 +196,7 @@ const ModeSwitch = styled.div`
   min-width: 0;
   box-sizing: border-box;
   padding: 4px;
-  background: color-mix(in srgb, var(--blog-editor-soft) 74%, transparent);
+  background: color-mix(in srgb, var(--article-editor-soft) 74%, transparent);
   border-radius: 999px;
 
   @media (max-width: 820px) {
@@ -216,10 +216,10 @@ const ModeBtn = styled.button`
   border: none;
   background: ${(p) =>
     p.active
-      ? "color-mix(in srgb, var(--blog-editor-surface) 82%, white 18%)"
+      ? "color-mix(in srgb, var(--article-editor-surface) 82%, white 18%)"
       : "transparent"};
   color: ${(p) =>
-    p.active ? "var(--blog-editor-text)" : "var(--blog-editor-muted)"};
+    p.active ? "var(--article-editor-text)" : "var(--article-editor-muted)"};
   padding: 9px 14px;
   border-radius: 999px;
   font-size: 13px;
@@ -239,8 +239,8 @@ const ModeBtn = styled.button`
 
 const GhostBtn = styled.button`
   border: none;
-  background: color-mix(in srgb, var(--blog-editor-soft) 74%, transparent);
-  color: var(--blog-editor-text);
+  background: color-mix(in srgb, var(--article-editor-soft) 74%, transparent);
+  color: var(--article-editor-text);
   width: 40px;
   height: 40px;
   border-radius: 50%;
@@ -266,7 +266,7 @@ const SaveBtn = styled.button`
   border: none;
   background: linear-gradient(
     135deg,
-    color-mix(in srgb, var(--blog-editor-primary) 84%, #2563eb 16%),
+    color-mix(in srgb, var(--article-editor-primary) 84%, #2563eb 16%),
     #0f9d8f
   );
   color: white;
@@ -307,7 +307,7 @@ const EditorPane = styled.div`
   display: ${(p) =>
     p.mode === "preview" ? "none" : p.mode === "write" ? "flex" : "flex"};
   flex-direction: column;
-  background: color-mix(in srgb, var(--blog-editor-surface) 82%, transparent);
+  background: color-mix(in srgb, var(--article-editor-surface) 82%, transparent);
 `;
 
 const PreviewPane = styled.div`
@@ -319,7 +319,7 @@ const PreviewPane = styled.div`
     p.mode === "write" ? "none" : p.mode === "preview" ? "block" : "block"};
 
   border-left: ${(p) =>
-    p.mode === "split" ? "1px solid var(--blog-editor-border)" : "none"};
+    p.mode === "split" ? "1px solid var(--article-editor-border)" : "none"};
   overflow-y: auto;
 
   @media (max-width: 960px) {
@@ -335,8 +335,8 @@ const Toolbar = styled.div`
   align-items: center;
   gap: 8px;
   overflow-x: auto;
-  border-bottom: 1px solid var(--blog-editor-border);
-  background: color-mix(in srgb, var(--blog-editor-surface) 84%, transparent);
+  border-bottom: 1px solid var(--article-editor-border);
+  background: color-mix(in srgb, var(--article-editor-surface) 84%, transparent);
 
   @media (max-width: 640px) {
     padding: 10px 12px;
@@ -351,9 +351,9 @@ const ToolBtn = styled.button`
   min-width: 38px;
   height: 38px;
   padding: 0 12px;
-  border: 1px solid var(--blog-editor-border);
-  background: color-mix(in srgb, var(--blog-editor-surface) 80%, white 20%);
-  color: var(--blog-editor-text);
+  border: 1px solid var(--article-editor-border);
+  background: color-mix(in srgb, var(--article-editor-surface) 80%, white 20%);
+  color: var(--article-editor-text);
   border-radius: 12px;
   cursor: pointer;
   display: inline-flex;
@@ -396,7 +396,7 @@ const Label = styled.label`
   display: grid;
   gap: 8px;
   min-width: 0;
-  color: var(--blog-editor-muted);
+  color: var(--article-editor-muted);
   font-size: 13px;
   font-weight: 700;
 `;
@@ -405,11 +405,11 @@ const Input = styled.input`
   width: 100%;
   box-sizing: border-box;
   min-width: 0;
-  border: 1px solid var(--blog-editor-border);
-  background: var(--blog-editor-surface-3);
+  border: 1px solid var(--article-editor-border);
+  background: var(--article-editor-surface-3);
   border-radius: 16px;
   padding: 14px 16px;
-  color: var(--blog-editor-text);
+  color: var(--article-editor-text);
   font-size: 15px;
   outline: none;
 
@@ -425,11 +425,11 @@ const TextArea = styled.textarea`
   box-sizing: border-box;
   min-width: 0;
   min-height: ${(p) => p.minHeight || "120px"};
-  border: 1px solid var(--blog-editor-border);
-  background: var(--blog-editor-surface-3);
+  border: 1px solid var(--article-editor-border);
+  background: var(--article-editor-surface-3);
   border-radius: 18px;
   padding: 16px;
-  color: var(--blog-editor-text);
+  color: var(--article-editor-text);
   font-size: 15px;
   line-height: 1.75;
   resize: vertical;
@@ -447,10 +447,10 @@ const CoverCard = styled.button`
   width: 100%;
   box-sizing: border-box;
   border: 1px dashed
-    color-mix(in srgb, var(--blog-editor-primary) 36%, transparent);
+    color-mix(in srgb, var(--article-editor-primary) 36%, transparent);
   background:
     linear-gradient(135deg, rgba(37, 99, 235, 0.08), rgba(15, 157, 143, 0.08)),
-    color-mix(in srgb, var(--blog-editor-surface) 78%, transparent);
+    color-mix(in srgb, var(--article-editor-surface) 78%, transparent);
   min-height: 180px;
   border-radius: 24px;
   display: flex;
@@ -479,7 +479,7 @@ const CoverHint = styled.div`
   min-width: 0;
   box-sizing: border-box;
   gap: 10px;
-  color: var(--blog-editor-text);
+  color: var(--article-editor-text);
 `;
 
 const PreviewWrap = styled.div`
@@ -509,12 +509,12 @@ const PreviewHero = styled.div`
     margin: 0 0 12px;
     font-size: clamp(2rem, 5vw, 3.8rem);
     line-height: 1.05;
-    color: var(--blog-editor-text);
+    color: var(--article-editor-text);
   }
 
   p {
     margin: 0;
-    color: var(--blog-editor-muted);
+    color: var(--article-editor-muted);
     font-size: 17px;
     line-height: 1.7;
   }
@@ -550,32 +550,32 @@ const Tags = styled.div`
 const Tag = styled.span`
   padding: 7px 12px;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--blog-editor-primary) 16%, transparent);
-  color: color-mix(in srgb, var(--blog-editor-primary) 76%, white 24%);
+  background: color-mix(in srgb, var(--article-editor-primary) 16%, transparent);
+  color: color-mix(in srgb, var(--article-editor-primary) 76%, white 24%);
   font-size: 12px;
   font-weight: 700;
 `;
 
-const buildInitialState = (blog) => ({
-  title: blog?.title || "",
-  excerpt: blog?.excerpt || "",
-  coverImage: blog?.coverImage || "",
-  tags: Array.isArray(blog?.tags) ? blog.tags.join(", ") : "",
-  markdown: blog?.markdown || "",
+const buildInitialState = (article) => ({
+  title: article?.title || "",
+  excerpt: article?.excerpt || "",
+  coverImage: article?.coverImage || "",
+  tags: Array.isArray(article?.tags) ? article.tags.join(", ") : "",
+  markdown: article?.markdown || "",
 });
 
-const BlogEditorDialog = ({
+const ArticleEditorDialog = ({
   isOpen,
   onClose,
   onSubmit,
-  initialBlog,
+  initialArticle,
   saving,
 }) => {
   const currentUser = useAuthStore((state) => state.user);
   const [mode, setMode] = useState(
     window.innerWidth <= 960 ? "write" : "split",
   );
-  const [form, setForm] = useState(buildInitialState(initialBlog));
+  const [form, setForm] = useState(buildInitialState(initialArticle));
   const [uploading, setUploading] = useState(false);
   const textareaRef = useRef(null);
   const coverInputRef = useRef(null);
@@ -583,8 +583,8 @@ const BlogEditorDialog = ({
 
   useEffect(() => {
     if (!isOpen) return;
-    setForm(buildInitialState(initialBlog));
-  }, [initialBlog, isOpen]);
+    setForm(buildInitialState(initialArticle));
+  }, [initialArticle, isOpen]);
 
   if (!isOpen) return null;
 
@@ -592,12 +592,12 @@ const BlogEditorDialog = ({
     .split(",")
     .map((item) => item.trim())
     .filter(Boolean);
-  const blogWordLimit = isPremiumUser(currentUser)
-    ? APP_LIMITS.blogWordsPremium
-    : APP_LIMITS.blogWordsOrdinary;
-  const blogImageLimit = isPremiumUser(currentUser)
-    ? APP_LIMITS.blogImagesPremium
-    : APP_LIMITS.blogImagesOrdinary;
+  const articleWordLimit = isPremiumUser(currentUser)
+    ? APP_LIMITS.articleWordsPremium
+    : APP_LIMITS.articleWordsOrdinary;
+  const articleImageLimit = isPremiumUser(currentUser)
+    ? APP_LIMITS.articleImagesPremium
+    : APP_LIMITS.articleImagesOrdinary;
 
   const patchForm = (key, value) =>
     setForm((prev) => ({
@@ -647,7 +647,7 @@ const BlogEditorDialog = ({
 
     setUploading(true);
     try {
-      const response = await uploadBlogImage(file);
+      const response = await uploadArticleImage(file);
       if (!response?.url) throw new Error("Upload failed");
 
       if (modeType === "cover") {
@@ -669,21 +669,21 @@ const BlogEditorDialog = ({
     }
 
     if (!form.markdown.trim()) {
-      toast.error("Blog matni bo'sh bo'lmasin");
+      toast.error("Article matni bo'sh bo'lmasin");
       return;
     }
 
-    if (countWords(form.markdown) > blogWordLimit) {
-      toast.error(`Blog matni maksimal ${blogWordLimit} ta so'z bo'lishi kerak`);
+    if (countWords(form.markdown) > articleWordLimit) {
+      toast.error(`Article matni maksimal ${articleWordLimit} ta so'z bo'lishi kerak`);
       return;
     }
 
     if (
       countMarkdownImages(form.markdown) + (form.coverImage ? 1 : 0) >
-      blogImageLimit
+      articleImageLimit
     ) {
       toast.error(
-        `Har bir blog uchun maksimal ${blogImageLimit} ta rasm ishlatish mumkin`,
+        `Har bir article uchun maksimal ${articleImageLimit} ta rasm ishlatish mumkin`,
       );
       return;
     }
@@ -702,7 +702,7 @@ const BlogEditorDialog = ({
       <Dialog onClick={(event) => event.stopPropagation()}>
         <Header>
           <HeaderMeta>
-            <h3>{initialBlog?._id ? "Blogni tahrirlash" : "Yangi blog"}</h3>
+            <h3>{initialArticle?._id ? "Articleni tahrirlash" : "Yangi article"}</h3>
             <p>
               Medium uslubidagi markdown editor: cover, inline image, preview va
               publish.
@@ -735,7 +735,7 @@ const BlogEditorDialog = ({
             <SaveBtn disabled={saving || uploading} onClick={handleSubmit}>
               {saving
                 ? "Saqlanmoqda..."
-                : initialBlog?._id
+                : initialArticle?._id
                   ? "Yangilash"
                   : "Publish"}
             </SaveBtn>
@@ -801,7 +801,7 @@ const BlogEditorDialog = ({
                   Cover image
                   <CoverCard onClick={() => coverInputRef.current?.click()}>
                     {form.coverImage ? (
-                      <img src={form.coverImage} alt="Blog cover" />
+                      <img src={form.coverImage} alt="Article cover" />
                     ) : (
                       <CoverHint>
                         <ImagePlus size={28} />
@@ -822,11 +822,11 @@ const BlogEditorDialog = ({
                     onChange={(event) =>
                       patchForm(
                         "title",
-                        event.target.value.slice(0, APP_LIMITS.blogTitleChars),
+                        event.target.value.slice(0, APP_LIMITS.articleTitleChars),
                       )
                     }
                     placeholder="Masalan: Design systems nega chiroyli bo'lmaydi?"
-                    maxLength={APP_LIMITS.blogTitleChars}
+                    maxLength={APP_LIMITS.articleTitleChars}
                   />
                 </Label>
 
@@ -838,11 +838,11 @@ const BlogEditorDialog = ({
                     onChange={(event) =>
                       patchForm(
                         "excerpt",
-                        event.target.value.slice(0, APP_LIMITS.blogExcerptChars),
+                        event.target.value.slice(0, APP_LIMITS.articleExcerptChars),
                       )
                     }
                     placeholder="Kartochkada ko'rinadigan qisqa intro..."
-                    maxLength={APP_LIMITS.blogExcerptChars}
+                    maxLength={APP_LIMITS.articleExcerptChars}
                   />
                 </Label>
 
@@ -855,9 +855,9 @@ const BlogEditorDialog = ({
                         "tags",
                         event.target.value
                           .split(",")
-                          .slice(0, APP_LIMITS.blogTagCount)
+                          .slice(0, APP_LIMITS.articleTagCount)
                           .map((item) =>
-                            item.trim().slice(0, APP_LIMITS.blogTagChars),
+                            item.trim().slice(0, APP_LIMITS.articleTagChars),
                           )
                           .join(", "),
                       )
@@ -895,7 +895,7 @@ Intro paragraf...
             <PreviewWrap>
               <PreviewHero>
                 {form.coverImage ? (
-                  <img src={form.coverImage} alt={form.title || "Blog cover"} />
+                  <img src={form.coverImage} alt={form.title || "Article cover"} />
                 ) : null}
                 <h1>{form.title || "Sarlavha shu yerda ko'rinadi"}</h1>
                 <p>
@@ -934,4 +934,4 @@ Intro paragraf...
   );
 };
 
-export default BlogEditorDialog;
+export default ArticleEditorDialog;
