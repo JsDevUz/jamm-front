@@ -56,7 +56,19 @@ const useAuthStore = create((set, get) => ({
 
   updateUser: (updates) =>
     set((state) => {
-      const nextUser = state.user ? { ...state.user, ...updates } : null;
+      if (!state.user) {
+        return state;
+      }
+
+      const hasChanges = Object.entries(updates || {}).some(
+        ([key, value]) => state.user?.[key] !== value,
+      );
+
+      if (!hasChanges) {
+        return state;
+      }
+
+      const nextUser = { ...state.user, ...updates };
       syncAppLockClientState(nextUser);
       return {
         user: nextUser,

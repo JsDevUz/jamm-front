@@ -422,6 +422,10 @@ const JammLayout = ({
 
   useEffect(() => {
     const handleAppLockRequired = () => {
+      if (isAppLocked && currentUser?.appLockSessionUnlocked === false) {
+        return;
+      }
+
       setIsAppLocked(true);
       setLockPin("");
       setLockError("");
@@ -436,7 +440,7 @@ const JammLayout = ({
         handleAppLockRequired,
       );
     };
-  }, [updateUser]);
+  }, [currentUser?.appLockSessionUnlocked, isAppLocked, updateUser]);
 
   useEffect(() => {
     setIsRightPaneFocused(false);

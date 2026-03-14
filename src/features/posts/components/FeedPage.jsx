@@ -7,6 +7,7 @@ import {
   Heart,
   Loader2,
   MessageCircle,
+  MoreHorizontal,
   Pencil,
   Plus,
   Trash2,
@@ -21,10 +22,10 @@ import {
   SkeletonCircle,
 } from "../../../shared/ui/feedback/Skeleton";
 import ConfirmDialog from "../../../shared/ui/dialogs/ConfirmDialog";
-import { formatChatTime } from "../../../utils/dateUtils";
 import { SidebarIconButton as ButtonWrapper } from "../../../shared/ui/buttons/IconButton";
 import { renderInlineMarkup } from "../../../shared/utils/renderInlineMarkup";
 import UserNameWithDecoration from "../../../shared/ui/users/UserNameWithDecoration";
+import ImageLightbox from "../../../shared/ui/media/ImageLightbox";
 import CreatePostDialog from "./CreatePostDialog";
 import PostComments from "./PostComments";
 import {
@@ -46,18 +47,30 @@ import {
   FeedSkeletonWrap,
   FeedTitle,
   ListStatus,
-  OwnerActions,
   PostActions,
   PostAuthor,
   PostAvatar,
   PostBody,
   PostCard,
+  PostCommentsLink,
+  PostFooterMeta,
   PostHeader,
+  PostHeaderDropdown,
+  PostHeaderDropdownItem,
+  PostHeaderMain,
+  PostHeaderMenuButton,
+  PostHeaderMenuWrap,
+  PostMoreButton,
   PostImageBlur,
+  PostImageButton,
+  PostImageCarousel,
+  PostCarouselDot,
+  PostCarouselDots,
   PostImageOverlay,
   PostImageReal,
-  PostImagesGrid,
-  PostImageTile,
+  PostImageSlide,
+  PostImageTrack,
+  PostImageViewport,
   PostMeta,
   PostTopRow,
   PostText,
@@ -65,6 +78,7 @@ import {
   PostUsername,
   Tab,
   TabsRow,
+  ActionDivider,
 } from "../styles/FeedPage.styles";
 
 const avatarColors = [
@@ -81,74 +95,121 @@ const colorOf = (value) =>
 
 const renderText = renderInlineMarkup;
 
-const FeedPostImages = ({ post }) => {
+const FeedPostImages = ({ post, onOpenImage }) => {
+  const [activeIndex, setActiveIndex] = useState(0);
   const [revealedImages, setRevealedImages] = useState({});
   const [loadingImages, setLoadingImages] = useState({});
   const [loadedImages, setLoadedImages] = useState({});
+  const touchStartXRef = useRef(0);
 
   const images = Array.isArray(post?.images) ? post.images : [];
   if (!images.length) return null;
 
+  const clampIndex = (nextIndex) =>
+    Math.max(0, Math.min(nextIndex, images.length - 1));
+
+  const currentImage = images[activeIndex];
+  const currentKey =
+    currentImage?.url || `${post._id || "post"}-${activeIndex}`;
+  const isRevealed = Boolean(revealedImages[currentKey]);
+  const isLoading = Boolean(loadingImages[currentKey]);
+
   return (
-    <PostImagesGrid $count={images.length}>
-      {images.map((image, index) => {
-        const key = image.url || `${post._id}-${index}`;
-        const isRevealed = Boolean(revealedImages[key]);
-        const isLoading = Boolean(loadingImages[key]);
+    <PostImageCarousel>
+      <PostImageViewport
+        onTouchStart={(event) => {
+          touchStartXRef.current = event.touches[0]?.clientX || 0;
+        }}
+        onTouchEnd={(event) => {
+          const endX = event.changedTouches[0]?.clientX || 0;
+          const deltaX = endX - touchStartXRef.current;
 
-        return (
-          <PostImageTile
-            key={key}
-            type="button"
-            $count={images.length}
-            $index={index}
-            onClick={() => {
-              if (isRevealed) return;
-              setLoadingImages((prev) => ({ ...prev, [key]: true }));
-              setRevealedImages((prev) => ({ ...prev, [key]: true }));
-            }}
-          >
-            <PostImageBlur
-              src={image.blurDataUrl || image.url}
-              alt=""
-              aria-hidden="true"
-              $hidden={Boolean(isRevealed && loadedImages[key])}
-            />
+          if (Math.abs(deltaX) < 40) return;
 
-            {!isRevealed ? (
-              <PostImageOverlay>
-                <Download size={18} />
-              </PostImageOverlay>
-            ) : null}
+          setActiveIndex((current) =>
+            clampIndex(current + (deltaX < 0 ? 1 : -1)),
+          );
+        }}
+      >
+        <PostImageTrack $index={activeIndex}>
+          {images.map((image, index) => {
+            const key = image.url || `${post._id}-${index}`;
+            const slideRevealed = Boolean(revealedImages[key]);
+            const slideLoading = Boolean(loadingImages[key]);
 
-            {isRevealed ? (
-              <>
-                <PostImageReal
-                  src={image.url}
-                  alt="Feed image"
-                  loading="lazy"
-                  $loaded={Boolean(loadedImages[key])}
-                  onLoad={() =>
-                    {
-                      setLoadingImages((prev) => ({ ...prev, [key]: false }));
-                      setLoadedImages((prev) => ({ ...prev, [key]: true }));
-                    }
-                  }
-                  onError={() =>
-                    setLoadingImages((prev) => ({ ...prev, [key]: false }))
-                  }
+            return (
+              <PostImageSlide key={key}>
+                <PostImageBlur
+                  src={image.blurDataUrl || image.url}
+                  alt=""
+                  aria-hidden="true"
+                  $hidden={Boolean(slideRevealed && loadedImages[key])}
                 />
-                {isLoading ? (
-                  <PostImageOverlay $loading>
-                    <Loader2 size={18} />
+
+                {!slideRevealed ? (
+                  <PostImageOverlay
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setLoadingImages((prev) => ({ ...prev, [key]: true }));
+                      setRevealedImages((prev) => ({ ...prev, [key]: true }));
+                    }}
+                  >
+                    <Download size={18} />
                   </PostImageOverlay>
                 ) : null}
-              </>
-            ) : null}
-          </PostImageTile>
-        );
-      })}
-    </PostImagesGrid>
+
+                {slideRevealed ? (
+                  <>
+                    <PostImageReal
+                      src={image.url}
+                      alt="Feed image"
+                      loading={index === activeIndex ? "eager" : "lazy"}
+                      $loaded={Boolean(loadedImages[key])}
+                      onLoad={() => {
+                        setLoadingImages((prev) => ({ ...prev, [key]: false }));
+                        setLoadedImages((prev) => ({ ...prev, [key]: true }));
+                      }}
+                      onError={() =>
+                        setLoadingImages((prev) => ({ ...prev, [key]: false }))
+                      }
+                    />
+                    {slideLoading ? (
+                      <PostImageOverlay $loading>
+                        <Loader2 size={18} />
+                      </PostImageOverlay>
+                    ) : null}
+                    {loadedImages[key] ? (
+                      <PostImageButton
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onOpenImage?.(image.url);
+                        }}
+                        aria-label="Rasmni kattalashtirish"
+                      />
+                    ) : null}
+                  </>
+                ) : null}
+              </PostImageSlide>
+            );
+          })}
+        </PostImageTrack>
+      </PostImageViewport>
+
+      {images.length > 1 ? (
+        <PostCarouselDots>
+          {images.map((image, index) => (
+            <PostCarouselDot
+              key={image.url || `${post._id}-dot-${index}`}
+              type="button"
+              $active={index === activeIndex}
+              onClick={() => setActiveIndex(index)}
+              aria-label={`${index + 1}-rasm`}
+            />
+          ))}
+        </PostCarouselDots>
+      ) : null}
+    </PostImageCarousel>
   );
 };
 
@@ -178,6 +239,9 @@ const FeedPage = () => {
   const [editingPost, setEditingPost] = useState(null);
   const [postToDelete, setPostToDelete] = useState(null);
   const [swipeHintDirection, setSwipeHintDirection] = useState(null);
+  const [expandedPosts, setExpandedPosts] = useState({});
+  const [lightboxImage, setLightboxImage] = useState("");
+  const [openPostMenuId, setOpenPostMenuId] = useState(null);
 
   const activePosts = activeTab === "foryou" ? forYouPosts : followingPosts;
   const activeHasMore = activeTab === "foryou" ? forYouHasMore : followingHasMore;
@@ -194,6 +258,17 @@ const FeedPage = () => {
       fetchFeed(activeTab, 1);
     }
   }, [activeTab, fetchFeed, forYouPosts.length, followingPosts.length]);
+
+  useEffect(() => {
+    const handlePointerDown = (event) => {
+      if (!(event.target instanceof Element)) return;
+      if (event.target.closest("[data-post-menu]")) return;
+      setOpenPostMenuId(null);
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => document.removeEventListener("pointerdown", handlePointerDown);
+  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined" || window.innerWidth > 768) return undefined;
@@ -358,6 +433,19 @@ const FeedPage = () => {
     navigate(`/profile/${authorJammId || authorId}`);
   };
 
+  const getPostTimestamp = (createdAt) =>
+    dayjs(createdAt).format("h:mm A · D MMM YYYY");
+
+  const shouldClampPost = (content = "", hasImages = false) => {
+    if (!content) return false;
+
+    if (hasImages) {
+      return content.length > 120 || content.includes("\n");
+    }
+
+    return content.length > 280 || content.split("\n").length > 6;
+  };
+
   return (
     <FeedContainer>
       <FeedHeader>
@@ -444,6 +532,9 @@ const FeedPage = () => {
                 const author = post.author || {};
                 const authorName =
                   author.nickname || author.username || t("common.userFallback");
+                const hasImages = Array.isArray(post.images) && post.images.length > 0;
+                const isExpanded = Boolean(expandedPosts[post._id]);
+                const shouldClamp = shouldClampPost(post.content, hasImages);
                 const isOwner =
                   String(author._id || "") ===
                   String(currentUser?._id || currentUser?.id || "");
@@ -465,22 +556,97 @@ const FeedPage = () => {
 
                         <PostMeta>
                           <PostHeader>
-                            <PostAuthor onClick={() => goToProfile(author._id)}>
-                              <UserNameWithDecoration
-                                user={author}
-                                fallback={t("common.userFallback")}
-                              />
-                            </PostAuthor>
-                            <PostTime>{formatChatTime(post.createdAt)}</PostTime>
+                            <PostHeaderMain>
+                              <PostAuthor onClick={() => goToProfile(author._id)}>
+                                <UserNameWithDecoration
+                                  user={author}
+                                  fallback={t("common.userFallback")}
+                                />
+                              </PostAuthor>
+                              ·
+                              <PostUsername>@{author.username || "user"}</PostUsername>
+                            </PostHeaderMain>
+
+                            {isOwner ? (
+                              <PostHeaderMenuWrap data-post-menu>
+                                <PostHeaderMenuButton
+                                  type="button"
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    setOpenPostMenuId((current) =>
+                                      current === post._id ? null : post._id,
+                                    );
+                                  }}
+                                  aria-label="Post amallari"
+                                >
+                                  <MoreHorizontal size={18} />
+                                </PostHeaderMenuButton>
+
+                                {openPostMenuId === post._id ? (
+                                  <PostHeaderDropdown>
+                                    <PostHeaderDropdownItem
+                                      type="button"
+                                      onClick={(event) => {
+                                        event.stopPropagation();
+                                        setOpenPostMenuId(null);
+                                        setEditingPost(post);
+                                      }}
+                                    >
+                                      <Pencil size={16} />
+                                      {t("common.edit")}
+                                    </PostHeaderDropdownItem>
+                                    <PostHeaderDropdownItem
+                                      type="button"
+                                      $danger
+                                      onClick={(event) => {
+                                        event.stopPropagation();
+                                        setOpenPostMenuId(null);
+                                        setPostToDelete(post);
+                                      }}
+                                    >
+                                      <Trash2 size={16} />
+                                      {t("common.delete")}
+                                    </PostHeaderDropdownItem>
+                                  </PostHeaderDropdown>
+                                ) : null}
+                              </PostHeaderMenuWrap>
+                            ) : null}
                           </PostHeader>
-                          <PostUsername>@{author.username || "user"}</PostUsername>
                         </PostMeta>
                       </PostTopRow>
 
-                      <PostText>{renderText(post.content)}</PostText>
-                      <FeedPostImages post={post} />
+                      {!hasImages ? (
+                        <PostText $expanded={isExpanded}>{renderText(post.content)}</PostText>
+                      ) : null}
+
+                      {hasImages ? (
+                        <FeedPostImages
+                          post={post}
+                          onOpenImage={(imageUrl) => setLightboxImage(imageUrl)}
+                        />
+                      ) : null}
+
+                      {hasImages ? (
+                        <PostText $compact $expanded={isExpanded}>
+                          {renderText(post.content)}
+                        </PostText>
+                      ) : null}
+
+                      {shouldClamp && !isExpanded ? (
+                        <PostMoreButton
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            setExpandedPosts((prev) => ({ ...prev, [post._id]: true }));
+                          }}
+                        >
+                          Show more
+                        </PostMoreButton>
+                      ) : null}
 
                       <PostActions>
+                        <ActionDivider>
+
                         <ActionButton
                           $active={post.liked}
                           $activeColor="var(--danger-color)"
@@ -511,32 +677,15 @@ const FeedPage = () => {
                           <Eye size={16} />
                           {post.views}
                         </ActionButton>
+                        </ActionDivider>
+                      <PostFooterMeta>
+                        <PostTime>{getPostTimestamp(post.createdAt)}</PostTime>
+                      </PostFooterMeta>
                       </PostActions>
 
-                      {isOwner && (
-                        <OwnerActions>
-                          <ActionButton
-                            $activeColor="var(--primary-color)"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              setEditingPost(post);
-                            }}
-                          >
-                            <Pencil size={16} />
-                            {t("common.edit")}
-                          </ActionButton>
-                          <ActionButton
-                            $activeColor="var(--danger-color)"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              setPostToDelete(post);
-                            }}
-                          >
-                            <Trash2 size={16} />
-                            {t("common.delete")}
-                          </ActionButton>
-                        </OwnerActions>
-                      )}
+                      
+
+
                     </PostBody>
                   </PostCard>
                 );
@@ -559,6 +708,12 @@ const FeedPage = () => {
         title={editingPost ? t("feed.editTitle") : t("feed.createTitle")}
         submitLabel={editingPost ? t("common.save") : t("common.send")}
         allowImages={!editingPost}
+      />
+
+      <ImageLightbox
+        src={lightboxImage}
+        alt="Feed image preview"
+        onClose={() => setLightboxImage("")}
       />
 
       {commentPost && (
