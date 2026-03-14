@@ -16,6 +16,13 @@ export const uploadPostImage = async (file) => {
   return data;
 };
 
+export const deletePostImage = async (url) => {
+  const { data } = await axiosInstance.delete("/posts/upload-image", {
+    data: { url },
+  });
+  return data;
+};
+
 export const createPost = async (payload) => {
   const { data } = await axiosInstance.post("/posts", payload);
   return data;

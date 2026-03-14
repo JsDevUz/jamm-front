@@ -3,7 +3,7 @@ import { Bold, Hash, ImagePlus, Italic, Loader2, Send, X } from "lucide-react";
 import toast from "react-hot-toast";
 import { SidebarIconButton as ButtonWrapper } from "../../../shared/ui/buttons/IconButton";
 import { APP_LIMITS, countWords, isPremiumUser } from "../../../constants/appLimits";
-import { uploadPostImage } from "../../../api/postsApi";
+import { deletePostImage, uploadPostImage } from "../../../api/postsApi";
 import { generatePostImagePlaceholder } from "../utils/postImagePlaceholder";
 import {
   AttachmentCard,
@@ -43,14 +43,23 @@ const CreatePostDialog = ({
   const [uploading, setUploading] = useState(false);
   const textareaRef = useRef(null);
   const fileInputRef = useRef(null);
+  const removedAttachmentIdsRef = useRef(new Set());
+
+  const revokeAttachmentPreview = (attachment) => {
+    if (attachment?.previewUrl?.startsWith("blob:")) {
+      URL.revokeObjectURL(attachment.previewUrl);
+    }
+  };
 
   useEffect(() => {
     if (isOpen) {
+      removedAttachmentIdsRef.current.clear();
       setText(initialContent || "");
       setAttachments(
         (initialImages || []).map((image, index) => ({
           id: image.url || `initial-${index}`,
           url: image.url,
+          previewUrl: image.url,
           blurDataUrl: image.blurDataUrl || image.url,
           width: image.width || null,
           height: image.height || null,
@@ -68,8 +77,27 @@ const CreatePostDialog = ({
     setUploading(false);
   }, [initialContent, initialImages, isOpen]);
 
+  useEffect(
+    () => () => {
+      attachments.forEach(revokeAttachmentPreview);
+    },
+    [attachments],
+  );
+
   const isPremium = isPremiumUser(currentUser);
   const canUseImages = allowImages && isPremium;
+  const isEditing = !allowImages;
+
+  const deleteRemoteAttachment = async (attachment) => {
+    if (!attachment?.url) return;
+
+    try {
+      await deletePostImage(attachment.url);
+    } catch (error) {
+      console.error("deletePostImage error:", error);
+      toast.error("Rasmni o'chirib bo'lmadi");
+    }
+  };
 
   const handleSubmit = async () => {
     const nextContent = text.trim();
@@ -148,6 +176,7 @@ const CreatePostDialog = ({
     }
 
     setUploading(true);
+    const preparedAttachments = [];
 
     for (const file of pickedFiles) {
       if (file.size > APP_LIMITS.postImageBytes) {
@@ -159,28 +188,49 @@ const CreatePostDialog = ({
 
       try {
         const placeholder = await generatePostImagePlaceholder(file);
-        setAttachments((prev) => [
-          ...prev,
-          {
-            id: tempId,
-            url: "",
-            blurDataUrl: placeholder.blurDataUrl,
-            width: placeholder.width,
-            height: placeholder.height,
-            name: file.name,
-            uploading: true,
-            error: null,
-          },
-        ]);
+        preparedAttachments.push({
+          id: tempId,
+          file,
+          url: "",
+          previewUrl: URL.createObjectURL(file),
+          blurDataUrl: placeholder.blurDataUrl,
+          width: placeholder.width,
+          height: placeholder.height,
+          name: file.name,
+          uploading: true,
+          error: null,
+        });
+      } catch (error) {
+        toast.error(`${file.name} preview tayyorlab bo'lmadi`);
+      }
+    }
 
-        const response = await uploadPostImage(file);
+    if (preparedAttachments.length === 0) {
+      setUploading(false);
+      return;
+    }
+
+    setAttachments((prev) => [
+      ...prev,
+      ...preparedAttachments.map(({ file, ...attachment }) => attachment),
+    ]);
+
+    for (const attachment of preparedAttachments) {
+      try {
+        const response = await uploadPostImage(attachment.file);
         if (!response?.url) {
           throw new Error("Upload failed");
         }
 
+        if (removedAttachmentIdsRef.current.has(attachment.id)) {
+          removedAttachmentIdsRef.current.delete(attachment.id);
+          await deleteRemoteAttachment({ url: response.url });
+          continue;
+        }
+
         setAttachments((prev) =>
           prev.map((image) =>
-            image.id === tempId
+            image.id === attachment.id
               ? {
                   ...image,
                   url: response.url,
@@ -191,9 +241,14 @@ const CreatePostDialog = ({
           ),
         );
       } catch (error) {
+        if (removedAttachmentIdsRef.current.has(attachment.id)) {
+          removedAttachmentIdsRef.current.delete(attachment.id);
+          continue;
+        }
+
         setAttachments((prev) =>
           prev.map((image) =>
-            image.id === tempId
+            image.id === attachment.id
               ? {
                   ...image,
                   uploading: false,
@@ -202,15 +257,35 @@ const CreatePostDialog = ({
               : image,
           ),
         );
-        toast.error(`${file.name} rasmni yuklab bo'lmadi`);
+        toast.error(`${attachment.name} rasmni yuklab bo'lmadi`);
       }
     }
 
     setUploading(false);
   };
 
-  const removeAttachment = (attachmentId) => {
-    setAttachments((prev) => prev.filter((image) => image.id !== attachmentId));
+  const removeAttachment = async (attachmentId) => {
+    let removedAttachment = null;
+
+    setAttachments((prev) => {
+      removedAttachment = prev.find((image) => image.id === attachmentId) || null;
+      return prev.filter((image) => image.id !== attachmentId);
+    });
+
+    if (!removedAttachment) return;
+
+    removedAttachmentIdsRef.current.add(attachmentId);
+    revokeAttachmentPreview(removedAttachment);
+
+    if (!isEditing && removedAttachment.url) {
+      await deleteRemoteAttachment(removedAttachment);
+      removedAttachmentIdsRef.current.delete(attachmentId);
+      return;
+    }
+
+    if (!removedAttachment.uploading) {
+      removedAttachmentIdsRef.current.delete(attachmentId);
+    }
   };
 
   if (!isOpen) return null;
@@ -259,7 +334,7 @@ const CreatePostDialog = ({
                 {attachments.map((attachment) => (
                   <AttachmentCard key={attachment.id}>
                     <img
-                      src={attachment.url || attachment.blurDataUrl}
+                      src={attachment.previewUrl || attachment.url || attachment.blurDataUrl}
                       alt={attachment.name || "Rasm"}
                     />
                     <AttachmentRemoveButton
@@ -271,10 +346,7 @@ const CreatePostDialog = ({
                     {attachment.uploading || attachment.error ? (
                       <AttachmentStatus>
                         {attachment.uploading ? (
-                          <>
-                            <Loader2 size={14} />
-                            Yuklanmoqda
-                          </>
+                          <Loader2 size={18} />
                         ) : (
                           attachment.error
                         )}

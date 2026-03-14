@@ -141,18 +141,30 @@ export const AttachmentRemoveButton = styled.button`
 
 export const AttachmentStatus = styled.div`
   position: absolute;
-  inset: auto 8px 8px 8px;
-  min-height: 28px;
+  inset: 0;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 6px 8px;
-  border-radius: 10px;
-  background: rgba(10, 12, 20, 0.72);
   color: white;
   font-size: 12px;
   font-weight: 600;
-  backdrop-filter: blur(10px);
+  pointer-events: none;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
+
+  svg {
+    animation: attachmentSpin 0.9s linear infinite;
+    filter: drop-shadow(0 3px 10px rgba(0, 0, 0, 0.24));
+  }
+
+  @keyframes attachmentSpin {
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg);
+    }
+  }
 `;
 
 export const AuthorName = styled.div`

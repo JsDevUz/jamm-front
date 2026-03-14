@@ -1,18 +1,14 @@
 // ✅ iOS Safari ✅ Android Chrome ✅ visualViewport API
 import React, { useEffect, useState } from "react";
 import styled from "styled-components";
-import { Keyboard, Plus, SendHorizontal, Smile } from "lucide-react";
+import { Plus, SendHorizontal, Smile } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { CHAT_EMOJIS } from "../constants/emojis";
 import { useChatAreaContext } from "../context/ChatAreaContext";
 import useKeyboardAvoid from "../../../../shared/hooks/useKeyboardAvoid";
 
 const MessageInputContainer = styled.div`
-  padding: 12px 16px
-    calc(
-      ${(props) => (props.$emojiPanelOpen ? `${props.$emojiPanelHeight}px + ` : "")}
-      16px + env(safe-area-inset-bottom, 0px)
-    );
+  padding: 12px 16px calc(16px + env(safe-area-inset-bottom, 0px));
   background-color: var(--secondary-color);
   border-top: 1px solid var(--border-color);
   position: relative;
@@ -239,17 +235,14 @@ const EmojiPicker = styled.div`
   }
 
   @media (max-width: 768px) {
-    right: 0;
-    left: 0;
-    bottom: 0;
-    width: 100%;
-    max-height: none;
-    height: ${(props) => `${props.$mobileHeight || 320}px`};
-    border-radius: 22px 22px 0 0;
-    padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
-    border-left: none;
-    border-right: none;
-    border-bottom: none;
+    right: 12px;
+    left: auto;
+    bottom: calc(78px + env(safe-area-inset-bottom, 0px));
+    width: min(360px, calc(100vw - 24px));
+    height: auto;
+    max-height: min(360px, calc(var(--app-height, 100dvh) - 180px));
+    border-radius: 18px;
+    padding-bottom: 12px;
   }
 `;
 
@@ -304,7 +297,6 @@ const EmojiButton = styled.button`
 
 const ChatAreaComposer = () => {
   const [showComingSoonTooltip, setShowComingSoonTooltip] = useState(false);
-  const [lastKeyboardHeight, setLastKeyboardHeight] = useState(0);
   const {
     currentChat,
     previewChat,
@@ -339,24 +331,11 @@ const ChatAreaComposer = () => {
     const caretPosition = messageInputRef.current.value.length;
     messageInputRef.current.setSelectionRange(caretPosition, caretPosition);
   };
-  const estimatedMobileKeyboardHeight =
-    typeof window !== "undefined"
-      ? Math.max(320, Math.min(Math.round((window.innerHeight || 0) * 0.42), 420))
-      : 320;
-  const emojiPanelHeight = isMobile
-    ? Math.max(lastKeyboardHeight || 0, estimatedMobileKeyboardHeight)
-    : Math.max(lastKeyboardHeight || 0, 290);
   const emojiSections = [
     { label: "Faces", emojis: CHAT_EMOJIS.slice(0, 35) },
     { label: "Mood", emojis: CHAT_EMOJIS.slice(35, 80) },
     { label: "Fun", emojis: CHAT_EMOJIS.slice(80) },
   ];
-
-  useEffect(() => {
-    if (keyboardHeight > 0) {
-      setLastKeyboardHeight(keyboardHeight);
-    }
-  }, [keyboardHeight]);
 
   useEffect(() => {
     if (!showComingSoonTooltip) return undefined;
@@ -395,46 +374,15 @@ const ChatAreaComposer = () => {
 
   const handleEmojiToggle = (event) => {
     event?.stopPropagation?.();
-
-    if (!isMobile) {
-      setShowEmojiPicker((previous) => !previous);
-      return;
-    }
-
-    if (showEmojiPicker) {
-      setShowEmojiPicker(false);
-      window.setTimeout(() => {
-        focusMessageInput();
-      }, 80);
-      return;
-    }
-
-    if (messageInputRef.current) {
-      messageInputRef.current.blur();
-    }
-
-    window.setTimeout(() => {
-      setShowEmojiPicker(true);
-    }, 40);
+    setShowEmojiPicker((previous) => !previous);
   };
 
   const handleEmojiSelect = (emoji) => {
     handleEmojiClick(emoji);
-
-    if (!isMobile || !showEmojiPicker) {
-      return;
-    }
-
-    window.setTimeout(() => {
-      messageInputRef.current?.blur();
-    }, 0);
   };
 
   return (
-    <MessageInputContainer
-      $emojiPanelOpen={Boolean(showEmojiPicker && isMobile)}
-      $emojiPanelHeight={emojiPanelHeight}
-    >
+    <MessageInputContainer>
       <ComposerStack>
         {editingMessage && (
           <ReplyPreview>
@@ -526,7 +474,7 @@ const ChatAreaComposer = () => {
             >
               <SendHorizontal size={16} />
             </SendButton>
-             <InputButton
+            <InputButton
               type="button"
               disabled={isComposerDisabled}
               onMouseDown={(event) => event.preventDefault()}
@@ -534,11 +482,7 @@ const ChatAreaComposer = () => {
               onClick={handleEmojiToggle}
               className="emoji-button"
              >
-              {showEmojiPicker && isMobile ? (
-                <Keyboard size={20} />
-              ) : (
-                <Smile size={20} />
-              )}
+              <Smile size={20} />
             </InputButton>
           </InputButtons>
         </InputWrapper>
@@ -547,7 +491,6 @@ const ChatAreaComposer = () => {
       {showEmojiPicker && (
         <EmojiPicker
           className="emoji-picker-container"
-          $mobileHeight={emojiPanelHeight}
         >
           {emojiSections.map((section) => (
             <EmojiSection key={section.label}>

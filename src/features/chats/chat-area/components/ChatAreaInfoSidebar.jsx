@@ -3,8 +3,8 @@ import styled from "styled-components";
 import dayjs from "dayjs";
 import { Bookmark, Edit2, Link2, X } from "lucide-react";
 import { toast } from "react-hot-toast";
-import PremiumBadgeIcon from "../../../../shared/ui/badges/PremiumBadge";
 import ImageLightbox from "../../../../shared/ui/media/ImageLightbox";
+import UserNameWithDecoration from "../../../../shared/ui/users/UserNameWithDecoration";
 import useChatAreaUiStore from "../store/useChatAreaUiStore";
 import { RESOLVED_APP_BASE_URL } from "../../../../config/env";
 
@@ -122,6 +122,14 @@ const GroupName = styled.h3`
   font-weight: 700;
   color: var(--text-color);
   margin: 0 0 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+
+  > span {
+    justify-content: center;
+  }
 `;
 
 const GroupStatus = styled.div`
@@ -296,6 +304,11 @@ const MemberNameRow = styled.span`
   display: flex;
   align-items: center;
   gap: 4px;
+  min-width: 0;
+
+  > span {
+    min-width: 0;
+  }
 `;
 
 const MemberStatus = styled.span`
@@ -424,10 +437,23 @@ const ChatAreaInfoSidebar = ({
             alt={currentChat?.name}
             onClose={() => setIsAvatarPreviewOpen(false)}
           />
-          <GroupName>{currentChat.name}
-            {currentChat.premiumStatus === "active" && (
-              <PremiumBadgeIcon width={20} height={20} />
-            )}
+          <GroupName>
+            <UserNameWithDecoration
+              user={
+                currentChat.type === "user" && otherUser
+                  ? otherUser
+                  : {
+                      name: currentChat.name,
+                      premiumStatus: currentChat.premiumStatus,
+                      selectedProfileDecorationId:
+                        currentChat.selectedProfileDecorationId,
+                      customProfileDecorationImage:
+                        currentChat.customProfileDecorationImage,
+                    }
+              }
+              fallback={currentChat.name}
+              size="lg"
+            />
           </GroupName>
           <GroupStatus>
             {currentChat.type === "user" ? (
@@ -579,10 +605,11 @@ const ChatAreaInfoSidebar = ({
                       </MemberAvatar>
                       <MemberMeta>
                         <MemberNameRow>
-                          {memberName}
-                          {member.premiumStatus === "active" && (
-                            <PremiumBadgeIcon width={12} height={12} />
-                          )}
+                          <UserNameWithDecoration
+                            user={member}
+                            fallback={memberName}
+                            size="sm"
+                          />
                         </MemberNameRow>
                         <MemberStatus
                           $online={!member.isOfficialProfile && isUserOnline(memberId)}

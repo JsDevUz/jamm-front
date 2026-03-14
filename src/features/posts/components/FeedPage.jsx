@@ -50,19 +50,19 @@ import {
   PostActions,
   PostAuthor,
   PostAvatar,
-  PostAvatarCol,
   PostBody,
   PostCard,
-  PostDot,
-  PostHandle,
   PostHeader,
   PostImageBlur,
   PostImageOverlay,
   PostImageReal,
   PostImagesGrid,
   PostImageTile,
+  PostMeta,
+  PostTopRow,
   PostText,
   PostTime,
+  PostUsername,
   Tab,
   TabsRow,
 } from "../styles/FeedPage.styles";
@@ -84,6 +84,7 @@ const renderText = renderInlineMarkup;
 const FeedPostImages = ({ post }) => {
   const [revealedImages, setRevealedImages] = useState({});
   const [loadingImages, setLoadingImages] = useState({});
+  const [loadedImages, setLoadedImages] = useState({});
 
   const images = Array.isArray(post?.images) ? post.images : [];
   if (!images.length) return null;
@@ -100,6 +101,7 @@ const FeedPostImages = ({ post }) => {
             key={key}
             type="button"
             $count={images.length}
+            $index={index}
             onClick={() => {
               if (isRevealed) return;
               setLoadingImages((prev) => ({ ...prev, [key]: true }));
@@ -110,7 +112,7 @@ const FeedPostImages = ({ post }) => {
               src={image.blurDataUrl || image.url}
               alt=""
               aria-hidden="true"
-              $hidden={isRevealed}
+              $hidden={Boolean(isRevealed && loadedImages[key])}
             />
 
             {!isRevealed ? (
@@ -125,15 +127,19 @@ const FeedPostImages = ({ post }) => {
                   src={image.url}
                   alt="Feed image"
                   loading="lazy"
+                  $loaded={Boolean(loadedImages[key])}
                   onLoad={() =>
-                    setLoadingImages((prev) => ({ ...prev, [key]: false }))
+                    {
+                      setLoadingImages((prev) => ({ ...prev, [key]: false }));
+                      setLoadedImages((prev) => ({ ...prev, [key]: true }));
+                    }
                   }
                   onError={() =>
                     setLoadingImages((prev) => ({ ...prev, [key]: false }))
                   }
                 />
                 {isLoading ? (
-                  <PostImageOverlay>
+                  <PostImageOverlay $loading>
                     <Loader2 size={18} />
                   </PostImageOverlay>
                 ) : null}
@@ -438,38 +444,38 @@ const FeedPage = () => {
                 const author = post.author || {};
                 const authorName =
                   author.nickname || author.username || t("common.userFallback");
-                const authorHandle = author.username || "user";
                 const isOwner =
                   String(author._id || "") ===
                   String(currentUser?._id || currentUser?.id || "");
 
                 return (
                   <PostCard key={post._id} data-post-id={post._id}>
-                    <PostAvatarCol>
-                      <PostAvatar
-                        $color={colorOf(authorName)}
-                        onClick={() => goToProfile(author._id)}
-                      >
-                        {author.avatar ? (
-                          <img src={author.avatar} alt={authorName} />
-                        ) : (
-                          authorName.charAt(0).toUpperCase()
-                        )}
-                      </PostAvatar>
-                    </PostAvatarCol>
-
                     <PostBody>
-                      <PostHeader>
-                        <PostAuthor onClick={() => goToProfile(author._id)}>
-                          <UserNameWithDecoration
-                            user={author}
-                            fallback={t("common.userFallback")}
-                          />
-                        </PostAuthor>
-                        <PostHandle>@{authorHandle}</PostHandle>
-                        <PostDot>·</PostDot>
-                        <PostTime>{formatChatTime(post.createdAt)}</PostTime>
-                      </PostHeader>
+                      <PostTopRow>
+                        <PostAvatar
+                          $color={colorOf(authorName)}
+                          onClick={() => goToProfile(author._id)}
+                        >
+                          {author.avatar ? (
+                            <img src={author.avatar} alt={authorName} />
+                          ) : (
+                            authorName.charAt(0).toUpperCase()
+                          )}
+                        </PostAvatar>
+
+                        <PostMeta>
+                          <PostHeader>
+                            <PostAuthor onClick={() => goToProfile(author._id)}>
+                              <UserNameWithDecoration
+                                user={author}
+                                fallback={t("common.userFallback")}
+                              />
+                            </PostAuthor>
+                            <PostTime>{formatChatTime(post.createdAt)}</PostTime>
+                          </PostHeader>
+                          <PostUsername>@{author.username || "user"}</PostUsername>
+                        </PostMeta>
+                      </PostTopRow>
 
                       <PostText>{renderText(post.content)}</PostText>
                       <FeedPostImages post={post} />

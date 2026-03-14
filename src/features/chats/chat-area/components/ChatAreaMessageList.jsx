@@ -9,6 +9,7 @@ import {
   X,
 } from "lucide-react";
 import PremiumBadgeIcon from "../../../../shared/ui/badges/PremiumBadge";
+import UserNameWithDecoration from "../../../../shared/ui/users/UserNameWithDecoration";
 import { useChatAreaContext } from "../context/ChatAreaContext";
 import useKeyboardAvoid from "../../../../shared/hooks/useKeyboardAvoid";
 
@@ -284,9 +285,20 @@ const MessageBubble = styled.div`
 const MessageText = styled.div`
   font-size: 14px;
   line-height: 1.4;
-  margin-bottom: 2px;
   white-space: pre-wrap;
   text-align: ${(props) => (props.$isOwn ? "right" : "left")};
+`;
+
+const MessageTextRow = styled.div`
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+`;
+
+const MessageTextContent = styled(MessageText)`
+  flex: 1;
+  min-width: 0;
+  margin-bottom: 0;
 `;
 
 const RepliedMessageRow = styled.div`
@@ -882,10 +894,11 @@ const ChatAreaMessageList = () => {
                       <>
                         {!isOwnMessage && displayChat?.type === "group" && (
                           <SenderInlineName>
-                            {group.user}
-                            {group.senderId?.premiumStatus === "active" && (
-                              <PremiumBadgeIcon width={14} height={14} />
-                            )}
+                            <UserNameWithDecoration
+                              user={senderMember || group.senderId}
+                              fallback={group.user}
+                              size="sm"
+                            />
                           </SenderInlineName>
                         )}
                         {renderReplyPreview(group, isOwnMessage)}
@@ -899,9 +912,14 @@ const ChatAreaMessageList = () => {
                             </InlineTimestamp>
                           </RepliedMessageRow>
                         ) : (
-                          <MessageText $isOwn={isOwnMessage}>
-                            {renderMessageContent(group.content, group.id)}
-                          </MessageText>
+                          <MessageTextRow>
+                            <MessageTextContent $isOwn={isOwnMessage}>
+                              {renderMessageContent(group.content, group.id)}
+                            </MessageTextContent>
+                            <InlineTimestamp $isOwn={isOwnMessage}>
+                              {group.timestamp}
+                            </InlineTimestamp>
+                          </MessageTextRow>
                         )}
                         {group.edited && (
                           <EditedIndicator>(tahrirlandi)</EditedIndicator>
@@ -920,7 +938,6 @@ const ChatAreaMessageList = () => {
                 </BubbleRow>
 
                 <MessageHeader $isOwn={isOwnMessage}>
-                  {!group.replayTo && <span>{group.timestamp}</span>}
                   {isOwnMessage && !group.isDeleted && (
                     <ReceiptStatus>
                       {group.deliveryStatus === "failed" ? (

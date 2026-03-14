@@ -171,7 +171,8 @@ export const PostCard = styled.div`
   position: relative;
   padding: 16px 10px;
   display: flex;
-  gap: 12px;
+  flex-direction: column;
+  gap: 10px;
   border-radius: 10px;
   overflow: hidden;
   animation: ${fadeSlide} 0.3s ease both;
@@ -183,8 +184,11 @@ export const PostCard = styled.div`
   }
 `;
 
-export const PostAvatarCol = styled.div`
-  flex-shrink: 0;
+export const PostTopRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
 `;
 
 export const PostAvatar = styled.div`
@@ -209,15 +213,27 @@ export const PostAvatar = styled.div`
 `;
 
 export const PostBody = styled.div`
+  width: 100%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+`;
+
+export const PostMeta = styled.div`
   flex: 1;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 `;
 
 export const PostHeader = styled.div`
   display: flex;
   align-items: center;
-  gap: 6px;
-  margin-bottom: 4px;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
 `;
 
 export const PostAuthor = styled.span`
@@ -225,25 +241,27 @@ export const PostAuthor = styled.span`
   font-weight: 700;
   color: var(--text-color);
   cursor: pointer;
+  min-width: 0;
+  flex: 1;
 
   &:hover {
     text-decoration: underline;
   }
 `;
 
-export const PostHandle = styled.span`
-  font-size: 13px;
-  color: var(--text-muted-color);
-`;
-
-export const PostDot = styled.span`
-  font-size: 13px;
-  color: var(--text-muted-color);
-`;
-
 export const PostTime = styled.span`
   font-size: 13px;
   color: var(--text-muted-color);
+  flex-shrink: 0;
+`;
+
+export const PostUsername = styled.span`
+  font-size: 13px;
+  color: var(--text-muted-color);
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 `;
 
 export const PostText = styled.div`
@@ -252,7 +270,6 @@ export const PostText = styled.div`
   color: var(--text-color);
   white-space: pre-wrap;
   word-break: break-word;
-  margin-bottom: 10px;
 
   strong {
     font-weight: 700;
@@ -271,6 +288,7 @@ export const PostImagesGrid = styled.div`
       : props.$count === 2
         ? "repeat(2, minmax(0, 1fr))"
         : "repeat(2, minmax(0, 1fr))"};
+  grid-auto-rows: minmax(0, 1fr);
   gap: 8px;
   margin: 2px 0 12px;
 `;
@@ -278,6 +296,14 @@ export const PostImagesGrid = styled.div`
 export const PostImageTile = styled.button`
   position: relative;
   aspect-ratio: ${(props) => (props.$count === 1 ? "1.18 / 1" : "1 / 1")};
+  ${(props) =>
+    props.$count === 3 && props.$index === 2
+      ? `
+        grid-column: 2;
+        grid-row: 1 / span 2;
+        aspect-ratio: auto;
+      `
+      : ""}
   border: none;
   border-radius: 16px;
   overflow: hidden;
@@ -302,6 +328,8 @@ export const PostImageReal = styled.img`
   width: 100%;
   height: 100%;
   object-fit: cover;
+  opacity: ${(props) => (props.$loaded ? 1 : 0)};
+  transition: opacity 0.2s ease;
 `;
 
 export const PostImageOverlay = styled.div`
@@ -316,6 +344,16 @@ export const PostImageOverlay = styled.div`
 
   svg {
     filter: drop-shadow(0 3px 10px rgba(0, 0, 0, 0.24));
+    animation: ${(props) => (props.$loading ? "postImageSpin 0.9s linear infinite" : "none")};
+  }
+
+  @keyframes postImageSpin {
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg);
+    }
   }
 `;
 
