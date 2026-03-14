@@ -307,6 +307,13 @@ const MiniStatus = styled.div`
   color: rgba(255, 255, 255, 0.82);
 `;
 
+const detectMobileCallViewport = () => {
+  if (typeof window === "undefined") return false;
+  const coarsePointer = window.matchMedia?.("(pointer: coarse)")?.matches;
+  const mobileViewport = window.matchMedia?.("(max-width: 768px)")?.matches;
+  return Boolean(coarsePointer || mobileViewport);
+};
+
 const PrivateVideoCall = ({
   isOpen,
   onClose,
@@ -321,11 +328,7 @@ const PrivateVideoCall = ({
   const [isLocalPrimary, setIsLocalPrimary] = useState(false);
   const [pipWindow, setPipWindow] = useState(null);
   const [pipContainer, setPipContainer] = useState(null);
-  const [isMobileViewport, setIsMobileViewport] = useState(() =>
-    typeof window !== "undefined"
-      ? window.matchMedia("(max-width: 768px)").matches
-      : false,
-  );
+  const [isMobileViewport, setIsMobileViewport] = useState(detectMobileCallViewport);
   const pipCloseIntentRef = useRef(false);
 
   const {
@@ -424,15 +427,19 @@ const PrivateVideoCall = ({
   }, [isLocalPrimary, swapAvailable]);
 
   useEffect(() => {
-    if (typeof window === "undefined" || !window.matchMedia) return undefined;
-    const mediaQuery = window.matchMedia("(max-width: 768px)");
-    const handleViewportChange = (event) => {
-      setIsMobileViewport(event.matches);
+    if (typeof window === "undefined") return undefined;
+
+    const handleViewportChange = () => {
+      setIsMobileViewport(detectMobileCallViewport());
     };
 
-    setIsMobileViewport(mediaQuery.matches);
-    mediaQuery.addEventListener("change", handleViewportChange);
-    return () => mediaQuery.removeEventListener("change", handleViewportChange);
+    handleViewportChange();
+    window.addEventListener("resize", handleViewportChange);
+    window.addEventListener("orientationchange", handleViewportChange);
+    return () => {
+      window.removeEventListener("resize", handleViewportChange);
+      window.removeEventListener("orientationchange", handleViewportChange);
+    };
   }, []);
 
   const handleSwapFeeds = useCallback(() => {
@@ -658,14 +665,12 @@ const PrivateVideoCall = ({
                 <span>{mainShowsLocal ? displayName : remoteName}</span>
               </RemoteState>
 
-              <Label>
-                {remoteScreenStreams.length > 0 ? (
-                  <>
-                    <Monitor size={14} />
-                    {t("privateCall.screenShareLabel")}
-                  </>
-                ) : null}
-              </Label>
+              {remoteScreenStreams.length > 0 ? (
+                <Label>
+                  <Monitor size={14} />
+                  {t("privateCall.screenShareLabel")}
+                </Label>
+              ) : null}
 
               <LocalTile
                 type="button"
