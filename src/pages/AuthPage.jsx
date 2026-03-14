@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import styled, { keyframes } from "styled-components";
 import {
@@ -646,16 +646,41 @@ const PolicyLink = styled.button`
   }
 `;
 
+const InlineActionRow = styled.div`
+  display: flex;
+  justify-content: flex-end;
+  margin-top: -6px;
+  margin-bottom: 10px;
+`;
+
+const GhostLinkButton = styled.button`
+  background: none;
+  border: none;
+  padding: 0;
+  color: #8ea1e1;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+
+  &:hover {
+    color: #bcc8f6;
+    text-decoration: underline;
+  }
+`;
+
 const AuthPage = () => {
   const navigate = useNavigate();
   const setAuth = useAuthStore((state) => state.setAuth);
-  const [mode, setMode] = useState("login"); // "login" | "signup"
+  const [mode, setMode] = useState("login"); // "login" | "signup" | "forgot" | "reset"
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [showLegal, setShowLegal] = useState(null); // null | 'privacy' | 'terms'
+  const [resetToken, setResetToken] = useState("");
 
   // Form fields
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [nickname, setNickname] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -664,12 +689,21 @@ const AuthPage = () => {
     /^[^\s@]+@(gmail\.com|jamm\.uz)$/i.test(value.trim());
 
   // Check for verification token in URL
-  React.useEffect(() => {
+  useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const verifyToken = params.get("verify_token");
+    const nextResetToken = params.get("reset_token");
 
     if (verifyToken) {
       handleVerify(verifyToken);
+      return;
+    }
+
+    if (nextResetToken) {
+      setResetToken(nextResetToken);
+      setMode("reset");
+      setError("");
+      setSuccess("");
     }
   }, []);
 
@@ -702,19 +736,39 @@ const AuthPage = () => {
     setSuccess("");
 
     const normalizedEmail = email.trim().toLowerCase();
-    if (!isAllowedEmail(normalizedEmail)) {
+    if ((mode === "login" || mode === "signup" || mode === "forgot") && !isAllowedEmail(normalizedEmail)) {
       setError("Faqat gmail.com yoki jamm.uz email manzili ruxsat etiladi");
       return;
+    }
+
+    if (mode === "reset") {
+      if (password.length < 6) {
+        setError("Parol kamida 6 ta belgidan iborat bo'lishi kerak");
+        return;
+      }
+
+      if (password !== confirmPassword) {
+        setError("Parollar bir xil emas");
+        return;
+      }
     }
 
     setLoading(true);
 
     try {
-      const endpoint = mode === "login" ? "/auth/login" : "/auth/signup";
-      const body =
-        mode === "login"
-          ? { email: normalizedEmail, password }
-          : { email: normalizedEmail, password, nickname };
+      let endpoint = "/auth/login";
+      let body = { email: normalizedEmail, password };
+
+      if (mode === "signup") {
+        endpoint = "/auth/signup";
+        body = { email: normalizedEmail, password, nickname };
+      } else if (mode === "forgot") {
+        endpoint = "/auth/forgot-password";
+        body = { email: normalizedEmail };
+      } else if (mode === "reset") {
+        endpoint = "/auth/reset-password";
+        body = { token: resetToken, password };
+      }
 
       const res = await fetch(`${API_BASE_URL}${endpoint}`, {
         method: "POST",
@@ -734,7 +788,18 @@ const AuthPage = () => {
         // Clear fields
         setEmail("");
         setPassword("");
+        setConfirmPassword("");
         setNickname("");
+      } else if (mode === "forgot") {
+        setSuccess(data.message);
+        setEmail("");
+      } else if (mode === "reset") {
+        setSuccess(data.message);
+        setPassword("");
+        setConfirmPassword("");
+        setResetToken("");
+        window.history.replaceState({}, "", "/login");
+        setMode("login");
       } else {
         // Login success
         setAuth(data.user);
@@ -810,22 +875,32 @@ const AuthPage = () => {
           <Title>
             {mode === "login"
               ? "Qaytib kelganingizdan xursandmiz!"
-              : "Akkaunt yarating"}
+              : mode === "signup"
+                ? "Akkaunt yarating"
+                : mode === "forgot"
+                  ? "Parolni unutdingizmi?"
+                  : "Yangi parol o'rnating"}
           </Title>
           <Subtitle>
             {mode === "login"
               ? "Hisobingizga kirish uchun ma'lumotlaringizni kiriting"
-              : "Ro'yxatdan o'tib, platformaga qo'shiling"}
+              : mode === "signup"
+                ? "Ro'yxatdan o'tib, platformaga qo'shiling"
+                : mode === "forgot"
+                  ? "Email manzilingizni kiriting, sizga tiklash havolasini yuboramiz"
+                  : "Yangi parolni ikki marta kiriting va saqlang"}
           </Subtitle>
 
-          <TabRow>
-            <Tab $active={mode === "login"} onClick={() => setMode("login")}>
-              Kirish
-            </Tab>
-            <Tab $active={mode === "signup"} onClick={() => setMode("signup")}>
-              Ro'yxatdan o'tish
-            </Tab>
-          </TabRow>
+          {(mode === "login" || mode === "signup") && (
+            <TabRow>
+              <Tab $active={mode === "login"} onClick={() => setMode("login")}>
+                Kirish
+              </Tab>
+              <Tab $active={mode === "signup"} onClick={() => setMode("signup")}>
+                Ro'yxatdan o'tish
+              </Tab>
+            </TabRow>
+          )}
 
           <Form onSubmit={handleSubmit}>
             {mode === "signup" && (
@@ -846,43 +921,87 @@ const AuthPage = () => {
               </InputGroup>
             )}
 
-            <InputGroup>
-              <Label>Email</Label>
-              <InputWrapper>
-                <StyledInput
-                  type="email"
-                  placeholder="username@gmail.com yoki username@jamm.uz"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                />
-                <InputIcon>
-                  <Mail size={16} />
-                </InputIcon>
-              </InputWrapper>
-            </InputGroup>
+            {mode !== "reset" && (
+              <InputGroup>
+                <Label>Email</Label>
+                <InputWrapper>
+                  <StyledInput
+                    type="email"
+                    placeholder="username@gmail.com yoki username@jamm.uz"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                  />
+                  <InputIcon>
+                    <Mail size={16} />
+                  </InputIcon>
+                </InputWrapper>
+              </InputGroup>
+            )}
 
-            <InputGroup>
-              <Label>Parol</Label>
-              <InputWrapper>
-                <StyledInput
-                  type={showPassword ? "text" : "password"}
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                />
-                <InputIcon>
-                  <Lock size={16} />
-                </InputIcon>
-                <PasswordToggle
+            {mode !== "forgot" && (
+              <InputGroup>
+                <Label>{mode === "reset" ? "Yangi parol" : "Parol"}</Label>
+                <InputWrapper>
+                  <StyledInput
+                    type={showPassword ? "text" : "password"}
+                    placeholder="••••••••"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                  />
+                  <InputIcon>
+                    <Lock size={16} />
+                  </InputIcon>
+                  <PasswordToggle
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                  >
+                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </PasswordToggle>
+                </InputWrapper>
+              </InputGroup>
+            )}
+
+            {mode === "reset" && (
+              <InputGroup>
+                <Label>Parolni tasdiqlang</Label>
+                <InputWrapper>
+                  <StyledInput
+                    type={showConfirmPassword ? "text" : "password"}
+                    placeholder="••••••••"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    required
+                  />
+                  <InputIcon>
+                    <Lock size={16} />
+                  </InputIcon>
+                  <PasswordToggle
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  >
+                    {showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </PasswordToggle>
+                </InputWrapper>
+              </InputGroup>
+            )}
+
+            {mode === "login" && (
+              <InlineActionRow>
+                <GhostLinkButton
                   type="button"
-                  onClick={() => setShowPassword(!showPassword)}
+                  onClick={() => {
+                    setMode("forgot");
+                    setError("");
+                    setSuccess("");
+                    setPassword("");
+                  }}
                 >
-                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                </PasswordToggle>
-              </InputWrapper>
-            </InputGroup>
+                  Parolni unutdingizmi?
+                </GhostLinkButton>
+              </InlineActionRow>
+            )}
 
             {success && <SuccessMessage>{success}</SuccessMessage>}
             {error && <ErrorMessage>{error}</ErrorMessage>}
@@ -892,19 +1011,27 @@ const AuthPage = () => {
                 ? "Yuklanmoqda..."
                 : mode === "login"
                   ? "Kirish"
-                  : "Ro'yxatdan o'tish"}
+                  : mode === "signup"
+                    ? "Ro'yxatdan o'tish"
+                    : mode === "forgot"
+                      ? "Havolani yuborish"
+                      : "Parolni o'zgartirish"}
               {!loading && <ArrowRight size={18} />}
             </SubmitButton>
           </Form>
 
-          <Divider>
-            <span>yoki</span>
-          </Divider>
+          {(mode === "login" || mode === "signup") && (
+            <>
+              <Divider>
+                <span>yoki</span>
+              </Divider>
 
-          <GoogleButton onClick={handleGoogleAuth}>
-            <GoogleLogo />
-            Google orqali {mode === "login" ? "kirish" : "ro'yxatdan o'tish"}
-          </GoogleButton>
+              <GoogleButton onClick={handleGoogleAuth}>
+                <GoogleLogo />
+                Google orqali {mode === "login" ? "kirish" : "ro'yxatdan o'tish"}
+              </GoogleButton>
+            </>
+          )}
 
           <FooterText>
             {mode === "login" ? (
@@ -914,10 +1041,28 @@ const AuthPage = () => {
                   Ro'yxatdan o'ting
                 </SwitchLink>
               </>
-            ) : (
+            ) : mode === "signup" ? (
               <>
                 Hisobingiz bormi?{" "}
                 <SwitchLink type="button" onClick={() => setMode("login")}>
+                  Kirish
+                </SwitchLink>
+              </>
+            ) : (
+              <>
+                Login sahifasiga qaytish{" "}
+                <SwitchLink
+                  type="button"
+                  onClick={() => {
+                    setMode("login");
+                    setError("");
+                    setSuccess("");
+                    setPassword("");
+                    setConfirmPassword("");
+                    setResetToken("");
+                    window.history.replaceState({}, "", "/login");
+                  }}
+                >
                   Kirish
                 </SwitchLink>
               </>
