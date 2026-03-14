@@ -3,6 +3,7 @@ import { io } from "socket.io-client";
 import axiosInstance from "../api/axiosInstance";
 import useAuthStore from "../store/authStore";
 import { API_BASE_URL } from "../config/env";
+import { isValidMeetRoomId } from "../utils/meetStore";
 
 const SIGNAL_URL = API_BASE_URL;
 const MOBILE_CAMERA_MEDIA_QUERY = "(max-width: 768px)";
@@ -250,54 +251,6 @@ export function useWebRTC({
     [],
   );
 
-  const replaceCameraTrack = useCallback(
-    async (nextTrack, { enabled = true } = {}) => {
-      const stream = localStreamRef.current;
-      if (!stream || !nextTrack) return false;
-
-      const previousTrack = stream.getVideoTracks()[0] || null;
-      nextTrack.enabled = enabled;
-      stream.addTrack(nextTrack);
-      if (previousTrack) {
-        stream.removeTrack(previousTrack);
-      }
-
-      const replaceTasks = Object.entries(peerConnectionsRef.current).map(
-        async ([peerId, pc]) => {
-          const screenSender = screenSendersRef.current[peerId] || null;
-          const matchingSender =
-            pc
-              .getSenders()
-              .find(
-                (sender) =>
-                  sender.track?.kind === "video" &&
-                  sender !== screenSender &&
-                  (!previousTrack || sender.track?.id === previousTrack.id),
-              ) ||
-            pc
-              .getSenders()
-              .find(
-                (sender) =>
-                  sender.track?.kind === "video" && sender !== screenSender,
-              );
-
-          if (matchingSender) {
-            try {
-              await matchingSender.replaceTrack(nextTrack);
-            } catch {}
-          }
-        },
-      );
-
-      await Promise.all(replaceTasks);
-      previousTrack?.stop();
-      setLocalStream(stream);
-      await applyMediaOptimization(qualityProfileRef.current);
-      return true;
-    },
-    [applyMediaOptimization],
-  );
-
   const applyMediaOptimization = useCallback(async (profile) => {
     const stream = localStreamRef.current;
     if (!stream) return;
@@ -371,6 +324,54 @@ export function useWebRTC({
 
     await Promise.all(senderTasks);
   }, [isScreenSharing]);
+
+  const replaceCameraTrack = useCallback(
+    async (nextTrack, { enabled = true } = {}) => {
+      const stream = localStreamRef.current;
+      if (!stream || !nextTrack) return false;
+
+      const previousTrack = stream.getVideoTracks()[0] || null;
+      nextTrack.enabled = enabled;
+      stream.addTrack(nextTrack);
+      if (previousTrack) {
+        stream.removeTrack(previousTrack);
+      }
+
+      const replaceTasks = Object.entries(peerConnectionsRef.current).map(
+        async ([peerId, pc]) => {
+          const screenSender = screenSendersRef.current[peerId] || null;
+          const matchingSender =
+            pc
+              .getSenders()
+              .find(
+                (sender) =>
+                  sender.track?.kind === "video" &&
+                  sender !== screenSender &&
+                  (!previousTrack || sender.track?.id === previousTrack.id),
+              ) ||
+            pc
+              .getSenders()
+              .find(
+                (sender) =>
+                  sender.track?.kind === "video" && sender !== screenSender,
+              );
+
+          if (matchingSender) {
+            try {
+              await matchingSender.replaceTrack(nextTrack);
+            } catch {}
+          }
+        },
+      );
+
+      await Promise.all(replaceTasks);
+      previousTrack?.stop();
+      setLocalStream(stream);
+      await applyMediaOptimization(qualityProfileRef.current);
+      return true;
+    },
+    [applyMediaOptimization],
+  );
 
   const refreshQualityProfile = useCallback(async () => {
     const peerCount =
@@ -794,6 +795,12 @@ export function useWebRTC({
         });
 
         // 6. Join or create room
+        if (!isValidMeetRoomId(roomId)) {
+          setError("Room ID noto‘g‘ri");
+          setJoinStatus("idle");
+          return;
+        }
+
         if (isCreator) {
           socket.emit("create-room", {
             roomId,

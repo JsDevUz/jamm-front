@@ -1,6 +1,15 @@
 import axiosInstance from "../api/axiosInstance";
 import { API_BASE_URL } from "../config/env";
 
+export const MEET_ROOM_ID_PATTERN = /^[a-zA-Z0-9_-]{4,128}$/;
+
+export function isValidMeetRoomId(roomId) {
+  return (
+    typeof roomId === "string" &&
+    MEET_ROOM_ID_PATTERN.test(roomId.trim())
+  );
+}
+
 export async function getMeets() {
   try {
     const res = await axiosInstance.get(`${API_BASE_URL}/meets`);

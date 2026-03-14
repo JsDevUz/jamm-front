@@ -13,7 +13,12 @@ import {
   ModalTitle,
   ModalTitleBlock,
 } from "../../../shared/ui/dialogs/ModalShell";
-import { getMeets, saveMeet } from "../../../utils/meetStore";
+import {
+  getMeets,
+  isValidMeetRoomId,
+  removeMeet,
+  saveMeet,
+} from "../../../utils/meetStore";
 
 const HeaderIcon = styled.div`
   width: 42px;
@@ -176,10 +181,14 @@ const CreateMeetDialog = ({ isOpen, onClose, onStart }) => {
 
         const existingMeet = Array.isArray(existingMeets) ? existingMeets[0] : null;
 
-        if (existingMeet?.roomId) {
+        if (isValidMeetRoomId(existingMeet?.roomId)) {
           setMeet(existingMeet);
           setIsLoading(false);
           return;
+        }
+
+        if (existingMeet?.roomId) {
+          await removeMeet(existingMeet.roomId);
         }
 
         const payload = buildMeetPayload();
