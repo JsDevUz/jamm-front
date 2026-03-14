@@ -229,6 +229,7 @@ export const ChatsProvider = ({ children }) => {
           };
           return newChats;
         }
+        fetchChats(1);
         return prev;
       });
     };

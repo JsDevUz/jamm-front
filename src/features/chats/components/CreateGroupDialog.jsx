@@ -2,8 +2,10 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import styled from "styled-components";
 import { X, Upload, Search, Loader, Plus, Trash2 } from "lucide-react";
 import { toast } from "react-hot-toast";
-import useUploadAvatar from "../../../hooks/useUploadAvatar";
-import { searchUsers as searchUsersApi } from "../../../api/chatApi";
+import {
+  searchUsers as searchUsersApi,
+  uploadAvatar,
+} from "../../../api/chatApi";
 import { APP_LIMITS } from "../../../constants/appLimits";
 import {
   DialogActionButton,
@@ -506,15 +508,41 @@ const CreateGroupDialog = ({ isOpen, onClose, onCreate, users = [] }) => {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [imageUrl, setImageUrl] = useState("");
+  const [imageFile, setImageFile] = useState(null);
   const [selectedUsers, setSelectedUsers] = useState([]);
   const [isAddMemberOpen, setIsAddMemberOpen] = useState(false);
   const [showCreateTooltip, setShowCreateTooltip] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const fileInputRef = useRef(null);
 
-  const uploadAvatarMutation = useUploadAvatar({
-    onSuccess: (url) => setImageUrl(url),
-    onError: () => toast.error("Rasm yuklashda xatolik yuz berdi"),
-  });
+  const clearImagePreview = () => {
+    setImageUrl((prev) => {
+      if (prev?.startsWith("blob:")) {
+        URL.revokeObjectURL(prev);
+      }
+      return "";
+    });
+  };
+
+  const resetForm = () => {
+    setName("");
+    setDescription("");
+    setImageFile(null);
+    clearImagePreview();
+    setSelectedUsers([]);
+    setIsAddMemberOpen(false);
+    setShowCreateTooltip(false);
+    setIsSubmitting(false);
+  };
+
+  useEffect(
+    () => () => {
+      if (imageUrl?.startsWith("blob:")) {
+        URL.revokeObjectURL(imageUrl);
+      }
+    },
+    [imageUrl],
+  );
 
   useEffect(() => {
     if (!showCreateTooltip) return undefined;
@@ -524,23 +552,34 @@ const CreateGroupDialog = ({ isOpen, onClose, onCreate, users = [] }) => {
     return () => window.clearTimeout(timer);
   }, [showCreateTooltip]);
 
-  const handleSubmit = () => {
-    if (!name.trim()) return;
+  const handleSubmit = async () => {
+    if (!name.trim() || isSubmitting) return;
 
-    onCreate({
-      name,
-      description,
-      image: imageUrl,
-      members: selectedUsers,
-    });
+    setIsSubmitting(true);
 
-    // Reset form
-    setName("");
-    setDescription("");
-    setImageUrl("");
-    setSelectedUsers([]);
-    setIsAddMemberOpen(false);
-    onClose();
+    try {
+      let uploadedImageUrl = "";
+
+      if (imageFile) {
+        const formData = new FormData();
+        formData.append("file", imageFile);
+        uploadedImageUrl = await uploadAvatar(formData);
+      }
+
+      await onCreate({
+        name,
+        description,
+        image: uploadedImageUrl,
+        members: selectedUsers,
+      });
+
+      resetForm();
+      onClose();
+    } catch (error) {
+      console.error("Failed to create group draft", error);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const toggleUser = (userId) => {
@@ -590,9 +629,9 @@ const CreateGroupDialog = ({ isOpen, onClose, onCreate, users = [] }) => {
       return;
     }
 
-    const formData = new FormData();
-    formData.append("file", file);
-    uploadAvatarMutation.mutate(formData);
+    setImageFile(file);
+    clearImagePreview();
+    setImageUrl(URL.createObjectURL(file));
   };
 
   return (
@@ -627,7 +666,7 @@ const CreateGroupDialog = ({ isOpen, onClose, onCreate, users = [] }) => {
                 if (fileInputRef.current) fileInputRef.current.click();
               }}
             >
-              {uploadAvatarMutation.isPending ? (
+              {isSubmitting && imageFile && !imageUrl ? (
                 <Loader
                   size={24}
                   style={{ animation: "spin 1s linear infinite" }}
@@ -741,7 +780,7 @@ const CreateGroupDialog = ({ isOpen, onClose, onCreate, users = [] }) => {
                 }
                 handleSubmit();
               }}
-              disabled={!hasGroupName}
+              disabled={!hasGroupName || isSubmitting}
               aria-disabled={needsMembers}
               style={
                 needsMembers

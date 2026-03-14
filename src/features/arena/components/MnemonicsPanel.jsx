@@ -121,7 +121,6 @@ const TimerBadge = styled.div`
 
 const MnemonicsPanel = ({ onBack }) => {
   const { t, i18n } = useTranslation();
-  const authToken = useAuthStore((state) => state.token);
   const currentUser = useAuthStore((state) => state.user);
   const digitCellRefs = useRef([]);
   const [mode, setMode] = useState("digits");
@@ -331,14 +330,19 @@ const MnemonicsPanel = ({ onBack }) => {
     setResult(nextResult);
     setPhase("result");
 
-    if (authToken) {
+    if (currentUser?._id || currentUser?.id) {
       saveMnemonicBestResult({
         mode,
         score: nextResult.score,
         total: nextResult.total,
         elapsedMemorizeMs: nextResult.elapsedMemorizeMs,
       })
-        .then(() => loadLeaderboard(mode))
+        .then((data) => {
+          if (data?.currentUserBest) {
+            setCurrentUserBest(data.currentUserBest);
+          }
+          loadLeaderboard(mode);
+        })
         .catch(() => undefined);
     }
   };

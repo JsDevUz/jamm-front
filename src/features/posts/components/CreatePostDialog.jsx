@@ -58,6 +58,7 @@ const CreatePostDialog = ({
       setAttachments(
         (initialImages || []).map((image, index) => ({
           id: image.url || `initial-${index}`,
+          file: null,
           url: image.url,
           previewUrl: image.url,
           blurDataUrl: image.blurDataUrl || image.url,
@@ -101,8 +102,11 @@ const CreatePostDialog = ({
 
   const handleSubmit = async () => {
     const nextContent = text.trim();
-    const readyImages = attachments
-      .filter((image) => image.url && !image.uploading && !image.error)
+    const localAttachments = attachments.filter(
+      (image) => image.file && !image.error,
+    );
+    const existingImages = attachments
+      .filter((image) => image.url && !image.file && !image.error)
       .map(({ url, blurDataUrl, width, height }) => ({
         url,
         blurDataUrl,
@@ -110,13 +114,93 @@ const CreatePostDialog = ({
         height,
       }));
 
-    if (!nextContent && readyImages.length === 0) return;
+    if (!nextContent && existingImages.length === 0 && localAttachments.length === 0) {
+      return;
+    }
     if (countWords(text) > APP_LIMITS.postWords) return;
-    await onSubmit({
-      content: nextContent,
-      images: allowImages ? readyImages : undefined,
-    });
-    onClose();
+
+    let uploadedUrlsToCleanup = [];
+
+    try {
+      setUploading(true);
+
+      if (allowImages && localAttachments.length > 0) {
+        setAttachments((prev) =>
+          prev.map((attachment) =>
+            attachment.file
+              ? { ...attachment, uploading: true, error: null }
+              : attachment,
+          ),
+        );
+      }
+
+      const uploadedImages = [];
+
+      for (const attachment of localAttachments) {
+        try {
+          const response = await uploadPostImage(attachment.file);
+          if (!response?.url) {
+            throw new Error("Upload failed");
+          }
+
+          uploadedUrlsToCleanup.push(response.url);
+          uploadedImages.push({
+            url: response.url,
+            blurDataUrl: attachment.blurDataUrl,
+            width: attachment.width,
+            height: attachment.height,
+          });
+
+          setAttachments((prev) =>
+            prev.map((image) =>
+              image.id === attachment.id
+                ? {
+                    ...image,
+                    url: response.url,
+                    uploading: false,
+                    error: null,
+                  }
+                : image,
+            ),
+          );
+        } catch (error) {
+          setAttachments((prev) =>
+            prev.map((image) =>
+              image.id === attachment.id
+                ? { ...image, uploading: false, error: "Yuklanmadi" }
+                : image,
+            ),
+          );
+          throw error;
+        }
+      }
+
+      await onSubmit({
+        content: nextContent,
+        images: allowImages ? [...existingImages, ...uploadedImages] : undefined,
+      });
+      onClose();
+    } catch (error) {
+      for (const url of uploadedUrlsToCleanup) {
+        try {
+          await deletePostImage(url);
+        } catch (cleanupError) {
+          console.error("Post image cleanup failed:", cleanupError);
+        }
+      }
+
+      setAttachments((prev) =>
+        prev.map((attachment) =>
+          attachment.file && !attachment.url
+            ? { ...attachment, uploading: false }
+            : attachment,
+        ),
+      );
+
+      toast.error("Rasmlarni yuborishda xatolik yuz berdi");
+    } finally {
+      setUploading(false);
+    }
   };
 
   const handleKeyDown = (event) => {
@@ -175,7 +259,6 @@ const CreatePostDialog = ({
       toast.error("Faqat dastlabki 3 ta rasm tanlandi");
     }
 
-    setUploading(true);
     const preparedAttachments = [];
 
     for (const file of pickedFiles) {
@@ -197,7 +280,7 @@ const CreatePostDialog = ({
           width: placeholder.width,
           height: placeholder.height,
           name: file.name,
-          uploading: true,
+          uploading: false,
           error: null,
         });
       } catch (error) {
@@ -205,63 +288,12 @@ const CreatePostDialog = ({
       }
     }
 
-    if (preparedAttachments.length === 0) {
-      setUploading(false);
-      return;
-    }
+    if (preparedAttachments.length === 0) return;
 
     setAttachments((prev) => [
       ...prev,
-      ...preparedAttachments.map(({ file, ...attachment }) => attachment),
+      ...preparedAttachments,
     ]);
-
-    for (const attachment of preparedAttachments) {
-      try {
-        const response = await uploadPostImage(attachment.file);
-        if (!response?.url) {
-          throw new Error("Upload failed");
-        }
-
-        if (removedAttachmentIdsRef.current.has(attachment.id)) {
-          removedAttachmentIdsRef.current.delete(attachment.id);
-          await deleteRemoteAttachment({ url: response.url });
-          continue;
-        }
-
-        setAttachments((prev) =>
-          prev.map((image) =>
-            image.id === attachment.id
-              ? {
-                  ...image,
-                  url: response.url,
-                  uploading: false,
-                  error: null,
-                }
-              : image,
-          ),
-        );
-      } catch (error) {
-        if (removedAttachmentIdsRef.current.has(attachment.id)) {
-          removedAttachmentIdsRef.current.delete(attachment.id);
-          continue;
-        }
-
-        setAttachments((prev) =>
-          prev.map((image) =>
-            image.id === attachment.id
-              ? {
-                  ...image,
-                  uploading: false,
-                  error: "Yuklanmadi",
-                }
-              : image,
-          ),
-        );
-        toast.error(`${attachment.name} rasmni yuklab bo'lmadi`);
-      }
-    }
-
-    setUploading(false);
   };
 
   const removeAttachment = async (attachmentId) => {

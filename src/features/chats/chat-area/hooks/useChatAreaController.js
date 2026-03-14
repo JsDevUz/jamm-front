@@ -90,6 +90,8 @@ export default function useChatAreaController({
   const [clickedMessageId, setClickedMessageId] = useState(null);
   const [clickTimer, setClickTimer] = useState(null);
   const [navigatingMessageId, setNavigatingMessageId] = useState(null);
+  const [initialScrollTargetMessageId, setInitialScrollTargetMessageId] =
+    useState(null);
 
   const typingTimeoutRef = useRef(null);
   const previewLocationRef = useRef(null);
@@ -103,6 +105,7 @@ export default function useChatAreaController({
   useEffect(() => {
     resetChatAreaUi();
     setEditingMessage(null);
+    setInitialScrollTargetMessageId(null);
   }, [selectedChatId, resetChatAreaUi]);
 
   useEffect(() => {
@@ -302,19 +305,9 @@ export default function useChatAreaController({
           !normalizeReadByIds(message.readBy).includes(currentUserId),
       );
 
-      setTimeout(() => {
-        const firstUnreadId = firstUnread
-          ? firstUnread.id || firstUnread._id
-          : null;
-        if (firstUnreadId && messageRefs.current[firstUnreadId]) {
-          messageRefs.current[firstUnreadId].scrollIntoView({
-            behavior: "auto",
-            block: "center",
-          });
-        } else {
-          messagesEndRef.current?.scrollIntoView({ behavior: "auto" });
-        }
-      }, 100);
+      setInitialScrollTargetMessageId(
+        firstUnread ? firstUnread.id || firstUnread._id : "__bottom__",
+      );
     };
 
     loadMessages();
@@ -1307,6 +1300,7 @@ export default function useChatAreaController({
       await editChat(currentChat.id || currentChat._id, updatedData);
     } catch (error) {
       console.error("Guruhni tahrirlashda xatolik", error);
+      throw error;
     }
   };
 
@@ -1338,6 +1332,8 @@ export default function useChatAreaController({
       messageInput,
       messageRefs,
       messagesEndRef,
+      initialScrollTargetMessageId,
+      setInitialScrollTargetMessageId,
       messageInputRef,
       fetchMoreMessages,
       handleMessageDoubleClick,
@@ -1376,10 +1372,12 @@ export default function useChatAreaController({
       messages,
       messagesHasMore,
       isLoadingMessages,
+      initialScrollTargetMessageId,
       navigate,
       previewChat,
       replyMessage,
       selectedNav,
+      setInitialScrollTargetMessageId,
       setShowEmojiPicker,
       showEmojiPicker,
     ],

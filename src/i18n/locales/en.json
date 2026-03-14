@@ -682,7 +682,8 @@
     "callEnded": "Call ended",
     "localLabel": "You",
     "remoteLabel": "Participant",
-    "screenShareLabel": "Screen share"
+    "screenShareLabel": "Screen share",
+    "switchCamera": "Switch camera"
   },
   "mnemonics": {
     "title": "Mnemonics",
@@ -958,6 +959,9 @@
       "statusLabel": "Status",
       "statusMeta": "Premium status on your profile.",
       "freeAccount": "Standard account",
+      "aboutTitle": "What does Premium include?",
+      "aboutDescription": "See what features unlock with a Premium subscription.",
+      "aboutAction": "View benefits",
       "promoLabel": "Promo code",
       "promoDescription": "Enter a code to activate Premium quickly.",
       "promoPlaceholder": "Enter code",

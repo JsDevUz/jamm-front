@@ -11,9 +11,8 @@ import {
   Loader,
 } from "lucide-react";
 import useAuthStore from "../../../store/authStore";
-import useUpdateGroupAvatar from "../../../hooks/useUpdateGroupAvatar";
 import { useChats } from "../../../contexts/ChatsContext";
-import useUploadAvatar from "../../../hooks/useUploadAvatar";
+import { uploadAvatar } from "../../../api/chatApi";
 import { toast } from "react-hot-toast";
 import { SidebarIconButton as ButtonWrapper } from "../../../shared/ui/buttons/IconButton";
 
@@ -638,15 +637,13 @@ const EditGroupDialog = ({
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [imageUrl, setImageUrl] = useState("");
+  const [imageFile, setImageFile] = useState(null);
+  const [imagePreviewUrl, setImagePreviewUrl] = useState("");
   const [selectedUsers, setSelectedUsers] = useState([]);
   const [isAddMemberOpen, setIsAddMemberOpen] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const { searchGlobalUsers } = useChats();
   const fileInputRef = useRef(null);
-
-  const updateAvatarMutation = useUpdateGroupAvatar({
-    onSuccess: (url) => setImageUrl(url),
-    onError: () => toast.error("Rasm yuklashda xatolik yuz berdi"),
-  });
 
   const [admins, setAdmins] = useState([]);
   const [showAdminPanelFor, setShowAdminPanelFor] = useState(null);
@@ -666,11 +663,22 @@ const EditGroupDialog = ({
   const canRemoveMembers = checkPerm("remove_members");
   const canAddAdmins = checkPerm("add_admins");
 
+  const clearImagePreview = useCallback(() => {
+    setImagePreviewUrl((prev) => {
+      if (prev?.startsWith("blob:")) {
+        URL.revokeObjectURL(prev);
+      }
+      return "";
+    });
+  }, []);
+
   useEffect(() => {
     if (isOpen && group) {
       setName(group.name || "");
       setDescription(group.description || "");
       setImageUrl(group.avatar || "");
+      setImageFile(null);
+      clearImagePreview();
       setSelectedUsers(
         group.members
           ? group.members.map((m) => String(m.id || m._id || m))
@@ -686,7 +694,16 @@ const EditGroupDialog = ({
       );
       setIsAddMemberOpen(false);
     }
-  }, [isOpen, group]);
+  }, [clearImagePreview, group, isOpen]);
+
+  useEffect(
+    () => () => {
+      if (imagePreviewUrl?.startsWith("blob:")) {
+        URL.revokeObjectURL(imagePreviewUrl);
+      }
+    },
+    [imagePreviewUrl],
+  );
 
   /* Old debounced search effects moved to AddMemberDialog */
 
@@ -748,20 +765,37 @@ const EditGroupDialog = ({
     });
   };
 
-  const handleSaveWrapper = () => {
-    console.log(selectedUsers);
+  const handleSaveWrapper = async () => {
+    if (isSaving) return;
 
-    const data = {
-      name,
-      description,
-      avatar: imageUrl,
-      members: selectedUsers,
-    };
-    if (canAddAdmins) {
-      data.admins = admins;
+    setIsSaving(true);
+
+    try {
+      let nextAvatar = imageUrl;
+
+      if (imageFile) {
+        const formData = new FormData();
+        formData.append("file", imageFile);
+        nextAvatar = await uploadAvatar(formData);
+      }
+
+      const data = {
+        name,
+        description,
+        avatar: nextAvatar,
+        members: selectedUsers,
+      };
+      if (canAddAdmins) {
+        data.admins = admins;
+      }
+      await onSave(data);
+      onClose();
+    } catch (error) {
+      console.error("Guruhni saqlashda xatolik", error);
+      toast.error("Guruhni saqlashda xatolik yuz berdi");
+    } finally {
+      setIsSaving(false);
     }
-    onSave(data);
-    onClose();
   };
 
   const handleFileChange = (e) => {
@@ -773,12 +807,9 @@ const EditGroupDialog = ({
       return;
     }
 
-    const formData = new FormData();
-    formData.append("file", file);
-    updateAvatarMutation.mutate({
-      chatId: group.id || group._id,
-      formData,
-    });
+    setImageFile(file);
+    clearImagePreview();
+    setImagePreviewUrl(URL.createObjectURL(file));
   };
   return (
     <Overlay onClick={onClose}>
@@ -808,13 +839,13 @@ const EditGroupDialog = ({
               }}
               style={{ cursor: canEditInfo ? "pointer" : "not-allowed" }}
             >
-              {updateAvatarMutation.isPending ? (
+              {isSaving && imageFile && !imagePreviewUrl ? (
                 <Loader
                   size={24}
                   style={{ animation: "spin 1s linear infinite" }}
                 />
-              ) : imageUrl?.length > 1 ? (
-                <img src={imageUrl} alt="Group" />
+              ) : (imagePreviewUrl || imageUrl)?.length > 1 ? (
+                <img src={imagePreviewUrl || imageUrl} alt="Group" />
               ) : (
                 <>
                   <Upload size={24} />
@@ -953,7 +984,11 @@ const EditGroupDialog = ({
 
         <Footer>
           <Button onClick={onClose}>Bekor qilish</Button>
-          <Button primary onClick={handleSaveWrapper} disabled={!name.trim()}>
+          <Button
+            primary
+            onClick={handleSaveWrapper}
+            disabled={!name.trim() || isSaving}
+          >
             Saqlash
           </Button>
         </Footer>

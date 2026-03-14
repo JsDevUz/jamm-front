@@ -10,6 +10,7 @@ import {
   Monitor,
   MonitorOff,
   PhoneOff,
+  RefreshCcw,
   Video,
   VideoOff,
 } from "lucide-react";
@@ -320,6 +321,11 @@ const PrivateVideoCall = ({
   const [isLocalPrimary, setIsLocalPrimary] = useState(false);
   const [pipWindow, setPipWindow] = useState(null);
   const [pipContainer, setPipContainer] = useState(null);
+  const [isMobileViewport, setIsMobileViewport] = useState(() =>
+    typeof window !== "undefined"
+      ? window.matchMedia("(max-width: 768px)").matches
+      : false,
+  );
   const pipCloseIntentRef = useRef(false);
 
   const {
@@ -334,6 +340,8 @@ const PrivateVideoCall = ({
     error,
     isScreenSharing,
     toggleScreenShare,
+    switchCamera,
+    canSwitchCamera,
     screenStream,
     remoteScreenStreams,
     joinStatus,
@@ -414,6 +422,18 @@ const PrivateVideoCall = ({
       setIsLocalPrimary(false);
     }
   }, [isLocalPrimary, swapAvailable]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return undefined;
+    const mediaQuery = window.matchMedia("(max-width: 768px)");
+    const handleViewportChange = (event) => {
+      setIsMobileViewport(event.matches);
+    };
+
+    setIsMobileViewport(mediaQuery.matches);
+    mediaQuery.addEventListener("change", handleViewportChange);
+    return () => mediaQuery.removeEventListener("change", handleViewportChange);
+  }, []);
 
   const handleSwapFeeds = useCallback(() => {
     if (!swapAvailable) return;
@@ -683,13 +703,24 @@ const PrivateVideoCall = ({
                 <ControlButton type="button" $active={isCamOn} onClick={toggleCam}>
                   {isCamOn ? <Video size={22} /> : <VideoOff size={22} />}
                 </ControlButton>
-                <ControlButton
-                  type="button"
-                  $active={isScreenSharing}
-                  onClick={toggleScreenShare}
-                >
-                  {isScreenSharing ? <MonitorOff size={22} /> : <Monitor size={22} />}
-                </ControlButton>
+                {!isMobileViewport ? (
+                  <ControlButton
+                    type="button"
+                    $active={isScreenSharing}
+                    onClick={toggleScreenShare}
+                  >
+                    {isScreenSharing ? <MonitorOff size={22} /> : <Monitor size={22} />}
+                  </ControlButton>
+                ) : canSwitchCamera ? (
+                  <ControlButton
+                    type="button"
+                    onClick={switchCamera}
+                    aria-label={t("privateCall.switchCamera", "Switch camera")}
+                    title={t("privateCall.switchCamera", "Switch camera")}
+                  >
+                    <RefreshCcw size={22} />
+                  </ControlButton>
+                ) : null}
                 <ControlButton type="button" $danger onClick={handleLeave}>
                   <PhoneOff size={22} />
                 </ControlButton>

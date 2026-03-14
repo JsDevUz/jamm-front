@@ -766,6 +766,7 @@ const JammLayout = ({
       } else {
         toast.error(error.message);
       }
+      throw error;
     }
   };
 

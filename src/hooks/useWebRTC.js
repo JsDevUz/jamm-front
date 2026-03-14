@@ -5,6 +5,7 @@ import useAuthStore from "../store/authStore";
 import { API_BASE_URL } from "../config/env";
 
 const SIGNAL_URL = API_BASE_URL;
+const MOBILE_CAMERA_MEDIA_QUERY = "(max-width: 768px)";
 
 const TURN_URLS = import.meta.env.VITE_TURN_URLS
   ? import.meta.env.VITE_TURN_URLS.split(",").map((item) => item.trim())
@@ -80,6 +81,13 @@ const getNavigatorConnectionState = () => {
     effectiveType: connection?.effectiveType || "unknown",
     downlink: Number(connection?.downlink || 0),
   };
+};
+
+const isLikelyMobileDevice = () => {
+  if (typeof window === "undefined") return false;
+  const coarsePointer = window.matchMedia?.("(pointer: coarse)").matches;
+  const mobileViewport = window.matchMedia?.(MOBILE_CAMERA_MEDIA_QUERY).matches;
+  return Boolean(coarsePointer && mobileViewport);
 };
 
 const resolveCallQualityProfile = ({
@@ -163,12 +171,15 @@ export function useWebRTC({
   const [qualityProfile, setQualityProfile] = useState(
     CALL_QUALITY_PROFILES.balanced,
   );
+  const [cameraFacingMode, setCameraFacingMode] = useState("user");
+  const [videoInputCount, setVideoInputCount] = useState(0);
   const screenStreamRef = useRef(null);
   const screenSendersRef = useRef({});
   const knownStreamsRef = useRef({});
   const candidateQueuesRef = useRef({}); // Store candidates until remote sdp is set
   const statsIntervalRef = useRef(null);
   const qualityProfileRef = useRef(CALL_QUALITY_PROFILES.balanced);
+  const cameraFacingModeRef = useRef("user");
 
   // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -216,6 +227,76 @@ export function useWebRTC({
       delete peerConnectionsRef.current[peerId];
     }
   }, []);
+
+  const refreshVideoInputCount = useCallback(async () => {
+    if (!navigator.mediaDevices?.enumerateDevices) return 0;
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const count = devices.filter((device) => device.kind === "videoinput").length;
+      setVideoInputCount(count);
+      return count;
+    } catch {
+      return 0;
+    }
+  }, []);
+
+  const buildCameraConstraints = useCallback(
+    (facingMode = cameraFacingModeRef.current) => ({
+      width: { ideal: 640, max: 640 },
+      height: { ideal: 360, max: 360 },
+      frameRate: { ideal: 18, max: 18 },
+      ...(isLikelyMobileDevice() ? { facingMode: { ideal: facingMode } } : {}),
+    }),
+    [],
+  );
+
+  const replaceCameraTrack = useCallback(
+    async (nextTrack, { enabled = true } = {}) => {
+      const stream = localStreamRef.current;
+      if (!stream || !nextTrack) return false;
+
+      const previousTrack = stream.getVideoTracks()[0] || null;
+      nextTrack.enabled = enabled;
+      stream.addTrack(nextTrack);
+      if (previousTrack) {
+        stream.removeTrack(previousTrack);
+      }
+
+      const replaceTasks = Object.entries(peerConnectionsRef.current).map(
+        async ([peerId, pc]) => {
+          const screenSender = screenSendersRef.current[peerId] || null;
+          const matchingSender =
+            pc
+              .getSenders()
+              .find(
+                (sender) =>
+                  sender.track?.kind === "video" &&
+                  sender !== screenSender &&
+                  (!previousTrack || sender.track?.id === previousTrack.id),
+              ) ||
+            pc
+              .getSenders()
+              .find(
+                (sender) =>
+                  sender.track?.kind === "video" && sender !== screenSender,
+              );
+
+          if (matchingSender) {
+            try {
+              await matchingSender.replaceTrack(nextTrack);
+            } catch {}
+          }
+        },
+      );
+
+      await Promise.all(replaceTasks);
+      previousTrack?.stop();
+      setLocalStream(stream);
+      await applyMediaOptimization(qualityProfileRef.current);
+      return true;
+    },
+    [applyMediaOptimization],
+  );
 
   const applyMediaOptimization = useCallback(async (profile) => {
     const stream = localStreamRef.current;
@@ -559,11 +640,7 @@ export function useWebRTC({
 
         // 1. Get local media
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            width: { ideal: 640, max: 640 },
-            height: { ideal: 360, max: 360 },
-            frameRate: { ideal: 18, max: 18 },
-          },
+          video: buildCameraConstraints(),
           audio: {
             echoCancellation: true,
             noiseSuppression: true,
@@ -577,6 +654,7 @@ export function useWebRTC({
         }
         localStreamRef.current = stream;
         setLocalStream(stream);
+        await refreshVideoInputCount();
         await applyMediaOptimization(qualityProfileRef.current);
 
         // Apply initial mic/cam state
@@ -795,8 +873,10 @@ export function useWebRTC({
     isCreator,
     isPrivate,
     attachSignalingListeners,
+    buildCameraConstraints,
     currentUser?._id,
     currentUser?.id,
+    refreshVideoInputCount,
   ]);
 
   // ─── Creator: approve / reject ────────────────────────────────────────────────
@@ -838,6 +918,51 @@ export function useWebRTC({
       setIsCamOn(t.enabled);
     }
   }, [camLocked]);
+
+  const switchCamera = useCallback(async () => {
+    if (camLocked) return false;
+    if (!isLikelyMobileDevice() || !navigator.mediaDevices?.getUserMedia) {
+      return false;
+    }
+
+    const currentTrack = localStreamRef.current?.getVideoTracks()[0] || null;
+    const nextFacingMode =
+      cameraFacingModeRef.current === "user" ? "environment" : "user";
+
+    try {
+      const nextStream = await navigator.mediaDevices.getUserMedia({
+        video: buildCameraConstraints(nextFacingMode),
+        audio: false,
+      });
+      const nextTrack = nextStream.getVideoTracks()[0];
+      if (!nextTrack) {
+        nextStream.getTracks().forEach((track) => track.stop());
+        return false;
+      }
+
+      const replaced = await replaceCameraTrack(nextTrack, {
+        enabled: currentTrack?.enabled ?? isCamOn,
+      });
+      if (!replaced) {
+        nextTrack.stop();
+        return false;
+      }
+
+      cameraFacingModeRef.current = nextFacingMode;
+      setCameraFacingMode(nextFacingMode);
+      await refreshVideoInputCount();
+      return true;
+    } catch (err) {
+      console.error("Switch camera error:", err);
+      return false;
+    }
+  }, [
+    buildCameraConstraints,
+    camLocked,
+    isCamOn,
+    refreshVideoInputCount,
+    replaceCameraTrack,
+  ]);
 
   const leaveCall = useCallback(() => {
     try {
@@ -1052,6 +1177,7 @@ export function useWebRTC({
     camLocked,
     toggleMic,
     toggleCam,
+    switchCamera,
     leaveCall,
     error,
     roomTitle,
@@ -1069,5 +1195,7 @@ export function useWebRTC({
     setRoomPrivacy,
     networkQuality,
     qualityProfile,
+    cameraFacingMode,
+    canSwitchCamera: isLikelyMobileDevice() && videoInputCount > 1,
   };
 }

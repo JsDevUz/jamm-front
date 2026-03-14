@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import styled, { css, keyframes } from "styled-components";
 import toast from "react-hot-toast";
 import { useArena } from "../../../contexts/ArenaContext";
@@ -1188,6 +1188,9 @@ const TestOptions = styled.div`
 `;
 
 const TestOptionBtn = styled.button`
+  appearance: none;
+  -webkit-appearance: none;
+  -webkit-tap-highlight-color: transparent;
   min-height: 54px;
   padding: 12px 14px;
   border-radius: 12px;
@@ -1202,6 +1205,11 @@ const TestOptionBtn = styled.button`
   &:hover {
     background: var(--tertiary-color);
     border-color: var(--text-muted-color);
+  }
+
+  &:focus {
+    outline: none;
+    box-shadow: none;
   }
 `;
 
@@ -1572,6 +1580,10 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
     const currentCard = testQueue[testIndex];
     if (!currentCard) return;
 
+    if (typeof document !== "undefined") {
+      document.activeElement?.blur?.();
+    }
+
     const isCorrect = selectedOption === getAnswerText(currentCard);
     const nextAnswers = [
       ...testAnswers,
@@ -1607,6 +1619,17 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
     if (!testDeck) return;
     resetTestSession(testDeck, [...(testDeck.cards || [])]);
   };
+
+  const currentTestCard = testQueue[testIndex] || null;
+  const currentTestOptions = useMemo(() => {
+    if (!testDeck || !currentTestCard) return [];
+    return buildTestOptions(testDeck, currentTestCard);
+  }, [testDeck, currentTestCard]);
+
+  useEffect(() => {
+    if (!currentTestCard || typeof document === "undefined") return;
+    document.activeElement?.blur?.();
+  }, [testIndex, currentTestCard]);
 
   const restartGameAll = () => {
     if (!gameDeck) return;
@@ -2278,7 +2301,7 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
   }
 
   if (testDeck) {
-    const currentCard = testQueue[testIndex];
+    const currentCard = currentTestCard;
     const correctCount = testAnswers.filter((item) => item.isCorrect).length;
 
     return (
@@ -2373,8 +2396,8 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
           </FlashcardBox>
 
           {!testCompleted ? (
-            <TestOptions>
-              {buildTestOptions(testDeck, currentCard).map((option) => (
+            <TestOptions key={`flashcard-test-options-${currentCard?._id || testIndex}`}>
+              {currentTestOptions.map((option) => (
                 <TestOptionBtn
                   key={option}
                   onClick={() => handleTestAnswer(option)}

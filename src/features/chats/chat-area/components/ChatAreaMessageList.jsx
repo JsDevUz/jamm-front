@@ -425,8 +425,8 @@ const NewMessagesChip = styled.span`
   min-width: 20px;
   height: 20px;
   border-radius: 999px;
-  background: white;
-  color: var(--hover-color);
+  background: var(--primary-color);
+  color:white;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -460,6 +460,8 @@ const ChatAreaMessageList = () => {
     formatDate,
     navigatingMessageId,
     dismissLocalMessage,
+    initialScrollTargetMessageId,
+    setInitialScrollTargetMessageId,
   } = useChatAreaContext();
   const suppressClickRef = useRef(false);
   const swipeGestureRef = useRef(null);
@@ -470,7 +472,7 @@ const ChatAreaMessageList = () => {
   const previousLastMessageIdRef = useRef(null);
   const previousMessageCountRef = useRef(0);
   const [swipeState, setSwipeState] = useState({ messageId: null, offset: 0 });
-  const [newMessagesCount, setNewMessagesCount] = useState(0);
+  const [pendingNewMessageIds, setPendingNewMessageIds] = useState([]);
   const { keyboardHeight } = useKeyboardAvoid();
   const currentChatMembers = useMemo(
     () => currentChat?.members || [],
@@ -493,8 +495,39 @@ const ChatAreaMessageList = () => {
     autoFillAttemptsRef.current = 0;
     previousLastMessageIdRef.current = null;
     previousMessageCountRef.current = 0;
-    setNewMessagesCount(0);
+    setPendingNewMessageIds([]);
   }, [currentChat?.id]);
+
+  useEffect(() => {
+    if (!initialScrollTargetMessageId) return;
+
+    const timer = window.setTimeout(() => {
+      if (initialScrollTargetMessageId === "__bottom__") {
+        shouldStickToBottomRef.current = true;
+        scrollToBottom("auto");
+        setInitialScrollTargetMessageId(null);
+        return;
+      }
+
+      const targetElement = messageRefs.current[initialScrollTargetMessageId];
+      if (!targetElement) return;
+
+      shouldStickToBottomRef.current = false;
+      setPendingNewMessageIds([]);
+      targetElement.scrollIntoView({
+        behavior: "auto",
+        block: "center",
+      });
+      setInitialScrollTargetMessageId(null);
+    }, 80);
+
+    return () => window.clearTimeout(timer);
+  }, [
+    initialScrollTargetMessageId,
+    messageRefs,
+    messages,
+    setInitialScrollTargetMessageId,
+  ]);
 
   const resetSwipeState = () => {
     swipeGestureRef.current = null;
@@ -584,7 +617,7 @@ const ChatAreaMessageList = () => {
     shouldStickToBottomRef.current = isNearBottom(element);
 
     if (shouldStickToBottomRef.current) {
-      setNewMessagesCount(0);
+      setPendingNewMessageIds([]);
     }
 
     if (element.scrollTop > 120 || isLoadingMessages || !messagesHasMore) {
@@ -600,7 +633,7 @@ const ChatAreaMessageList = () => {
 
     shouldStickToBottomRef.current = isNearBottom(scrollContainer);
     if (shouldStickToBottomRef.current) {
-      setNewMessagesCount(0);
+      setPendingNewMessageIds([]);
     }
   }, [messages.length]);
 
@@ -644,9 +677,14 @@ const ChatAreaMessageList = () => {
 
       if (appendedMessages.length > 0) {
         if (shouldStickToBottomRef.current) {
-          setNewMessagesCount(0);
+          setPendingNewMessageIds([]);
         } else {
-          setNewMessagesCount((previous) => previous + appendedMessages.length);
+          setPendingNewMessageIds((previous) => {
+            const nextIds = appendedMessages
+              .map((message) => message.id || message._id)
+              .filter(Boolean);
+            return [...new Set([...previous, ...nextIds])];
+          });
         }
       }
     }
@@ -655,8 +693,40 @@ const ChatAreaMessageList = () => {
     previousMessageCountRef.current = messages.length;
   }, [messages, currentUser?._id, currentUser?.id]);
 
+  useEffect(() => {
+    if (!pendingNewMessageIds.length) return;
+
+    const currentUserId = String(currentUser?._id || currentUser?.id || "");
+    const unreadMessageIds = new Set(
+      messages
+        .filter((message) => {
+          const senderId = String(
+            message?.senderId?._id ||
+              message?.senderId?.id ||
+              message?.senderId ||
+              "",
+          );
+          const readBy = Array.isArray(message?.readBy) ? message.readBy : [];
+
+          return (
+            senderId &&
+            senderId !== currentUserId &&
+            !readBy.includes(currentUserId) &&
+            message?.deliveryStatus !== "failed"
+          );
+        })
+        .map((message) => String(message.id || message._id))
+        .filter(Boolean),
+    );
+
+    setPendingNewMessageIds((previous) => {
+      const next = previous.filter((id) => unreadMessageIds.has(String(id)));
+      return next.length === previous.length ? previous : next;
+    });
+  }, [messages, currentUser?._id, currentUser?.id, pendingNewMessageIds.length]);
+
   const handleJumpToBottom = () => {
-    setNewMessagesCount(0);
+    setPendingNewMessageIds([]);
     shouldStickToBottomRef.current = true;
     scrollToBottom("smooth");
   };
@@ -977,7 +1047,7 @@ const ChatAreaMessageList = () => {
           style={{ height: "1px", flexShrink: 0, scrollMarginBottom: "124px" }}
         />
       </MessagesContainer>
-      {newMessagesCount > 0 ? (
+      {pendingNewMessageIds.length > 0 ? (
         <NewMessagesButton
           type="button"
           onClick={handleJumpToBottom}
@@ -985,7 +1055,9 @@ const ChatAreaMessageList = () => {
           title="Yangi xabarlarga tushish"
         >
           <ChevronDown size={18} />
-          <NewMessagesChip>{newMessagesCount > 99 ? "99+" : newMessagesCount}</NewMessagesChip>
+          <NewMessagesChip>
+            {pendingNewMessageIds.length > 99 ? "99+" : pendingNewMessageIds.length}
+          </NewMessagesChip>
         </NewMessagesButton>
       ) : null}
     </ScrollArea>

@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import dayjs from "dayjs";
 import {
-  Download,
+  ArrowBigDown,
   Eye,
   Flame,
   Heart,
@@ -117,6 +117,8 @@ const FeedPostImages = ({ post, onOpenImage }) => {
   return (
     <PostImageCarousel>
       <PostImageViewport
+        data-disable-feed-tab-swipe
+        data-disable-layout-swipe
         onTouchStart={(event) => {
           touchStartXRef.current = event.touches[0]?.clientX || 0;
         }}
@@ -154,7 +156,7 @@ const FeedPostImages = ({ post, onOpenImage }) => {
                       setRevealedImages((prev) => ({ ...prev, [key]: true }));
                     }}
                   >
-                    <Download size={18} />
+                    <ArrowBigDown size={18} />
                   </PostImageOverlay>
                 ) : null}
 
@@ -299,7 +301,7 @@ const FeedPage = () => {
       if (
         target &&
         target.closest(
-          "input, textarea, button, a, [role='button'], [contenteditable='true']",
+          "input, textarea, button, a, [role='button'], [contenteditable='true'], [data-disable-feed-tab-swipe]",
         )
       ) {
         tracking = false;

@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Crown, ShieldAlert, X } from "lucide-react";
 import PremiumBadgeIcon from "../../shared/ui/badges/PremiumBadge";
 import { APP_LIMITS } from "../../constants/appLimits";
+import useAuthStore from "../../store/authStore";
 import {
   DialogActionButton,
   ModalBody,
@@ -32,6 +33,7 @@ import {
   SectionList,
   SectionTitle,
   TableHead,
+  TableHeadCell,
   TableRow,
 } from "./PremiumUpgradeModal.styles";
 
@@ -46,6 +48,8 @@ const PremiumUpgradeModal = ({
   message = "",
 }) => {
   const { t } = useTranslation();
+  const currentUser = useAuthStore((state) => state.user);
+  const isPremiumActive = currentUser?.premiumStatus === "active";
 
   const sections = useMemo(
     () => [
@@ -396,19 +400,21 @@ const PremiumUpgradeModal = ({
             </AlertBox>
           ) : null}
 
-          <PlansGrid>
-            <PlanCard>
-              <PlanName>{t("premiumModal.freePlan")}</PlanName>
-              <PlanMeta>{t("premiumModal.freePlanDescription")}</PlanMeta>
-            </PlanCard>
-            <PlanCard $premium>
-              <PlanName $premium>
-                <Crown size={16} />
-                {t("premiumModal.premiumPlan")}
-              </PlanName>
-              <PlanMeta>{t("premiumModal.premiumPlanDescription")}</PlanMeta>
-            </PlanCard>
-          </PlansGrid>
+          {!isPremiumActive ? (
+            <PlansGrid>
+              <PlanCard>
+                <PlanName>{t("premiumModal.freePlan")}</PlanName>
+                <PlanMeta>{t("premiumModal.freePlanDescription")}</PlanMeta>
+              </PlanCard>
+              <PlanCard $premium>
+                <PlanName $premium>
+                  <Crown size={16} />
+                  {t("premiumModal.premiumPlan")}
+                </PlanName>
+                <PlanMeta>{t("premiumModal.premiumPlanDescription")}</PlanMeta>
+              </PlanCard>
+            </PlansGrid>
+          ) : null}
 
           <SectionList>
             {sections.map((section) => (
@@ -422,9 +428,15 @@ const PremiumUpgradeModal = ({
 
                 <LimitsTable>
                   <TableHead>
-                    <div>{t("premiumModal.columns.feature")}</div>
-                    <div>{t("premiumModal.columns.free")}</div>
-                    <div>{t("premiumModal.columns.premium")}</div>
+                    <TableHeadCell>
+                      {t("premiumModal.columns.feature")}
+                    </TableHeadCell>
+                    <TableHeadCell $alignRight>
+                      {t("premiumModal.columns.free")}
+                    </TableHeadCell>
+                    <TableHeadCell $alignRight>
+                      {t("premiumModal.columns.premium")}
+                    </TableHeadCell>
                   </TableHead>
                   {section.items.map((item) => (
                     <TableRow key={item.label}>
@@ -439,12 +451,12 @@ const PremiumUpgradeModal = ({
           </SectionList>
         </ModalBody>
 
-        <ModalFooter>
+        {/* <ModalFooter>
           <FooterNote>{t("premiumModal.footerNote")}</FooterNote>
           <DialogActionButton type="button" onClick={onUpgrade}>
-            {t("premiumModal.upgrade")}
+            {t("common.cancel")}
           </DialogActionButton>
-        </ModalFooter>
+        </ModalFooter> */}
       </ModalPanel>
     </ModalOverlay>
   );

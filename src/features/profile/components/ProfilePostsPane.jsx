@@ -2,7 +2,7 @@ import React from "react";
 import styled from "styled-components";
 import {
   ArrowLeft,
-  Download,
+  ArrowBigDown,
   Edit2,
   Eye,
   Heart,
@@ -13,6 +13,7 @@ import {
   Trash2,
 } from "lucide-react";
 import PremiumBadge from "../../../shared/ui/badges/PremiumBadge";
+import ImageLightbox from "../../../shared/ui/media/ImageLightbox";
 import {
   ProfileMobileBackButton,
   ProfilePaneBody,
@@ -22,6 +23,18 @@ import {
   ProfilePaneTitle,
 } from "../ui";
 import { SidebarIconButton } from "../../../shared/ui/buttons/IconButton";
+import {
+  PostImageBlur,
+  PostImageButton,
+  PostImageCarousel,
+  PostCarouselDot,
+  PostCarouselDots,
+  PostImageOverlay,
+  PostImageReal,
+  PostImageSlide,
+  PostImageTrack,
+  PostImageViewport,
+} from "../../posts/styles/FeedPage.styles";
 
 const MobileBackBtn = styled(ProfileMobileBackButton)``;
 const ButtonWrapper = styled(SidebarIconButton)``;
@@ -101,51 +114,6 @@ const PostText = styled.div`
   }
 `;
 
-const PostImagesGrid = styled.div`
-  display: grid;
-  grid-template-columns: ${(props) =>
-    props.$count === 1 ? "minmax(0, 1fr)" : "repeat(2, minmax(0, 1fr))"};
-  gap: 8px;
-  margin-top: 10px;
-`;
-
-const PostImageTile = styled.button`
-  position: relative;
-  aspect-ratio: ${(props) => (props.$count === 1 ? "1.18 / 1" : "1 / 1")};
-  border: none;
-  border-radius: 14px;
-  overflow: hidden;
-  padding: 0;
-  background: var(--input-color);
-  cursor: pointer;
-`;
-
-const PostImageBlur = styled.img`
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  filter: blur(18px);
-  transform: scale(1.08);
-`;
-
-const PostImageReal = styled.img`
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-`;
-
-const PostImageOverlay = styled.div`
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(10, 12, 20, 0.22);
-  color: white;
-`;
-
 const PostActions = styled.div`
   display: flex;
   align-items: center;
@@ -174,60 +142,113 @@ const OwnerActions = styled.div`
   flex-wrap: wrap;
 `;
 
-const ProfilePostImages = ({ post }) => {
+const ProfilePostImages = ({ post, onOpenImage }) => {
+  const [activeIndex, setActiveIndex] = React.useState(0);
   const [revealedImages, setRevealedImages] = React.useState({});
   const [loadingImages, setLoadingImages] = React.useState({});
+  const [loadedImages, setLoadedImages] = React.useState({});
+  const touchStartXRef = React.useRef(0);
   const images = Array.isArray(post?.images) ? post.images : [];
 
   if (!images.length) return null;
 
+  const clampIndex = (nextIndex) =>
+    Math.max(0, Math.min(nextIndex, images.length - 1));
+
   return (
-    <PostImagesGrid $count={images.length}>
+    <PostImageCarousel>
+      <PostImageViewport
+        onTouchStart={(event) => {
+          touchStartXRef.current = event.touches[0]?.clientX || 0;
+        }}
+        onTouchEnd={(event) => {
+          const endX = event.changedTouches[0]?.clientX || 0;
+          const deltaX = endX - touchStartXRef.current;
+
+          if (Math.abs(deltaX) < 40) return;
+
+          setActiveIndex((current) =>
+            clampIndex(current + (deltaX < 0 ? 1 : -1)),
+          );
+        }}
+      >
+        <PostImageTrack $index={activeIndex}>
       {images.map((image, index) => {
         const key = image.url || `${post._id}-${index}`;
         const isRevealed = Boolean(revealedImages[key]);
         const isLoading = Boolean(loadingImages[key]);
+        const isLoaded = Boolean(loadedImages[key]);
 
         return (
-          <PostImageTile
-            key={key}
-            type="button"
-            $count={images.length}
-            onClick={() => {
-              if (isRevealed) return;
-              setLoadingImages((prev) => ({ ...prev, [key]: true }));
-              setRevealedImages((prev) => ({ ...prev, [key]: true }));
-            }}
-          >
-            <PostImageBlur src={image.blurDataUrl || image.url} alt="" />
+          <PostImageSlide key={key}>
+            <PostImageBlur
+              src={image.blurDataUrl || image.url}
+              alt=""
+              aria-hidden="true"
+              $hidden={Boolean(isRevealed && isLoaded)}
+            />
             {!isRevealed ? (
-              <PostImageOverlay>
-                <Download size={16} />
+              <PostImageOverlay
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setLoadingImages((prev) => ({ ...prev, [key]: true }));
+                  setRevealedImages((prev) => ({ ...prev, [key]: true }));
+                }}
+              >
+                <ArrowBigDown size={18} />
               </PostImageOverlay>
             ) : (
               <>
                 <PostImageReal
                   src={image.url}
                   alt="Post image"
-                  loading="lazy"
-                  onLoad={() =>
-                    setLoadingImages((prev) => ({ ...prev, [key]: false }))
-                  }
+                  loading={index === activeIndex ? "eager" : "lazy"}
+                  $loaded={isLoaded}
+                  onLoad={() => {
+                    setLoadingImages((prev) => ({ ...prev, [key]: false }));
+                    setLoadedImages((prev) => ({ ...prev, [key]: true }));
+                  }}
                   onError={() =>
                     setLoadingImages((prev) => ({ ...prev, [key]: false }))
                   }
                 />
                 {isLoading ? (
-                  <PostImageOverlay>
-                    <Loader2 size={16} />
+                  <PostImageOverlay $loading>
+                    <Loader2 size={18} />
                   </PostImageOverlay>
+                ) : null}
+                {isLoaded ? (
+                  <PostImageButton
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onOpenImage?.(image.url);
+                    }}
+                    aria-label="Rasmni kattalashtirish"
+                  />
                 ) : null}
               </>
             )}
-          </PostImageTile>
+          </PostImageSlide>
         );
       })}
-    </PostImagesGrid>
+        </PostImageTrack>
+      </PostImageViewport>
+
+      {images.length > 1 ? (
+        <PostCarouselDots>
+          {images.map((image, index) => (
+            <PostCarouselDot
+              key={image.url || `${post._id}-dot-${index}`}
+              type="button"
+              $active={index === activeIndex}
+              onClick={() => setActiveIndex(index)}
+              aria-label={`${index + 1}-rasm`}
+            />
+          ))}
+        </PostCarouselDots>
+      ) : null}
+    </PostImageCarousel>
   );
 };
 
@@ -245,6 +266,8 @@ const ProfilePostsPane = ({
   onCreatePost,
   onBack,
 }) => {
+  const [lightboxImage, setLightboxImage] = React.useState("");
+
   return (
     <div data-tour="profile-pane-groups" style={{ display: "contents" }}>
       <ProfilePaneHeader>
@@ -289,7 +312,10 @@ const ProfilePostsPane = ({
             </PostHeader>
 
             <PostText>{renderText(post.content)}</PostText>
-            <ProfilePostImages post={post} />
+            <ProfilePostImages
+              post={post}
+              onOpenImage={(imageUrl) => setLightboxImage(imageUrl)}
+            />
 
             <PostActions>
               <ActionBtn
@@ -333,6 +359,12 @@ const ProfilePostsPane = ({
           </PostCard>
         ))
       )}
+      <ImageLightbox
+        isOpen={Boolean(lightboxImage)}
+        imageSrc={lightboxImage}
+        alt="Post image"
+        onClose={() => setLightboxImage("")}
+      />
     </div>
   );
 };

@@ -683,7 +683,8 @@
     "callEnded": "Aloqa yakunlandi",
     "localLabel": "Siz",
     "remoteLabel": "Suhbatdosh",
-    "screenShareLabel": "Ekran ulashish"
+    "screenShareLabel": "Ekran ulashish",
+    "switchCamera": "Kamerani almashtirish"
   },
   "mnemonics": {
     "title": "Minemonika",
@@ -959,6 +960,9 @@
       "statusLabel": "Status",
       "statusMeta": "Profilingizdagi premium holati.",
       "freeAccount": "Oddiy hisob",
+      "aboutTitle": "Premium nimalar beradi?",
+      "aboutDescription": "Premium obuna bilan ochiladigan imkoniyatlarni ko'ring.",
+      "aboutAction": "Imkoniyatlarni ko'rish",
       "promoLabel": "Promo-kod",
       "promoDescription": "Premium’ni tez yoqish uchun kod kiriting.",
       "promoPlaceholder": "Kodni kiriting",

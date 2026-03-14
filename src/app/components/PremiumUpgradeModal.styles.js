@@ -23,6 +23,11 @@ export const HeroText = styled.p`
   font-size: 13px;
   line-height: 1.5;
   color: var(--text-muted-color);
+    display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: center;
+  color: var(--text-muted-color);
 `;
 
 export const AlertBox = styled.div`
@@ -39,6 +44,7 @@ export const PlansGrid = styled.div`
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 12px;
+  margin-bottom: 10px;
 
   @media (max-width: 720px) {
     grid-template-columns: 1fr;
@@ -114,7 +120,11 @@ export const SectionDescription = styled.p`
 export const LimitsTable = styled.div`
   display: grid;
 `;
-
+export const TableHeadCell = styled.div`
+min-width: 0;
+white-space: nowrap ;
+text-align: ${(props) => (props.$alignRight ? "right" : "left")};
+`;
 export const TableHead = styled.div`
   display: grid;
   grid-template-columns: minmax(0, 1.7fr) 110px 110px;
@@ -168,5 +178,9 @@ export const FooterNote = styled.p`
   margin: 0;
   font-size: 12px;
   line-height: 1.45;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: center;
   color: var(--text-muted-color);
 `;

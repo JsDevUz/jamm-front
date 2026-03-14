@@ -38,6 +38,18 @@ const formatPhone = (value = "") => {
   return formatted;
 };
 
+const normalizeProfile = (data = {}) => ({
+  nickname: data.nickname || "",
+  username: data.username || "",
+  phone: formatPhone(data.phone),
+  avatar: data.avatar || "",
+  bio: data.bio || "",
+  premiumStatus: data.premiumStatus || "none",
+  premiumExpiresAt: data.premiumExpiresAt || null,
+});
+
+const normalizePhoneForPayload = (value = "") => String(value || "").replace(/\s/g, "");
+
 const AvatarWrap = styled.button`
   position: relative;
   width: 92px;
@@ -197,11 +209,25 @@ const ProfileEditDialog = ({ isOpen, onClose }) => {
     premiumStatus: "none",
     premiumExpiresAt: null,
   });
+  const [initialProfile, setInitialProfile] = useState(() =>
+    normalizeProfile(user || {}),
+  );
   const [profileLoading, setProfileLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState(null);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [pendingAvatarFile, setPendingAvatarFile] = useState(null);
+  const [avatarPreviewUrl, setAvatarPreviewUrl] = useState("");
   const avatarInputRef = useRef(null);
+
+  const clearAvatarPreview = () => {
+    setAvatarPreviewUrl((prev) => {
+      if (prev?.startsWith("blob:")) {
+        URL.revokeObjectURL(prev);
+      }
+      return "";
+    });
+  };
 
   useEffect(() => {
     if (!isOpen) return;
@@ -210,26 +236,18 @@ const ProfileEditDialog = ({ isOpen, onClose }) => {
       setProfileLoading(true);
       try {
         const { data } = await axiosInstance.get("/users/me");
-        setProfile({
-          nickname: data.nickname || "",
-          username: data.username || "",
-          phone: formatPhone(data.phone),
-          avatar: data.avatar || "",
-          bio: data.bio || "",
-          premiumStatus: data.premiumStatus || "none",
-          premiumExpiresAt: data.premiumExpiresAt,
-        });
+        const normalized = normalizeProfile(data);
+        setProfile(normalized);
+        setInitialProfile(normalized);
+        setPendingAvatarFile(null);
+        clearAvatarPreview();
         setAuth({ ...(user || {}), ...data });
       } catch {
-        setProfile({
-          nickname: user?.nickname || "",
-          username: user?.username || "",
-          phone: formatPhone(user?.phone),
-          avatar: user?.avatar || "",
-          bio: user?.bio || "",
-          premiumStatus: user?.premiumStatus || "none",
-          premiumExpiresAt: user?.premiumExpiresAt || null,
-        });
+        const fallbackProfile = normalizeProfile(user || {});
+        setProfile(fallbackProfile);
+        setInitialProfile(fallbackProfile);
+        setPendingAvatarFile(null);
+        clearAvatarPreview();
       } finally {
         setProfileLoading(false);
       }
@@ -238,25 +256,71 @@ const ProfileEditDialog = ({ isOpen, onClose }) => {
     loadProfile();
   }, [isOpen]);
 
+  useEffect(
+    () => () => {
+      if (avatarPreviewUrl?.startsWith("blob:")) {
+        URL.revokeObjectURL(avatarPreviewUrl);
+      }
+    },
+    [avatarPreviewUrl],
+  );
+
   if (!isOpen) return null;
 
-  const validate = () => {
+  const hasChanges =
+    profile.nickname !== initialProfile.nickname ||
+    profile.username !== initialProfile.username ||
+    (profile.bio || "") !== (initialProfile.bio || "") ||
+    Boolean(pendingAvatarFile) ||
+    normalizePhoneForPayload(profile.phone) !==
+      normalizePhoneForPayload(initialProfile.phone);
+
+  const getChangedPayload = () => {
+    const payload = {};
+
+    if (profile.nickname !== initialProfile.nickname) {
+      payload.nickname = profile.nickname;
+    }
+    if (profile.username !== initialProfile.username) {
+      payload.username = profile.username;
+    }
+    if ((profile.bio || "") !== (initialProfile.bio || "")) {
+      payload.bio = profile.bio || "";
+    }
+    if (normalizePhoneForPayload(profile.phone) !== normalizePhoneForPayload(initialProfile.phone)) {
+      payload.phone = normalizePhoneForPayload(profile.phone);
+    }
+
+    return payload;
+  };
+
+  const validate = (payload) => {
     if (
-      profile.nickname &&
-      (profile.nickname.length < 3 || profile.nickname.length > 30)
+      Object.prototype.hasOwnProperty.call(payload, "nickname") &&
+      payload.nickname &&
+      (payload.nickname.length < 3 || payload.nickname.length > 30)
     ) {
       return "Nickname 3 tadan 30 tagacha belgi bo'lishi kerak";
     }
 
-    if (profile.username && !/^[a-zA-Z0-9]{8,30}$/.test(profile.username)) {
+    if (
+      Object.prototype.hasOwnProperty.call(payload, "username") &&
+      payload.username &&
+      !/^[a-zA-Z0-9]{8,30}$/.test(payload.username)
+    ) {
       return "Username kamida 8 ta harf va raqamdan iborat bo'lishi kerak";
     }
 
-    if (profile.bio && profile.bio.length > 30) {
+    if (
+      Object.prototype.hasOwnProperty.call(payload, "bio") &&
+      payload.bio &&
+      payload.bio.length > 30
+    ) {
       return "Haqida (Bio) ko'pi bilan 30 ta belgi bo'lishi kerak";
     }
 
     if (
+      Object.prototype.hasOwnProperty.call(payload, "phone") &&
       profile.phone &&
       !/^\+998 \d{2} \d{3} \d{2} \d{2}$/.test(profile.phone)
     ) {
@@ -267,7 +331,13 @@ const ProfileEditDialog = ({ isOpen, onClose }) => {
   };
 
   const handleSave = async () => {
-    const error = validate();
+    const payload = getChangedPayload();
+    if (Object.keys(payload).length === 0 && !pendingAvatarFile) {
+      onClose?.();
+      return;
+    }
+
+    const error = validate(payload);
     if (error) {
       setSaveStatus(error);
       setTimeout(() => setSaveStatus(null), 3000);
@@ -277,13 +347,23 @@ const ProfileEditDialog = ({ isOpen, onClose }) => {
     setSaving(true);
     setSaveStatus(null);
     try {
-      const { premiumStatus, premiumExpiresAt, phone, ...rest } = profile;
-      const { data } = await axiosInstance.patch("/users/me", {
-        ...rest,
-        phone: (phone || "").replace(/\s/g, ""),
-      });
+      if (pendingAvatarFile) {
+        const formData = new FormData();
+        formData.append("file", pendingAvatarFile);
+        setUploadingAvatar(true);
+        const { data: avatarData } = await axiosInstance.post(
+          "/users/upload-avatar",
+          formData,
+        );
+        payload.avatar = avatarData?.avatar || "";
+      }
+      const { data } = await axiosInstance.patch("/users/me", payload);
       setAuth({ ...(user || {}), ...data });
-      setProfile((prev) => ({ ...prev, ...data }));
+      const normalized = normalizeProfile(data);
+      setProfile(normalized);
+      setInitialProfile(normalized);
+      setPendingAvatarFile(null);
+      clearAvatarPreview();
       setSaveStatus("ok");
       setTimeout(() => {
         setSaveStatus(null);
@@ -297,10 +377,11 @@ const ProfileEditDialog = ({ isOpen, onClose }) => {
       setTimeout(() => setSaveStatus(null), 3000);
     } finally {
       setSaving(false);
+      setUploadingAvatar(false);
     }
   };
 
-  const handleFileChange = async (event) => {
+  const handleFileChange = (event) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
@@ -309,20 +390,9 @@ const ProfileEditDialog = ({ isOpen, onClose }) => {
       return;
     }
 
-    const formData = new FormData();
-    formData.append("file", file);
-    setUploadingAvatar(true);
-
-    try {
-      const { data } = await axiosInstance.post("/users/avatar", formData);
-      setProfile((prev) => ({ ...prev, avatar: data.avatar }));
-      setAuth({ ...(user || {}), ...data });
-      toast.success("Avatar yangilandi");
-    } catch {
-      toast.error("Avatar yuklashda xatolik");
-    } finally {
-      setUploadingAvatar(false);
-    }
+    clearAvatarPreview();
+    setPendingAvatarFile(file);
+    setAvatarPreviewUrl(URL.createObjectURL(file));
   };
 
   return (
@@ -377,8 +447,8 @@ const ProfileEditDialog = ({ isOpen, onClose }) => {
                       size={30}
                       style={{ animation: "spin 1s linear infinite" }}
                     />
-                  ) : profile.avatar ? (
-                    <img src={profile.avatar} alt="avatar" />
+                  ) : avatarPreviewUrl || profile.avatar ? (
+                    <img src={avatarPreviewUrl || profile.avatar} alt="avatar" />
                   ) : (
                     (profile.nickname || profile.username || "?")
                       .charAt(0)
@@ -480,7 +550,7 @@ const ProfileEditDialog = ({ isOpen, onClose }) => {
               <SaveBar>
                 <SaveBtn
                   onClick={handleSave}
-                  disabled={saving || uploadingAvatar}
+                  disabled={saving || uploadingAvatar || !hasChanges}
                 >
                   {saving ? <Loader size={14} /> : <Check size={14} />}
                   {saving ? "Saqlanmoqda..." : "Saqlash"}

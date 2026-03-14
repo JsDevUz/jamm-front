@@ -682,7 +682,8 @@
     "callEnded": "Звонок завершен",
     "localLabel": "Вы",
     "remoteLabel": "Собеседник",
-    "screenShareLabel": "Показ экрана"
+    "screenShareLabel": "Показ экрана",
+    "switchCamera": "Сменить камеру"
   },
   "mnemonics": {
     "title": "Мнемоника",
@@ -958,6 +959,9 @@
       "statusLabel": "Статус",
       "statusMeta": "Премиум-статус вашего профиля.",
       "freeAccount": "Обычный аккаунт",
+      "aboutTitle": "Что дает Premium?",
+      "aboutDescription": "Посмотрите, какие возможности открывает Premium-подписка.",
+      "aboutAction": "Посмотреть возможности",
       "promoLabel": "Промокод",
       "promoDescription": "Введите код, чтобы быстро активировать Premium.",
       "promoPlaceholder": "Введите код",

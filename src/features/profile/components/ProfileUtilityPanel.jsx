@@ -24,12 +24,8 @@ import useAuthStore from "../../../store/authStore";
 import axiosInstance from "../../../api/axiosInstance";
 import { fetchLikedArticles } from "../../../api/articlesApi";
 import {
-  updateProfileDecoration,
-  uploadProfileDecorationImage,
 } from "../../../api/usersApi";
 import { normalizeLanguageCode } from "../../../i18n";
-import useProfileDecorationsStore from "../../../store/profileDecorationsStore";
-import UserNameWithDecoration from "../../../shared/ui/users/UserNameWithDecoration";
 import {
   ProfilePaneBody as Body,
   ProfilePaneHeader as Header,
@@ -40,6 +36,7 @@ import {
 } from "../ui/ProfilePane";
 import { ProfileMobileBackButton } from "../ui";
 import AppLockPinPad from "../../../app/components/AppLockPinPad";
+import usePremiumUpgradeModalStore from "../../../app/store/usePremiumUpgradeModalStore";
 
 const MobileBackBtn = styled(ProfileMobileBackButton)``;
 
@@ -73,7 +70,7 @@ const SettingRow = styled.div`
   & > :last-child {
     width: auto;
     min-width: ${(props) => (props.$wideControl ? "220px" : "96px")};
-    max-width: ${(props) => (props.$wideControl ? "none" : "140px")};
+    max-width: ${(props) => (props.$wideControl ? "none" : "160px")};
     justify-self: end;
     grid-column: 2;
     grid-row: 1 / span 2;
@@ -394,9 +391,8 @@ const ProfileUtilityPanel = ({ section, currentUser, onBack }) => {
   const authUser = useAuthStore((state) => state.user);
   const setAuth = useAuthStore((state) => state.setAuth);
   const updateUser = useAuthStore((state) => state.updateUser);
-  const decorations = useProfileDecorationsStore((state) => state.decorations);
-  const fetchDecorations = useProfileDecorationsStore(
-    (state) => state.fetchDecorations,
+  const openPremiumUpgradeModal = usePremiumUpgradeModalStore(
+    (state) => state.openPremiumUpgradeModal,
   );
   const [language, setLanguage] = useState(
     () =>
@@ -408,9 +404,6 @@ const ProfileUtilityPanel = ({ section, currentUser, onBack }) => {
   const [loadingPlans, setLoadingPlans] = useState(false);
   const [promoCode, setPromoCode] = useState("");
   const [redeeming, setRedeeming] = useState(false);
-  const [updatingDecoration, setUpdatingDecoration] = useState(false);
-  const [uploadingDecorationImage, setUploadingDecorationImage] = useState(false);
-  const decorationFileInputRef = useRef(null);
   const [likedPosts, setLikedPosts] = useState([]);
   const [likedArticles, setLikedArticles] = useState([]);
   const [likedLessons, setLikedLessons] = useState([]);
@@ -528,8 +521,7 @@ const ProfileUtilityPanel = ({ section, currentUser, onBack }) => {
     };
 
     loadPlans();
-    fetchDecorations();
-  }, [fetchDecorations, section]);
+  }, [section]);
 
   useEffect(() => {
     if (section !== "favorites") return;
@@ -763,68 +755,6 @@ const ProfileUtilityPanel = ({ section, currentUser, onBack }) => {
     }
   };
 
-  const handleSelectDecoration = async (decorationId) => {
-    if (updatingDecoration) return;
-
-    setUpdatingDecoration(true);
-    try {
-      const updatedUser = await updateProfileDecoration(decorationId);
-      setAuth({
-        ...(authUser || {}),
-        ...updatedUser,
-      });
-      toast.success(
-        decorationId
-          ? t("profileUtility.premium.decorationSaved")
-          : t("profileUtility.premium.decorationCleared"),
-      );
-    } catch (error) {
-      toast.error(
-        error?.response?.data?.message ||
-          t("profileUtility.premium.decorationError"),
-      );
-    } finally {
-      setUpdatingDecoration(false);
-    }
-  };
-
-  const handleUploadDecorationImage = async (event) => {
-    const file = event.target.files?.[0];
-    event.target.value = "";
-    if (!file || uploadingDecorationImage) return;
-
-    setUploadingDecorationImage(true);
-    try {
-      const updatedUser = await uploadProfileDecorationImage(file);
-      setAuth({
-        ...(authUser || {}),
-        ...updatedUser,
-      });
-      toast.success(t("profileUtility.premium.decorationImageSaved"));
-    } catch (error) {
-      toast.error(
-        error?.response?.data?.message ||
-          t("profileUtility.premium.decorationImageError"),
-      );
-    } finally {
-      setUploadingDecorationImage(false);
-    }
-  };
-
-  const handleCustomDecorationCardClick = async () => {
-    if (!currentUser?.customProfileDecorationImage || uploadingDecorationImage) {
-      decorationFileInputRef.current?.click();
-      return;
-    }
-
-    if (currentUser?.selectedProfileDecorationId !== "custom-upload") {
-      await handleSelectDecoration("custom-upload");
-      return;
-    }
-
-    decorationFileInputRef.current?.click();
-  };
-
   const renderAppearance = () => (
     <>
       <Group>
@@ -897,195 +827,83 @@ const ProfileUtilityPanel = ({ section, currentUser, onBack }) => {
               : t("profileUtility.premium.freeAccount")}
           </Badge>
         </SettingRow>
-        <SettingRow $wideControl>
+        {currentUser?.premiumStatus !== "active" ? (
+          <SettingRow $wideControl>
+            <SettingMeta>
+              <strong>{t("profileUtility.premium.promoLabel")}</strong>
+              <span>{t("profileUtility.premium.promoDescription")}</span>
+            </SettingMeta>
+            <PromoRow>
+              <Input
+                value={promoCode}
+                onChange={(e) => setPromoCode(e.target.value)}
+                placeholder={t("profileUtility.premium.promoPlaceholder")}
+              />
+              <Button
+                disabled={redeeming || !promoCode.trim()}
+                onClick={redeemPromo}
+              >
+                <Zap size={14} />
+                {redeeming
+                  ? t("profileUtility.premium.checking")
+                  : t("common.activate")}
+              </Button>
+            </PromoRow>
+          </SettingRow>
+        ) : null}
+        <SettingRow>
           <SettingMeta>
-            <strong>{t("profileUtility.premium.promoLabel")}</strong>
-            <span>{t("profileUtility.premium.promoDescription")}</span>
+            <strong>{t("profileUtility.premium.aboutTitle")}</strong>
+            <span>{t("profileUtility.premium.aboutDescription")}</span>
           </SettingMeta>
-          <PromoRow>
-            <Input
-              value={promoCode}
-              onChange={(e) => setPromoCode(e.target.value)}
-              placeholder={t("profileUtility.premium.promoPlaceholder")}
-            />
-            <Button
-              disabled={redeeming || !promoCode.trim()}
-              onClick={redeemPromo}
-            >
-              <Zap size={14} />
-              {redeeming
-                ? t("profileUtility.premium.checking")
-                : t("common.activate")}
-            </Button>
-          </PromoRow>
+          <Button
+            $secondary
+            onClick={() =>
+              openPremiumUpgradeModal({ source: "profile-premium-panel" })
+            }
+          >
+            <Sparkles size={14} />
+            {t("profileUtility.premium.aboutAction")}
+          </Button>
         </SettingRow>
       </Group>
 
-      <Group>
-        <GroupHeader>
-          <h4>{t("profileUtility.premium.plansTitle")}</h4>
-          <p>{t("profileUtility.premium.plansDescription")}</p>
-        </GroupHeader>
-        <div style={{ padding: "0 14px 14px" }}>
-          <PlansGrid>
-            {plans.map((plan) => (
-              <PlanCard key={plan._id} $premium>
-                <PlanName $premium>{plan.name}</PlanName>
-                <PlanPrice>${plan.price}</PlanPrice>
-                <div style={{ color: "var(--text-muted-color)", fontSize: 12 }}>
-                  {plan.durationInDays} {t("profileUtility.premium.days")}
-                </div>
-                <Button onClick={() => openSupportChat("premium")}>
-                  {t("profileUtility.premium.contactPremium")}
-                </Button>
-              </PlanCard>
-            ))}
-            {!plans.length && !loadingPlans && (
-              <PlanCard>
-                <PlanName>Premium</PlanName>
-                <div style={{ color: "var(--text-muted-color)", fontSize: 12 }}>
-                  {t("profileUtility.premium.plansUnavailable")}
-                </div>
-                <Button onClick={() => openSupportChat("premium")}>
-                  {t("common.contact")}
-                </Button>
-              </PlanCard>
-            )}
-          </PlansGrid>
-        </div>
-      </Group>
+      {currentUser?.premiumStatus !== "active" ? (
+        <Group>
+          <GroupHeader>
+            <h4>{t("profileUtility.premium.plansTitle")}</h4>
+            <p>{t("profileUtility.premium.plansDescription")}</p>
+          </GroupHeader>
+          <div style={{ padding: "0 14px 14px" }}>
+            <PlansGrid>
+              {plans.map((plan) => (
+                <PlanCard key={plan._id} $premium>
+                  <PlanName $premium>{plan.name}</PlanName>
+                  <PlanPrice>${plan.price}</PlanPrice>
+                  <div style={{ color: "var(--text-muted-color)", fontSize: 12 }}>
+                    {plan.durationInDays} {t("profileUtility.premium.days")}
+                  </div>
+                  <Button onClick={() => openSupportChat("premium")}>
+                    {t("profileUtility.premium.contactPremium")}
+                  </Button>
+                </PlanCard>
+              ))}
+              {!plans.length && !loadingPlans && (
+                <PlanCard>
+                  <PlanName>Premium</PlanName>
+                  <div style={{ color: "var(--text-muted-color)", fontSize: 12 }}>
+                    {t("profileUtility.premium.plansUnavailable")}
+                  </div>
+                  <Button onClick={() => openSupportChat("premium")}>
+                    {t("common.contact")}
+                  </Button>
+                </PlanCard>
+              )}
+            </PlansGrid>
+          </div>
+        </Group>
+      ) : null}
 
-      <Group>
-        <GroupHeader>
-          <h4>{t("profileUtility.premium.decorationTitle")}</h4>
-          <p>{t("profileUtility.premium.decorationDescription")}</p>
-        </GroupHeader>
-        <div style={{ padding: "0 14px 14px" }}>
-          {currentUser?.premiumStatus === "active" ? (
-            <>
-              <DecorationsGrid>
-                <DecorationCard
-                  type="button"
-                  $active={
-                    currentUser?.selectedProfileDecorationId === "premium-badge"
-                  }
-                  onClick={() => handleSelectDecoration("premium-badge")}
-                  disabled={updatingDecoration}
-                >
-                  <DecorationPreview>
-                    <UserNameWithDecoration
-                      user={{
-                        nickname:
-                          currentUser?.nickname ||
-                          currentUser?.username ||
-                          t("common.userFallback"),
-                        username: currentUser?.username,
-                        premiumStatus: "active",
-                        selectedProfileDecorationId: "premium-badge",
-                      }}
-                      fallback={t("common.userFallback")}
-                    />
-                  </DecorationPreview>
-                  <DecorationMeta>
-                    {t("profileUtility.premium.decorationBadgeMeta")}
-                  </DecorationMeta>
-                </DecorationCard>
-                <DecorationCard
-                  type="button"
-                  $active={!currentUser?.selectedProfileDecorationId}
-                  onClick={() => handleSelectDecoration(null)}
-                  disabled={updatingDecoration}
-                >
-                  <DecorationPreview>
-                    <DecorationEmoji>∅</DecorationEmoji>
-                    <span>{t("profileUtility.premium.decorationNone")}</span>
-                  </DecorationPreview>
-                  <DecorationMeta>
-                    {t("profileUtility.premium.decorationNoneMeta")}
-                  </DecorationMeta>
-                </DecorationCard>
-                <DecorationCard
-                  type="button"
-                  $active={
-                    currentUser?.selectedProfileDecorationId === "custom-upload"
-                  }
-                  onClick={handleCustomDecorationCardClick}
-                  disabled={uploadingDecorationImage || updatingDecoration}
-                >
-                  <HiddenFileInput
-                    ref={decorationFileInputRef}
-                    type="file"
-                    accept="image/*"
-                    onChange={handleUploadDecorationImage}
-                  />
-                  <DecorationPreview>
-                    <UserNameWithDecoration
-                      user={{
-                        nickname:
-                          currentUser?.nickname ||
-                          currentUser?.username ||
-                          t("common.userFallback"),
-                        username: currentUser?.username,
-                        premiumStatus: currentUser?.premiumStatus,
-                        selectedProfileDecorationId:
-                          currentUser?.customProfileDecorationImage
-                            ? "custom-upload"
-                            : null,
-                        customProfileDecorationImage:
-                          currentUser?.customProfileDecorationImage || null,
-                      }}
-                      fallback={t("common.userFallback")}
-                    />
-                  </DecorationPreview>
-                  <DecorationMeta>
-                    {uploadingDecorationImage
-                      ? t("profileUtility.premium.decorationImageUploading")
-                      : currentUser?.customProfileDecorationImage
-                        ? t("profileUtility.premium.decorationImageReplace")
-                        : t("profileUtility.premium.decorationImageUpload")}
-                  </DecorationMeta>
-                </DecorationCard>
-                {decorations.map((decoration) => (
-                  <DecorationCard
-                    key={decoration.key || decoration._id}
-                    type="button"
-                    $active={
-                      currentUser?.selectedProfileDecorationId === decoration.key
-                    }
-                    onClick={() => handleSelectDecoration(decoration.key)}
-                    disabled={updatingDecoration}
-                  >
-                    <DecorationPreview>
-                      <UserNameWithDecoration
-                        user={{
-                          nickname:
-                            currentUser?.nickname ||
-                            currentUser?.username ||
-                            t("common.userFallback"),
-                          username: currentUser?.username,
-                          premiumStatus: currentUser?.premiumStatus,
-                          selectedProfileDecorationId: decoration.key,
-                        }}
-                        fallback={t("common.userFallback")}
-                      />
-                    </DecorationPreview>
-                    <DecorationMeta>{decoration.label}</DecorationMeta>
-                  </DecorationCard>
-                ))}
-              </DecorationsGrid>
-            </>
-          ) : (
-            <InfoCard>
-              <h4>{t("profileUtility.premium.decorationLockedTitle")}</h4>
-              <p>{t("profileUtility.premium.decorationLockedDescription")}</p>
-              <Button onClick={() => openSupportChat("premium")}>
-                <Sticker size={14} />
-                {t("profileUtility.premium.contactPremium")}
-              </Button>
-            </InfoCard>
-          )}
-        </div>
-      </Group>
     </>
   );
 
