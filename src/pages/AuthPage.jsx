@@ -660,7 +660,8 @@ const AuthPage = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-  const isAllowedEmail = (value) => /^[^\s@]+@gmail\.com$/i.test(value.trim());
+  const isAllowedEmail = (value) =>
+    /^[^\s@]+@(gmail\.com|jamm\.uz)$/i.test(value.trim());
 
   // Check for verification token in URL
   React.useEffect(() => {
@@ -702,7 +703,7 @@ const AuthPage = () => {
 
     const normalizedEmail = email.trim().toLowerCase();
     if (!isAllowedEmail(normalizedEmail)) {
-      setError("Faqat gmail.com email manzili ruxsat etiladi");
+      setError("Faqat gmail.com yoki jamm.uz email manzili ruxsat etiladi");
       return;
     }
 
@@ -850,7 +851,7 @@ const AuthPage = () => {
               <InputWrapper>
                 <StyledInput
                   type="email"
-                  placeholder="username@gmail.com"
+                  placeholder="username@gmail.com yoki username@jamm.uz"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required

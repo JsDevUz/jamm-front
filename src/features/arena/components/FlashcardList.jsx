@@ -2046,9 +2046,6 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
                       <ClassicToolbarIcon type="button" tabIndex={-1} aria-hidden="true">
                         <Volume2 size={22} />
                       </ClassicToolbarIcon>
-                      <ClassicToolbarIcon type="button" tabIndex={-1} aria-hidden="true">
-                        <Star size={22} />
-                      </ClassicToolbarIcon>
                     </ClassicCardToolbarSpacer>
                     <ClassicCardBody>
                       {nextPromptImage && <ClassicCardImage src={nextPromptImage} />}
