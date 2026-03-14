@@ -331,7 +331,21 @@ const ChatAreaComposer = () => {
   const isMobile =
     typeof window !== "undefined" &&
     window.matchMedia("(max-width: 768px)").matches;
-  const emojiPanelHeight = Math.max(lastKeyboardHeight || 0, 290);
+  const focusMessageInput = () => {
+    if (!messageInputRef.current) return;
+
+    messageInputRef.current.focus({ preventScroll: true });
+    scrollIntoViewOnFocus(messageInputRef.current);
+    const caretPosition = messageInputRef.current.value.length;
+    messageInputRef.current.setSelectionRange(caretPosition, caretPosition);
+  };
+  const estimatedMobileKeyboardHeight =
+    typeof window !== "undefined"
+      ? Math.max(320, Math.min(Math.round((window.innerHeight || 0) * 0.42), 420))
+      : 320;
+  const emojiPanelHeight = isMobile
+    ? Math.max(lastKeyboardHeight || 0, estimatedMobileKeyboardHeight)
+    : Math.max(lastKeyboardHeight || 0, 290);
   const emojiSections = [
     { label: "Faces", emojis: CHAT_EMOJIS.slice(0, 35) },
     { label: "Mood", emojis: CHAT_EMOJIS.slice(35, 80) },
@@ -390,14 +404,8 @@ const ChatAreaComposer = () => {
     if (showEmojiPicker) {
       setShowEmojiPicker(false);
       window.setTimeout(() => {
-        if (!messageInputRef.current) return;
-        messageInputRef.current.focus();
-        scrollIntoViewOnFocus(messageInputRef.current);
-        messageInputRef.current.setSelectionRange(
-          messageInputRef.current.value.length,
-          messageInputRef.current.value.length,
-        );
-      }, 40);
+        focusMessageInput();
+      }, 80);
       return;
     }
 
@@ -455,12 +463,12 @@ const ChatAreaComposer = () => {
                 <ReplyPreviewText>{replyMessage.content}</ReplyPreviewText>
               </ReplyPreviewBody>
               <CloseReplyButton
-                className="replay-close"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  setReplyMessage(null);
-                  setTimeout(() => {
-                    messageInputRef.current?.focus();
+              className="replay-close"
+              onClick={(event) => {
+                event.stopPropagation();
+                setReplyMessage(null);
+                setTimeout(() => {
+                    focusMessageInput();
                   }, 0);
                 }}
               >
@@ -521,6 +529,8 @@ const ChatAreaComposer = () => {
              <InputButton
               type="button"
               disabled={isComposerDisabled}
+              onMouseDown={(event) => event.preventDefault()}
+              onPointerDown={(event) => event.preventDefault()}
               onClick={handleEmojiToggle}
               className="emoji-button"
              >

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import styled, { keyframes } from "styled-components";
+import styled, { css, keyframes } from "styled-components";
 import toast from "react-hot-toast";
 import { useArena } from "../../../contexts/ArenaContext";
 import {
@@ -814,6 +814,21 @@ const ClassicStackCard = styled.div`
   }
 `;
 
+const classicCardSurfaceCss = css`
+  border-radius: 30px;
+  border: 1px solid
+    color-mix(in srgb, var(--border-color) 78%, transparent);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--secondary-color) 94%, var(--background-color)) 0%,
+    color-mix(in srgb, var(--tertiary-color) 96%, var(--background-color)) 100%
+  );
+  box-shadow:
+    0 24px 80px rgba(0, 0, 0, 0.28),
+    0 24px 52px color-mix(in srgb, black 24%, transparent),
+    inset 0 1px 0 color-mix(in srgb, white 6%, transparent);
+`;
+
 const ClassicNextPreviewCard = styled.div`
   position: absolute;
   top: 300px;
@@ -822,16 +837,7 @@ const ClassicNextPreviewCard = styled.div`
   height: min(68vh, 720px);
   min-height: min(68vh, 720px);
   max-height: 100%;
-  border-radius: 34px;
-  border: 1px solid color-mix(in srgb, var(--border-color) 72%, transparent);
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--secondary-color) 94%, var(--background-color)) 0%,
-    color-mix(in srgb, var(--tertiary-color) 97%, var(--background-color)) 100%
-  );
-  box-shadow:
-    0 20px 52px rgba(0, 0, 0, 0.22),
-    inset 0 1px 0 color-mix(in srgb, white 6%, transparent);
+  ${classicCardSurfaceCss};
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -959,7 +965,7 @@ const ClassicFlipLayer = styled.div`
   -webkit-transform-style: preserve-3d;
   will-change: transform;
   padding: 28px;
-  border-radius: 30px;
+  ${classicCardSurfaceCss};
   transition: transform 0.62s cubic-bezier(0.22, 1, 0.36, 1);
   transform: rotateY(${(props) => (props.$flipped ? 180 : 0)}deg) translateZ(0);
   border: 1px solid
@@ -1027,6 +1033,9 @@ const ClassicCardToolbar = styled.div`
 `;
 
 const ClassicCardToolbarSpacer = styled(ClassicCardToolbar)`
+  width: 100%;
+  align-self: stretch;
+  justify-content: flex-start;
   pointer-events: none;
   opacity: ${(props) => props.$reveal || 0};
   transform: translateY(${(props) => 8 - (props.$reveal || 0) * 8}px)
