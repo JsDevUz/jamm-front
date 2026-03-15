@@ -49,6 +49,7 @@ const initialPromoForm = {
   code: "",
   validFrom: "",
   validUntil: "",
+  durationInDays: "365",
   maxUses: "",
 };
 
@@ -271,6 +272,7 @@ export default function AdminPanel() {
         <thead>
           <tr>
             <th>Code</th>
+            <th>Duration</th>
             <th>Status</th>
             <th>Uses</th>
             <th>Valid from</th>
@@ -281,6 +283,7 @@ export default function AdminPanel() {
           {data.items.map((item) => (
             <tr key={item._id}>
               <td>{item.displayCode || "—"}</td>
+              <td>{item.durationInDays ? `${item.durationInDays} days` : "30 days"}</td>
               <td>
                 <MetaBadge $tone={item.isActive ? "success" : "danger"}>
                   {item.isActive ? "Active" : "Inactive"}
@@ -368,6 +371,24 @@ export default function AdminPanel() {
                     }
                     placeholder="JAMM2026"
                   />
+                </Field>
+                <Field>
+                  Duration
+                  <FieldInput
+                    as="select"
+                    value={promoForm.durationInDays}
+                    onChange={(e) =>
+                      setPromoForm((prev) => ({
+                        ...prev,
+                        durationInDays: e.target.value,
+                      }))
+                    }
+                  >
+                    <option value="30">1 month</option>
+                    <option value="90">3 months</option>
+                    <option value="180">6 months</option>
+                    <option value="365">1 year</option>
+                  </FieldInput>
                 </Field>
                 <Field>
                   Max uses

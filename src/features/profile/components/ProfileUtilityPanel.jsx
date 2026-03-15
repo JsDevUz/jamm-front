@@ -5,12 +5,10 @@ import {
   Globe,
   Heart,
   Headphones,
-  ImagePlus,
   Lock,
   Palette,
   Shield,
   Sparkles,
-  Sticker,
   Zap,
 } from "lucide-react";
 import toast from "react-hot-toast";
@@ -24,6 +22,7 @@ import useAuthStore from "../../../store/authStore";
 import axiosInstance from "../../../api/axiosInstance";
 import { fetchLikedArticles } from "../../../api/articlesApi";
 import {
+  updateProfileDecoration,
 } from "../../../api/usersApi";
 import { normalizeLanguageCode } from "../../../i18n";
 import {
@@ -37,6 +36,7 @@ import {
 import { ProfileMobileBackButton } from "../ui";
 import AppLockPinPad from "../../../app/components/AppLockPinPad";
 import usePremiumUpgradeModalStore from "../../../app/store/usePremiumUpgradeModalStore";
+import useProfileDecorationsStore from "../../../store/profileDecorationsStore";
 
 const MobileBackBtn = styled(ProfileMobileBackButton)``;
 
@@ -271,10 +271,6 @@ const DecorationMeta = styled.div`
   line-height: 1.4;
 `;
 
-const HiddenFileInput = styled.input`
-  display: none;
-`;
-
 const PlansGrid = styled.div`
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -394,6 +390,10 @@ const ProfileUtilityPanel = ({ section, currentUser, onBack }) => {
   const openPremiumUpgradeModal = usePremiumUpgradeModalStore(
     (state) => state.openPremiumUpgradeModal,
   );
+  const decorations = useProfileDecorationsStore((state) => state.decorations);
+  const fetchDecorations = useProfileDecorationsStore(
+    (state) => state.fetchDecorations,
+  );
   const [language, setLanguage] = useState(
     () =>
       normalizeLanguageCode(
@@ -404,6 +404,8 @@ const ProfileUtilityPanel = ({ section, currentUser, onBack }) => {
   const [loadingPlans, setLoadingPlans] = useState(false);
   const [promoCode, setPromoCode] = useState("");
   const [redeeming, setRedeeming] = useState(false);
+  const [decorationsLoading, setDecorationsLoading] = useState(false);
+  const [decorationSaving, setDecorationSaving] = useState(false);
   const [likedPosts, setLikedPosts] = useState([]);
   const [likedArticles, setLikedArticles] = useState([]);
   const [likedLessons, setLikedLessons] = useState([]);
@@ -522,6 +524,21 @@ const ProfileUtilityPanel = ({ section, currentUser, onBack }) => {
 
     loadPlans();
   }, [section]);
+
+  useEffect(() => {
+    if (section !== "premium") return;
+
+    const loadDecorations = async () => {
+      setDecorationsLoading(true);
+      try {
+        await fetchDecorations(true);
+      } finally {
+        setDecorationsLoading(false);
+      }
+    };
+
+    loadDecorations();
+  }, [fetchDecorations, section]);
 
   useEffect(() => {
     if (section !== "favorites") return;
@@ -755,6 +772,36 @@ const ProfileUtilityPanel = ({ section, currentUser, onBack }) => {
     }
   };
 
+  const visibleDecorations = useMemo(
+    () =>
+      (decorations || []).filter(
+        (item) => item?.key && item.key !== "custom-upload",
+      ),
+    [decorations],
+  );
+
+  const handleDecorationSelect = async (decorationId) => {
+    if (decorationSaving) return;
+
+    setDecorationSaving(true);
+    try {
+      const updatedUser = await updateProfileDecoration(decorationId);
+      setAuth({ ...(authUser || {}), ...updatedUser });
+      toast.success(
+        decorationId
+          ? t("profileUtility.premium.decorationSaved")
+          : t("profileUtility.premium.decorationCleared"),
+      );
+    } catch (error) {
+      toast.error(
+        error?.response?.data?.message ||
+          t("profileUtility.premium.decorationError"),
+      );
+    } finally {
+      setDecorationSaving(false);
+    }
+  };
+
   const renderAppearance = () => (
     <>
       <Group>
@@ -903,6 +950,70 @@ const ProfileUtilityPanel = ({ section, currentUser, onBack }) => {
           </div>
         </Group>
       ) : null}
+
+      <Group>
+        <GroupHeader>
+          <h4>{t("profileUtility.premium.decorationTitle")}</h4>
+          <p>{t("profileUtility.premium.decorationDescription")}</p>
+        </GroupHeader>
+        <div style={{ padding: "0 14px 14px" }}>
+          {decorationsLoading ? (
+            <EmptyState>{t("common.loading")}</EmptyState>
+          ) : (
+            <DecorationsGrid>
+              <DecorationCard
+                type="button"
+                $active={!currentUser?.selectedProfileDecorationId}
+                onClick={() => handleDecorationSelect(null)}
+                disabled={decorationSaving}
+              >
+                <DecorationPreview>
+                  <DecorationEmoji>•</DecorationEmoji>
+                  {t("profileUtility.premium.decorationNone")}
+                </DecorationPreview>
+                <DecorationMeta>
+                  {t("profileUtility.premium.decorationNoneMeta")}
+                </DecorationMeta>
+              </DecorationCard>
+
+              {visibleDecorations.map((item) => {
+                const isLocked =
+                  Boolean(item?.premiumOnly) &&
+                  currentUser?.premiumStatus !== "active";
+                const isActive =
+                  currentUser?.selectedProfileDecorationId === item.key ||
+                  currentUser?.selectedProfileDecorationId === item._id;
+
+                return (
+                  <DecorationCard
+                    key={item._id || item.key}
+                    type="button"
+                    $active={isActive}
+                    onClick={() =>
+                      isLocked
+                        ? openPremiumUpgradeModal({
+                            source: "profile-decoration-lock",
+                          })
+                        : handleDecorationSelect(item.key)
+                    }
+                    disabled={decorationSaving}
+                  >
+                    <DecorationPreview>
+                      <DecorationEmoji>{item.emoji}</DecorationEmoji>
+                      {item.label}
+                    </DecorationPreview>
+                    <DecorationMeta>
+                      {isLocked
+                        ? t("profileUtility.premium.decorationLockedDescription")
+                        : t("profileUtility.premium.decorationBadgeMeta")}
+                    </DecorationMeta>
+                  </DecorationCard>
+                );
+              })}
+            </DecorationsGrid>
+          )}
+        </div>
+      </Group>
 
     </>
   );

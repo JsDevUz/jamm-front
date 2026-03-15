@@ -1190,6 +1190,9 @@ const TestOptionBtn = styled.button`
   appearance: none;
   -webkit-appearance: none;
   -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
   min-height: 54px;
   padding: 12px 14px;
   border-radius: 12px;
@@ -1210,18 +1213,41 @@ const TestOptionBtn = styled.button`
     border-color 0.16s ease,
     transform 0.16s ease;
 
-  &:hover {
-    background: ${(props) =>
-      props.$selected
-        ? "color-mix(in srgb, var(--primary-color) 22%, var(--secondary-color))"
-        : "var(--tertiary-color)"};
-    border-color: ${(props) =>
-      props.$selected ? "var(--primary-color)" : "var(--text-muted-color)"};
+  @media (hover: hover) and (pointer: fine) {
+    &:hover {
+      background: ${(props) =>
+        props.$selected
+          ? "color-mix(in srgb, var(--primary-color) 22%, var(--secondary-color))"
+          : "var(--tertiary-color)"};
+      border-color: ${(props) =>
+        props.$selected ? "var(--primary-color)" : "var(--text-muted-color)"};
+    }
   }
 
   &:focus {
     outline: none;
     box-shadow: none;
+  }
+
+  &:focus-visible {
+    outline: none;
+    box-shadow: none;
+  }
+
+  @media (hover: none), (pointer: coarse) {
+    &:hover,
+    &:active,
+    &:focus,
+    &:focus-visible {
+      background: ${(props) =>
+        props.$selected
+          ? "color-mix(in srgb, var(--primary-color) 18%, var(--secondary-color))"
+          : "var(--secondary-color)"};
+      border-color: ${(props) =>
+        props.$selected ? "var(--primary-color)" : "var(--border-color)"};
+      box-shadow: none;
+      outline: none;
+    }
   }
 
   ${(props) =>

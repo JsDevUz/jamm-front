@@ -78,6 +78,11 @@ const DecorationBadge = styled.span`
   ${(props) => animationStyles[props.$animation] || animationStyles.sparkle}
 `;
 
+const OfficialPremiumBadge = styled(PremiumBadgeIcon)`
+  color: #ff4fb3;
+  filter: drop-shadow(0 0 8px rgba(255, 79, 179, 0.28));
+`;
+
 const DecorationImage = styled.img`
   width: ${(props) => props.$size}px;
   height: ${(props) => props.$size}px;
@@ -100,6 +105,9 @@ const decorationSizes = {
   lg: 22,
 };
 
+const isPremiumDecorationSelected = (decorationId) =>
+  decorationId === "official-badge";
+
 export default function UserNameWithDecoration({
   user,
   fallback = "User",
@@ -116,7 +124,7 @@ export default function UserNameWithDecoration({
     if (
       !user?.selectedProfileDecorationId ||
       user.selectedProfileDecorationId === "custom-upload" ||
-      user.selectedProfileDecorationId === "premium-badge" ||
+      isPremiumDecorationSelected(user.selectedProfileDecorationId) ||
       !decorations.length
     ) {
       return null;
@@ -139,7 +147,7 @@ export default function UserNameWithDecoration({
   const showPremiumBadgeOption =
     showPremiumBadge &&
     user?.premiumStatus === "active" &&
-    user?.selectedProfileDecorationId === "premium-badge";
+    isPremiumDecorationSelected(user?.selectedProfileDecorationId);
 
   return (
     <NameWrap className={className}>
@@ -162,7 +170,7 @@ export default function UserNameWithDecoration({
         </DecorationBadge>
       ) : null}
       {showPremiumBadgeOption ? (
-        <PremiumBadgeIcon width={premiumSize.width} height={premiumSize.height} />
+        <OfficialPremiumBadge width={premiumSize.width} height={premiumSize.height} />
       ) : null}
     </NameWrap>
   );
