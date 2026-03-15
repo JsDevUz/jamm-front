@@ -78,11 +78,6 @@ const DecorationBadge = styled.span`
   ${(props) => animationStyles[props.$animation] || animationStyles.sparkle}
 `;
 
-const OfficialPremiumBadge = styled(PremiumBadgeIcon)`
-  color: #ff4fb3;
-  filter: drop-shadow(0 0 8px rgba(255, 79, 179, 0.28));
-`;
-
 const DecorationImage = styled.img`
   width: ${(props) => props.$size}px;
   height: ${(props) => props.$size}px;
@@ -105,8 +100,14 @@ const decorationSizes = {
   lg: 22,
 };
 
-const isPremiumDecorationSelected = (decorationId) =>
+const isOfficialBadgeSelected = (decorationId) =>
   decorationId === "official-badge";
+
+const isPremiumBadgeSelected = (decorationId) =>
+  decorationId === "premium-badge";
+
+const isSpecialBadgeSelected = (decorationId) =>
+  isOfficialBadgeSelected(decorationId) || isPremiumBadgeSelected(decorationId);
 
 export default function UserNameWithDecoration({
   user,
@@ -124,7 +125,7 @@ export default function UserNameWithDecoration({
     if (
       !user?.selectedProfileDecorationId ||
       user.selectedProfileDecorationId === "custom-upload" ||
-      isPremiumDecorationSelected(user.selectedProfileDecorationId) ||
+      isSpecialBadgeSelected(user.selectedProfileDecorationId) ||
       !decorations.length
     ) {
       return null;
@@ -144,10 +145,14 @@ export default function UserNameWithDecoration({
   const showCustomImage =
     user?.selectedProfileDecorationId === "custom-upload" &&
     user?.customProfileDecorationImage;
-  const showPremiumBadgeOption =
+  const showOfficialBadge =
     showPremiumBadge &&
     user?.premiumStatus === "active" &&
-    isPremiumDecorationSelected(user?.selectedProfileDecorationId);
+    isOfficialBadgeSelected(user?.selectedProfileDecorationId);
+  const showPremiumBadgeVariant =
+    showPremiumBadge &&
+    user?.premiumStatus === "active" &&
+    isPremiumBadgeSelected(user?.selectedProfileDecorationId);
 
   return (
     <NameWrap className={className}>
@@ -169,8 +174,16 @@ export default function UserNameWithDecoration({
           {decoration.emoji}
         </DecorationBadge>
       ) : null}
-      {showPremiumBadgeOption ? (
-        <OfficialPremiumBadge width={premiumSize.width} height={premiumSize.height} />
+      {showOfficialBadge ? (
+        <PremiumBadgeIcon
+          width={premiumSize.width}
+          height={premiumSize.height}
+          color="var(--primary-color)"
+          style={{ filter: "none" }}
+        />
+      ) : null}
+      {showPremiumBadgeVariant ? (
+        <PremiumBadgeIcon width={premiumSize.width} height={premiumSize.height} />
       ) : null}
     </NameWrap>
   );
