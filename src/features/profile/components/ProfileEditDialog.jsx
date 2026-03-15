@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import styled from "styled-components";
 import { AlertCircle, Camera, Check, Loader, X } from "lucide-react";
 import toast from "react-hot-toast";
-import PremiumBadgeIcon from "../../../shared/ui/badges/PremiumBadge";
+import OfficalBadge from "../../../shared/ui/badges/OfficalBadge";
 import axiosInstance from "../../../api/axiosInstance";
 import useAuthStore from "../../../store/authStore";
 import { APP_LIMITS } from "../../../constants/appLimits";
@@ -464,7 +464,7 @@ const ProfileEditDialog = ({ isOpen, onClose }) => {
                 <FieldLabel>
                   Nickname
                   {profile.premiumStatus === "active" && (
-                    <PremiumBadgeIcon width={14} height={14} />
+                    <OfficalBadge width={14} height={14} />
                   )}
                 </FieldLabel>
                 <FieldInput

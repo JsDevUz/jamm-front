@@ -8,7 +8,7 @@ import {
   Timer,
   X,
 } from "lucide-react";
-import PremiumBadgeIcon from "../../../../shared/ui/badges/PremiumBadge";
+import OfficalBadge from "../../../../shared/ui/badges/OfficalBadge";
 import UserNameWithDecoration from "../../../../shared/ui/users/UserNameWithDecoration";
 import { useChatAreaContext } from "../context/ChatAreaContext";
 import useKeyboardAvoid from "../../../../shared/hooks/useKeyboardAvoid";

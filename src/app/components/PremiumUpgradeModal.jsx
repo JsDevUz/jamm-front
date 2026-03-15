@@ -1,7 +1,7 @@
 import React, { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Crown, ShieldAlert, X } from "lucide-react";
-import PremiumBadgeIcon from "../../shared/ui/badges/PremiumBadge";
+import OfficalBadge from "../../shared/ui/badges/OfficalBadge";
 import { APP_LIMITS } from "../../constants/appLimits";
 import useAuthStore from "../../store/authStore";
 import {
@@ -379,7 +379,7 @@ const PremiumUpgradeModal = ({
         <ModalHeader>
           <Hero>
             <HeroRow>
-              <PremiumBadgeIcon width={28} height={28} />
+              <OfficalBadge width={28} height={28} />
               <HeroTitle>{t("premiumModal.title")}</HeroTitle>
             </HeroRow>
             <HeroText>{t("premiumModal.subtitle")}</HeroText>

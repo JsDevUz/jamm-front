@@ -28,7 +28,7 @@ import {
   Skeleton,
   SkeletonCircle,
 } from "../../shared/ui/feedback/Skeleton";
-import PremiumBadgeIcon from "../../shared/ui/badges/PremiumBadge";
+import OfficalBadge from "../../shared/ui/badges/OfficalBadge";
 import { SidebarIconButton as ButtonWrapper } from "../../shared/ui/buttons/IconButton";
 import {
   getDesktopNotificationsEnabled,
@@ -1005,7 +1005,7 @@ const SettingsDialog = ({ isOpen, onClose, initialSection = "my-account" }) => {
           <FieldLabel style={{ display: "flex", alignItems: "center", gap: 6 }}>
             Nickname{" "}
             {profile.premiumStatus === "active" && (
-              <PremiumBadgeIcon width={14} height={14} />
+              <OfficalBadge width={14} height={14} />
             )}
           </FieldLabel>
           <FieldInput

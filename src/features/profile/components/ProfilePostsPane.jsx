@@ -12,7 +12,7 @@ import {
   Plus,
   Trash2,
 } from "lucide-react";
-import PremiumBadge from "../../../shared/ui/badges/PremiumBadge";
+import OfficalBadge from "../../../shared/ui/badges/OfficalBadge";
 import ImageLightbox from "../../../shared/ui/media/ImageLightbox";
 import {
   ProfileMobileBackButton,
@@ -305,7 +305,7 @@ const ProfilePostsPane = ({
               <PostMeta>
                 <h4>
                   {displayName}
-                  <PremiumBadge isPremium={isPremium} />
+                  {isPremium ? <OfficalBadge width={14} height={14} /> : null}
                 </h4>
                 <span>{formatTime(post.createdAt)}</span>
               </PostMeta>

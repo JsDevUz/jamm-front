@@ -1,6 +1,6 @@
 import React, { useMemo } from "react";
 import styled, { css, keyframes } from "styled-components";
-import PremiumBadgeIcon from "../badges/PremiumBadge";
+import OfficalBadge from "../badges/OfficalBadge";
 import useProfileDecorationsStore from "../../../store/profileDecorationsStore";
 
 const pulse = keyframes`
@@ -175,7 +175,7 @@ export default function UserNameWithDecoration({
         </DecorationBadge>
       ) : null}
       {showOfficialBadge ? (
-        <PremiumBadgeIcon
+        <OfficalBadge
           width={premiumSize.width}
           height={premiumSize.height}
           color="var(--primary-color)"
@@ -183,7 +183,7 @@ export default function UserNameWithDecoration({
         />
       ) : null}
       {showPremiumBadgeVariant ? (
-        <PremiumBadgeIcon width={premiumSize.width} height={premiumSize.height} />
+        <OfficalBadge width={premiumSize.width} height={premiumSize.height} />
       ) : null}
     </NameWrap>
   );

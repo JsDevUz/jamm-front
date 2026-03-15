@@ -25,7 +25,7 @@ const BadgeIcon = ({
   </svg>
 );
 
-const PremiumBadge = ({ width, height, color, className, style }) => {
+const OfficalBadge = ({ width, height, color, className, style }) => {
   return (
     <BadgeIcon
       width={width}
@@ -37,4 +37,4 @@ const PremiumBadge = ({ width, height, color, className, style }) => {
   );
 };
 
-export default PremiumBadge;
+export default OfficalBadge;

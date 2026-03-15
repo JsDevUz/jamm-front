@@ -775,7 +775,10 @@ const ProfileUtilityPanel = ({ section, currentUser, onBack }) => {
   const visibleDecorations = useMemo(
     () =>
       (decorations || []).filter(
-        (item) => item?.key && item.key !== "custom-upload",
+        (item) =>
+          item?.key &&
+          item.key !== "custom-upload" &&
+          item.key !== "official-badge",
       ),
     [decorations],
   );

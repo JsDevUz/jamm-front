@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import styled from "styled-components";
 import { Mic, Headphones, Settings, Volume2, X, Star } from "lucide-react";
 import useAuthStore from "../store/authStore";
-import PremiumBadgeIcon from "../shared/ui/badges/PremiumBadge";
+import OfficalBadge from "../shared/ui/badges/OfficalBadge";
 
 const PanelContainer = styled.div`
   width: 60px;
@@ -180,7 +180,7 @@ const UserPanel = () => {
               border: "2px solid #292b2f",
             }}
           >
-            <PremiumBadgeIcon width={10} height={10} color="#fff" />
+            <OfficalBadge width={10} height={10} color="#fff" />
           </div>
         )}
         <StatusIndicator />
