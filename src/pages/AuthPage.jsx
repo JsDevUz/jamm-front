@@ -693,6 +693,7 @@ const AuthPage = () => {
     const params = new URLSearchParams(window.location.search);
     const verifyToken = params.get("verify_token");
     const nextResetToken = params.get("reset_token");
+    const googleError = params.get("google_error");
 
     if (verifyToken) {
       handleVerify(verifyToken);
@@ -704,6 +705,12 @@ const AuthPage = () => {
       setMode("reset");
       setError("");
       setSuccess("");
+      return;
+    }
+
+    if (googleError) {
+      setError(googleError);
+      window.history.replaceState({}, "", "/login");
     }
   }, []);
 
@@ -813,8 +820,7 @@ const AuthPage = () => {
   };
 
   const handleGoogleAuth = () => {
-    // TODO: Google OAuth integration
-    toast.error("Google Auth hali ulanmagan. Email/parol bilan kiring.");
+    window.location.href = `${API_BASE_URL}/auth/google/start`;
   };
 
   return (
