@@ -177,6 +177,7 @@ export function useWebRTC({
   const screenStreamRef = useRef(null);
   const screenSendersRef = useRef({});
   const knownStreamsRef = useRef({});
+  const knownPeerNamesRef = useRef({});
   const candidateQueuesRef = useRef({}); // Store candidates until remote sdp is set
   const statsIntervalRef = useRef(null);
   const qualityProfileRef = useRef(CALL_QUALITY_PROFILES.balanced);
@@ -373,6 +374,100 @@ export function useWebRTC({
     [applyMediaOptimization],
   );
 
+  const ensureLocalAudioTrack = useCallback(async () => {
+    const stream = localStreamRef.current;
+    if (!stream || !navigator.mediaDevices?.getUserMedia) return false;
+
+    const existingTrack = stream.getAudioTracks()[0] || null;
+    if (existingTrack) {
+      existingTrack.enabled = true;
+      setIsMicOn(true);
+      return true;
+    }
+
+    try {
+      const nextStream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+          channelCount: 1,
+        },
+        video: false,
+      });
+      const nextTrack = nextStream.getAudioTracks()[0];
+      if (!nextTrack) {
+        nextStream.getTracks().forEach((track) => track.stop());
+        return false;
+      }
+
+      nextTrack.enabled = true;
+      stream.addTrack(nextTrack);
+
+      const senderTasks = Object.values(peerConnectionsRef.current).map(async (pc) => {
+        const existingSender = pc
+          .getSenders()
+          .find((sender) => sender.track?.kind === "audio");
+
+        if (existingSender) {
+          try {
+            await existingSender.replaceTrack(nextTrack);
+          } catch {}
+          return;
+        }
+
+        try {
+          pc.addTrack(nextTrack, stream);
+        } catch {}
+      });
+
+      await Promise.all(senderTasks);
+      setLocalStream(stream);
+      setIsMicOn(true);
+      await applyMediaOptimization(qualityProfileRef.current);
+      return true;
+    } catch (err) {
+      console.error("Enable microphone error:", err);
+      return false;
+    }
+  }, [applyMediaOptimization]);
+
+  const ensureLocalVideoTrack = useCallback(async () => {
+    if (!navigator.mediaDevices?.getUserMedia) return false;
+
+    const existingTrack = localStreamRef.current?.getVideoTracks()[0] || null;
+    if (existingTrack) {
+      existingTrack.enabled = true;
+      setIsCamOn(true);
+      return true;
+    }
+
+    try {
+      const nextStream = await navigator.mediaDevices.getUserMedia({
+        video: buildCameraConstraints(),
+        audio: false,
+      });
+      const nextTrack = nextStream.getVideoTracks()[0];
+      if (!nextTrack) {
+        nextStream.getTracks().forEach((track) => track.stop());
+        return false;
+      }
+
+      const replaced = await replaceCameraTrack(nextTrack, { enabled: true });
+      if (!replaced) {
+        nextTrack.stop();
+        return false;
+      }
+
+      setIsCamOn(true);
+      await refreshVideoInputCount();
+      return true;
+    } catch (err) {
+      console.error("Enable camera error:", err);
+      return false;
+    }
+  }, [buildCameraConstraints, refreshVideoInputCount, replaceCameraTrack]);
+
   const refreshQualityProfile = useCallback(async () => {
     const peerCount =
       remoteStreams.length + remoteScreenStreams.length + (isScreenSharing ? 1 : 0);
@@ -549,7 +644,12 @@ export function useWebRTC({
     (socket) => {
       socket.on("offer", async ({ senderId, sdp }) => {
         let pc = peerConnectionsRef.current[senderId];
-        if (!pc) pc = createPeerConnection(senderId, senderId);
+        if (!pc) {
+          pc = createPeerConnection(
+            senderId,
+            knownPeerNamesRef.current[senderId] || senderId,
+          );
+        }
         await pc.setRemoteDescription(new RTCSessionDescription(sdp));
 
         // Process queued ice candidates
@@ -593,6 +693,9 @@ export function useWebRTC({
       });
 
       socket.on("peer-joined", async ({ peerId, displayName: peerName }) => {
+        if (peerName) {
+          knownPeerNamesRef.current[peerId] = peerName;
+        }
         const pc = createPeerConnection(peerId, peerName);
         const offer = await pc.createOffer();
         await pc.setLocalDescription(offer);
@@ -600,6 +703,11 @@ export function useWebRTC({
       });
 
       socket.on("existing-peers", ({ peers }) => {
+        (peers || []).forEach((peer) => {
+          if (peer?.peerId && peer?.displayName) {
+            knownPeerNamesRef.current[peer.peerId] = peer.displayName;
+          }
+        });
         // Server confirmed we're in the room
         setJoinStatus("joined");
         // Don't create offers here — existing peers will send us
@@ -663,6 +771,8 @@ export function useWebRTC({
         if (audioTrack) audioTrack.enabled = initialMicOn;
         const videoTrack = stream.getVideoTracks()[0];
         if (videoTrack) videoTrack.enabled = initialCamOn;
+        setIsMicOn(Boolean(audioTrack?.enabled));
+        setIsCamOn(Boolean(videoTrack?.enabled));
 
         // 2. Connect to signaling server
         const socket = io(`${SIGNAL_URL}/video`, {
@@ -677,10 +787,19 @@ export function useWebRTC({
         // 4. Creator: knock-request listener
         if (isCreator) {
           socket.on("knock-request", ({ peerId, displayName: guestName }) => {
-            setKnockRequests((prev) => [
-              ...prev,
-              { peerId, displayName: guestName },
-            ]);
+            setKnockRequests((prev) => {
+              const existingIndex = prev.findIndex((item) => item.peerId === peerId);
+
+              if (existingIndex !== -1) {
+                return prev.map((item, index) =>
+                  index === existingIndex
+                    ? { ...item, displayName: guestName || item.displayName }
+                    : item,
+                );
+              }
+
+              return [...prev, { peerId, displayName: guestName }];
+            });
           });
         }
 
@@ -692,7 +811,7 @@ export function useWebRTC({
 
           socket.on("knock-approved", ({ mediaLocked }) => {
             setJoinStatus("joined");
-            // Private rooms: lock mic/cam until creator allows
+            // Safety fallback: older backend may still send a locked flag.
             if (mediaLocked) {
               setMicLocked(true);
               setCamLocked(true);
@@ -706,7 +825,10 @@ export function useWebRTC({
                 video.enabled = false;
                 setIsCamOn(false);
               }
+              return;
             }
+            setMicLocked(false);
+            setCamLocked(false);
           });
 
           socket.on("knock-rejected", ({ reason }) => {
@@ -759,8 +881,26 @@ export function useWebRTC({
           }
           setCamLocked(true);
         });
-        socket.on("allow-mic", () => setMicLocked(false));
-        socket.on("allow-cam", () => setCamLocked(false));
+        socket.on("allow-mic", () => {
+          setMicLocked(false);
+          const t = localStreamRef.current?.getAudioTracks()[0];
+          if (t) {
+            t.enabled = true;
+            setIsMicOn(true);
+            return;
+          }
+          ensureLocalAudioTrack().catch(() => {});
+        });
+        socket.on("allow-cam", () => {
+          setCamLocked(false);
+          const t = localStreamRef.current?.getVideoTracks()[0];
+          if (t) {
+            t.enabled = true;
+            setIsCamOn(true);
+            return;
+          }
+          ensureLocalVideoTrack().catch(() => {});
+        });
 
         // 5f. Hand raise signals
         socket.on("hand-raised", ({ peerId: pid }) => {
@@ -860,6 +1000,7 @@ export function useWebRTC({
       setLocalStream(null);
       setRemoteStreams([]);
       setRemotePeerStates({});
+      knownPeerNamesRef.current = {};
       setNetworkQuality("good");
       setQualityProfile(CALL_QUALITY_PROFILES.balanced);
       qualityProfileRef.current = CALL_QUALITY_PROFILES.balanced;
@@ -908,23 +1049,27 @@ export function useWebRTC({
     [roomId],
   );
 
-  const toggleMic = useCallback(() => {
+  const toggleMic = useCallback(async () => {
     if (micLocked) return; // creator locked
     const t = localStreamRef.current?.getAudioTracks()[0];
     if (t) {
       t.enabled = !t.enabled;
       setIsMicOn(t.enabled);
+      return;
     }
-  }, [micLocked]);
+    await ensureLocalAudioTrack();
+  }, [ensureLocalAudioTrack, micLocked]);
 
-  const toggleCam = useCallback(() => {
+  const toggleCam = useCallback(async () => {
     if (camLocked) return; // creator locked
     const t = localStreamRef.current?.getVideoTracks()[0];
     if (t) {
       t.enabled = !t.enabled;
       setIsCamOn(t.enabled);
+      return;
     }
-  }, [camLocked]);
+    await ensureLocalVideoTrack();
+  }, [camLocked, ensureLocalVideoTrack]);
 
   const switchCamera = useCallback(async () => {
     if (camLocked) return false;
@@ -1115,29 +1260,45 @@ export function useWebRTC({
   const forceMuteMic = useCallback(
     (peerId) => {
       socketRef.current?.emit("force-mute-mic", { roomId, peerId });
+      updateRemotePeerState(peerId, {
+        hasAudio: true,
+        audioMuted: true,
+      });
     },
-    [roomId],
+    [roomId, updateRemotePeerState],
   );
 
   const forceMuteCam = useCallback(
     (peerId) => {
       socketRef.current?.emit("force-mute-cam", { roomId, peerId });
+      updateRemotePeerState(peerId, {
+        hasVideo: true,
+        videoMuted: true,
+      });
     },
-    [roomId],
+    [roomId, updateRemotePeerState],
   );
 
   const allowMic = useCallback(
     (peerId) => {
       socketRef.current?.emit("allow-mic", { roomId, peerId });
+      updateRemotePeerState(peerId, {
+        hasAudio: true,
+        audioMuted: false,
+      });
     },
-    [roomId],
+    [roomId, updateRemotePeerState],
   );
 
   const allowCam = useCallback(
     (peerId) => {
       socketRef.current?.emit("allow-cam", { roomId, peerId });
+      updateRemotePeerState(peerId, {
+        hasVideo: true,
+        videoMuted: false,
+      });
     },
-    [roomId],
+    [roomId, updateRemotePeerState],
   );
 
   const kickPeer = useCallback(

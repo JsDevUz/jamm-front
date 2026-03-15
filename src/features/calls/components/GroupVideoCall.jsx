@@ -138,6 +138,8 @@ const CallTitle = styled.span`
   color: var(--call-text);
   font-size: 15px;
   font-weight: 700;
+  display: flex;
+  align-items: center;
 `;
 const CallSub = styled.span`
   color: var(--call-muted);
@@ -879,9 +881,51 @@ const VideoEl = ({
   const { t } = useTranslation();
   const ref = useRef(null);
   const tileRef = useRef(null);
+
   useEffect(() => {
-    if (ref.current && stream) ref.current.srcObject = stream;
-  }, [stream, isCamOn]);
+    const node = ref.current;
+    if (!node || !stream || !isCamOn) return undefined;
+
+    if (node.srcObject !== stream) {
+      node.srcObject = stream;
+    }
+
+    let cancelled = false;
+    let retryTimeoutId = null;
+
+    const ensurePlayback = () => {
+      if (cancelled || !ref.current) return;
+
+      const playPromise = ref.current.play?.();
+      if (playPromise?.catch) {
+        playPromise.catch(() => {
+          if (cancelled) return;
+          retryTimeoutId = window.setTimeout(() => {
+            ensurePlayback();
+          }, 180);
+        });
+      }
+    };
+
+    const handleReady = () => {
+      ensurePlayback();
+    };
+
+    node.onloadedmetadata = handleReady;
+    node.oncanplay = handleReady;
+    ensurePlayback();
+
+    return () => {
+      cancelled = true;
+      if (retryTimeoutId) {
+        window.clearTimeout(retryTimeoutId);
+      }
+      if (node) {
+        node.onloadedmetadata = null;
+        node.oncanplay = null;
+      }
+    };
+  }, [isCamOn, stream]);
 
   const goFullscreen = () => {
     const el = tileRef.current;
@@ -1327,7 +1371,13 @@ const GroupVideoCall = ({
   const minimizedPreviewRef = useCallback(
     (node) => {
       if (node && minimizedPreviewStream) {
-        node.srcObject = minimizedPreviewStream;
+        if (node.srcObject !== minimizedPreviewStream) {
+          node.srcObject = minimizedPreviewStream;
+        }
+        const playPromise = node.play?.();
+        if (playPromise?.catch) {
+          playPromise.catch(() => {});
+        }
       }
     },
     [minimizedPreviewStream],
@@ -1788,9 +1838,9 @@ const GroupVideoCall = ({
                             onClick={() =>
                               isPeerMicOn ? forceMuteMic(peerId) : allowMic(peerId)
                             }
-                            title={isPeerMicOn ? "Mic o'chirish" : "Mic ruxsat"}
-                            $danger={isPeerMicOn}
-                            $success={!isPeerMicOn}
+                            title={isPeerMicOn ? "Mic o'chirish" : "Mic yoqish"}
+                            $danger={!isPeerMicOn}
+                            $success={isPeerMicOn}
                           >
                             {isPeerMicOn ? <MicOff size={16} /> : <Mic size={16} />}
                           </MemberActionBtn>
@@ -1798,9 +1848,9 @@ const GroupVideoCall = ({
                             onClick={() =>
                               isPeerCamOn ? forceMuteCam(peerId) : allowCam(peerId)
                             }
-                            title={isPeerCamOn ? "Cam o'chirish" : "Cam ruxsat"}
-                            $danger={isPeerCamOn}
-                            $success={!isPeerCamOn}
+                            title={isPeerCamOn ? "Cam o'chirish" : "Cam yoqish"}
+                            $danger={!isPeerCamOn}
+                            $success={isPeerCamOn}
                           >
                             {isPeerCamOn ? (
                               <VideoOff size={16} />

@@ -161,12 +161,31 @@ const JoinCallPage = () => {
   const hasEditedNameRef = useRef(false);
   const navigate = useNavigate();
   const user = useAuthStore((state) => state.user);
+  const initialized = useAuthStore((state) => state.initialized);
+  const bootstrapAuth = useAuthStore((state) => state.bootstrapAuth);
   const startCall = useMeetCallStore((state) => state.startCall);
   const activeCall = useMeetCallStore((state) => state.activeCall);
+  const defaultDisplayName =
+    user?.nickname ||
+    user?.name ||
+    user?.displayName ||
+    user?.fullName ||
+    user?.username ||
+    "";
+
+  useEffect(() => {
+    if (!initialized) {
+      bootstrapAuth().catch(() => {});
+    }
+  }, [bootstrapAuth, initialized]);
 
   useEffect(() => {
     let active = true;
     const fetchMeet = async () => {
+      if (!initialized) {
+        return;
+      }
+
       const stored = await getMeetById(roomId);
       if (!active) return;
 
@@ -183,19 +202,19 @@ const JoinCallPage = () => {
 
         if (amICreator) {
           if (!hasEditedNameRef.current) {
-            setName(user?.nickname || user?.username || "Host");
+            setName(defaultDisplayName || "Host");
           }
           setStage("call");
         } else {
           if (!hasEditedNameRef.current) {
-            setName(user?.nickname || user?.username || "");
+            setName(defaultDisplayName);
           }
           setStage("form");
         }
       } else {
         // Meet not in DB — treat current user as guest (link shared externally)
         if (!hasEditedNameRef.current) {
-          setName(user?.nickname || user?.username || "");
+          setName(defaultDisplayName);
         }
         setStage("form");
       }
@@ -204,7 +223,17 @@ const JoinCallPage = () => {
     return () => {
       active = false;
     };
-  }, [roomId, user]);
+  }, [defaultDisplayName, initialized, roomId, user]);
+
+  useEffect(() => {
+    if (stage !== "form" || hasEditedNameRef.current || name.trim()) {
+      return;
+    }
+
+    if (defaultDisplayName) {
+      setName(defaultDisplayName);
+    }
+  }, [defaultDisplayName, name, stage]);
 
   const handleJoin = async () => {
     if (!name.trim()) {
