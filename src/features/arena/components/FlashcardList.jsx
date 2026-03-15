@@ -34,13 +34,49 @@ import ArenaHeader from "./ArenaHeader";
 import { SidebarIconButton as ButtonWrapper } from "../../../shared/ui/buttons/IconButton";
 import ConfirmDialog from "../../../shared/ui/dialogs/ConfirmDialog";
 import { RESOLVED_APP_BASE_URL } from "../../../config/env";
-import FlashcardShooterGame from "./FlashcardShooterGame";
+import FlashcardReviewMode from "./FlashcardReviewMode";
+import FlashcardClassicMode from "./FlashcardClassicMode";
+import FlashcardTestMode from "./FlashcardTestMode";
+import FlashcardGameMode from "./FlashcardGameMode";
+import {
+  FlashcardDeckViewDialog,
+  FlashcardMembersDialog,
+  FlashcardTrainingPickerDialog,
+} from "./FlashcardDialogs";
 
 const FLASHCARD_PROMPT_SIDE_STORAGE_KEY = "jamm-flashcard-prompt-side-v1";
 
+// ─── AnimatedShell ─────────────────────────────────────────────────────────
+// Animatsiya shu yerda — faqat bir marta mount bo'ladi.
+// classicIndex yoki boshqa state o'zgansa qayta render qilmaydi,
+// chunki u asosiy ro'yxat sahifasida ekan (classicDeck === null).
+const slideInFromRight = keyframes`
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+`;
+
+const AnimatedShell = styled.div`
+  display: contents;
+
+  @media (max-width: 768px) {
+    display: block;
+    width: 100%;
+    height: 100%;
+    animation: ${slideInFromRight} 0.3s ease-out;
+  }
+`;
+
+// ─── Container ─────────────────────────────────────────────────────────────
+// Animatsiyasiz — faqat layout va pozitsiya.
 const Container = styled.div`
   display: flex;
   flex-direction: column;
+  overflow-x: hidden;
+
   @media (max-width: 768px) {
     position: fixed;
     top: 0;
@@ -51,19 +87,10 @@ const Container = styled.div`
     height: 100vh;
     z-index: 9999;
     background-color: var(--background-color);
-    animation: slideInFromRight 0.3s ease-out;
-    padding: 20px;
-    overflow-y: auto;
+    padding: ${(props) => (props.$fullscreen ? "0" : "20px")};
+    overflow-y: ${(props) => (props.$fullscreen ? "hidden" : "auto")};
+    overflow-x: hidden;
     box-sizing: border-box;
-  }
-
-  @keyframes slideInFromRight {
-    from {
-      transform: translateX(100%);
-    }
-    to {
-      transform: translateX(0);
-    }
   }
 `;
 
@@ -458,7 +485,6 @@ const FlashcardBox = styled.div`
   justify-content: center;
   padding: 32px;
   text-align: center;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
   font-size: 24px;
   font-weight: 500;
   color: var(--text-color);
@@ -599,6 +625,7 @@ const ClassicFullscreenShell = styled.div`
   display: flex;
   flex-direction: column;
   flex: 1 1 auto;
+  overflow-x: hidden;
 
   @media (max-width: 768px) {
     height: var(--app-height, 100dvh);
@@ -611,7 +638,7 @@ const ClassicTopBar = styled.div`
   grid-template-columns: 52px 1fr 52px;
   align-items: center;
   gap: 12px;
-  padding: 0;
+  padding: 10px 18px;
   min-height: 64px;
 `;
 
@@ -669,7 +696,8 @@ const ClassicViewport = styled.div`
   flex-direction: column;
   min-height: 0;
   height: calc(100dvh - 110px);
-  padding: 0 18px;
+  padding: 0 35px;
+  overflow-x: hidden;
 
   @media (max-width: 768px) {
     height: calc(var(--app-height, 100dvh) - 110px);
@@ -690,7 +718,7 @@ const ClassicSummaryBar = styled.div`
 const ClassicFloatingCounter = styled.div`
   position: absolute;
   top: 50%;
-  ${(props) => (props.$side === "left" ? "left: -20px;" : "right: -20px;")}
+  ${(props) => (props.$side === "left" ? "left: 0px;" : "right: 0px;")}
   min-width: 64px;
   min-height: 56px;
   padding: 0 18px;
@@ -699,15 +727,15 @@ const ClassicFloatingCounter = styled.div`
   border: 2px solid
     ${(props) =>
       props.$side === "left"
-        ? "color-mix(in srgb, var(--warning-color, #f59e0b) 78%, var(--border-color))"
+        ? "color-mix(in srgb, var(--danger-color, #f59e0b) 78%, var(--border-color))"
         : "color-mix(in srgb, var(--success-color, #10b981) 78%, var(--border-color))"};
   background: ${(props) =>
     props.$side === "left"
-      ? "color-mix(in srgb, var(--warning-color, #f59e0b) 10%, var(--background-color))"
+      ? "color-mix(in srgb, var(--danger-color, #f59e0b) 10%, var(--background-color))"
       : "color-mix(in srgb, var(--success-color, #10b981) 10%, var(--background-color))"};
   color: ${(props) =>
     props.$side === "left"
-      ? "var(--warning-color, #f59e0b)"
+      ? "var(--danger-color, #f59e0b)"
       : "var(--success-color, #10b981)"};
   display: inline-flex;
   align-items: center;
@@ -716,7 +744,6 @@ const ClassicFloatingCounter = styled.div`
   font-weight: 900;
   line-height: 1;
   z-index: 4;
-  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18);
 `;
 
 const ClassicSummaryPill = styled.div`
@@ -794,9 +821,6 @@ const ClassicStackCard = styled.div`
   border-radius: 34px;
   background: color-mix(in srgb, var(--secondary-color) 96%, var(--background-color));
   border: 1px solid color-mix(in srgb, var(--border-color) 72%, transparent);
-  box-shadow:
-    0 10px 26px rgba(0, 0, 0, 0.16),
-    0 0 0 1px color-mix(in srgb, var(--border-color) 26%, transparent);
   transform: translate(-50%, -50%)
              translate3d(${(props) => props.$offsetX || 0}px, ${(props) => props.$offsetY || 0}px, -100px)
              rotate(${(props) => props.$rotate || 0}deg)
@@ -804,10 +828,9 @@ const ClassicStackCard = styled.div`
   opacity: ${(props) => props.$opacity || 1};
   z-index: ${(props) => props.$zIndex || 1};
   pointer-events: none;
-  transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.4s ease;
+  transition: none;
 
   @media (max-width: 768px) {
-    /* top: calc(50% + 148px); */
     width: min(100%, 820px);
     height: min(64vh, 640px);
     min-height: min(64vh, 640px);
@@ -823,10 +846,6 @@ const classicCardSurfaceCss = css`
     color-mix(in srgb, var(--secondary-color) 94%, var(--background-color)) 0%,
     color-mix(in srgb, var(--tertiary-color) 96%, var(--background-color)) 100%
   );
-  box-shadow:
-    0 24px 80px rgba(0, 0, 0, 0.28),
-    0 24px 52px color-mix(in srgb, black 24%, transparent),
-    inset 0 1px 0 color-mix(in srgb, white 6%, transparent);
 `;
 
 const ClassicNextPreviewCard = styled.div`
@@ -842,22 +861,22 @@ const ClassicNextPreviewCard = styled.div`
   flex-direction: column;
   justify-content: center;
   align-items: center;
-  padding: 28px;
+  padding: 20px;
+  box-sizing: border-box;
   pointer-events: none;
   overflow: hidden;
   transform: translate(-50%, -50%)
-    scale(${(props) => 0.92 + (props.$reveal || 0) * 0.08});
-  opacity: ${(props) => props.$reveal || 0};
-  z-index: 4;
-  transition:
-    transform 0.18s cubic-bezier(0.22, 1, 0.36, 1),
-    opacity 0.16s ease-out;
+    translate3d(${(props) => props.$offsetX || 0}px, ${(props) => props.$offsetY || 0}px, 0)
+    rotate(${(props) => props.$rotate || 0}deg)
+    scale(${(props) => props.$scale || 1});
+  opacity: ${(props) => props.$opacity ?? 1};
+  z-index: ${(props) => props.$zIndex || 4};
+  transition: none;
 
   @media (max-width: 768px) {
-    /* top: calc(50% + 148px); */
     height: min(64vh, 640px);
     min-height: min(64vh, 640px);
-    /* padding: 22px; */
+    padding: 20px;
   }
 `;
 
@@ -870,8 +889,6 @@ const ClassicNextPreviewWord = styled.div`
   text-align: center;
   word-break: break-word;
   opacity: 0.92;
-  transform: scale(${(props) => 0.9 + (props.$reveal || 0) * 0.1});
-  transition: transform 0.18s cubic-bezier(0.22, 1, 0.36, 1);
 `;
 
 const ClassicSwipeCard = styled.div`
@@ -883,56 +900,48 @@ const ClassicSwipeCard = styled.div`
   min-height: min(68vh, 720px);
   max-height: 100%;
   border-radius: 36px;
-  /* border: 1px solid
-    ${(props) =>
-    props.$swipeTone === "success"
-      ? `color-mix(in srgb, var(--success-color, #10b981) ${30 + (props.$swipeStrength || 0) * 45}%, var(--border-color))`
-      : props.$swipeTone === "danger"
-        ? `color-mix(in srgb, var(--danger-color, #ef4444) ${30 + (props.$swipeStrength || 0) * 45}%, var(--border-color))`
-        : "color-mix(in srgb, var(--border-color) 78%, transparent)"};
-  background: linear-gradient(
-    180deg,
-    ${(props) =>
-    props.$swipeTone === "success"
-      ? `color-mix(in srgb, var(--success-color, #10b981) ${10 + (props.$swipeStrength || 0) * 18}%, var(--secondary-color))`
-      : props.$swipeTone === "danger"
-        ? `color-mix(in srgb, var(--danger-color, #ef4444) ${10 + (props.$swipeStrength || 0) * 18}%, var(--secondary-color))`
-        : "color-mix(in srgb, var(--secondary-color) 94%, var(--background-color))"} 0%,
-    ${(props) =>
-    props.$swipeTone === "success"
-      ? `color-mix(in srgb, var(--success-color, #10b981) ${6 + (props.$swipeStrength || 0) * 14}%, var(--tertiary-color))`
-      : props.$swipeTone === "danger"
-        ? `color-mix(in srgb, var(--danger-color, #ef4444) ${6 + (props.$swipeStrength || 0) * 14}%, var(--tertiary-color))`
-        : "color-mix(in srgb, var(--tertiary-color) 96%, var(--background-color))"} 100%
-  );
-  box-shadow:
-    0 24px 80px rgba(0, 0, 0, 0.28),
-    0 24px 52px color-mix(in srgb, black 24%, transparent),
-    0 0 0
-      ${(props) =>
-    props.$swipeStrength ? `${1 + (props.$swipeStrength || 0) * 4}px` : "0px"}
-      ${(props) =>
-    props.$swipeTone === "success"
-      ? `color-mix(in srgb, var(--success-color, #10b981) ${14 + (props.$swipeStrength || 0) * 20}%, transparent)`
-      : props.$swipeTone === "danger"
-        ? `color-mix(in srgb, var(--danger-color, #ef4444) ${14 + (props.$swipeStrength || 0) * 20}%, transparent)`
-        : "transparent"},
-    inset 0 1px 0 color-mix(in srgb, white 6%, transparent); */
-
   cursor: grab;
   transform-style: preserve-3d;
-  transform: translate(-50%, -50%)
-    translate3d(${(props) => props.$dragX || 0}px, 0, 0)
-    rotate(${(props) => ((props.$dragX || 0) / 16).toFixed(2)}deg)
-    rotateX(${(props) => ((props.$dragX || 0) / -140).toFixed(2)}deg)
-    scale(${(props) => (props.$dragging ? 1.02 : props.$exiting ? 0.95 : 1)});
+  will-change: transform, opacity;
+  backface-visibility: hidden;
+
+  /* Transform – asosiy harakatlar uchun */
+  transform: ${(props) => {
+    if (props.$exiting) {
+      const exitX = props.$exitDirection === "right" ? "160vw" : "-160vw";
+      const exitRotate = props.$exitDirection === "right" ? "35deg" : "-35deg";
+      return `translate(-50%, -50%) translate3d(${exitX}, 10vh, 0) rotate(${exitRotate}) scale(0.9)`;
+    }
+
+    return `translate(-50%, -50%)
+            translate3d(${props.$dragX || 0}px, 0, 0)
+            rotate(${((props.$dragX || 0) / 16).toFixed(2)}deg)
+            rotateX(${((props.$dragX || 0) / -140).toFixed(2)}deg)
+            scale(${props.$dragging ? 1.02 : 1})`;
+  }};
+
   opacity: ${(props) => (props.$exiting ? 0 : 1)};
+
+  /* Transition ni juda ehtiyotkorlik bilan boshqaramiz */
   transition: ${(props) =>
     props.$dragging
-      ? "none"
+      ? "none"                                                // drag paytida hech qanday transition bo‘lmasin
       : props.$exiting
-        ? "transform 0.5s cubic-bezier(0.19, 1, 0.22, 1), opacity 0.4s ease-out"
-        : "transform 0.4s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.3s ease, opacity 0.2s ease"};
+        ? "transform 0.55s cubic-bezier(0.19, 1, 0.22, 1), opacity 0.45s ease-out"
+        : props.$isFirst
+          ? "transform 0.4s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.35s ease-out"
+          : "transform 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94), opacity 0.2s linear"};
+
+  /* Keyingi kartalarda faqat kirish animatsiyasini bloklaymiz, lekin chiqish va drag saqlanib qoladi */
+  ${(props) =>
+    !props.$isFirst &&
+    !props.$exiting &&
+    !props.$dragging &&
+    css`
+      transition: transform 0.35s ease, opacity 0.2s linear !important;
+      animation: none !important;
+    `}
+
   user-select: none;
   touch-action: pan-y;
   overflow: hidden;
@@ -940,20 +949,17 @@ const ClassicSwipeCard = styled.div`
   z-index: 6;
 
   @media (max-width: 768px) {
-    /* top: calc(50% + 148px); */
     height: min(64vh, 640px);
     min-height: min(64vh, 640px);
-    /* padding: 22px; */
   }
 `;
-
 const ClassicOutgoingCard = styled(ClassicSwipeCard)`
   position: absolute;
   z-index: 8;
   pointer-events: none;
   animation: ${(props) =>
       props.$direction === "left" ? classicExitLeft : classicExitRight}
-    0.5s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+    0.5s cubic-bezier(0.25, 1, 0.5, 1) both;
 `;
 
 const ClassicFlipLayer = styled.div`
@@ -1037,12 +1043,6 @@ const ClassicCardToolbarSpacer = styled(ClassicCardToolbar)`
   align-self: stretch;
   justify-content: flex-start;
   pointer-events: none;
-  opacity: ${(props) => props.$reveal || 0};
-  transform: translateY(${(props) => 8 - (props.$reveal || 0) * 8}px)
-    scale(${(props) => 0.92 + (props.$reveal || 0) * 0.08});
-  transition:
-    opacity 0.18s ease-out,
-    transform 0.18s cubic-bezier(0.22, 1, 0.36, 1);
 `;
 
 const ClassicToolbarIcon = styled.button`
@@ -1088,7 +1088,6 @@ const ClassicCardImage = styled.img`
   max-height: 220px;
   border-radius: 18px;
   object-fit: contain;
-  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.24);
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
 
@@ -1194,23 +1193,42 @@ const TestOptionBtn = styled.button`
   min-height: 54px;
   padding: 12px 14px;
   border-radius: 12px;
-  border: 1px solid var(--border-color);
-  background: var(--secondary-color);
+  border: 1px solid
+    ${(props) =>
+      props.$selected ? "var(--primary-color)" : "var(--border-color)"};
+  background: ${(props) =>
+    props.$selected
+      ? "color-mix(in srgb, var(--primary-color) 18%, var(--secondary-color))"
+      : "var(--secondary-color)"};
   color: var(--text-color);
   font-size: 14px;
   font-weight: 600;
   text-align: left;
   cursor: pointer;
+  transition:
+    background 0.16s ease,
+    border-color 0.16s ease,
+    transform 0.16s ease;
 
   &:hover {
-    background: var(--tertiary-color);
-    border-color: var(--text-muted-color);
+    background: ${(props) =>
+      props.$selected
+        ? "color-mix(in srgb, var(--primary-color) 22%, var(--secondary-color))"
+        : "var(--tertiary-color)"};
+    border-color: ${(props) =>
+      props.$selected ? "var(--primary-color)" : "var(--text-muted-color)"};
   }
 
   &:focus {
     outline: none;
     box-shadow: none;
   }
+
+  ${(props) =>
+    props.$selected &&
+    css`
+      transform: translateY(-1px);
+    `}
 `;
 
 const floatOne = keyframes`
@@ -1244,6 +1262,71 @@ const floatFour = keyframes`
   85% { transform: translate3d(-10px, -2px, 0) scale(1.02); }
   100% { transform: translate3d(0, 0, 0) scale(1); }
 `;
+
+const flashcardStudyUi = {
+  Container,
+  StudyArea,
+  BackBtn,
+  Title,
+  FlashcardBox,
+  RevealBtn,
+  Ratings,
+  RatingBtn,
+  StudyMeta,
+  PreviewItem,
+  PreviewRow,
+  PreviewLabel,
+  PreviewContent,
+  ResultActions,
+  StudyBtn,
+  ClassicFullscreenShell,
+  ClassicTopBar,
+  ClassicTopIconButton,
+  ClassicTopCounter,
+  ClassicGhostAction,
+  ClassicProgressTrack,
+  ClassicProgressFill,
+  ClassicViewport,
+  ClassicFloatingCounter,
+  ClassicCardStage,
+  ClassicStackCard,
+  ClassicNextPreviewCard,
+  ClassicCardToolbarSpacer,
+  ClassicToolbarIcon,
+  ClassicCardBody,
+  ClassicCardImage,
+  ClassicNextPreviewWord,
+  ClassicSwipeCard,
+  ClassicFlipLayer,
+  ClassicCardFront,
+  ClassicCardToolbar,
+  ClassicCardWord,
+  ClassicCardBack,
+  TestOptions,
+  TestOptionBtn,
+};
+
+const flashcardDialogUi = {
+  Overlay,
+  Dialog,
+  HeaderRow,
+  Title,
+  DialogContent,
+  ButtonWrapper,
+  StudyBtn,
+  DeckPreviewList,
+  PreviewItem,
+  PreviewRow,
+  PreviewLabel,
+  PreviewContent,
+  SettingsGrid,
+  FieldLabel,
+  DirectionSelect,
+  ModeOptions,
+  ModeCard,
+  ModeTitle,
+  ModeDesc,
+};
 
 const FlashcardList = ({ initialDeckId, onBack }) => {
   const {
@@ -1281,12 +1364,13 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
   const [classicDragX, setClassicDragX] = useState(0);
   const [classicDragging, setClassicDragging] = useState(false);
   const [classicExitDirection, setClassicExitDirection] = useState(null);
-  const [classicOutgoingCard, setClassicOutgoingCard] = useState(null); // Keep for backwards compatibility if needed, but we'll try to rely on current card animation
+  const [classicExitFlipped, setClassicExitFlipped] = useState(false);
   const [testDeck, setTestDeck] = useState(null);
   const [testQueue, setTestQueue] = useState([]);
   const [testIndex, setTestIndex] = useState(0);
   const [testAnswers, setTestAnswers] = useState([]);
   const [testCompleted, setTestCompleted] = useState(false);
+  const [selectedTestOption, setSelectedTestOption] = useState(null);
   const [gameDeck, setGameDeck] = useState(null);
   const [gameQueue, setGameQueue] = useState([]);
   const [promptSide, setPromptSide] = useState(() => {
@@ -1402,6 +1486,7 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
     setClassicDragX(0);
     setClassicDragging(false);
     setClassicExitDirection(null);
+    setClassicExitFlipped(false);
     classicPointerStateRef.current = {
       active: false,
       startX: 0,
@@ -1471,11 +1556,9 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
   };
 
   const startStudy = async (deckMetadata, isRestart = false) => {
-    // Fetch deck with personal progress
     const deck = await fetchFlashcardDeck(deckMetadata._id);
     if (!deck) return;
 
-    // Filter cards that are due for review (nextReviewDate <= now)
     const now = new Date();
     const cardsToStudy = isRestart
       ? deck.cards
@@ -1512,7 +1595,7 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
     setClassicAnswers([]);
     setClassicCompleted(false);
     setClassicExitDirection(null);
-    setClassicOutgoingCard(null);
+    setClassicExitFlipped(false);
   };
 
   const buildTestOptions = (deck, currentCard) => {
@@ -1544,6 +1627,7 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
     setTestIndex(0);
     setTestAnswers([]);
     setTestCompleted(false);
+    setSelectedTestOption(null);
   };
 
   const resetGameSession = (deck, cards) => {
@@ -1578,29 +1662,35 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
 
   const handleTestAnswer = (selectedOption) => {
     const currentCard = testQueue[testIndex];
-    if (!currentCard) return;
+    if (!currentCard || selectedTestOption) return;
 
     if (typeof document !== "undefined") {
       document.activeElement?.blur?.();
     }
 
-    const isCorrect = selectedOption === getAnswerText(currentCard);
-    const nextAnswers = [
-      ...testAnswers,
-      {
-        card: currentCard,
-        selectedOption,
-        isCorrect,
-      },
-    ];
-    setTestAnswers(nextAnswers);
+    setSelectedTestOption(selectedOption);
 
-    if (testIndex + 1 >= testQueue.length) {
-      setTestCompleted(true);
-      return;
-    }
+    window.setTimeout(() => {
+      const isCorrect = selectedOption === getAnswerText(currentCard);
+      const nextAnswers = [
+        ...testAnswers,
+        {
+          card: currentCard,
+          selectedOption,
+          isCorrect,
+        },
+      ];
+      setTestAnswers(nextAnswers);
 
-    setTestIndex((prev) => prev + 1);
+      if (testIndex + 1 >= testQueue.length) {
+        setTestCompleted(true);
+        setSelectedTestOption(null);
+        return;
+      }
+
+      setTestIndex((prev) => prev + 1);
+      setSelectedTestOption(null);
+    }, 180);
   };
 
   const restartTestMissed = () => {
@@ -1681,16 +1771,19 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
   }, [classicDeck, classicIndex, classicCompleted]);
 
   useEffect(() => {
-    if (!classicOutgoingCard) return undefined;
+    if (!classicExitDirection) return undefined;
     const timer = window.setTimeout(() => {
-      if (classicOutgoingCard.isLast) {
+      const isLast = classicIndex + 1 >= classicQueue.length;
+      if (isLast) {
         setClassicCompleted(true);
+      } else {
+        setClassicIndex((prev) => prev + 1);
       }
-      setClassicOutgoingCard(null);
+      setClassicShowBack(false);
       resetClassicCardMotion();
     }, 500);
     return () => window.clearTimeout(timer);
-  }, [classicOutgoingCard]);
+  }, [classicExitDirection, classicIndex, classicQueue.length]);
 
   const restartClassicMissed = () => {
     if (!classicDeck) return;
@@ -1710,7 +1803,7 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
   };
 
   const handleClassicPointerDown = (event) => {
-    if (classicCompleted || classicOutgoingCard) return;
+    if (classicCompleted || classicExitDirection) return;
     classicPointerStateRef.current = {
       active: true,
       startX: event.clientX,
@@ -1723,7 +1816,7 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
     if (
       !classicPointerStateRef.current.active ||
       classicCompleted ||
-      classicOutgoingCard
+      classicExitDirection
     )
       return;
 
@@ -1734,7 +1827,6 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
     }
 
     if (classicPointerStateRef.current.dragStarted) {
-      // Increased cap for more natural feel
       setClassicDragX(deltaX);
     }
   };
@@ -1743,7 +1835,7 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
     if (
       !classicPointerStateRef.current.active ||
       classicCompleted ||
-      classicOutgoingCard
+      classicExitDirection
     )
       return;
 
@@ -1764,11 +1856,11 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
       const currentCard = classicQueue[classicIndex];
       if (!currentCard) return;
       const known = direction === "right";
-      const isLast = classicIndex + 1 >= classicQueue.length;
 
       setClassicExitDirection(direction);
-      setClassicDragX(0);
+      setClassicDragX(deltaX);
       setClassicDragging(false);
+      setClassicExitFlipped(classicShowBack);
       setClassicAnswers((prev) => [
         ...prev,
         {
@@ -1776,23 +1868,6 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
           known,
         },
       ]);
-      setClassicShowBack(false);
-      if (!isLast) {
-        setClassicIndex((prev) => prev + 1);
-      }
-      setClassicOutgoingCard({
-        id: currentCard._id || `outgoing-${classicIndex}-${Date.now()}`,
-        card: currentCard,
-        known,
-        isLast,
-        direction,
-        startX: deltaX,
-        showBack: classicShowBack,
-        promptImage: getPromptImage(currentCard),
-        answerImage: getAnswerImage(currentCard),
-        promptText: getPromptText(currentCard) || "???",
-        answerText: getAnswerText(currentCard) || "???",
-      });
       return;
     }
 
@@ -1807,6 +1882,30 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
     const url = `${RESOLVED_APP_BASE_URL}/arena/flashcards/${deckIdentifier}`;
     navigator.clipboard.writeText(url);
     toast.success("Lug'at havolasi nusxalandi!");
+  };
+
+  const getClassicStackLayout = (depth) => {
+    const cappedDepth = Math.min(depth, 6);
+
+    if (cappedDepth === 1) {
+      return {
+        offsetX: 0,
+        offsetY: 0,
+        rotate: 0,
+        scale: 1,
+        opacity: 1,
+        zIndex: 5,
+      };
+    }
+
+    return {
+      offsetX: depth % 2 === 0 ? -10 - cappedDepth * 2 : 10 + cappedDepth * 2,
+      offsetY: 10 + cappedDepth * 12,
+      rotate: depth % 2 === 0 ? -2.6 - cappedDepth * 0.35 : 2.6 + cappedDepth * 0.35,
+      scale: Math.max(0.88, 0.97 - cappedDepth * 0.022),
+      opacity: Math.max(0.16, 0.78 - cappedDepth * 0.1),
+      zIndex: Math.max(1, 5 - cappedDepth),
+    };
   };
 
   const handleDeleteDeck = async () => {
@@ -1837,7 +1936,6 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
     if (res.success) {
       setJoiningDeck(null);
       fetchFlashcards();
-      // If we were viewing the deck, update it to reflect membership
       if (viewingDeck && viewingDeck._id === deckId) {
         const updatedDeck = await fetchFlashcardDeck(deckId);
         setViewingDeck(updatedDeck);
@@ -1855,7 +1953,7 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
       if (res.success) {
         fetchFlashcards();
         if (viewingDeck && viewingDeck._id === deckId) {
-          setViewingDeck(null); // Close detail view if leaving the current one
+          setViewingDeck(null);
         }
       }
     }
@@ -1868,23 +1966,17 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
     const cardId = currentCard._id;
     const deckId = studyingDeck._id;
 
-    // Async save to backend
     reviewFlashcard(deckId, cardId, quality).catch((err) => console.error(err));
 
-    // Determine what happens next in the queue
     if (quality < 3) {
-      // Repeat this card: add it to the end of the queue
       setReviewQueue((prev) => [...prev, currentCard]);
       setCurrentCardIndex((prev) => prev + 1);
       setShowingBack(false);
     } else {
-      // Mastered this card (Oson)
       if (currentCardIndex + 1 < reviewQueue.length) {
-        // Move to next card in the remaining queue
         setCurrentCardIndex((prev) => prev + 1);
         setShowingBack(false);
       } else {
-        // Finished all cards in the queue
         toast.success("Barakalla! Ushbu to'plamni yodlashni tugatdingiz.", {
           duration: 4000,
         });
@@ -1911,1052 +2003,320 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
     }),
   );
 
+  // ─── Mode renders (animatsiyasiz, to'g'ridan-to'g'ri) ─────────────────────
   if (studyingDeck) {
-    const currentCard = reviewQueue[currentCardIndex];
     return (
-      <Container>
-        <StudyArea>
-          <BackBtn onClick={() => setStudyingDeck(null)}>
-            <ArrowLeft size={20} /> Orqaga
-          </BackBtn>
-          <Title>
-            {studyingDeck.title} - Qolgan:{" "}
-            {reviewQueue.length - currentCardIndex}
-          </Title>
-
-          <FlashcardBox>
-            {showingBack ? (
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  gap: "16px",
-                }}
-              >
-                {getAnswerImage(currentCard) && (
-                  <img
-                    src={getAnswerImage(currentCard)}
-                    alt="back"
-                    style={{
-                      maxWidth: "100%",
-                      maxHeight: "200px",
-                      borderRadius: "8px",
-                      objectFit: "contain",
-                    }}
-                  />
-                )}
-                <div>{getAnswerText(currentCard) || "???"}</div>
-              </div>
-            ) : (
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  gap: "16px",
-                }}
-              >
-                {getPromptImage(currentCard) && (
-                  <img
-                    src={getPromptImage(currentCard)}
-                    alt="prompt"
-                    style={{
-                      maxWidth: "100%",
-                      maxHeight: "200px",
-                      borderRadius: "8px",
-                      objectFit: "contain",
-                    }}
-                  />
-                )}
-                <div>{getPromptText(currentCard) || "???"}</div>
-              </div>
-            )}
-          </FlashcardBox>
-
-          {!showingBack ? (
-            <RevealBtn onClick={() => setShowingBack(true)}>
-              <RefreshCw
-                size={16}
-                style={{ marginRight: 8, display: "inline" }}
-              />
-              Javobni ko'rish
-            </RevealBtn>
-          ) : (
-            <Ratings>
-              <RatingBtn type="fail" onClick={() => handleRating(0)}>
-                Topolmadim
-              </RatingBtn>
-              <RatingBtn type="hard" onClick={() => handleRating(1)}>
-                Qiyin
-              </RatingBtn>
-              <RatingBtn type="good" onClick={() => handleRating(2)}>
-                Biroz qiynaldim
-              </RatingBtn>
-              <RatingBtn type="easy" onClick={() => handleRating(3)}>
-                Oson
-              </RatingBtn>
-            </Ratings>
-          )}
-        </StudyArea>
-      </Container>
+      <FlashcardReviewMode
+        ui={flashcardStudyUi}
+        studyingDeck={studyingDeck}
+        reviewQueue={reviewQueue}
+        currentCardIndex={currentCardIndex}
+        showingBack={showingBack}
+        setStudyingDeck={setStudyingDeck}
+        setShowingBack={setShowingBack}
+        getPromptImage={getPromptImage}
+        getPromptText={getPromptText}
+        getAnswerImage={getAnswerImage}
+        getAnswerText={getAnswerText}
+        handleRating={handleRating}
+      />
     );
   }
 
   if (classicDeck) {
-    const currentCard = classicQueue[classicIndex];
-    const nextCard = classicQueue[classicIndex + 1] || null;
-    const previewCard = classicOutgoingCard ? currentCard : nextCard;
-    const foundCount = classicAnswers.filter((item) => item.known).length;
-    const missedCount = classicAnswers.filter((item) => !item.known).length;
-    const swipeProgress = Math.min(Math.abs(classicDragX) / 120, 1);
-    const promptImage = getPromptImage(currentCard);
-    const answerImage = getAnswerImage(currentCard);
-    const promptText = getPromptText(currentCard) || "???";
-    const answerText = getAnswerText(currentCard) || "???";
-    const nextPromptImage = previewCard ? getPromptImage(previewCard) : null;
-    const nextPromptText = previewCard ? getPromptText(previewCard) || "???" : "";
-    const progressValue = classicQueue.length
-      ? ((classicCompleted ? classicQueue.length : classicIndex + 1) /
-          classicQueue.length) *
-        100
-      : 0;
-    const swipeTone =
-      classicDragX > 0 ? "success" : classicDragX < 0 ? "danger" : null;
-    const nextPreviewReveal = classicOutgoingCard
-      ? 1
-      : Math.max(0, Math.min(1, (swipeProgress - 0.9) / 0.1));
-
     return (
-      <Container>
-        {!classicCompleted ? (
-          <ClassicFullscreenShell data-classic-flashcard-fullscreen="true">
-            <ClassicTopBar>
-              <ClassicTopIconButton
-                type="button"
-                onClick={() => {
-                  setClassicDeck(null);
-                  setClassicQueue([]);
-                  setClassicAnswers([]);
-                  setClassicCompleted(false);
-                }}
-                title="Yopish"
-              >
-                <X size={26} />
-              </ClassicTopIconButton>
-
-              <ClassicTopCounter>
-                {classicIndex + 1} / {classicQueue.length}
-              </ClassicTopCounter>
-
-              <ClassicGhostAction
-                type="button"
-                onClick={handleClassicReplay}
-                disabled={classicIndex === 0 && classicAnswers.length === 0}
-                title="Oldingi karta"
-              >
-                <Undo2 size={24} />
-              </ClassicGhostAction>
-            </ClassicTopBar>
-
-            <ClassicProgressTrack>
-              <ClassicProgressFill $progress={progressValue} />
-            </ClassicProgressTrack>
-
-            <ClassicViewport>
-              <ClassicFloatingCounter $side="left">
-                {missedCount}
-              </ClassicFloatingCounter>
-              <ClassicFloatingCounter $side="right">
-                {foundCount}
-              </ClassicFloatingCounter>
-
-              <ClassicCardStage>
-                {previewCard && (
-                  <ClassicNextPreviewCard $reveal={nextPreviewReveal}>
-                    <ClassicCardToolbarSpacer $reveal={nextPreviewReveal}>
-                      <ClassicToolbarIcon type="button" tabIndex={-1} aria-hidden="true">
-                        <Volume2 size={22} />
-                      </ClassicToolbarIcon>
-                    </ClassicCardToolbarSpacer>
-                    <ClassicCardBody>
-                      {nextPromptImage && <ClassicCardImage src={nextPromptImage} />}
-                      <ClassicNextPreviewWord $reveal={nextPreviewReveal}>
-                        {nextPromptText}
-                      </ClassicNextPreviewWord>
-                    </ClassicCardBody>
-                  </ClassicNextPreviewCard>
-                )}
-
-                {classicQueue.slice(classicIndex + 2, classicIndex + 4).map((card, idx) => {
-                  const depth = idx + 1;
-                  const rotate =
-                    depth === 1 ? -5.5 : depth === 2 ? 5 : depth * 4;
-                  const offsetX =
-                    depth === 1 ? -18 : depth === 2 ? 22 : depth * 18;
-                  const offsetY =
-                    depth === 1 ? 18 : depth === 2 ? 30 : depth * 14;
-                  return (
-                    <ClassicStackCard
-                      key={card._id || `stack-${idx}`}
-                      $offsetX={offsetX}
-                      $offsetY={offsetY}
-                      $rotate={rotate}
-                      $scale={1}
-                      $opacity={1 - depth * 0.18}
-                      $zIndex={2 - depth}
-                    />
-                  );
-                })}
-
-                {/* Exiting Card Logic */}
-                {classicOutgoingCard && (
-                  <ClassicOutgoingCard
-                    key={classicOutgoingCard.id}
-                    $direction={classicOutgoingCard.direction}
-                    $startX={classicOutgoingCard.startX}
-                    $dragX={0}
-                    $dragging={false}
-                    $exiting={true}
-                    $swipeTone={classicOutgoingCard.direction === "right" ? "success" : "danger"}
-                    $swipeStrength={1}
-                  >
-                    <ClassicFlipLayer $flipped={classicOutgoingCard.showBack}>
-                      <ClassicCardFront>
-                        <ClassicCardBody>
-                          {classicOutgoingCard.promptImage && (
-                            <ClassicCardImage src={classicOutgoingCard.promptImage} />
-                          )}
-                          <ClassicCardWord>{classicOutgoingCard.promptText}</ClassicCardWord>
-                        </ClassicCardBody>
-                      </ClassicCardFront>
-                      <ClassicCardBack>
-                        <ClassicCardBody>
-                          {classicOutgoingCard.answerImage && (
-                            <ClassicCardImage src={classicOutgoingCard.answerImage} />
-                          )}
-                          <ClassicCardWord>{classicOutgoingCard.answerText}</ClassicCardWord>
-                        </ClassicCardBody>
-                      </ClassicCardBack>
-                    </ClassicFlipLayer>
-                  </ClassicOutgoingCard>
-                )}
-
-                {!classicCompleted && currentCard && !classicOutgoingCard && (
-                  <ClassicSwipeCard
-                    $dragX={classicDragX}
-                    $dragging={classicDragging}
-                    $exiting={false}
-                    $swipeTone={swipeTone}
-                    $swipeStrength={swipeProgress}
-                    onPointerDown={handleClassicPointerDown}
-                    onPointerMove={handleClassicPointerMove}
-                    onPointerUp={handleClassicPointerEnd}
-                    onPointerCancel={handleClassicPointerEnd}
-                    onPointerLeave={() => {
-                      if (classicDragging) handleClassicPointerEnd();
-                    }}
-                  >
-                    <ClassicFlipLayer $flipped={classicShowBack}>
-                      <ClassicCardFront>
-                        <ClassicCardToolbar>
-                          <ClassicToolbarIcon
-                            type="button"
-                            onPointerDown={(event) => event.stopPropagation()}
-                            onClick={(event) => speakClassicCard("prompt", event)}
-                          >
-                            <Volume2 size={22} />
-                          </ClassicToolbarIcon>
-                        </ClassicCardToolbar>
-                        <ClassicCardBody>
-                          {promptImage && <ClassicCardImage src={promptImage} />}
-                          <ClassicCardWord $blur={swipeProgress * 2} $fade={swipeProgress}>
-                            {promptText}
-                          </ClassicCardWord>
-                        </ClassicCardBody>
-                      </ClassicCardFront>
-
-                      <ClassicCardBack>
-                        <ClassicCardToolbar>
-                          <ClassicToolbarIcon
-                            type="button"
-                            onPointerDown={(event) => event.stopPropagation()}
-                            onClick={(event) => speakClassicCard("answer", event)}
-                          >
-                            <Volume2 size={22} />
-                          </ClassicToolbarIcon>
-                        </ClassicCardToolbar>
-                        <ClassicCardBody>
-                          {answerImage && <ClassicCardImage src={answerImage} />}
-                          <ClassicCardWord>{answerText}</ClassicCardWord>
-                        </ClassicCardBody>
-                      </ClassicCardBack>
-                    </ClassicFlipLayer>
-                  </ClassicSwipeCard>
-                )}
-              </ClassicCardStage>
-            </ClassicViewport>
-          </ClassicFullscreenShell>
-        ) : (
-          <StudyArea>
-            <BackBtn
-              onClick={() => {
-                setClassicDeck(null);
-                setClassicQueue([]);
-                setClassicAnswers([]);
-                setClassicCompleted(false);
-              }}
-            >
-              <ArrowLeft size={20} /> Orqaga
-            </BackBtn>
-
-            <Title>{classicDeck.title} - Flashcards</Title>
-            <StudyMeta>
-              <span>
-                Natija: {foundCount}/{classicQueue.length}
-              </span>
-              <span>
-                Topdi: {foundCount} · Topolmadi: {missedCount}
-              </span>
-            </StudyMeta>
-
-            <FlashcardBox>
-              <div
-                style={{
-                  width: "100%",
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "10px",
-                }}
-              >
-                {classicAnswers.map((item, index) => (
-                  <PreviewItem key={`${item.card._id || index}-${index}`}>
-                    <PreviewRow>
-                      <PreviewLabel>{index + 1}.</PreviewLabel>
-                      <PreviewContent>
-                        {getPromptText(item.card)}
-                      </PreviewContent>
-                    </PreviewRow>
-                    <PreviewRow>
-                      <PreviewLabel>Javob:</PreviewLabel>
-                      <PreviewContent>
-                        {getAnswerText(item.card)}
-                      </PreviewContent>
-                    </PreviewRow>
-                    <PreviewRow>
-                      <PreviewLabel>Holat:</PreviewLabel>
-                      <PreviewContent
-                        style={{
-                          color: item.known ? "#22c55e" : "#ef4444",
-                          fontWeight: 700,
-                        }}
-                      >
-                        {item.known ? "Topdi" : "Topolmadi"}
-                      </PreviewContent>
-                    </PreviewRow>
-                  </PreviewItem>
-                ))}
-              </div>
-            </FlashcardBox>
-            <ResultActions>
-              <StudyBtn
-                onClick={restartClassicMissed}
-                disabled={missedCount === 0}
-                style={{ marginTop: 0 }}
-              >
-                Topilmaganlarni ishlash
-              </StudyBtn>
-              <StudyBtn
-                onClick={restartClassicAll}
-                style={{
-                  marginTop: 0,
-                  background: "var(--secondary-color)",
-                  color: "var(--text-color)",
-                  border: "1px solid var(--border-color)",
-                }}
-              >
-                To'liq qayta ishlash
-              </StudyBtn>
-              <StudyBtn
-                onClick={() => {
-                  setClassicDeck(null);
-                  setClassicQueue([]);
-                  setClassicAnswers([]);
-                  setClassicCompleted(false);
-                }}
-                style={{
-                  marginTop: 0,
-                  background: "var(--secondary-color)",
-                  color: "var(--text-color)",
-                  border: "1px solid var(--border-color)",
-                }}
-              >
-                Asosiy oynaga qaytish
-              </StudyBtn>
-            </ResultActions>
-          </StudyArea>
-        )}
-      </Container>
+      <FlashcardClassicMode
+        ui={flashcardStudyUi}
+        classicDeck={classicDeck}
+        classicQueue={classicQueue}
+        classicIndex={classicIndex}
+        classicAnswers={classicAnswers}
+        classicCompleted={classicCompleted}
+        classicDragX={classicDragX}
+        classicDragging={classicDragging}
+        classicExitDirection={classicExitDirection}
+        classicExitFlipped={classicExitFlipped}
+        classicShowBack={classicShowBack}
+        setClassicDeck={setClassicDeck}
+        setClassicQueue={setClassicQueue}
+        setClassicAnswers={setClassicAnswers}
+        setClassicCompleted={setClassicCompleted}
+        handleClassicReplay={handleClassicReplay}
+        getClassicStackLayout={getClassicStackLayout}
+        getPromptImage={getPromptImage}
+        getPromptText={getPromptText}
+        getAnswerImage={getAnswerImage}
+        getAnswerText={getAnswerText}
+        handleClassicPointerDown={handleClassicPointerDown}
+        handleClassicPointerMove={handleClassicPointerMove}
+        handleClassicPointerEnd={handleClassicPointerEnd}
+        speakClassicCard={speakClassicCard}
+        restartClassicMissed={restartClassicMissed}
+        restartClassicAll={restartClassicAll}
+      />
     );
   }
 
   if (testDeck) {
-    const currentCard = currentTestCard;
-    const correctCount = testAnswers.filter((item) => item.isCorrect).length;
-
     return (
-      <Container>
-        <StudyArea>
-          <BackBtn
-            onClick={() => {
-              setTestDeck(null);
-              setTestQueue([]);
-              setTestAnswers([]);
-              setTestCompleted(false);
-            }}
-          >
-            <ArrowLeft size={20} /> Orqaga
-          </BackBtn>
-
-          <Title>{testDeck.title} - Test</Title>
-          <StudyMeta>
-            <span>
-              {testCompleted
-                ? `Natija: ${correctCount}/${testQueue.length}`
-                : `Savol: ${testIndex + 1}/${testQueue.length}`}
-            </span>
-            <span>To'g'ri: {correctCount}</span>
-          </StudyMeta>
-
-          <FlashcardBox>
-            {testCompleted ? (
-              <div
-                style={{
-                  width: "100%",
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "10px",
-                }}
-              >
-                {testAnswers.map((item, index) => (
-                  <PreviewItem key={`${item.card._id || index}-${index}`}>
-                    <PreviewRow>
-                      <PreviewLabel>{index + 1}.</PreviewLabel>
-                      <PreviewContent>
-                        {getPromptText(item.card)}
-                      </PreviewContent>
-                    </PreviewRow>
-                    <PreviewRow>
-                      <PreviewLabel>To'g'ri:</PreviewLabel>
-                      <PreviewContent>
-                        {getAnswerText(item.card)}
-                      </PreviewContent>
-                    </PreviewRow>
-                    <PreviewRow>
-                      <PreviewLabel>Tanlangan:</PreviewLabel>
-                      <PreviewContent
-                        style={{
-                          color: item.isCorrect ? "#22c55e" : "#ef4444",
-                          fontWeight: 700,
-                        }}
-                      >
-                        {item.selectedOption || "-"}
-                      </PreviewContent>
-                    </PreviewRow>
-                  </PreviewItem>
-                ))}
-              </div>
-            ) : (
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  gap: "18px",
-                  width: "100%",
-                }}
-              >
-                {getPromptImage(currentCard) && (
-                  <img
-                    src={getPromptImage(currentCard)}
-                    alt="prompt"
-                    style={{
-                      maxWidth: "100%",
-                      maxHeight: "180px",
-                      borderRadius: "8px",
-                      objectFit: "contain",
-                    }}
-                  />
-                )}
-                <div style={{ fontSize: "28px", fontWeight: 700 }}>
-                  {getPromptText(currentCard) || "???"}
-                </div>
-              </div>
-            )}
-          </FlashcardBox>
-
-          {!testCompleted ? (
-            <TestOptions key={`flashcard-test-options-${currentCard?._id || testIndex}`}>
-              {currentTestOptions.map((option) => (
-                <TestOptionBtn
-                  key={option}
-                  onClick={() => handleTestAnswer(option)}
-                >
-                  {option}
-                </TestOptionBtn>
-              ))}
-            </TestOptions>
-          ) : (
-            <ResultActions>
-              <StudyBtn
-                onClick={restartTestMissed}
-                disabled={correctCount === testQueue.length}
-                style={{ marginTop: 0 }}
-              >
-                Topilmaganlarni ishlash
-              </StudyBtn>
-              <StudyBtn
-                onClick={restartTestAll}
-                style={{
-                  marginTop: 0,
-                  background: "var(--secondary-color)",
-                  color: "var(--text-color)",
-                  border: "1px solid var(--border-color)",
-                }}
-              >
-                To'liq qayta ishlash
-              </StudyBtn>
-              <StudyBtn
-                onClick={() => {
-                  setTestDeck(null);
-                  setTestQueue([]);
-                  setTestAnswers([]);
-                  setTestCompleted(false);
-                }}
-                style={{
-                  marginTop: 0,
-                  background: "var(--secondary-color)",
-                  color: "var(--text-color)",
-                  border: "1px solid var(--border-color)",
-                }}
-              >
-                Asosiy oynaga qaytish
-              </StudyBtn>
-            </ResultActions>
-          )}
-        </StudyArea>
-      </Container>
+      <FlashcardTestMode
+        ui={flashcardStudyUi}
+        testDeck={testDeck}
+        testQueue={testQueue}
+        testAnswers={testAnswers}
+        testCompleted={testCompleted}
+        testIndex={testIndex}
+        currentTestCard={currentTestCard}
+        currentTestOptions={currentTestOptions}
+        selectedTestOption={selectedTestOption}
+        setTestDeck={setTestDeck}
+        setTestQueue={setTestQueue}
+        setTestAnswers={setTestAnswers}
+        setTestCompleted={setTestCompleted}
+        handleTestAnswer={handleTestAnswer}
+        restartTestMissed={restartTestMissed}
+        restartTestAll={restartTestAll}
+        getPromptImage={getPromptImage}
+        getPromptText={getPromptText}
+        getAnswerText={getAnswerText}
+      />
     );
   }
 
   if (gameDeck) {
     return (
-      <Container>
-        <StudyArea style={{ maxWidth: "800px" }}>
-          <FlashcardShooterGame
-            deck={gameDeck}
-            queue={gameQueue}
-            promptSide={promptSide}
-            onBack={() => {
-              setGameDeck(null);
-              setGameQueue([]);
-            }}
-            onFinish={() => {
-              setGameDeck(null);
-              setGameQueue([]);
-            }}
-          />
-        </StudyArea>
-      </Container>
+      <FlashcardGameMode
+        ui={flashcardStudyUi}
+        gameDeck={gameDeck}
+        gameQueue={gameQueue}
+        promptSide={promptSide}
+        setGameDeck={setGameDeck}
+        setGameQueue={setGameQueue}
+      />
     );
   }
 
+  // ─── Asosiy ro'yxat sahifasi ───────────────────────────────────────────────
+  // AnimatedShell faqat shu yerda — bir marta mount bo'ladi.
+  // classicIndex o'zgansa bu branch render bo'lmaydi (classicDeck === null),
+  // shuning uchun slideInFromRight animatsiyasi qayta ishlamaydi.
   return (
-    <Container>
-      <ArenaHeader
-        title="Flashcards"
-        count={currentCount}
-        // limit={limit}
-        onBack={() => onBack && onBack()}
-        rightContent={
-          <ButtonWrapper onClick={handleCreateClick}>
-            <Plus size={18} />
-          </ButtonWrapper>
-        }
-      />
+    <AnimatedShell>
+      <Container>
+        <ArenaHeader
+          title="Flashcards"
+          count={currentCount}
+          onBack={() => onBack && onBack()}
+          rightContent={
+            <ButtonWrapper onClick={handleCreateClick}>
+              <Plus size={18} />
+            </ButtonWrapper>
+          }
+        />
 
-      <InfiniteScroll
-        dataLength={flashcardDecks.length}
-        next={fetchMoreData}
-        hasMore={flashcardsHasMore}
-        loader={
-          <h4
-            style={{
-              textAlign: "center",
-              color: "var(--text-muted-color)",
-              marginTop: "16px",
-            }}
-          >
-            Yuklanmoqda...
-          </h4>
-        }
-        style={{ overflow: "visible" }} // Ensures grid layout doesn't break
-      >
-        <Grid>
-          {flashcardDecks.map((deck) => {
-            const isOwner =
-              (deck.createdBy?._id || deck.createdBy) ===
-              (user?._id || user?.id);
-            const creatorName = deck.createdBy?.nickname || "Noma'lum";
+        <InfiniteScroll
+          dataLength={flashcardDecks.length}
+          next={fetchMoreData}
+          hasMore={flashcardsHasMore}
+          loader={
+            <h4
+              style={{
+                textAlign: "center",
+                color: "var(--text-muted-color)",
+                marginTop: "16px",
+              }}
+            >
+              Yuklanmoqda...
+            </h4>
+          }
+          style={{ overflow: "visible" }}
+        >
+          <Grid>
+            {flashcardDecks.map((deck) => {
+              const isOwner =
+                (deck.createdBy?._id || deck.createdBy) ===
+                (user?._id || user?.id);
+              const creatorName = deck.createdBy?.nickname || "Noma'lum";
 
-            return (
-              <Card
-                key={deck._id}
-                $raised={openMenuId === deck._id}
-                onClick={() => {
-                  setOpenMenuId(null);
-                  openTrainingPicker(deck);
-                }}
-              >
-                <CardTop>
-                  <CardTitle>{deck.title}</CardTitle>
-                  <MenuWrap
-                    onClick={(event) => {
-                      event.stopPropagation();
-                    }}
-                  >
-                    <MenuButton
-                      onClick={() =>
-                        setOpenMenuId((prev) =>
-                          prev === deck._id ? null : deck._id,
-                        )
-                      }
+              return (
+                <Card
+                  key={deck._id}
+                  $raised={openMenuId === deck._id}
+                  onClick={() => {
+                    setOpenMenuId(null);
+                    openTrainingPicker(deck);
+                  }}
+                >
+                  <CardTop>
+                    <CardTitle>{deck.title}</CardTitle>
+                    <MenuWrap
+                      onClick={(event) => {
+                        event.stopPropagation();
+                      }}
                     >
-                      <MoreHorizontal size={16} />
-                    </MenuButton>
-                    {openMenuId === deck._id && (
-                      <MenuDropdown
-                        onClick={(event) => event.stopPropagation()}
+                      <MenuButton
+                        onClick={() =>
+                          setOpenMenuId((prev) =>
+                            prev === deck._id ? null : deck._id,
+                          )
+                        }
                       >
-                        <MenuItem
-                          onClick={() => {
-                            setViewingDeck(deck);
-                            setOpenMenuId(null);
-                          }}
+                        <MoreHorizontal size={16} />
+                      </MenuButton>
+                      {openMenuId === deck._id && (
+                        <MenuDropdown
+                          onClick={(event) => event.stopPropagation()}
                         >
-                          <Eye size={14} />
-                          Ko'rish
-                        </MenuItem>
-                        <MenuItem
-                          onClick={() => {
-                            handleCopyLink(deck.urlSlug);
-                            setOpenMenuId(null);
-                          }}
-                        >
-                          <Link2 size={14} />
-                          Havola nusxalash
-                        </MenuItem>
-                        {isOwner ? (
-                          <>
-                            <MenuItem
-                              onClick={() => {
-                                setShowMembersForDeck(deck);
-                                setOpenMenuId(null);
-                              }}
-                            >
-                              <Users size={14} />
-                              A'zolar
-                            </MenuItem>
-                            <MenuItem
-                              onClick={() => {
-                                setEditingDeck(deck);
-                                setOpenMenuId(null);
-                              }}
-                            >
-                              <Pencil size={14} />
-                              Tahrirlash
-                            </MenuItem>
-                            <MenuItem
-                              $danger
-                              onClick={() => {
-                                setDeckToDelete(deck);
-                                setOpenMenuId(null);
-                              }}
-                            >
-                              <Trash2 size={14} />
-                              O'chirish
-                            </MenuItem>
-                          </>
-                        ) : (
                           <MenuItem
                             onClick={() => {
-                              onLeave(deck._id);
+                              setViewingDeck(deck);
                               setOpenMenuId(null);
                             }}
                           >
-                            <LogOut size={14} />
-                            Lug'atdan chiqish
+                            <Eye size={14} />
+                            Ko'rish
                           </MenuItem>
-                        )}
-                      </MenuDropdown>
-                    )}
-                  </MenuWrap>
-                </CardTop>
-                <Meta>Jami so'zlar: {deck.cards?.length || 0}</Meta>
-                <Meta>
-                  {isOwner ? "Siz yaratgan" : `Muallif: ${creatorName}`}
-                </Meta>
-                <CardHint>
-                  <PlayCircle size={14} />
-                  Boshlash uchun kartani bosing
-                </CardHint>
-              </Card>
-            );
-          })}
-          {flashcardDecks.length === 0 && (
-            <Meta>Sizda hozircha lug'atlar yo'q.</Meta>
-          )}
-        </Grid>
-      </InfiniteScroll>
-
-      {viewingDeck && (
-        <Overlay onClick={() => setViewingDeck(null)}>
-          <Dialog onClick={(e) => e.stopPropagation()}>
-            <HeaderRow
-              style={{
-                padding: "16px 20px",
-                borderBottom: "1px solid var(--border-color)",
-              }}
-            >
-              <Title>{viewingDeck.title}</Title>
-              <ButtonWrapper onClick={() => setViewingDeck(null)}>
-                <X size={20} />
-              </ButtonWrapper>
-            </HeaderRow>
-            <DialogContent>
-              <div
-                style={{ display: "flex", alignItems: "center", gap: "12px" }}
-              >
-                <img
-                  src={
-                    viewingDeck.createdBy?.avatar ||
-                    "https://cdn-icons-png.flaticon.com/512/149/149071.png"
-                  }
-                  alt="avatar"
-                  style={{
-                    width: "40px",
-                    height: "40px",
-                    borderRadius: "50%",
-                    objectFit: "cover",
-                  }}
-                />
-                <div>
-                  <div
-                    style={{ color: "var(--text-color)", fontWeight: "600" }}
-                  >
-                    {viewingDeck.createdBy?.nickname || "Noma'lum"}
-                  </div>
-                  <div
-                    style={{
-                      color: "var(--text-muted-color)",
-                      fontSize: "13px",
-                    }}
-                  >
-                    Lug'at yaratuvchisi
-                  </div>
-                </div>
-
-                {!isViewingOwnDeck && !hasJoinedViewingDeck && (
-                  <button
-                    onClick={() => onJoin(viewingDeck._id)}
-                    style={{
-                      marginLeft: "auto",
-                      background: "var(--primary-color)",
-                      color: "white",
-                      border: "none",
-                      padding: "8px",
-                      borderRadius: "8px",
-                      cursor: "pointer",
-                    }}
-                    title="Yuklab olish (Qo'shilish)"
-                  >
-                    <Download size={20} />
-                  </button>
-                )}
-              </div>
-
-              <div style={{ display: "flex", gap: "12px" }}>
-                {viewingDeck.cards?.some(
-                  (c) => new Date(c.nextReviewDate) <= new Date(),
-                ) ? (
-                  <StudyBtn
-                    style={{ flex: 1 }}
-                    onClick={() => openTrainingPicker(viewingDeck)}
-                  >
-                    <PlayCircle size={18} /> O'qishni boshlash
-                  </StudyBtn>
-                ) : (
-                  <StudyBtn
-                    style={{
-                      flex: 1,
-                      background: "var(--secondary-color)",
-                      color: "var(--text-color)",
-                      border: "1px solid var(--border-color)",
-                    }}
-                    onClick={() => openTrainingPicker(viewingDeck)}
-                  >
-                    <RefreshCw size={18} /> Yana mashiq qilish
-                  </StudyBtn>
-                )}
-              </div>
-
-              <div>
-                <div
-                  style={{
-                    color: "var(--text-color)",
-                    fontWeight: "600",
-                    marginBottom: "8px",
-                    fontSize: "15px",
-                  }}
-                >
-                  To'plamdagi so'zlar ({viewingDeck.cards?.length || 0})
-                </div>
-                <DeckPreviewList>
-                  {viewingDeck.cards?.map((card, idx) => (
-                    <PreviewItem key={card._id || idx}>
-                      <PreviewRow style={{ alignItems: "center" }}>
-                        <PreviewLabel>Oldi:</PreviewLabel>
-                        <PreviewContent
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: "8px",
-                          }}
-                        >
-                          {card.frontImage && (
-                            <img
-                              src={card.frontImage}
-                              alt="f"
-                              style={{
-                                width: 30,
-                                height: 30,
-                                borderRadius: 4,
-                                objectFit: "cover",
+                          <MenuItem
+                            onClick={() => {
+                              handleCopyLink(deck.urlSlug);
+                              setOpenMenuId(null);
+                            }}
+                          >
+                            <Link2 size={14} />
+                            Havola nusxalash
+                          </MenuItem>
+                          {isOwner ? (
+                            <>
+                              <MenuItem
+                                onClick={() => {
+                                  setShowMembersForDeck(deck);
+                                  setOpenMenuId(null);
+                                }}
+                              >
+                                <Users size={14} />
+                                A'zolar
+                              </MenuItem>
+                              <MenuItem
+                                onClick={() => {
+                                  setEditingDeck(deck);
+                                  setOpenMenuId(null);
+                                }}
+                              >
+                                <Pencil size={14} />
+                                Tahrirlash
+                              </MenuItem>
+                              <MenuItem
+                                $danger
+                                onClick={() => {
+                                  setDeckToDelete(deck);
+                                  setOpenMenuId(null);
+                                }}
+                              >
+                                <Trash2 size={14} />
+                                O'chirish
+                              </MenuItem>
+                            </>
+                          ) : (
+                            <MenuItem
+                              onClick={() => {
+                                onLeave(deck._id);
+                                setOpenMenuId(null);
                               }}
-                            />
+                            >
+                              <LogOut size={14} />
+                              Lug'atdan chiqish
+                            </MenuItem>
                           )}
-                          {card.front}
-                        </PreviewContent>
-                      </PreviewRow>
-                      <PreviewRow style={{ alignItems: "center" }}>
-                        <PreviewLabel>Orqa:</PreviewLabel>
-                        <PreviewContent
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: "8px",
-                          }}
-                        >
-                          {card.backImage && (
-                            <img
-                              src={card.backImage}
-                              alt="b"
-                              style={{
-                                width: 30,
-                                height: 30,
-                                borderRadius: 4,
-                                objectFit: "cover",
-                              }}
-                            />
-                          )}
-                          {card.back}
-                        </PreviewContent>
-                      </PreviewRow>
-                    </PreviewItem>
-                  ))}
-                </DeckPreviewList>
-              </div>
-            </DialogContent>
-          </Dialog>
-        </Overlay>
-      )}
+                        </MenuDropdown>
+                      )}
+                    </MenuWrap>
+                  </CardTop>
+                  <Meta>Jami so'zlar: {deck.cards?.length || 0}</Meta>
+                  <Meta>
+                    {isOwner ? "Siz yaratgan" : `Muallif: ${creatorName}`}
+                  </Meta>
+                  <CardHint>
+                    <PlayCircle size={14} />
+                    Boshlash uchun kartani bosing
+                  </CardHint>
+                </Card>
+              );
+            })}
+            {flashcardDecks.length === 0 && (
+              <Meta>Sizda hozircha lug'atlar yo'q.</Meta>
+            )}
+          </Grid>
+        </InfiniteScroll>
 
-      {showMembersForDeck && (
-        <Overlay onClick={() => setShowMembersForDeck(null)}>
-          <Dialog onClick={(e) => e.stopPropagation()}>
-            <HeaderRow
-              style={{
-                padding: "16px 20px",
-                borderBottom: "1px solid var(--border-color)",
-              }}
-            >
-              <Title>A'zolar ro'yxati</Title>
+        {viewingDeck && (
+          <FlashcardDeckViewDialog
+            ui={flashcardDialogUi}
+            viewingDeck={viewingDeck}
+            setViewingDeck={setViewingDeck}
+            isViewingOwnDeck={isViewingOwnDeck}
+            hasJoinedViewingDeck={hasJoinedViewingDeck}
+            onJoin={onJoin}
+            openTrainingPicker={openTrainingPicker}
+          />
+        )}
 
-              <ButtonWrapper onClick={() => setShowMembersForDeck(null)}>
-                <X size={20} />
-              </ButtonWrapper>
-            </HeaderRow>
-            <DialogContent>
-              {showMembersForDeck.members?.length > 0 ? (
-                showMembersForDeck.members.map((m, idx) => (
-                  <div
-                    key={idx}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "12px",
-                      padding: "10px 0",
-                      borderBottom: "1px solid var(--border-color)",
-                    }}
-                  >
-                    <img
-                      src={
-                        m.userId?.avatar ||
-                        "https://cdn-icons-png.flaticon.com/512/149/149071.png"
-                      }
-                      alt="avatar"
-                      style={{
-                        width: "32px",
-                        height: "32px",
-                        borderRadius: "50%",
-                        objectFit: "cover",
-                      }}
-                    />
-                    <span style={{ color: "var(--text-color)" }}>
-                      {m.userId?.nickname || "Noma'lum"}
-                    </span>
-                    <span
-                      style={{
-                        marginLeft: "auto",
-                        fontSize: "12px",
-                        color: "var(--text-muted-color)",
-                      }}
-                    >
-                      Joined: {new Date(m.joinedAt).toLocaleDateString()}
-                    </span>
-                  </div>
-                ))
-              ) : (
-                <p
-                  style={{
-                    textAlign: "center",
-                    color: "var(--text-muted-color)",
-                  }}
-                >
-                  Hozircha hech kim qo'shilmagan.
-                </p>
-              )}
-            </DialogContent>
-          </Dialog>
-        </Overlay>
-      )}
+        {showMembersForDeck && (
+          <FlashcardMembersDialog
+            ui={flashcardDialogUi}
+            showMembersForDeck={showMembersForDeck}
+            setShowMembersForDeck={setShowMembersForDeck}
+          />
+        )}
 
-      {(isCreateOpen || editingDeck) && (
-        <CreateFlashcardDialog
-          onClose={() => {
-            setIsCreateOpen(false);
-            setEditingDeck(null);
+        {(isCreateOpen || editingDeck) && (
+          <CreateFlashcardDialog
+            onClose={() => {
+              setIsCreateOpen(false);
+              setEditingDeck(null);
+            }}
+            initialDeck={editingDeck}
+          />
+        )}
+
+        {trainingPickerDeck && (
+          <FlashcardTrainingPickerDialog
+            ui={flashcardDialogUi}
+            trainingPickerDeck={trainingPickerDeck}
+            setTrainingPickerDeck={setTrainingPickerDeck}
+            promptSide={promptSide}
+            setPromptSide={setPromptSide}
+            startStudy={startStudy}
+            startClassicStudy={startClassicStudy}
+            startTestStudy={startTestStudy}
+            startGameStudy={startGameStudy}
+          />
+        )}
+
+        <PremiumUpgradeModal
+          isOpen={isUpgradeModalOpen}
+          onClose={() => setIsUpgradeModalOpen(false)}
+          onUpgrade={() => {
+            setIsUpgradeModalOpen(false);
+            window.location.href = "/premium";
           }}
-          initialDeck={editingDeck}
         />
-      )}
 
-      {trainingPickerDeck && (
-        <Overlay onClick={() => setTrainingPickerDeck(null)}>
-          <Dialog onClick={(event) => event.stopPropagation()}>
-            <HeaderRow
-              style={{
-                padding: "16px 20px",
-                borderBottom: "1px solid var(--border-color)",
-              }}
-            >
-              <Title>Mashq turini tanlang</Title>
-              <ButtonWrapper onClick={() => setTrainingPickerDeck(null)}>
-                <X size={20} />
-              </ButtonWrapper>
-            </HeaderRow>
-            <DialogContent>
-              <SettingsGrid>
-                <FieldLabel htmlFor="flashcard-prompt-side">
-                  Qaysi tomoni so'ralsin?
-                </FieldLabel>
-                <DirectionSelect
-                  id="flashcard-prompt-side"
-                  value={promptSide}
-                  onChange={(event) => setPromptSide(event.target.value)}
-                >
-                  <option value="front">Old tomoni so'ralsin</option>
-                  <option value="back">Orqa tomoni so'ralsin</option>
-                </DirectionSelect>
-              </SettingsGrid>
-              <ModeOptions>
-                <ModeCard
-                  onClick={() => {
-                    startStudy(trainingPickerDeck, true);
-                    setTrainingPickerDeck(null);
-                  }}
-                >
-                  <ModeTitle>Eslab qolish</ModeTitle>
-                  <ModeDesc>
-                    {promptSide === "front"
-                      ? "Old tomoni ko'rsatiladi, orqa tomon bo'yicha baholaysiz."
-                      : "Orqa tomoni ko'rsatiladi, old tomon bo'yicha baholaysiz."}
-                  </ModeDesc>
-                </ModeCard>
-                <ModeCard onClick={() => startClassicStudy(trainingPickerDeck)}>
-                  <ModeTitle>Flashcards</ModeTitle>
-                  <ModeDesc>
-                    {promptSide === "front"
-                      ? "Old tomondan boshlanadi, aylantirib orqa tomonni topasiz."
-                      : "Orqa tomondan boshlanadi, aylantirib old tomonni topasiz."}
-                  </ModeDesc>
-                </ModeCard>
-                <ModeCard onClick={() => startTestStudy(trainingPickerDeck)}>
-                  <ModeTitle>Test mashqi</ModeTitle>
-                  <ModeDesc>
-                    {promptSide === "front"
-                      ? "Old tomon ko'rinadi, variantlarda mos orqa tomonni tanlaysiz."
-                      : "Orqa tomon ko'rinadi, variantlarda mos old tomonni tanlaysiz."}
-                  </ModeDesc>
-                </ModeCard>
-                <ModeCard onClick={() => startGameStudy(trainingPickerDeck)}>
-                  <ModeTitle>Shooter o'yin</ModeTitle>
-                  <ModeDesc>
-                    {promptSide === "front"
-                      ? "Old tomoni bo'yicha mos orqa tomonga o'q uzasiz."
-                      : "Orqa tomoni bo'yicha mos old tomonga o'q uzasiz."}
-                  </ModeDesc>
-                </ModeCard>
-              </ModeOptions>
-            </DialogContent>
-          </Dialog>
-        </Overlay>
-      )}
-
-      <PremiumUpgradeModal
-        isOpen={isUpgradeModalOpen}
-        onClose={() => setIsUpgradeModalOpen(false)}
-        onUpgrade={() => {
-          setIsUpgradeModalOpen(false);
-          window.location.href = "/premium";
-        }}
-      />
-
-      <ConfirmDialog
-        isOpen={Boolean(deckToDelete)}
-        onClose={() => {
-          if (!isDeleting) setDeckToDelete(null);
-        }}
-        title="Lug'atni o'chirish"
-        description={`${
-          deckToDelete?.title || "Bu lug'at"
-        } o'chirilsa, unga tegishli barcha progresslar ham o'chadi. Bu amalni bekor qilib bo'lmaydi.`}
-        confirmText={isDeleting ? "O'chirilmoqda..." : "O'chirish"}
-        cancelText="Bekor qilish"
-        onConfirm={handleDeleteDeck}
-        isDanger
-      />
-    </Container>
+        <ConfirmDialog
+          isOpen={Boolean(deckToDelete)}
+          onClose={() => {
+            if (!isDeleting) setDeckToDelete(null);
+          }}
+          title="Lug'atni o'chirish"
+          description={`${
+            deckToDelete?.title || "Bu lug'at"
+          } o'chirilsa, unga tegishli barcha progresslar ham o'chadi. Bu amalni bekor qilib bo'lmaydi.`}
+          confirmText={isDeleting ? "O'chirilmoqda..." : "O'chirish"}
+          cancelText="Bekor qilish"
+          onConfirm={handleDeleteDeck}
+          isDanger
+        />
+      </Container>
+    </AnimatedShell>
   );
 };
 
