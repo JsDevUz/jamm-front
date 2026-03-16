@@ -286,7 +286,7 @@ const MessageText = styled.div`
   font-size: 14px;
   line-height: 1.4;
   white-space: pre-wrap;
-  text-align: ${(props) => (props.$isOwn ? "right" : "left")};
+  text-align: 'left';
 `;
 
 const MessageTextRow = styled.div`

@@ -517,11 +517,11 @@ const ProfileSidebar = ({
             avatarLetter
           )}
         </Avatar>
-        {isOwnProfile ? (
+        {/* {isOwnProfile ? (
           <AvatarEditBadge title={t("profile.avatarChange")}>
             <Camera size={10} />
           </AvatarEditBadge>
-        ) : null}
+        ) : null} */}
       </AvatarWrap>
       <ImageLightbox
         src={isAvatarPreviewOpen ? userAvatar : null}
