@@ -24,6 +24,7 @@ import { useTheme } from "../../contexts/ThemeContext";
 import useAuthStore from "../../store/authStore";
 import { API_BASE_URL } from "../../config/env";
 import { getUserByUsername, createChat, fetchChats } from "../../api/chatApi";
+import { APP_LIMITS } from "../../constants/appLimits";
 import {
   Skeleton,
   SkeletonCircle,
@@ -786,9 +787,9 @@ const SettingsDialog = ({ isOpen, onClose, initialSection = "my-account" }) => {
         return;
       }
     }
-    if (profile.bio && profile.bio.length > 30) {
+    if (profile.bio && profile.bio.length > APP_LIMITS.bioChars) {
       setSaveStatus(
-        "Haqida (Bio) ko'pi bilan 30 ta belgidan iborat bo'lishi kerak",
+        `Haqida (Bio) ko'pi bilan ${APP_LIMITS.bioChars} ta belgidan iborat bo'lishi kerak`,
       );
       setTimeout(() => setSaveStatus(null), 3000);
       return;

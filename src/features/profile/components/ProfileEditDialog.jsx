@@ -314,9 +314,9 @@ const ProfileEditDialog = ({ isOpen, onClose }) => {
     if (
       Object.prototype.hasOwnProperty.call(payload, "bio") &&
       payload.bio &&
-      payload.bio.length > 30
+      payload.bio.length > APP_LIMITS.bioChars
     ) {
-      return "Haqida (Bio) ko'pi bilan 30 ta belgi bo'lishi kerak";
+      return `Haqida (Bio) ko'pi bilan ${APP_LIMITS.bioChars} ta belgi bo'lishi kerak`;
     }
 
     if (
