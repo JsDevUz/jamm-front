@@ -75,7 +75,6 @@ const AnimatedShell = styled.div`
 const Container = styled.div`
   display: flex;
   flex-direction: column;
-  overflow-x: hidden;
 
   @media (max-width: 768px) {
     position: fixed;
