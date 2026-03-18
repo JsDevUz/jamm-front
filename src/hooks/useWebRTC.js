@@ -62,10 +62,10 @@ const CALL_QUALITY_PROFILES = {
   screen: {
     key: "screen",
     label: "screen-share",
-    width: 854,
-    height: 480,
-    frameRate: 12,
-    videoBitrate: 350_000,
+    width: 1280,
+    height: 720,
+    frameRate: 15,
+    videoBitrate: 900_000,
     audioBitrate: 32_000,
     scaleResolutionDownBy: 1,
   },
@@ -255,6 +255,11 @@ export function useWebRTC({
   const applyMediaOptimization = useCallback(async (profile) => {
     const stream = localStreamRef.current;
     if (!stream) return;
+    const hasActiveScreenShare = Boolean(isScreenSharing || screenStreamRef.current);
+    const screenProfile = CALL_QUALITY_PROFILES.screen;
+    const cameraProfile = hasActiveScreenShare
+      ? CALL_QUALITY_PROFILES.poor
+      : profile;
 
     const audioTrack = stream.getAudioTracks()[0];
     if (audioTrack) {
@@ -272,11 +277,23 @@ export function useWebRTC({
     const videoTrack = stream.getVideoTracks()[0];
     if (videoTrack) {
       try {
-        videoTrack.contentHint = isScreenSharing ? "detail" : "motion";
+        videoTrack.contentHint = "motion";
         await videoTrack.applyConstraints({
-          width: { ideal: profile.width, max: profile.width },
-          height: { ideal: profile.height, max: profile.height },
-          frameRate: { ideal: profile.frameRate, max: profile.frameRate },
+          width: { ideal: cameraProfile.width, max: cameraProfile.width },
+          height: { ideal: cameraProfile.height, max: cameraProfile.height },
+          frameRate: { ideal: cameraProfile.frameRate, max: cameraProfile.frameRate },
+        });
+      } catch {}
+    }
+
+    const screenTrack = screenStreamRef.current?.getVideoTracks?.()[0];
+    if (screenTrack) {
+      try {
+        screenTrack.contentHint = "detail";
+        await screenTrack.applyConstraints({
+          width: { ideal: screenProfile.width, max: screenProfile.width },
+          height: { ideal: screenProfile.height, max: screenProfile.height },
+          frameRate: { ideal: screenProfile.frameRate, max: screenProfile.frameRate },
         });
       } catch {}
     }
@@ -303,13 +320,23 @@ export function useWebRTC({
               params.encodings = encodings;
             }
 
-            if (sender.track.kind === "video") {
+            if (screenTrack && sender.track.id === screenTrack.id) {
               encodings[0] = {
                 ...encodings[0],
-                maxBitrate: profile.videoBitrate,
-                maxFramerate: profile.frameRate,
-                scaleResolutionDownBy: profile.scaleResolutionDownBy,
-                networkPriority: "medium",
+                maxBitrate: screenProfile.videoBitrate,
+                maxFramerate: screenProfile.frameRate,
+                scaleResolutionDownBy: screenProfile.scaleResolutionDownBy,
+                networkPriority: "high",
+              };
+              params.encodings = encodings;
+              params.degradationPreference = "maintain-resolution";
+            } else if (sender.track.id === videoTrack?.id) {
+              encodings[0] = {
+                ...encodings[0],
+                maxBitrate: cameraProfile.videoBitrate,
+                maxFramerate: cameraProfile.frameRate,
+                scaleResolutionDownBy: cameraProfile.scaleResolutionDownBy,
+                networkPriority: hasActiveScreenShare ? "low" : "medium",
               };
               params.encodings = encodings;
               params.degradationPreference = "maintain-framerate";
@@ -1191,6 +1218,8 @@ export function useWebRTC({
       screenStreamRef.current = screen;
       setScreenStream(screen);
       setIsScreenSharing(true);
+      qualityProfileRef.current = CALL_QUALITY_PROFILES.screen;
+      setQualityProfile(CALL_QUALITY_PROFILES.screen);
 
       // When user stops via browser UI
       screen.getVideoTracks()[0].onended = () => {
@@ -1202,6 +1231,8 @@ export function useWebRTC({
         const sender = pc.addTrack(screen.getVideoTracks()[0], screen);
         screenSendersRef.current[peerId] = sender;
       }
+
+      await applyMediaOptimization(CALL_QUALITY_PROFILES.screen);
 
       // Notify peers
       if (socketRef.current) {
