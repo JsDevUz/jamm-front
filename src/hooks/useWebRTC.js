@@ -69,6 +69,26 @@ const CALL_QUALITY_PROFILES = {
     audioBitrate: 32_000,
     scaleResolutionDownBy: 1,
   },
+  screenLimited: {
+    key: "screen-limited",
+    label: "screen-fast",
+    width: 854,
+    height: 480,
+    frameRate: 8,
+    videoBitrate: 300_000,
+    audioBitrate: 32_000,
+    scaleResolutionDownBy: 1,
+  },
+  screenPoor: {
+    key: "screen-poor",
+    label: "screen-lite",
+    width: 640,
+    height: 360,
+    frameRate: 6,
+    videoBitrate: 180_000,
+    audioBitrate: 32_000,
+    scaleResolutionDownBy: 1,
+  },
   screenCamera: {
     key: "screen-camera",
     label: "camera-low",
@@ -107,14 +127,26 @@ const resolveCallQualityProfile = ({
   networkQuality,
   navigatorState,
 }) => {
-  if (isScreenSharing) return CALL_QUALITY_PROFILES.screen;
-
   const isVeryWeakNetwork =
     networkQuality === "poor" ||
     navigatorState.saveData ||
     navigatorState.effectiveType === "slow-2g" ||
     navigatorState.effectiveType === "2g" ||
     (navigatorState.downlink > 0 && navigatorState.downlink < 1);
+
+  if (isScreenSharing) {
+    if (isVeryWeakNetwork || peerCount >= 4) {
+      return CALL_QUALITY_PROFILES.screenPoor;
+    }
+    if (
+      networkQuality === "limited" ||
+      navigatorState.effectiveType === "3g" ||
+      peerCount >= 2
+    ) {
+      return CALL_QUALITY_PROFILES.screenLimited;
+    }
+    return CALL_QUALITY_PROFILES.screen;
+  }
 
   if (isVeryWeakNetwork) return CALL_QUALITY_PROFILES.poor;
   if (peerCount >= 6 || networkQuality === "limited") {
@@ -266,7 +298,10 @@ export function useWebRTC({
     const stream = localStreamRef.current;
     if (!stream) return;
     const hasActiveScreenShare = Boolean(isScreenSharing || screenStreamRef.current);
-    const screenProfile = CALL_QUALITY_PROFILES.screen;
+    const screenProfile =
+      hasActiveScreenShare && profile.key.startsWith("screen")
+        ? profile
+        : CALL_QUALITY_PROFILES.screenLimited;
     const cameraProfile = hasActiveScreenShare
       ? CALL_QUALITY_PROFILES.screenCamera
       : profile;
@@ -1221,15 +1256,33 @@ export function useWebRTC({
 
     // Start screen share
     try {
+      const navigatorState = getNavigatorConnectionState();
+      const nextScreenProfile = resolveCallQualityProfile({
+        peerCount:
+          remoteStreams.length +
+          remoteScreenStreams.length +
+          Object.keys(peerConnectionsRef.current).length +
+          1,
+        isScreenSharing: true,
+        networkQuality,
+        navigatorState,
+      });
       const screen = await navigator.mediaDevices.getDisplayMedia({
-        video: true,
+        video: {
+          width: { ideal: nextScreenProfile.width, max: nextScreenProfile.width },
+          height: { ideal: nextScreenProfile.height, max: nextScreenProfile.height },
+          frameRate: {
+            ideal: nextScreenProfile.frameRate,
+            max: nextScreenProfile.frameRate,
+          },
+        },
         audio: false,
       });
       screenStreamRef.current = screen;
       setScreenStream(screen);
       setIsScreenSharing(true);
-      qualityProfileRef.current = CALL_QUALITY_PROFILES.screen;
-      setQualityProfile(CALL_QUALITY_PROFILES.screen);
+      qualityProfileRef.current = nextScreenProfile;
+      setQualityProfile(nextScreenProfile);
 
       // When user stops via browser UI
       screen.getVideoTracks()[0].onended = () => {
@@ -1242,7 +1295,7 @@ export function useWebRTC({
         screenSendersRef.current[peerId] = sender;
       }
 
-      await applyMediaOptimization(CALL_QUALITY_PROFILES.screen);
+      await applyMediaOptimization(nextScreenProfile);
 
       // Notify peers
       if (socketRef.current) {
@@ -1262,7 +1315,14 @@ export function useWebRTC({
       console.error("Screen share error:", err);
       return false;
     }
-  }, [isScreenSharing, roomId]);
+  }, [
+    applyMediaOptimization,
+    isScreenSharing,
+    networkQuality,
+    remoteScreenStreams.length,
+    remoteStreams.length,
+    roomId,
+  ]);
 
   useEffect(() => {
     refreshQualityProfile();
