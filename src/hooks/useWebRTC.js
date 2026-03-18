@@ -62,12 +62,22 @@ const CALL_QUALITY_PROFILES = {
   screen: {
     key: "screen",
     label: "screen-share",
-    width: 1280,
-    height: 720,
-    frameRate: 15,
-    videoBitrate: 900_000,
+    width: 960,
+    height: 540,
+    frameRate: 10,
+    videoBitrate: 450_000,
     audioBitrate: 32_000,
     scaleResolutionDownBy: 1,
+  },
+  screenCamera: {
+    key: "screen-camera",
+    label: "camera-low",
+    width: 240,
+    height: 135,
+    frameRate: 6,
+    videoBitrate: 70_000,
+    audioBitrate: 32_000,
+    scaleResolutionDownBy: 2,
   },
 };
 
@@ -258,7 +268,7 @@ export function useWebRTC({
     const hasActiveScreenShare = Boolean(isScreenSharing || screenStreamRef.current);
     const screenProfile = CALL_QUALITY_PROFILES.screen;
     const cameraProfile = hasActiveScreenShare
-      ? CALL_QUALITY_PROFILES.poor
+      ? CALL_QUALITY_PROFILES.screenCamera
       : profile;
 
     const audioTrack = stream.getAudioTracks()[0];
@@ -329,7 +339,7 @@ export function useWebRTC({
                 networkPriority: "high",
               };
               params.encodings = encodings;
-              params.degradationPreference = "maintain-resolution";
+              params.degradationPreference = "maintain-framerate";
             } else if (sender.track.id === videoTrack?.id) {
               encodings[0] = {
                 ...encodings[0],
