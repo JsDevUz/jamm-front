@@ -260,7 +260,7 @@ const MessageBubble = styled.div`
   background-color: ${(props) =>
     props.$isOwn ? "var(--hover-color)" : "var(--input-color)"};
   color: ${(props) => (props.$isOwn ? "white" : "var(--text-color)")};
-  text-align: ${(props) => (props.$isOwn ? "right" : "left")};
+  /* text-align: ${(props) => (props.$isOwn ? "right" : "left")}; */
   transform: translateX(${(props) => props.$swipeOffset ?? 0}px);
   transition:
     transform 0.18s ease,

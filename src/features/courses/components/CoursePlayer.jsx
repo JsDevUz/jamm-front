@@ -1789,10 +1789,6 @@ const CoursePlayer = ({ courseId, initialLessonSlug, onClose }) => {
                     <Copy size={14} />
                     {t("common.copy")}
                   </LikeButton>
-                  <MetaItem>
-                    <BookOpen size={14} />
-                    {course.name}
-                  </MetaItem>
                   {lessonMediaItems.length > 1 ? (
                     <MetaItem>
                       <Video size={14} />
