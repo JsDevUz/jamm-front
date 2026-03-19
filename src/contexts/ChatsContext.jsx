@@ -364,6 +364,7 @@ export const ChatsProvider = ({ children }) => {
         return {
           id: chat._id,
           jammId: chat.jammId,
+          privateurl: chat.privateurl || displayInfo.urlSlug || null,
           isGroup: !!chat.isGroup,
           type: chat.isGroup ? "group" : "user",
           name: displayInfo.name,
@@ -380,9 +381,10 @@ export const ChatsProvider = ({ children }) => {
           hidePresence: displayInfo.hidePresence,
           disableCalls: displayInfo.disableCalls,
           disableGroupInvites: displayInfo.disableGroupInvites,
-          urlSlug: chat.jammId
-            ? String(chat.jammId)
-            : displayInfo.urlSlug || chat._id,
+          urlSlug:
+            chat.privateurl ||
+            displayInfo.urlSlug ||
+            (chat.jammId ? String(chat.jammId) : chat._id),
           unread: chat.unreadCount || 0,
           lastMessage:
             chat.lastMessage ||
@@ -602,7 +604,8 @@ export const ChatsProvider = ({ children }) => {
     const data = await chatApi.searchGroupChats(query);
     return data.map((group) => ({
       id: group.id || group._id,
-      urlSlug: group.urlSlug || group.jammId || group.id,
+      privateurl: group.privateurl || group.urlSlug || null,
+      urlSlug: group.privateurl || group.urlSlug || group.jammId || group.id,
       name: group.name,
       avatar: group.avatar || (group.name || "").charAt(0),
       lastMessage: group.lastMessage || "",

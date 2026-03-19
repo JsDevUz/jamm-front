@@ -447,6 +447,14 @@ export const ArenaProvider = ({ children }) => {
             return null;
           }
         },
+        fetchFlashcardFolder: async (folderId) => {
+          try {
+            return await arenaApi.fetchFlashcardFolder(folderId);
+          } catch (err) {
+            console.error(err);
+            return null;
+          }
+        },
         joinFlashcardDeck: async (deckId) => {
           try {
             await arenaApi.joinFlashcardDeck(deckId);
@@ -456,10 +464,28 @@ export const ArenaProvider = ({ children }) => {
             return { success: false };
           }
         },
+        joinFlashcardFolder: async (folderId) => {
+          try {
+            const data = await arenaApi.joinFlashcardFolder(folderId);
+            return { success: true, data };
+          } catch (err) {
+            console.error(err);
+            return { success: false };
+          }
+        },
         leaveFlashcardDeck: async (deckId) => {
           try {
             await arenaApi.leaveFlashcardDeck(deckId);
             return { success: true };
+          } catch (err) {
+            console.error(err);
+            return { success: false };
+          }
+        },
+        leaveFlashcardFolder: async (folderId) => {
+          try {
+            const data = await arenaApi.leaveFlashcardFolder(folderId);
+            return { success: true, data };
           } catch (err) {
             console.error(err);
             return { success: false };

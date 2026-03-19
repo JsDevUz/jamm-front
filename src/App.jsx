@@ -14,10 +14,12 @@ import AppGate from "./app/components/AppGate";
 import CallOverlays from "./app/components/CallOverlays";
 import MeetCallHost from "./app/components/MeetCallHost";
 import AppRoutes from "./app/routes/AppRoutes";
+import RouteMetadataManager from "./app/components/RouteMetadataManager";
 
 function App() {
   return (
     <Router>
+      <RouteMetadataManager />
       <ThemeProvider>
         <AppGate>
           <Toaster position="top-center" containerStyle={{ zIndex: 99999 }} />

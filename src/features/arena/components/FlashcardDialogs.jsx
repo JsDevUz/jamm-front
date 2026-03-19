@@ -244,6 +244,154 @@ export const FlashcardMembersDialog = ({
   );
 };
 
+export const FlashcardFolderViewDialog = ({
+  ui,
+  viewingFolder,
+  setViewingFolder,
+  isViewingOwnFolder,
+  hasJoinedViewingFolder,
+  onJoinFolder,
+  onLeaveFolder,
+  onOpenDeck,
+  joiningFolder,
+}) => {
+  const { Overlay, Dialog, HeaderRow, Title, ButtonWrapper, DialogContent } = ui;
+
+  return (
+    <Overlay onClick={() => setViewingFolder(null)}>
+      <Dialog onClick={(e) => e.stopPropagation()}>
+        <HeaderRow
+          style={{
+            padding: "16px 20px",
+            borderBottom: "1px solid var(--border-color)",
+          }}
+        >
+          <Title>{viewingFolder?.title || "Flashcard papkasi"}</Title>
+          <ButtonWrapper onClick={() => setViewingFolder(null)}>
+            <X size={20} />
+          </ButtonWrapper>
+        </HeaderRow>
+        <DialogContent>
+          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+            <img
+              src={
+                viewingFolder?.createdBy?.avatar ||
+                "https://cdn-icons-png.flaticon.com/512/149/149071.png"
+              }
+              alt="avatar"
+              style={{
+                width: "40px",
+                height: "40px",
+                borderRadius: "50%",
+                objectFit: "cover",
+              }}
+            />
+            <div>
+              <div style={{ color: "var(--text-color)", fontWeight: "600" }}>
+                {viewingFolder?.createdBy?.nickname || "Noma'lum"}
+              </div>
+              <div
+                style={{
+                  color: "var(--text-muted-color)",
+                  fontSize: "13px",
+                }}
+              >
+                Papka yaratuvchisi
+              </div>
+            </div>
+
+            {!isViewingOwnFolder && !hasJoinedViewingFolder ? (
+              <button
+                disabled={joiningFolder === viewingFolder?._id}
+                onClick={() => onJoinFolder(viewingFolder?._id)}
+                style={{
+                  marginLeft: "auto",
+                  background: "var(--primary-color)",
+                  color: "white",
+                  border: "none",
+                  padding: "8px",
+                  borderRadius: "8px",
+                  cursor: "pointer",
+                }}
+                title="Yuklab olish (Qo'shilish)"
+              >
+                <Download size={20} />
+              </button>
+            ) : !isViewingOwnFolder ? (
+              <button
+                disabled={joiningFolder === viewingFolder?._id}
+                onClick={() => onLeaveFolder(viewingFolder?._id)}
+                style={{
+                  marginLeft: "auto",
+                  background: "var(--secondary-color)",
+                  color: "var(--text-color)",
+                  border: "1px solid var(--border-color)",
+                  padding: "8px",
+                  borderRadius: "8px",
+                  cursor: "pointer",
+                }}
+                title="Papkadan chiqish"
+              >
+                <LogOut size={18} />
+              </button>
+            ) : null}
+          </div>
+
+          <div>
+            <div
+              style={{
+                color: "var(--text-color)",
+                fontWeight: "600",
+                marginBottom: "8px",
+                fontSize: "15px",
+              }}
+            >
+              Papkadagi lug'atlar ({viewingFolder?.decks?.length || 0})
+            </div>
+            {viewingFolder?.decks?.length ? (
+              <div style={{ display: "grid", gap: "10px" }}>
+                {viewingFolder.decks.map((deck, index) => (
+                  <button
+                    key={deck?._id || deck?.urlSlug || index}
+                    onClick={() => onOpenDeck(deck)}
+                    style={{
+                      width: "100%",
+                      textAlign: "left",
+                      borderRadius: "12px",
+                      border: "1px solid var(--border-color)",
+                      background: "var(--secondary-color)",
+                      padding: "14px",
+                      cursor: "pointer",
+                      color: "var(--text-color)",
+                    }}
+                  >
+                    <div style={{ fontWeight: "700" }}>
+                      {deck?.title || "Nomsiz lug'at"}
+                    </div>
+                    <div
+                      style={{
+                        marginTop: "6px",
+                        fontSize: "13px",
+                        color: "var(--text-muted-color)",
+                      }}
+                    >
+                      {deck?.cards?.length || 0} ta karta
+                    </div>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <p style={{ textAlign: "center", color: "var(--text-muted-color)" }}>
+                Bu papkada hozircha lug'at yo'q.
+              </p>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+    </Overlay>
+  );
+};
+
 export const FlashcardTrainingPickerDialog = ({
   ui,
   trainingPickerDeck,

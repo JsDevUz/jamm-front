@@ -132,6 +132,31 @@ const Input = styled.input`
   font-size: 1rem;
 `;
 
+const FolderRow = styled.div`
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+`;
+
+const FolderChip = styled.button`
+  flex: 0 0 auto;
+  min-height: 38px;
+  max-width: 180px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid
+    ${(props) => (props.$active ? "var(--primary-color)" : "var(--border-color)")};
+  background: ${(props) =>
+    props.$active ? "var(--primary-color)" : "var(--tertiary-color)"};
+  color: ${(props) => (props.$active ? "#fff" : "var(--text-color)")};
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  cursor: pointer;
+`;
+
 const Tabs = styled.div`
   display: flex;
   gap: 8px;
@@ -377,10 +402,11 @@ const GridImage = styled.img`
   }
 `;
 
-const CreateFlashcardDialog = ({ onClose, initialDeck = null }) => {
+const CreateFlashcardDialog = ({ onClose, initialDeck = null, folders = [] }) => {
   const { createFlashcardDeck, updateFlashcardDeck } = useArena();
   const isEditing = Boolean(initialDeck?._id);
   const [title, setTitle] = useState("");
+  const [selectedFolderId, setSelectedFolderId] = useState(null);
   const [inputMode, setInputMode] = useState("manual"); // 'manual' | 'template'
 
   // Manual State
@@ -404,6 +430,11 @@ const CreateFlashcardDialog = ({ onClose, initialDeck = null }) => {
   useEffect(() => {
     if (isEditing) {
       setTitle(initialDeck?.title || "");
+      setSelectedFolderId(
+        typeof initialDeck?.folderId === "string"
+          ? initialDeck.folderId
+          : initialDeck?.folderId?._id || initialDeck?.folderId?.id || null,
+      );
       setInputMode("manual");
       setCards(
         (initialDeck?.cards || []).length
@@ -420,6 +451,7 @@ const CreateFlashcardDialog = ({ onClose, initialDeck = null }) => {
     }
 
     setTitle("");
+    setSelectedFolderId(null);
     setInputMode("manual");
     setCards([{ front: "", back: "", frontImage: "", backImage: "" }]);
     setTemplateText("");
@@ -564,6 +596,7 @@ const CreateFlashcardDialog = ({ onClose, initialDeck = null }) => {
     const payload = {
       title: title.trim(),
       cards: finalCards,
+      folderId: selectedFolderId || null,
     };
 
     try {
@@ -604,6 +637,34 @@ const CreateFlashcardDialog = ({ onClose, initialDeck = null }) => {
               }
               maxLength={APP_LIMITS.flashcardTitleChars}
             />
+          </FormGroup>
+
+          <FormGroup>
+            <Label>Folder</Label>
+            <FolderRow>
+              <FolderChip
+                type="button"
+                $active={!selectedFolderId}
+                onClick={() => setSelectedFolderId(null)}
+              >
+                Foldersiz
+              </FolderChip>
+              {folders.map((folder) => {
+                const folderId = folder?._id || folder?.urlSlug;
+                if (!folderId) return null;
+                return (
+                  <FolderChip
+                    key={folderId}
+                    type="button"
+                    $active={selectedFolderId === folderId}
+                    onClick={() => setSelectedFolderId(folderId)}
+                    title={folder.title || "Folder"}
+                  >
+                    {folder.title || "Folder"}
+                  </FolderChip>
+                );
+              })}
+            </FolderRow>
           </FormGroup>
 
           <Tabs>

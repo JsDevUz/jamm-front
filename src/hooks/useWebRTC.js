@@ -217,10 +217,11 @@ export function useWebRTC({
   const [cameraFacingMode, setCameraFacingMode] = useState("user");
   const [videoInputCount, setVideoInputCount] = useState(0);
   const screenStreamRef = useRef(null);
-  const screenSendersRef = useRef({});
   const knownStreamsRef = useRef({});
   const knownPeerNamesRef = useRef({});
   const candidateQueuesRef = useRef({}); // Store candidates until remote sdp is set
+  const screenPeerConnectionsRef = useRef({});
+  const screenCandidateQueuesRef = useRef({});
   const statsIntervalRef = useRef(null);
   const qualityProfileRef = useRef(CALL_QUALITY_PROFILES.balanced);
   const cameraFacingModeRef = useRef("user");
@@ -270,6 +271,21 @@ export function useWebRTC({
       peerConnectionsRef.current[peerId].close();
       delete peerConnectionsRef.current[peerId];
     }
+    if (screenPeerConnectionsRef.current[peerId]) {
+      screenPeerConnectionsRef.current[peerId].close();
+      delete screenPeerConnectionsRef.current[peerId];
+    }
+    delete candidateQueuesRef.current[peerId];
+    delete screenCandidateQueuesRef.current[peerId];
+  }, []);
+
+  const removeRemoteScreenStream = useCallback((peerId) => {
+    setRemoteScreenStreams((prev) => prev.filter((r) => r.peerId !== peerId));
+    if (screenPeerConnectionsRef.current[peerId]) {
+      screenPeerConnectionsRef.current[peerId].close();
+      delete screenPeerConnectionsRef.current[peerId];
+    }
+    delete screenCandidateQueuesRef.current[peerId];
   }, []);
 
   const refreshVideoInputCount = useCallback(async () => {
@@ -345,7 +361,10 @@ export function useWebRTC({
 
     const senderTasks = [];
 
-    Object.values(peerConnectionsRef.current).forEach((pc) => {
+    [
+      ...Object.values(peerConnectionsRef.current),
+      ...Object.values(screenPeerConnectionsRef.current),
+    ].forEach((pc) => {
       pc.getSenders().forEach((sender) => {
         if (!sender.track) return;
         senderTasks.push(
@@ -411,23 +430,18 @@ export function useWebRTC({
       }
 
       const replaceTasks = Object.entries(peerConnectionsRef.current).map(
-        async ([peerId, pc]) => {
-          const screenSender = screenSendersRef.current[peerId] || null;
+        async ([, pc]) => {
           const matchingSender =
             pc
               .getSenders()
               .find(
                 (sender) =>
                   sender.track?.kind === "video" &&
-                  sender !== screenSender &&
                   (!previousTrack || sender.track?.id === previousTrack.id),
               ) ||
             pc
               .getSenders()
-              .find(
-                (sender) =>
-                  sender.track?.kind === "video" && sender !== screenSender,
-              );
+              .find((sender) => sender.track?.kind === "video");
 
           if (matchingSender) {
             try {
@@ -619,13 +633,6 @@ export function useWebRTC({
           .forEach((t) => pc.addTrack(t, localStreamRef.current));
       }
 
-      // Also add screen tracks if we're currently sharing
-      if (screenStreamRef.current) {
-        screenStreamRef.current
-          .getTracks()
-          .forEach((t) => pc.addTrack(t, screenStreamRef.current));
-      }
-
       pc.ontrack = (e) => {
         const [s] = e.streams;
         if (!s) return;
@@ -710,6 +717,88 @@ export function useWebRTC({
     [addRemoteStream, removeRemoteStream, updateRemotePeerState],
   );
 
+  const createScreenPeerConnection = useCallback(
+    (peerId, peerDisplayName, { initiator = false } = {}) => {
+      const existing = screenPeerConnectionsRef.current[peerId];
+      if (existing) {
+        return existing;
+      }
+
+      const pc = new RTCPeerConnection(iceConfigRef.current);
+
+      if (initiator && screenStreamRef.current) {
+        screenStreamRef.current
+          .getTracks()
+          .forEach((track) => pc.addTrack(track, screenStreamRef.current));
+      }
+
+      pc.ontrack = (event) => {
+        const [stream] = event.streams;
+        if (!stream) return;
+
+        setRemoteScreenStreams((prev) => {
+          if (prev.find((item) => item.peerId === peerId)) {
+            return prev.map((item) =>
+              item.peerId === peerId
+                ? {
+                    ...item,
+                    stream,
+                    displayName:
+                      peerDisplayName ||
+                      knownPeerNamesRef.current[peerId] ||
+                      item.displayName,
+                  }
+                : item,
+            );
+          }
+
+          return [
+            ...prev,
+            {
+              peerId,
+              stream,
+              displayName: peerDisplayName || knownPeerNamesRef.current[peerId] || peerId,
+            },
+          ];
+        });
+      };
+
+      pc.onicecandidate = (event) => {
+        if (event.candidate && socketRef.current) {
+          socketRef.current.emit("screen-ice-candidate", {
+            targetId: peerId,
+            candidate: event.candidate,
+          });
+        }
+      };
+
+      pc.onconnectionstatechange = () => {
+        if (["failed", "disconnected", "closed"].includes(pc.connectionState)) {
+          removeRemoteScreenStream(peerId);
+        }
+      };
+
+      screenPeerConnectionsRef.current[peerId] = pc;
+      return pc;
+    },
+    [removeRemoteScreenStream],
+  );
+
+  const flushScreenCandidateQueue = useCallback(async (peerId) => {
+    const pc = screenPeerConnectionsRef.current[peerId];
+    const queue = screenCandidateQueuesRef.current[peerId] || [];
+    if (!pc || !queue.length || !pc.remoteDescription?.type) {
+      return;
+    }
+
+    while (queue.length > 0) {
+      const candidate = queue.shift();
+      try {
+        await pc.addIceCandidate(new RTCIceCandidate(candidate));
+      } catch {}
+    }
+  }, []);
+
   // ─── Socket signaling listeners ──────────────────────────────────────────────
 
   const attachSignalingListeners = useCallback(
@@ -772,6 +861,15 @@ export function useWebRTC({
         const offer = await pc.createOffer();
         await pc.setLocalDescription(offer);
         socket.emit("offer", { targetId: peerId, sdp: offer });
+
+        if (screenStreamRef.current) {
+          const screenPc = createScreenPeerConnection(peerId, peerName, {
+            initiator: true,
+          });
+          const screenOffer = await screenPc.createOffer();
+          await screenPc.setLocalDescription(screenOffer);
+          socket.emit("screen-offer", { targetId: peerId, sdp: screenOffer });
+        }
       });
 
       socket.on("existing-peers", ({ peers }) => {
@@ -789,8 +887,47 @@ export function useWebRTC({
       socket.on("peer-left", ({ peerId }) => {
         removeRemoteStream(peerId);
       });
+
+      socket.on("screen-offer", async ({ senderId, sdp }) => {
+        const peerName = knownPeerNamesRef.current[senderId] || senderId;
+        const pc = createScreenPeerConnection(senderId, peerName);
+        await pc.setRemoteDescription(new RTCSessionDescription(sdp));
+        await flushScreenCandidateQueue(senderId);
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
+        socket.emit("screen-answer", { targetId: senderId, sdp: answer });
+      });
+
+      socket.on("screen-answer", async ({ senderId, sdp }) => {
+        const pc = screenPeerConnectionsRef.current[senderId];
+        if (!pc) {
+          return;
+        }
+
+        await pc.setRemoteDescription(new RTCSessionDescription(sdp));
+        await flushScreenCandidateQueue(senderId);
+      });
+
+      socket.on("screen-ice-candidate", async ({ senderId, candidate }) => {
+        const pc = screenPeerConnectionsRef.current[senderId];
+        if (pc && pc.remoteDescription && pc.remoteDescription.type) {
+          try {
+            await pc.addIceCandidate(new RTCIceCandidate(candidate));
+          } catch {}
+        } else {
+          if (!screenCandidateQueuesRef.current[senderId]) {
+            screenCandidateQueuesRef.current[senderId] = [];
+          }
+          screenCandidateQueuesRef.current[senderId].push(candidate);
+        }
+      });
     },
-    [createPeerConnection, removeRemoteStream],
+    [
+      createPeerConnection,
+      createScreenPeerConnection,
+      flushScreenCandidateQueue,
+      removeRemoteStream,
+    ],
   );
 
   // ─── Main effect ──────────────────────────────────────────────────────────────
@@ -919,10 +1056,7 @@ export function useWebRTC({
 
         // 5c. Screen share signals from peers
         socket.on("screen-share-stopped", ({ peerId: sharerPeerId }) => {
-          setRemoteScreenStreams((prev) =>
-            prev.filter((r) => r.peerId !== sharerPeerId),
-          );
-          delete knownStreamsRef.current[sharerPeerId];
+          removeRemoteScreenStream(sharerPeerId);
         });
 
         // 5d. Recording signals from peers
@@ -1065,6 +1199,9 @@ export function useWebRTC({
       isMounted = false;
       Object.values(peerConnectionsRef.current).forEach((pc) => pc.close());
       peerConnectionsRef.current = {};
+      Object.values(screenPeerConnectionsRef.current).forEach((pc) => pc.close());
+      screenPeerConnectionsRef.current = {};
+      screenCandidateQueuesRef.current = {};
       if (localStreamRef.current) {
         localStreamRef.current.getTracks().forEach((t) => t.stop());
         localStreamRef.current = null;
@@ -1097,6 +1234,7 @@ export function useWebRTC({
     currentUser?._id,
     currentUser?.id,
     refreshVideoInputCount,
+    removeRemoteScreenStream,
   ]);
 
   // ─── Creator: approve / reject ────────────────────────────────────────────────
@@ -1196,6 +1334,9 @@ export function useWebRTC({
       }
       Object.values(peerConnectionsRef.current).forEach((pc) => pc.close());
       peerConnectionsRef.current = {};
+      Object.values(screenPeerConnectionsRef.current).forEach((pc) => pc.close());
+      screenPeerConnectionsRef.current = {};
+      screenCandidateQueuesRef.current = {};
       localStreamRef.current?.getTracks().forEach((t) => t.stop());
       localStreamRef.current = null;
       screenStreamRef.current?.getTracks().forEach((t) => t.stop());
@@ -1224,37 +1365,20 @@ export function useWebRTC({
 
   const toggleScreenShare = useCallback(async () => {
     if (isScreenSharing) {
-      // Stop screen share
       screenStreamRef.current?.getTracks().forEach((t) => t.stop());
-      // Remove screen track from all peer connections
-      Object.entries(screenSendersRef.current).forEach(([peerId, sender]) => {
-        const pc = peerConnectionsRef.current[peerId];
-        if (pc && sender) {
-          try {
-            pc.removeTrack(sender);
-          } catch {}
-        }
-      });
-      screenSendersRef.current = {};
       screenStreamRef.current = null;
       setScreenStream(null);
       setIsScreenSharing(false);
-      // Notify peers
+      Object.values(screenPeerConnectionsRef.current).forEach((pc) => pc.close());
+      screenPeerConnectionsRef.current = {};
+      screenCandidateQueuesRef.current = {};
       if (socketRef.current) {
         socketRef.current.emit("screen-share-stopped", { roomId });
       }
-      // Renegotiate with all peers
-      for (const [peerId, pc] of Object.entries(peerConnectionsRef.current)) {
-        try {
-          const offer = await pc.createOffer();
-          await pc.setLocalDescription(offer);
-          socketRef.current?.emit("offer", { targetId: peerId, sdp: offer });
-        } catch {}
-      }
+      await applyMediaOptimization(qualityProfileRef.current);
       return true;
     }
 
-    // Start screen share
     try {
       const navigatorState = getNavigatorConnectionState();
       const nextScreenProfile = resolveCallQualityProfile({
@@ -1284,30 +1408,24 @@ export function useWebRTC({
       qualityProfileRef.current = nextScreenProfile;
       setQualityProfile(nextScreenProfile);
 
-      // When user stops via browser UI
       screen.getVideoTracks()[0].onended = () => {
-        toggleScreenShare(); // recursion: will hit the stop branch
+        toggleScreenShare();
       };
-
-      // Add screen track to all existing peer connections
-      for (const [peerId, pc] of Object.entries(peerConnectionsRef.current)) {
-        const sender = pc.addTrack(screen.getVideoTracks()[0], screen);
-        screenSendersRef.current[peerId] = sender;
-      }
 
       await applyMediaOptimization(nextScreenProfile);
 
-      // Notify peers
       if (socketRef.current) {
         socketRef.current.emit("screen-share-started", { roomId });
       }
 
-      // Renegotiate with all peers
-      for (const [peerId, pc] of Object.entries(peerConnectionsRef.current)) {
+      for (const [peerId] of Object.entries(peerConnectionsRef.current)) {
         try {
-          const offer = await pc.createOffer();
-          await pc.setLocalDescription(offer);
-          socketRef.current?.emit("offer", { targetId: peerId, sdp: offer });
+          const screenPc = createScreenPeerConnection(peerId, knownPeerNamesRef.current[peerId], {
+            initiator: true,
+          });
+          const offer = await screenPc.createOffer();
+          await screenPc.setLocalDescription(offer);
+          socketRef.current?.emit("screen-offer", { targetId: peerId, sdp: offer });
         } catch {}
       }
       return true;
@@ -1317,6 +1435,7 @@ export function useWebRTC({
     }
   }, [
     applyMediaOptimization,
+    createScreenPeerConnection,
     isScreenSharing,
     networkQuality,
     remoteScreenStreams.length,

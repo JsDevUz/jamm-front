@@ -124,6 +124,46 @@ export const deleteFlashcardDeck = async (deckId) => {
   return data;
 };
 
+export const fetchFlashcardFolders = async () => {
+  const { data } = await axiosInstance.get("/arena/flashcard-folders");
+  return data;
+};
+
+export const fetchFlashcardFolder = async (folderId) => {
+  const { data } = await axiosInstance.get(`/arena/flashcard-folders/${folderId}`);
+  return data;
+};
+
+export const createFlashcardFolder = async (payload) => {
+  const { data } = await axiosInstance.post("/arena/flashcard-folders", payload);
+  return data;
+};
+
+export const updateFlashcardFolder = async (folderId, payload) => {
+  const { data } = await axiosInstance.patch(
+    `/arena/flashcard-folders/${folderId}`,
+    payload,
+  );
+  return data;
+};
+
+export const joinFlashcardFolder = async (folderId) => {
+  const { data } = await axiosInstance.post(`/arena/flashcard-folders/${folderId}/join`);
+  return data;
+};
+
+export const leaveFlashcardFolder = async (folderId) => {
+  const { data } = await axiosInstance.delete(
+    `/arena/flashcard-folders/${folderId}/leave`,
+  );
+  return data;
+};
+
+export const deleteFlashcardFolder = async (folderId) => {
+  const { data } = await axiosInstance.delete(`/arena/flashcard-folders/${folderId}`);
+  return data;
+};
+
 // --- Sentence builders ---
 export const fetchSentenceBuilders = async (page = 1, limit = 20) => {
   const { data } = await axiosInstance.get(

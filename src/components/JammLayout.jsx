@@ -888,6 +888,7 @@ const JammLayout = ({
                           "quiz",
                           "quiz-link",
                           "flashcard",
+                          "flashcard-folders",
                           "sentence-builder",
                           "minemonika",
                           "battle",

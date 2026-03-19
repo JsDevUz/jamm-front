@@ -25,6 +25,7 @@ import {
   Star,
   Settings,
   Play,
+  FolderOpen,
 } from "lucide-react";
 import InfiniteScroll from "react-infinite-scroll-component";
 import CreateFlashcardDialog from "./CreateFlashcardDialog";
@@ -34,12 +35,14 @@ import ArenaHeader from "./ArenaHeader";
 import { SidebarIconButton as ButtonWrapper } from "../../../shared/ui/buttons/IconButton";
 import ConfirmDialog from "../../../shared/ui/dialogs/ConfirmDialog";
 import { RESOLVED_APP_BASE_URL } from "../../../config/env";
+import * as arenaApi from "../../../api/arenaApi";
 import FlashcardReviewMode from "./FlashcardReviewMode";
 import FlashcardClassicMode from "./FlashcardClassicMode";
 import FlashcardTestMode from "./FlashcardTestMode";
 import FlashcardGameMode from "./FlashcardGameMode";
 import {
   FlashcardDeckViewDialog,
+  FlashcardFolderViewDialog,
   FlashcardMembersDialog,
   FlashcardTrainingPickerDialog,
 } from "./FlashcardDialogs";
@@ -223,6 +226,55 @@ const Grid = styled.div`
   gap: 20px;
 `;
 
+const FolderBar = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 16px;
+`;
+
+const FolderScroller = styled.div`
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+`;
+
+const FolderChip = styled.button`
+  flex: 0 0 auto;
+  min-height: 38px;
+  max-width: 200px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid
+    ${(props) => (props.$active ? "var(--primary-color)" : "var(--border-color)")};
+  background: ${(props) =>
+    props.$active ? "var(--primary-color)" : "var(--tertiary-color)"};
+  color: ${(props) => (props.$active ? "#fff" : "var(--text-color)")};
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+`;
+
+const FolderAddButton = styled.button`
+  width: 38px;
+  height: 38px;
+  flex: 0 0 auto;
+  border-radius: 12px;
+  border: 1px solid var(--border-color);
+  background: var(--tertiary-color);
+  color: var(--text-color);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+`;
+
 const Card = styled.div`
   position: relative;
   z-index: ${(props) => (props.$raised ? 12 : 1)};
@@ -402,6 +454,12 @@ const HeaderRow = styled.div`
     margin: 0;
     color: var(--text-color);
   }
+`;
+
+const HeaderActions = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
 `;
 
 const StudyBtn = styled.button`
@@ -1353,6 +1411,17 @@ const flashcardDialogUi = {
   ModeDesc,
 };
 
+const NO_FOLDER_FILTER_ID = "__no-folder__";
+
+const getDeckFolderIdentifier = (deck) => {
+  if (!deck?.folderId) return "";
+  if (typeof deck.folderId === "string") return String(deck.folderId);
+  return String(deck.folderId.urlSlug || deck.folderId._id || deck.folderId.id || "");
+};
+
+const getFolderIdentifier = (folder) =>
+  String(folder?.urlSlug || folder?._id || folder?.id || "");
+
 const FlashcardList = ({ initialDeckId, onBack }) => {
   const {
     flashcardDecks,
@@ -1361,21 +1430,30 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
     fetchFlashcards,
     reviewFlashcard,
     fetchFlashcardDeck,
+    fetchFlashcardFolder,
     joinFlashcardDeck,
+    joinFlashcardFolder,
     leaveFlashcardDeck,
+    leaveFlashcardFolder,
     deleteFlashcardDeck,
   } = useArena();
   const user = useAuthStore((state) => state.user);
   const [studyingDeck, setStudyingDeck] = useState(null);
   const [viewingDeck, setViewingDeck] = useState(null);
+  const [viewingFolder, setViewingFolder] = useState(null);
+  const [folders, setFolders] = useState([]);
+  const [selectedFolderFilter, setSelectedFolderFilter] = useState(NO_FOLDER_FILTER_ID);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [reviewQueue, setReviewQueue] = useState([]);
   const [currentCardIndex, setCurrentCardIndex] = useState(0);
   const [showingBack, setShowingBack] = useState(false);
   const [showMembersForDeck, setShowMembersForDeck] = useState(null);
   const [joiningDeck, setJoiningDeck] = useState(null);
+  const [joiningFolder, setJoiningFolder] = useState(null);
   const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
   const [editingDeck, setEditingDeck] = useState(null);
+  const [isFolderEditorOpen, setIsFolderEditorOpen] = useState(false);
+  const [folderTitle, setFolderTitle] = useState("");
   const [deckToDelete, setDeckToDelete] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [openMenuId, setOpenMenuId] = useState(null);
@@ -1420,6 +1498,38 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
       (deck.createdBy?._id || deck.createdBy) === (user?._id || user?.id),
   );
   const currentCount = myDecks.length;
+  const ownedFolders = useMemo(
+    () =>
+      folders.filter(
+        (folder) =>
+          String(folder.createdBy?._id || folder.createdBy?.id || folder.createdBy || "") ===
+          String(user?._id || user?.id || ""),
+      ),
+    [folders, user?._id, user?.id],
+  );
+  const selectedFolder = useMemo(() => {
+    if (selectedFolderFilter === NO_FOLDER_FILTER_ID) return null;
+    return (
+      folders.find((folder) => getFolderIdentifier(folder) === selectedFolderFilter) ||
+      (getFolderIdentifier(viewingFolder) === selectedFolderFilter ? viewingFolder : null)
+    );
+  }, [folders, selectedFolderFilter, viewingFolder]);
+  const visibleFolderChips = useMemo(() => {
+    if (!selectedFolder) return ownedFolders;
+    if (ownedFolders.some((folder) => getFolderIdentifier(folder) === selectedFolderFilter)) {
+      return ownedFolders;
+    }
+    return [...ownedFolders, selectedFolder];
+  }, [ownedFolders, selectedFolder, selectedFolderFilter]);
+  const filteredDecks = useMemo(() => {
+    if (selectedFolderFilter === NO_FOLDER_FILTER_ID) {
+      return flashcardDecks.filter((deck) => !getDeckFolderIdentifier(deck));
+    }
+
+    return flashcardDecks.filter(
+      (deck) => getDeckFolderIdentifier(deck) === selectedFolderFilter,
+    );
+  }, [flashcardDecks, selectedFolderFilter]);
 
   const handleCreateClick = () => {
     if (currentCount >= limit) {
@@ -1431,6 +1541,15 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
       return;
     }
     setIsCreateOpen(true);
+  };
+
+  const loadFolders = async () => {
+    try {
+      const response = await arenaApi.fetchFlashcardFolders();
+      setFolders(Array.isArray(response?.data) ? response.data : []);
+    } catch (error) {
+      console.error("Error fetching flashcard folders:", error);
+    }
   };
 
   const hasFetched = React.useRef(false);
@@ -1445,6 +1564,10 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
     });
   }, [fetchFlashcards, flashcardDecks.length]);
 
+  useEffect(() => {
+    void loadFolders();
+  }, []);
+
   const fetchMoreData = () => {
     if (flashcardsHasMore) {
       fetchFlashcards(flashcardsPage + 1);
@@ -1457,11 +1580,20 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
         const deckData = await fetchFlashcardDeck(initialDeckId);
         if (deckData) {
           setViewingDeck(deckData);
+          setViewingFolder(null);
+          return;
+        }
+
+        const folderData = await fetchFlashcardFolder(initialDeckId);
+        if (folderData) {
+          setSelectedFolderFilter(getFolderIdentifier(folderData) || NO_FOLDER_FILTER_ID);
+          setViewingFolder(folderData);
+          setViewingDeck(null);
         }
       }
     };
     checkDeepLink();
-  }, [initialDeckId]);
+  }, [fetchFlashcardDeck, fetchFlashcardFolder, initialDeckId, studyingDeck]);
 
   useEffect(() => {
     if (!openMenuId) return undefined;
@@ -1968,6 +2100,88 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
     }
   };
 
+  const onJoinFolder = async (folderId) => {
+    if (!folderId) return;
+    setJoiningFolder(folderId);
+    const res = await joinFlashcardFolder(folderId);
+    if (res.success) {
+      const updatedFolder =
+        res.data || (await fetchFlashcardFolder(folderId));
+      setSelectedFolderFilter(folderId);
+      setViewingFolder(updatedFolder || null);
+      fetchFlashcards(1);
+      loadFolders();
+      toast.success("Papkaga qo'shildingiz.");
+    } else {
+      toast.error("Papkaga qo'shilishda xatolik yuz berdi.");
+    }
+    setJoiningFolder(null);
+  };
+
+  const onLeaveFolder = async (folderId) => {
+    if (!folderId) return;
+    if (
+      !window.confirm(
+        "Haqiqatdan ham ushbu papkadan chiqmoqchimisiz?",
+      )
+    ) {
+      return;
+    }
+
+    setJoiningFolder(folderId);
+    const res = await leaveFlashcardFolder(folderId);
+    if (res.success) {
+      setViewingFolder(null);
+      fetchFlashcards(1);
+      loadFolders();
+      setSelectedFolderFilter(NO_FOLDER_FILTER_ID);
+      toast.success("Papkadan chiqdingiz.");
+    } else {
+      toast.error("Papkadan chiqishda xatolik yuz berdi.");
+    }
+    setJoiningFolder(null);
+  };
+
+  const openDeckFromFolder = async (deck) => {
+    if (!deck?._id) return;
+    const fullDeck = await fetchFlashcardDeck(deck._id);
+    if (fullDeck) {
+      setViewingFolder(null);
+      setViewingDeck(fullDeck);
+    }
+  };
+
+  const handleCopyFolderLink = (folderIdentifier) => {
+    if (!folderIdentifier) {
+      toast.error("Papka havolasi hali tayyor emas.");
+      return;
+    }
+    const url = `${RESOLVED_APP_BASE_URL}/arena/flashcard-folders/${folderIdentifier}`;
+    navigator.clipboard.writeText(url);
+    toast.success("Papka havolasi nusxalandi!");
+  };
+
+  const handleSaveFolder = async () => {
+    if (!folderTitle.trim()) {
+      toast.error("Papka nomini kiriting");
+      return;
+    }
+
+    try {
+      const created = await arenaApi.createFlashcardFolder({
+        title: folderTitle.trim(),
+        isPublic: true,
+      });
+      await loadFolders();
+      setSelectedFolderFilter(getFolderIdentifier(created) || NO_FOLDER_FILTER_ID);
+      setFolderTitle("");
+      setIsFolderEditorOpen(false);
+      toast.success("Papka yaratildi");
+    } catch (error) {
+      toast.error("Papka yaratishda xatolik yuz berdi");
+    }
+  };
+
   const onLeave = async (deckId) => {
     if (
       window.confirm(
@@ -2020,6 +2234,21 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
       : false;
   const hasJoinedViewingDeck = Boolean(
     viewingDeck?.members?.some((member) => {
+      const memberUserId =
+        member?.userId?._id || member?.userId?.id || member?.userId || null;
+      return memberUserId && currentUserId
+        ? String(memberUserId) === String(currentUserId)
+        : false;
+    }),
+  );
+  const viewingFolderOwnerId =
+    viewingFolder?.createdBy?._id || viewingFolder?.createdBy?.id || viewingFolder?.createdBy || null;
+  const isViewingOwnFolder =
+    viewingFolderOwnerId && currentUserId
+      ? String(viewingFolderOwnerId) === String(currentUserId)
+      : false;
+  const hasJoinedViewingFolder = Boolean(
+    viewingFolder?.members?.some((member) => {
       const memberUserId =
         member?.userId?._id || member?.userId?.id || member?.userId || null;
       return memberUserId && currentUserId
@@ -2139,8 +2368,40 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
           }
         />
 
+        <FolderBar>
+          <FolderScroller>
+            <FolderChip
+              type="button"
+              $active={selectedFolderFilter === NO_FOLDER_FILTER_ID}
+              onClick={() => setSelectedFolderFilter(NO_FOLDER_FILTER_ID)}
+            >
+              Foldersiz
+            </FolderChip>
+            {visibleFolderChips.map((folder) => {
+              const folderId = getFolderIdentifier(folder);
+              const isActive = selectedFolderFilter === folderId;
+              return (
+                <FolderChip
+                  key={folderId}
+                  type="button"
+                  $active={isActive}
+                  onClick={() => setSelectedFolderFilter(folderId)}
+                  title={folder.title || "Folder"}
+                >
+                  <FolderOpen size={14} />
+                  <span>{folder.title || "Folder"}</span>
+                </FolderChip>
+              );
+            })}
+          </FolderScroller>
+
+          <FolderAddButton type="button" onClick={() => setIsFolderEditorOpen(true)}>
+            <Plus size={16} />
+          </FolderAddButton>
+        </FolderBar>
+
         <InfiniteScroll
-          dataLength={flashcardDecks.length}
+          dataLength={filteredDecks.length}
           next={fetchMoreData}
           hasMore={flashcardsHasMore}
           loader={
@@ -2156,8 +2417,27 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
           }
           style={{ overflow: "visible" }}
         >
+          <HeaderRow style={{ marginBottom: "16px" }}>
+            <Title style={{ marginBottom: 0, fontSize: "22px" }}>Lug'atlar</Title>
+            {selectedFolder ? (
+              <HeaderActions>
+                <ButtonWrapper
+                  onClick={() => setViewingFolder(selectedFolder)}
+                  title="Papkani ko'rish"
+                >
+                  <Eye size={18} />
+                </ButtonWrapper>
+                <ButtonWrapper
+                  onClick={() => handleCopyFolderLink(getFolderIdentifier(selectedFolder))}
+                  title="Papka havolasini nusxalash"
+                >
+                  <Link2 size={18} />
+                </ButtonWrapper>
+              </HeaderActions>
+            ) : null}
+          </HeaderRow>
           <Grid>
-            {flashcardDecks.map((deck) => {
+            {filteredDecks.map((deck) => {
               const isOwner =
                 (deck.createdBy?._id || deck.createdBy) ===
                 (user?._id || user?.id);
@@ -2267,8 +2547,12 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
                 </Card>
               );
             })}
-            {flashcardDecks.length === 0 && (
-              <Meta>Sizda hozircha lug'atlar yo'q.</Meta>
+            {filteredDecks.length === 0 && (
+              <Meta>
+                {selectedFolderFilter === NO_FOLDER_FILTER_ID
+                  ? "Foldersiz lug'atlar hozircha yo'q."
+                  : "Bu papkada hozircha lug'at yo'q."}
+              </Meta>
             )}
           </Grid>
         </InfiniteScroll>
@@ -2282,6 +2566,20 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
             hasJoinedViewingDeck={hasJoinedViewingDeck}
             onJoin={onJoin}
             openTrainingPicker={openTrainingPicker}
+          />
+        )}
+
+        {viewingFolder && (
+          <FlashcardFolderViewDialog
+            ui={flashcardDialogUi}
+            viewingFolder={viewingFolder}
+            setViewingFolder={setViewingFolder}
+            isViewingOwnFolder={isViewingOwnFolder}
+            hasJoinedViewingFolder={hasJoinedViewingFolder}
+            onJoinFolder={onJoinFolder}
+            onLeaveFolder={onLeaveFolder}
+            onOpenDeck={openDeckFromFolder}
+            joiningFolder={joiningFolder}
           />
         )}
 
@@ -2300,7 +2598,41 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
               setEditingDeck(null);
             }}
             initialDeck={editingDeck}
+            folders={ownedFolders}
           />
+        )}
+
+        {isFolderEditorOpen && (
+          <Overlay onClick={() => setIsFolderEditorOpen(false)}>
+            <Dialog onClick={(event) => event.stopPropagation()}>
+              <HeaderRow
+                style={{
+                  padding: "16px 20px",
+                  borderBottom: "1px solid var(--border-color)",
+                }}
+              >
+                <Title style={{ marginBottom: 0, fontSize: "22px" }}>
+                  Yangi folder
+                </Title>
+                <ButtonWrapper onClick={() => setIsFolderEditorOpen(false)}>
+                  <X size={20} />
+                </ButtonWrapper>
+              </HeaderRow>
+              <DialogContent>
+                <FieldLabel htmlFor="flashcard-folder-title">Folder nomi</FieldLabel>
+                <DirectionSelect
+                  as="input"
+                  id="flashcard-folder-title"
+                  value={folderTitle}
+                  onChange={(event) => setFolderTitle(event.target.value)}
+                  placeholder="Masalan: IELTS so'zlari"
+                />
+                <StudyBtn style={{ marginTop: 0 }} onClick={handleSaveFolder}>
+                  <Plus size={18} /> Saqlash
+                </StudyBtn>
+              </DialogContent>
+            </Dialog>
+          </Overlay>
         )}
 
         {trainingPickerDeck && (
