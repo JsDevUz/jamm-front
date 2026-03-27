@@ -1,9 +1,8 @@
 // ✅ iOS Safari ✅ Android Chrome ✅ visualViewport API
 import React, { useEffect, useState } from "react";
 import styled from "styled-components";
-import { Plus, SendHorizontal, Smile } from "lucide-react";
+import { Plus, SendHorizontal } from "lucide-react";
 import { toast } from "react-hot-toast";
-import { CHAT_EMOJIS } from "../constants/emojis";
 import { useChatAreaContext } from "../context/ChatAreaContext";
 import useKeyboardAvoid from "../../../../shared/hooks/useKeyboardAvoid";
 
@@ -206,95 +205,6 @@ const MessageInput = styled.textarea`
   -webkit-overflow-scrolling: touch;
 `;
 
-const EmojiPicker = styled.div`
-  position: fixed;
-  bottom: calc(100px + env(safe-area-inset-bottom, 0px));
-  right: 40px;
-  width: min(360px, calc(100vw - 24px));
-  background: var(--secondary-color-with-opacity);
-  border: 1px solid color-mix(in srgb, var(--border-color) 78%, transparent);
-  border-radius: 18px;
-  padding: 12px;
-  box-shadow:
-    0 20px 48px rgba(0, 0, 0, 0.22),
-    0 0 0 1px rgba(255, 255, 255, 0.05) inset;
-  backdrop-filter: blur(2px) saturate(150%);
-  -webkit-backdrop-filter: blur(18px) saturate(170%);
-  z-index: 9999;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  max-height: min(420px, calc(var(--app-height, 100dvh) - 140px));
-  overflow-y: auto;
-  overflow-x: hidden;
-  scrollbar-width: none;
-  box-sizing: border-box;
-
-  &::-webkit-scrollbar {
-    display: none;
-  }
-
-  @media (max-width: 768px) {
-    right: 12px;
-    left: auto;
-    bottom: calc(78px + env(safe-area-inset-bottom, 0px));
-    width: min(360px, calc(100vw - 24px));
-    height: auto;
-    max-height: min(360px, calc(var(--app-height, 100dvh) - 180px));
-    border-radius: 18px;
-    padding-bottom: 12px;
-  }
-`;
-
-const EmojiSection = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  width: 100%;
-  min-width: 0;
-`;
-
-const EmojiSectionLabel = styled.div`
-  color: var(--text-secondary-color);
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  padding: 0 4px;
-`;
-
-const EmojiGrid = styled.div`
-  display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
-  gap: 6px;
-  width: 100%;
-  min-width: 0;
-`;
-
-const EmojiButton = styled.button`
-  background: color-mix(in srgb, var(--input-color) 76%, transparent);
-  border: 1px solid color-mix(in srgb, var(--border-color) 70%, transparent);
-  font-size: 22px;
-  cursor: pointer;
-  padding: 8px;
-  border-radius: 12px;
-  min-width: 40px;
-  min-height: 40px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition:
-    transform 0.18s ease,
-    background-color 0.18s ease,
-    border-color 0.18s ease;
-
-  &:hover {
-    background: color-mix(in srgb, var(--hover-color) 78%, transparent);
-    border-color: color-mix(in srgb, var(--primary-color) 26%, var(--border-color));
-    transform: translateY(-1px) scale(1.04);
-  }
-`;
-
 const ChatAreaComposer = () => {
   const [showComingSoonTooltip, setShowComingSoonTooltip] = useState(false);
   const {
@@ -307,9 +217,6 @@ const ChatAreaComposer = () => {
     editingMessage,
     cancelEditMessage,
     focusReplyTargetMessage,
-    showEmojiPicker,
-    setShowEmojiPicker,
-    handleEmojiClick,
     submitMessage,
     messageInputRef,
     messageInput,
@@ -320,9 +227,6 @@ const ChatAreaComposer = () => {
   const isComposerDisabled = Boolean(currentChat?.id) && isLoadingMessages;
   const canSend = Boolean(messageInput.trim()) && !isComposerDisabled;
   const { keyboardHeight, scrollIntoViewOnFocus } = useKeyboardAvoid();
-  const isMobile =
-    typeof window !== "undefined" &&
-    window.matchMedia("(max-width: 768px)").matches;
   const focusMessageInput = () => {
     if (!messageInputRef.current) return;
 
@@ -331,11 +235,6 @@ const ChatAreaComposer = () => {
     const caretPosition = messageInputRef.current.value.length;
     messageInputRef.current.setSelectionRange(caretPosition, caretPosition);
   };
-  const emojiSections = [
-    { label: "Faces", emojis: CHAT_EMOJIS.slice(0, 35) },
-    { label: "Mood", emojis: CHAT_EMOJIS.slice(35, 80) },
-    { label: "Fun", emojis: CHAT_EMOJIS.slice(80) },
-  ];
 
   useEffect(() => {
     if (!showComingSoonTooltip) return undefined;
@@ -371,15 +270,6 @@ const ChatAreaComposer = () => {
       </MessageInputContainer>
     );
   }
-
-  const handleEmojiToggle = (event) => {
-    event?.stopPropagation?.();
-    setShowEmojiPicker((previous) => !previous);
-  };
-
-  const handleEmojiSelect = (emoji) => {
-    handleEmojiClick(emoji);
-  };
 
   return (
     <MessageInputContainer>
@@ -474,41 +364,9 @@ const ChatAreaComposer = () => {
             >
               <SendHorizontal size={16} />
             </SendButton>
-            <InputButton
-              type="button"
-              disabled={isComposerDisabled}
-              onMouseDown={(event) => event.preventDefault()}
-              onPointerDown={(event) => event.preventDefault()}
-              onClick={handleEmojiToggle}
-              className="emoji-button"
-             >
-              <Smile size={20} />
-            </InputButton>
           </InputButtons>
         </InputWrapper>
       </ComposerStack>
-
-      {showEmojiPicker && (
-        <EmojiPicker
-          className="emoji-picker-container"
-        >
-          {emojiSections.map((section) => (
-            <EmojiSection key={section.label}>
-              <EmojiSectionLabel>{section.label}</EmojiSectionLabel>
-              <EmojiGrid>
-                {section.emojis.map((emoji, index) => (
-                  <EmojiButton
-                    key={`${section.label}-${emoji}-${index}`}
-                    onClick={() => handleEmojiSelect(emoji)}
-                  >
-                    {emoji}
-                  </EmojiButton>
-                ))}
-              </EmojiGrid>
-            </EmojiSection>
-          ))}
-        </EmojiPicker>
-      )}
     </MessageInputContainer>
   );
 };

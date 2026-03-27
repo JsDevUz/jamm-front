@@ -85,7 +85,6 @@ export default function useChatAreaController({
   const [replyMessage, setReplyMessage] = useState(null);
   const [editingMessage, setEditingMessage] = useState(null);
   const [contextMenu, setContextMenu] = useState(null);
-  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [clickCount, setClickCount] = useState(0);
   const [clickedMessageId, setClickedMessageId] = useState(null);
   const [clickTimer, setClickTimer] = useState(null);
@@ -545,19 +544,11 @@ export default function useChatAreaController({
       if (contextMenu) {
         setContextMenu(null);
       }
-
-      if (
-        showEmojiPicker &&
-        !event.target.closest(".emoji-picker-container") &&
-        !event.target.closest(".emoji-button")
-      ) {
-        setShowEmojiPicker(false);
-      }
     };
 
     document.addEventListener("click", handleGlobalClick);
     return () => document.removeEventListener("click", handleGlobalClick);
-  }, [contextMenu, showEmojiPicker]);
+  }, [contextMenu]);
 
   useEffect(() => {
     if (!isHeaderMenuOpen) return undefined;
@@ -805,7 +796,6 @@ export default function useChatAreaController({
         setEditingMessage(message);
         setReplyMessage(null);
         setMessageInput(message.content || "");
-        setShowEmojiPicker(false);
         setTimeout(() => {
           if (!messageInputRef.current) return;
           messageInputRef.current.focus();
@@ -1052,39 +1042,6 @@ export default function useChatAreaController({
         handleMessageLinkClick(url, event, messageId),
     });
 
-  const handleEmojiClick = (emoji) => {
-    setMessageInput((previous) => previous + emoji);
-
-    if (showEmojiPicker) {
-      return;
-    }
-
-    setTimeout(() => {
-      if (!messageInputRef.current) return;
-      messageInputRef.current.focus();
-      messageInputRef.current.setSelectionRange(
-        messageInputRef.current.value.length,
-        messageInputRef.current.value.length,
-      );
-    }, 0);
-  };
-
-  const toggleEmojiPicker = (event) => {
-    event?.stopPropagation?.();
-    setShowEmojiPicker((previous) => !previous);
-
-    if (showEmojiPicker) {
-      setTimeout(() => {
-        if (!messageInputRef.current) return;
-        messageInputRef.current.focus();
-        messageInputRef.current.setSelectionRange(
-          messageInputRef.current.value.length,
-          messageInputRef.current.value.length,
-        );
-      }, 0);
-    }
-  };
-
   const startPrivateVideoCall = () => {
     if (!displayChat || !otherMember) return;
 
@@ -1318,7 +1275,6 @@ export default function useChatAreaController({
       previewChat,
       navigate,
       joinGroupChat,
-      setShowEmojiPicker,
       messages,
       messagesHasMore,
       isLoadingMessages,
@@ -1328,7 +1284,6 @@ export default function useChatAreaController({
       setReplyMessage,
       editingMessage,
       cancelEditMessage,
-      showEmojiPicker,
       messageInput,
       messageRefs,
       messagesEndRef,
@@ -1350,8 +1305,6 @@ export default function useChatAreaController({
       submitMessage,
       dismissLocalMessage,
       handleSendMessage,
-      toggleEmojiPicker,
-      handleEmojiClick,
     }),
     [
       contextMenu,
@@ -1378,8 +1331,6 @@ export default function useChatAreaController({
       replyMessage,
       selectedNav,
       setInitialScrollTargetMessageId,
-      setShowEmojiPicker,
-      showEmojiPicker,
     ],
   );
 
