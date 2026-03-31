@@ -1439,6 +1439,7 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
     deleteFlashcardDeck,
   } = useArena();
   const user = useAuthStore((state) => state.user);
+  const currentUserId = user?._id || user?.id || null;
   const [studyingDeck, setStudyingDeck] = useState(null);
   const [viewingDeck, setViewingDeck] = useState(null);
   const [viewingFolder, setViewingFolder] = useState(null);
@@ -1457,6 +1458,8 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
   const [folderTitle, setFolderTitle] = useState("");
   const [deckToDelete, setDeckToDelete] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [folderToDelete, setFolderToDelete] = useState(null);
+  const [isDeletingFolder, setIsDeletingFolder] = useState(false);
   const [openMenuId, setOpenMenuId] = useState(null);
   const [trainingPickerDeck, setTrainingPickerDeck] = useState(null);
   const [classicDeck, setClassicDeck] = useState(null);
@@ -1533,6 +1536,15 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
       (deck) => getDeckFolderIdentifier(deck) === selectedFolderFilter,
     );
   }, [flashcardDecks, selectedFolderFilter]);
+  const selectedFolderOwnerId =
+    selectedFolder?.createdBy?._id ||
+    selectedFolder?.createdBy?.id ||
+    selectedFolder?.createdBy ||
+    null;
+  const isSelectedOwnFolder =
+    selectedFolderOwnerId && currentUserId
+      ? String(selectedFolderOwnerId) === String(currentUserId)
+      : false;
 
   const handleCreateClick = () => {
     if (currentCount >= limit) {
@@ -2091,6 +2103,61 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
     }
   };
 
+  const handleDeleteFolder = async () => {
+    if (!folderToDelete || isDeletingFolder) return;
+
+    const folderId = getFolderIdentifier(folderToDelete);
+    if (!folderId) {
+      toast.error("Papka topilmadi.");
+      return;
+    }
+
+    setIsDeletingFolder(true);
+    try {
+      let folderPayload = folderToDelete;
+      try {
+        folderPayload = await fetchFlashcardFolder(folderId);
+      } catch {}
+
+      const localFolderDecks = flashcardDecks.filter(
+        (deck) => getDeckFolderIdentifier(deck) === folderId,
+      );
+      const deckIds = Array.from(
+        new Set(
+          [
+            ...(Array.isArray(folderPayload?.decks) ? folderPayload.decks : []),
+            ...(Array.isArray(folderToDelete?.decks) ? folderToDelete.decks : []),
+            ...localFolderDecks,
+          ]
+            .map((deck) => String(deck?._id || deck?.id || deck?.urlSlug || "").trim())
+            .filter(Boolean),
+        ),
+      );
+
+      for (const deckId of deckIds) {
+        await deleteFlashcardDeck(deckId);
+      }
+
+      await arenaApi.deleteFlashcardFolder(folderId);
+      if (getFolderIdentifier(viewingFolder) === folderId) {
+        setViewingFolder(null);
+      }
+      if (selectedFolderFilter === folderId) {
+        setSelectedFolderFilter(NO_FOLDER_FILTER_ID);
+      }
+      await Promise.all([fetchFlashcards(1), loadFolders()]);
+      toast.success("Papka va ichidagi lug'atlar o'chirildi.");
+      setFolderToDelete(null);
+    } catch (error) {
+      toast.error(
+        error?.response?.data?.message ||
+          "Papkani o'chirishda xatolik yuz berdi.",
+      );
+    } finally {
+      setIsDeletingFolder(false);
+    }
+  };
+
   const onJoin = async (deckId) => {
     const res = await joinFlashcardDeck(deckId);
     if (res.success) {
@@ -2230,7 +2297,6 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
 
   const viewingDeckOwnerId =
     viewingDeck?.createdBy?._id || viewingDeck?.createdBy?.id || null;
-  const currentUserId = user?._id || user?.id || null;
   const isViewingOwnDeck =
     viewingDeckOwnerId && currentUserId
       ? String(viewingDeckOwnerId) === String(currentUserId)
@@ -2424,6 +2490,14 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
             <Title style={{ marginBottom: 0, fontSize: "22px" }}>Lug'atlar</Title>
             {selectedFolder ? (
               <HeaderActions>
+                {isSelectedOwnFolder ? (
+                  <ButtonWrapper
+                    onClick={() => setFolderToDelete(selectedFolder)}
+                    title="Papkani o'chirish"
+                  >
+                    <Trash2 size={18} />
+                  </ButtonWrapper>
+                ) : null}
                 <ButtonWrapper
                   onClick={() => setViewingFolder(selectedFolder)}
                   title="Papkani ko'rish"
@@ -2673,6 +2747,21 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
           confirmText={isDeleting ? "O'chirilmoqda..." : "O'chirish"}
           cancelText="Bekor qilish"
           onConfirm={handleDeleteDeck}
+          isDanger
+        />
+
+        <ConfirmDialog
+          isOpen={Boolean(folderToDelete)}
+          onClose={() => {
+            if (!isDeletingFolder) setFolderToDelete(null);
+          }}
+          title="Papkani o'chirish"
+          description={`${
+            folderToDelete?.title || "Bu papka"
+          } o'chirilsa, ichidagi barcha lug'atlar, kartalar va progresslar ham o'chadi. Bu amalni bekor qilib bo'lmaydi.`}
+          confirmText={isDeletingFolder ? "O'chirilmoqda..." : "O'chirish"}
+          cancelText="Bekor qilish"
+          onConfirm={handleDeleteFolder}
           isDanger
         />
       </Container>
