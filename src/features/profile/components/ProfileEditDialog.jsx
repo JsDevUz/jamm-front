@@ -464,7 +464,7 @@ const ProfileEditDialog = ({ isOpen, onClose }) => {
                 <FieldLabel>
                   Nickname
                   {profile.premiumStatus === "active" && (
-                    <OfficalBadge width={14} height={14} />
+                    <OfficalBadge width={14} height={14} variant="premium" />
                   )}
                 </FieldLabel>
                 <FieldInput

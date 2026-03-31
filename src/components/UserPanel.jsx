@@ -180,7 +180,7 @@ const UserPanel = () => {
               border: "2px solid #292b2f",
             }}
           >
-            <OfficalBadge width={10} height={10} color="#fff" />
+            <OfficalBadge width={10} height={10} color="#fff" variant="premium" />
           </div>
         )}
         <StatusIndicator />

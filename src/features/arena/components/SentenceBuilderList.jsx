@@ -26,6 +26,7 @@ import ShareLinksDialog from "./ShareLinksDialog";
 import { SidebarIconButton as ButtonWrapper } from "../../../shared/ui/buttons/IconButton";
 import ConfirmDialog from "../../../shared/ui/dialogs/ConfirmDialog";
 import { RESOLVED_APP_BASE_URL } from "../../../config/env";
+import { APP_LIMITS, isPremiumUser } from "../../../constants/appLimits";
 
 const Container = styled.div`
   display: flex;
@@ -635,10 +636,13 @@ const SentenceBuilderList = ({ initialDeckId, onBack }) => {
   const [openMenuId, setOpenMenuId] = useState(null);
   const hasFetched = useRef(false);
 
-  const isPremium =
-    user?.premiumStatus === "active" || user?.premiumStatus === "premium";
-  const limit = isPremium ? 10 : 4;
-  const shareLimit = isPremium ? 4 : 2;
+  const isPremium = isPremiumUser(user);
+  const limit = isPremium
+    ? APP_LIMITS.sentenceBuildersCreated.premium
+    : APP_LIMITS.sentenceBuildersCreated.ordinary;
+  const shareLimit = isPremium
+    ? APP_LIMITS.sentenceBuilderShareLinksPerDeck.premium
+    : APP_LIMITS.sentenceBuilderShareLinksPerDeck.ordinary;
   const currentCount = sentenceBuilderDecks.filter(
     (deck) =>
       (deck.createdBy?._id || deck.createdBy) === (user?._id || user?.id),
@@ -720,7 +724,7 @@ const SentenceBuilderList = ({ initialDeckId, onBack }) => {
       if (!isPremium) {
         setIsUpgradeModalOpen(true);
       } else {
-        toast.error("Siz maksimal limitga yetgansiz");
+        toast.error(`Siz maksimal limitga yetgansiz (${limit}/${limit}).`);
       }
       return;
     }

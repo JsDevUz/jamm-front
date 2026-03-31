@@ -379,7 +379,7 @@ const PremiumUpgradeModal = ({
         <ModalHeader>
           <Hero>
             <HeroRow>
-              <OfficalBadge width={28} height={28} />
+              <OfficalBadge width={28} height={28} variant="premium" />
               <HeroTitle>{t("premiumModal.title")}</HeroTitle>
             </HeroRow>
             <HeroText>{t("premiumModal.subtitle")}</HeroText>

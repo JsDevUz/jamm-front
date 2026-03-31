@@ -46,6 +46,7 @@ import {
   FlashcardMembersDialog,
   FlashcardTrainingPickerDialog,
 } from "./FlashcardDialogs";
+import { APP_LIMITS, isPremiumUser } from "../../../constants/appLimits";
 
 const FLASHCARD_PROMPT_SIDE_STORAGE_KEY = "jamm-flashcard-prompt-side-v1";
 
@@ -1491,8 +1492,10 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
   });
   const speechVoicesRef = useRef([]);
 
-  const isPremium = user?.premiumStatus === "premium";
-  const limit = isPremium ? 10 : 4;
+  const isPremium = isPremiumUser(user);
+  const limit = isPremium
+    ? APP_LIMITS.flashcardsCreated.premium
+    : APP_LIMITS.flashcardsCreated.ordinary;
   const myDecks = flashcardDecks.filter(
     (deck) =>
       (deck.createdBy?._id || deck.createdBy) === (user?._id || user?.id),
@@ -1536,7 +1539,7 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
       if (!isPremium) {
         setIsUpgradeModalOpen(true);
       } else {
-        toast.error("Siz maksimal limitga yetgansiz (10/10).");
+        toast.error(`Siz maksimal limitga yetgansiz (${limit}/${limit}).`);
       }
       return;
     }

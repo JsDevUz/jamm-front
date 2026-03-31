@@ -305,7 +305,7 @@ const ProfilePostsPane = ({
               <PostMeta>
                 <h4>
                   {displayName}
-                  {isPremium ? <OfficalBadge width={14} height={14} /> : null}
+                  {isPremium ? <OfficalBadge width={14} height={14} variant="premium" /> : null}
                 </h4>
                 <span>{formatTime(post.createdAt)}</span>
               </PostMeta>

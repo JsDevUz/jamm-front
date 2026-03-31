@@ -30,6 +30,7 @@ import InfiniteScroll from "react-infinite-scroll-component";
 import { SidebarIconButton as ButtonWrapper } from "../../../shared/ui/buttons/IconButton";
 import { RESOLVED_APP_BASE_URL } from "../../../config/env";
 import ConfirmDialog from "../../../shared/ui/dialogs/ConfirmDialog";
+import { APP_LIMITS, isPremiumUser } from "../../../constants/appLimits";
 const Container = styled.div`
   display: flex;
   flex-direction: column;
@@ -387,10 +388,13 @@ const TestList = ({ initialTestId, onBack }) => {
     );
   }
 
-  const isPremium =
-    user?.premiumStatus === "premium" || user?.premiumStatus === "active";
-  const limit = isPremium ? 10 : 4;
-  const shareLimit = isPremium ? 4 : 2;
+  const isPremium = isPremiumUser(user);
+  const limit = isPremium
+    ? APP_LIMITS.testsCreated.premium
+    : APP_LIMITS.testsCreated.ordinary;
+  const shareLimit = isPremium
+    ? APP_LIMITS.testShareLinksPerTest.premium
+    : APP_LIMITS.testShareLinksPerTest.ordinary;
   const currentCount = myTests.length;
 
   const handleCreateClick = () => {
@@ -398,7 +402,7 @@ const TestList = ({ initialTestId, onBack }) => {
       if (!isPremium) {
         setIsUpgradeModalOpen(true);
       } else {
-        toast.error("Siz maksimal limitga yetgansiz (10/10).");
+        toast.error(`Siz maksimal limitga yetgansiz (${limit}/${limit}).`);
       }
       return;
     }

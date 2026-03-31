@@ -1006,7 +1006,7 @@ const SettingsDialog = ({ isOpen, onClose, initialSection = "my-account" }) => {
           <FieldLabel style={{ display: "flex", alignItems: "center", gap: 6 }}>
             Nickname{" "}
             {profile.premiumStatus === "active" && (
-              <OfficalBadge width={14} height={14} />
+              <OfficalBadge width={14} height={14} variant="premium" />
             )}
           </FieldLabel>
           <FieldInput

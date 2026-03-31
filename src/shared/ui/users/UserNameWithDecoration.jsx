@@ -183,7 +183,11 @@ export default function UserNameWithDecoration({
         />
       ) : null}
       {showPremiumBadgeVariant ? (
-        <OfficalBadge width={premiumSize.width} height={premiumSize.height} />
+        <OfficalBadge
+          width={premiumSize.width}
+          height={premiumSize.height}
+          variant="premium"
+        />
       ) : null}
     </NameWrap>
   );
