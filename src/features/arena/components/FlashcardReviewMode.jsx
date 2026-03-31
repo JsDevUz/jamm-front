@@ -2,6 +2,51 @@ import React from "react";
 import { ArrowLeft, RefreshCw } from "lucide-react";
 import { useHotkeys } from "react-hotkeys-hook";
 
+const hotkeyBadgeStyle = {
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  minWidth: "24px",
+  height: "24px",
+  padding: "0 8px",
+  borderRadius: "8px",
+  background: "rgba(255, 255, 255, 0.08)",
+  border: "1px solid rgba(255, 255, 255, 0.14)",
+  color: "rgba(255, 255, 255, 0.88)",
+  fontSize: "12px",
+  fontWeight: 700,
+  lineHeight: 1,
+  flexShrink: 0,
+};
+
+const hotkeyHintRowStyle = {
+  display: "flex",
+  flexWrap: "wrap",
+  justifyContent: "center",
+  gap: "8px",
+  marginTop: "-4px",
+  marginBottom: "8px",
+};
+
+const hotkeyHintItemStyle = {
+  display: "inline-flex",
+  alignItems: "center",
+  gap: "8px",
+  padding: "8px 12px",
+  borderRadius: "999px",
+  background: "rgba(255, 255, 255, 0.05)",
+  border: "1px solid rgba(255, 255, 255, 0.08)",
+  color: "rgba(255, 255, 255, 0.72)",
+  fontSize: "13px",
+  fontWeight: 600,
+};
+
+const buttonHotkeyContentStyle = {
+  display: "inline-flex",
+  alignItems: "center",
+  gap: "10px",
+};
+
 export default function FlashcardReviewMode({
   ui,
   studyingDeck,
@@ -115,6 +160,22 @@ export default function FlashcardReviewMode({
           {studyingDeck.title} - Qolgan: {reviewQueue.length - currentCardIndex}
         </Title>
 
+        {isDesktop ? (
+          <div style={hotkeyHintRowStyle}>
+            {!showingBack ? (
+              <div style={hotkeyHintItemStyle}>
+                <span style={hotkeyBadgeStyle}>Space</span>
+                <span>Javobni ko'rish</span>
+              </div>
+            ) : (
+              <div style={hotkeyHintItemStyle}>
+                <span style={hotkeyBadgeStyle}>1-4</span>
+                <span>Bahoni tanlash</span>
+              </div>
+            )}
+          </div>
+        ) : null}
+
         <FlashcardBox>
           {showingBack ? (
             <div
@@ -167,22 +228,39 @@ export default function FlashcardReviewMode({
 
         {!showingBack ? (
           <RevealBtn onClick={() => setShowingBack(true)}>
-            <RefreshCw size={16} style={{ marginRight: 8, display: "inline" }} />
-            Javobni ko'rish
+            <span style={buttonHotkeyContentStyle}>
+              {isDesktop ? <span style={hotkeyBadgeStyle}>Space</span> : null}
+              <span>
+                <RefreshCw size={16} style={{ marginRight: 8, display: "inline" }} />
+                Javobni ko'rish
+              </span>
+            </span>
           </RevealBtn>
         ) : (
           <Ratings>
             <RatingBtn type="fail" onClick={() => handleRating(0)}>
-              Topolmadim
+              <span style={buttonHotkeyContentStyle}>
+                {isDesktop ? <span style={hotkeyBadgeStyle}>1</span> : null}
+                <span>Topolmadim</span>
+              </span>
             </RatingBtn>
             <RatingBtn type="hard" onClick={() => handleRating(1)}>
-              Qiyin
+              <span style={buttonHotkeyContentStyle}>
+                {isDesktop ? <span style={hotkeyBadgeStyle}>2</span> : null}
+                <span>Qiyin</span>
+              </span>
             </RatingBtn>
             <RatingBtn type="good" onClick={() => handleRating(2)}>
-              Biroz qiynaldim
+              <span style={buttonHotkeyContentStyle}>
+                {isDesktop ? <span style={hotkeyBadgeStyle}>3</span> : null}
+                <span>Biroz qiynaldim</span>
+              </span>
             </RatingBtn>
             <RatingBtn type="easy" onClick={() => handleRating(3)}>
-              Oson
+              <span style={buttonHotkeyContentStyle}>
+                {isDesktop ? <span style={hotkeyBadgeStyle}>4</span> : null}
+                <span>Oson</span>
+              </span>
             </RatingBtn>
           </Ratings>
         )}

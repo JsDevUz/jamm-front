@@ -2,6 +2,45 @@ import React from "react";
 import { ArrowLeft } from "lucide-react";
 import { useHotkeys } from "react-hotkeys-hook";
 
+const hotkeyBadgeStyle = {
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  minWidth: "24px",
+  height: "24px",
+  padding: "0 8px",
+  borderRadius: "8px",
+  background: "rgba(255, 255, 255, 0.08)",
+  border: "1px solid rgba(255, 255, 255, 0.14)",
+  color: "rgba(255, 255, 255, 0.88)",
+  fontSize: "12px",
+  fontWeight: 700,
+  lineHeight: 1,
+  flexShrink: 0,
+};
+
+const hotkeyHintStyle = {
+  display: "inline-flex",
+  alignItems: "center",
+  gap: "8px",
+  alignSelf: "center",
+  marginTop: "-4px",
+  marginBottom: "8px",
+  padding: "8px 12px",
+  borderRadius: "999px",
+  background: "rgba(255, 255, 255, 0.05)",
+  border: "1px solid rgba(255, 255, 255, 0.08)",
+  color: "rgba(255, 255, 255, 0.72)",
+  fontSize: "13px",
+  fontWeight: 600,
+};
+
+const buttonHotkeyContentStyle = {
+  display: "inline-flex",
+  alignItems: "center",
+  gap: "10px",
+};
+
 export default function FlashcardTestMode({
   ui,
   testDeck,
@@ -128,6 +167,13 @@ export default function FlashcardTestMode({
           <span>To'g'ri: {correctCount}</span>
         </StudyMeta>
 
+        {isDesktop && !testCompleted ? (
+          <div style={hotkeyHintStyle}>
+            <span style={hotkeyBadgeStyle}>1-4</span>
+            <span>Variantni klaviaturadan tanlash</span>
+          </div>
+        ) : null}
+
         <FlashcardBox>
           {testCompleted ? (
             <div
@@ -193,7 +239,7 @@ export default function FlashcardTestMode({
 
         {!testCompleted ? (
           <TestOptions key={`flashcard-test-options-${currentCard?._id || testIndex}`}>
-            {currentTestOptions.map((option) => (
+            {currentTestOptions.map((option, index) => (
               <TestOptionBtn
                 key={option}
                 type="button"
@@ -201,7 +247,12 @@ export default function FlashcardTestMode({
                 $selected={selectedTestOption === option}
                 onClick={() => handleTestAnswer(option)}
               >
-                {option}
+                <span style={buttonHotkeyContentStyle}>
+                  {isDesktop && index < 4 ? (
+                    <span style={hotkeyBadgeStyle}>{index + 1}</span>
+                  ) : null}
+                  <span>{option}</span>
+                </span>
               </TestOptionBtn>
             ))}
           </TestOptions>
