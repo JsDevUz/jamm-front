@@ -244,10 +244,7 @@ const CoursePlayer = ({ courseId, initialLessonSlug, onClose }) => {
       : currentLessonData?.videoUrl || currentLessonData?.fileUrl
         ? [
             {
-              mediaId:
-                currentLessonData?._id ||
-                currentLessonData?.id ||
-                currentLessonData?.urlSlug,
+              mediaId: "primary",
               title: currentLessonData?.title || "",
               videoUrl: currentLessonData?.videoUrl || "",
               fileUrl: currentLessonData?.fileUrl || "",
@@ -1564,6 +1561,7 @@ const CoursePlayer = ({ courseId, initialLessonSlug, onClose }) => {
                     </LoadingOverlay>
                   )}
                   <NonSelectableVideo
+                    key={currentMediaKey}
                     ref={videoRef}
                     src={
                       isLocalVideo

@@ -240,10 +240,18 @@ export const deleteLessonHomework = async ({
   return data;
 };
 
-export const getLessonPlaybackToken = async (courseId, lessonId, mediaId) => {
-  const params = mediaId
-    ? { params: { mediaId } }
-    : undefined;
+export const getLessonPlaybackToken = async (
+  courseId,
+  lessonId,
+  mediaId,
+  client = "web",
+) => {
+  const params = {
+    params: {
+      client,
+      ...(mediaId ? { mediaId } : {}),
+    },
+  };
   const { data } = await axiosInstance.get(
     `/courses/${courseId}/lessons/${lessonId}/playback-token`,
     params,
