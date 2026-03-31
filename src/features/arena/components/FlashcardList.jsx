@@ -228,19 +228,16 @@ const Grid = styled.div`
 `;
 
 const FolderBar = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 10px;
   margin: 0 0 16px;
 `;
 
 const FolderScroller = styled.div`
-  flex: 1;
-  min-width: 0;
   display: flex;
+  align-items: center;
   gap: 10px;
   overflow-x: auto;
-  padding-bottom: 4px;
+  min-width: 0;
+  padding: 0 2px 4px;
 `;
 
 const FolderChip = styled.button`
@@ -266,6 +263,10 @@ const FolderAddButton = styled.button`
   width: 38px;
   height: 38px;
   flex: 0 0 auto;
+  margin-left: auto;
+  position: sticky;
+  right: 0;
+  z-index: 1;
   border-radius: 12px;
   border: 1px solid var(--border-color);
   background: var(--tertiary-color);
@@ -1958,6 +1959,36 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
     resetClassicCardMotion();
   };
 
+  const handleClassicKeyboardSwipe = (action) => {
+    if (classicCompleted || classicExitDirection) return;
+    const currentCard = classicQueue[classicIndex];
+    if (!currentCard) return;
+
+    if (action === "flip") {
+      setClassicShowBack((prev) => !prev);
+      return;
+    }
+
+    if (action !== "left" && action !== "right") {
+      return;
+    }
+
+    const known = action === "right";
+    const swipeOffset = action === "right" ? 140 : -140;
+
+    setClassicExitDirection(action);
+    setClassicDragX(swipeOffset);
+    setClassicDragging(false);
+    setClassicExitFlipped(classicShowBack);
+    setClassicAnswers((prev) => [
+      ...prev,
+      {
+        card: currentCard,
+        known,
+      },
+    ]);
+  };
+
   useEffect(() => {
     if (!classicDeck || classicCompleted) return;
     resetClassicCardMotion();
@@ -2393,6 +2424,7 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
         setClassicAnswers={setClassicAnswers}
         setClassicCompleted={setClassicCompleted}
         handleClassicReplay={handleClassicReplay}
+        handleClassicKeyboardSwipe={handleClassicKeyboardSwipe}
         getClassicStackLayout={getClassicStackLayout}
         getPromptImage={getPromptImage}
         getPromptText={getPromptText}
@@ -2490,11 +2522,13 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
                 </FolderChip>
               );
             })}
+            <FolderAddButton
+              type="button"
+              onClick={() => setIsFolderEditorOpen(true)}
+            >
+              <Plus size={16} />
+            </FolderAddButton>
           </FolderScroller>
-
-          <FolderAddButton type="button" onClick={() => setIsFolderEditorOpen(true)}>
-            <Plus size={16} />
-          </FolderAddButton>
         </FolderBar>
 
         <InfiniteScroll

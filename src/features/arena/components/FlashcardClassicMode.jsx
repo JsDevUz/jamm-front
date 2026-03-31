@@ -1,5 +1,6 @@
 import React from "react";
 import { ArrowLeft, Undo2, Volume2, X } from "lucide-react";
+import { useHotkeys } from "react-hotkeys-hook";
 
 export default function FlashcardClassicMode({
   ui,
@@ -18,6 +19,7 @@ export default function FlashcardClassicMode({
   setClassicAnswers,
   setClassicCompleted,
   handleClassicReplay,
+  handleClassicKeyboardSwipe,
   getClassicStackLayout,
   getPromptImage,
   getPromptText,
@@ -30,6 +32,7 @@ export default function FlashcardClassicMode({
   restartClassicMissed,
   restartClassicAll,
 }) {
+  const isDesktop = typeof window !== "undefined" && window.innerWidth > 768;
   const {
     Container,
     ClassicFullscreenShell,
@@ -84,6 +87,67 @@ export default function FlashcardClassicMode({
     : 0;
   const swipeTone =
     classicDragX > 0 ? "success" : classicDragX < 0 ? "danger" : null;
+
+  useHotkeys(
+    "left",
+    (event) => {
+      event.preventDefault();
+      handleClassicKeyboardSwipe("left");
+    },
+    {
+      enabled: isDesktop && !classicCompleted && Boolean(currentCard),
+      preventDefault: true,
+    },
+    [isDesktop, classicCompleted, currentCard, handleClassicKeyboardSwipe],
+  );
+
+  useHotkeys(
+    "right",
+    (event) => {
+      event.preventDefault();
+      handleClassicKeyboardSwipe("right");
+    },
+    {
+      enabled: isDesktop && !classicCompleted && Boolean(currentCard),
+      preventDefault: true,
+    },
+    [isDesktop, classicCompleted, currentCard, handleClassicKeyboardSwipe],
+  );
+
+  useHotkeys(
+    "down",
+    (event) => {
+      event.preventDefault();
+      handleClassicReplay();
+    },
+    {
+      enabled: isDesktop && !classicCompleted,
+      preventDefault: true,
+    },
+    [isDesktop, classicCompleted, handleClassicReplay],
+  );
+
+  useHotkeys(
+    "space",
+    (event) => {
+      event.preventDefault();
+      if (!classicExitDirection && !classicDragging && currentCard) {
+        handleClassicKeyboardSwipe("flip");
+      }
+    },
+    {
+      enabled: isDesktop && !classicCompleted && Boolean(currentCard),
+      preventDefault: true,
+    },
+    [
+      isDesktop,
+      classicCompleted,
+      currentCard,
+      classicExitDirection,
+      classicDragging,
+      handleClassicKeyboardSwipe,
+    ],
+  );
 
   // Faqat birinchi karta uchun kirish animatsiyasi bo'ladi
   const isFirstCard = classicIndex === 0;

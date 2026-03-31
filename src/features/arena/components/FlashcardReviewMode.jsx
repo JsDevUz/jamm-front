@@ -1,5 +1,6 @@
 import React from "react";
 import { ArrowLeft, RefreshCw } from "lucide-react";
+import { useHotkeys } from "react-hotkeys-hook";
 
 export default function FlashcardReviewMode({
   ui,
@@ -27,6 +28,82 @@ export default function FlashcardReviewMode({
   } = ui;
 
   const currentCard = reviewQueue[currentCardIndex];
+  const isDesktop = typeof window !== "undefined" && window.innerWidth > 768;
+
+  useHotkeys(
+    "space",
+    (event) => {
+      event.preventDefault();
+      if (currentCard && !showingBack) {
+        setShowingBack(true);
+      }
+    },
+    {
+      enabled: isDesktop && Boolean(currentCard),
+      preventDefault: true,
+    },
+    [isDesktop, currentCard, showingBack, setShowingBack],
+  );
+
+  useHotkeys(
+    "1",
+    (event) => {
+      event.preventDefault();
+      if (showingBack && currentCard) {
+        handleRating(0);
+      }
+    },
+    {
+      enabled: isDesktop && showingBack && Boolean(currentCard),
+      preventDefault: true,
+    },
+    [isDesktop, showingBack, currentCard, handleRating],
+  );
+
+  useHotkeys(
+    "2",
+    (event) => {
+      event.preventDefault();
+      if (showingBack && currentCard) {
+        handleRating(1);
+      }
+    },
+    {
+      enabled: isDesktop && showingBack && Boolean(currentCard),
+      preventDefault: true,
+    },
+    [isDesktop, showingBack, currentCard, handleRating],
+  );
+
+  useHotkeys(
+    "3",
+    (event) => {
+      event.preventDefault();
+      if (showingBack && currentCard) {
+        handleRating(2);
+      }
+    },
+    {
+      enabled: isDesktop && showingBack && Boolean(currentCard),
+      preventDefault: true,
+    },
+    [isDesktop, showingBack, currentCard, handleRating],
+  );
+
+  useHotkeys(
+    "4",
+    (event) => {
+      event.preventDefault();
+      if (showingBack && currentCard) {
+        handleRating(3);
+      }
+    },
+    {
+      enabled: isDesktop && showingBack && Boolean(currentCard),
+      preventDefault: true,
+    },
+    [isDesktop, showingBack, currentCard, handleRating],
+  );
 
   return (
     <Container>

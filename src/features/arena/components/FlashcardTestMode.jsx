@@ -1,5 +1,6 @@
 import React from "react";
 import { ArrowLeft } from "lucide-react";
+import { useHotkeys } from "react-hotkeys-hook";
 
 export default function FlashcardTestMode({
   ui,
@@ -41,6 +42,67 @@ export default function FlashcardTestMode({
 
   const currentCard = currentTestCard;
   const correctCount = testAnswers.filter((item) => item.isCorrect).length;
+  const isDesktop = typeof window !== "undefined" && window.innerWidth > 768;
+
+  useHotkeys(
+    "1",
+    (event) => {
+      event.preventDefault();
+      if (!testCompleted && !selectedTestOption && currentTestOptions[0]) {
+        handleTestAnswer(currentTestOptions[0]);
+      }
+    },
+    {
+      enabled: isDesktop && !testCompleted && Boolean(currentCard),
+      preventDefault: true,
+    },
+    [isDesktop, testCompleted, currentCard, selectedTestOption, currentTestOptions, handleTestAnswer],
+  );
+
+  useHotkeys(
+    "2",
+    (event) => {
+      event.preventDefault();
+      if (!testCompleted && !selectedTestOption && currentTestOptions[1]) {
+        handleTestAnswer(currentTestOptions[1]);
+      }
+    },
+    {
+      enabled: isDesktop && !testCompleted && Boolean(currentCard),
+      preventDefault: true,
+    },
+    [isDesktop, testCompleted, currentCard, selectedTestOption, currentTestOptions, handleTestAnswer],
+  );
+
+  useHotkeys(
+    "3",
+    (event) => {
+      event.preventDefault();
+      if (!testCompleted && !selectedTestOption && currentTestOptions[2]) {
+        handleTestAnswer(currentTestOptions[2]);
+      }
+    },
+    {
+      enabled: isDesktop && !testCompleted && Boolean(currentCard),
+      preventDefault: true,
+    },
+    [isDesktop, testCompleted, currentCard, selectedTestOption, currentTestOptions, handleTestAnswer],
+  );
+
+  useHotkeys(
+    "4",
+    (event) => {
+      event.preventDefault();
+      if (!testCompleted && !selectedTestOption && currentTestOptions[3]) {
+        handleTestAnswer(currentTestOptions[3]);
+      }
+    },
+    {
+      enabled: isDesktop && !testCompleted && Boolean(currentCard),
+      preventDefault: true,
+    },
+    [isDesktop, testCompleted, currentCard, selectedTestOption, currentTestOptions, handleTestAnswer],
+  );
 
   return (
     <Container>
