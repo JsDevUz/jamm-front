@@ -1456,6 +1456,7 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
   const [editingDeck, setEditingDeck] = useState(null);
   const [isFolderEditorOpen, setIsFolderEditorOpen] = useState(false);
   const [folderTitle, setFolderTitle] = useState("");
+  const [isSavingFolder, setIsSavingFolder] = useState(false);
   const [deckToDelete, setDeckToDelete] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [folderToDelete, setFolderToDelete] = useState(null);
@@ -1513,6 +1514,19 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
       ),
     [folders, user?._id, user?.id],
   );
+  const joinedFolders = useMemo(
+    () =>
+      folders.filter((folder) =>
+        folder?.members?.some((member) => {
+          const memberUserId =
+            member?.userId?._id || member?.userId?.id || member?.userId || null;
+          return memberUserId && currentUserId
+            ? String(memberUserId) === String(currentUserId)
+            : false;
+        }),
+      ),
+    [currentUserId, folders],
+  );
   const selectedFolder = useMemo(() => {
     if (selectedFolderFilter === NO_FOLDER_FILTER_ID) return null;
     return (
@@ -1521,12 +1535,19 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
     );
   }, [folders, selectedFolderFilter, viewingFolder]);
   const visibleFolderChips = useMemo(() => {
-    if (!selectedFolder) return ownedFolders;
-    if (ownedFolders.some((folder) => getFolderIdentifier(folder) === selectedFolderFilter)) {
-      return ownedFolders;
+    const baseFolders = [...ownedFolders];
+    joinedFolders.forEach((folder) => {
+      if (!baseFolders.some((item) => getFolderIdentifier(item) === getFolderIdentifier(folder))) {
+        baseFolders.push(folder);
+      }
+    });
+
+    if (!selectedFolder) return baseFolders;
+    if (baseFolders.some((folder) => getFolderIdentifier(folder) === selectedFolderFilter)) {
+      return baseFolders;
     }
-    return [...ownedFolders, selectedFolder];
-  }, [ownedFolders, selectedFolder, selectedFolderFilter]);
+    return [...baseFolders, selectedFolder];
+  }, [joinedFolders, ownedFolders, selectedFolder, selectedFolderFilter]);
   const filteredDecks = useMemo(() => {
     if (selectedFolderFilter === NO_FOLDER_FILTER_ID) {
       return flashcardDecks.filter((deck) => !getDeckFolderIdentifier(deck));
@@ -2177,10 +2198,10 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
     if (res.success) {
       const updatedFolder =
         res.data || (await fetchFlashcardFolder(folderId));
-      setSelectedFolderFilter(folderId);
+      const resolvedFolderId = getFolderIdentifier(updatedFolder) || folderId;
+      setSelectedFolderFilter(resolvedFolderId);
       setViewingFolder(updatedFolder || null);
-      fetchFlashcards(1);
-      loadFolders();
+      await Promise.all([fetchFlashcards(1), loadFolders()]);
       toast.success("Papkaga qo'shildingiz.");
     } else {
       toast.error("Papkaga qo'shilishda xatolik yuz berdi.");
@@ -2237,7 +2258,12 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
       return;
     }
 
+    if (isSavingFolder) {
+      return;
+    }
+
     try {
+      setIsSavingFolder(true);
       const created = await arenaApi.createFlashcardFolder({
         title: folderTitle.trim(),
         isPublic: true,
@@ -2249,6 +2275,8 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
       toast.success("Papka yaratildi");
     } catch (error) {
       toast.error("Papka yaratishda xatolik yuz berdi");
+    } finally {
+      setIsSavingFolder(false);
     }
   };
 
@@ -2704,8 +2732,12 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
                   onChange={(event) => setFolderTitle(event.target.value)}
                   placeholder="Masalan: IELTS so'zlari"
                 />
-                <StudyBtn style={{ marginTop: 0 }} onClick={handleSaveFolder}>
-                  <Plus size={18} /> Saqlash
+                <StudyBtn
+                  style={{ marginTop: 0 }}
+                  onClick={handleSaveFolder}
+                  disabled={!folderTitle.trim() || isSavingFolder}
+                >
+                  <Plus size={18} /> {isSavingFolder ? "Saqlanmoqda..." : "Saqlash"}
                 </StudyBtn>
               </DialogContent>
             </Dialog>

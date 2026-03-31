@@ -19,9 +19,16 @@ export default function AppGate({ children }) {
   const [showLoading, setShowLoading] = React.useState(false);
   const location = useLocation();
   const user = useAuthStore((state) => state.user);
+  const initialized = useAuthStore((state) => state.initialized);
+  const authLoading = useAuthStore((state) => state.loading);
+  const bootstrapAuth = useAuthStore((state) => state.bootstrapAuth);
   const fetchDecorations = useProfileDecorationsStore(
     (state) => state.fetchDecorations,
   );
+
+  React.useEffect(() => {
+    bootstrapAuth();
+  }, [bootstrapAuth]);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -85,11 +92,11 @@ export default function AppGate({ children }) {
     );
   }
 
-  if (status.loading && showLoading) {
+  if ((status.loading || !initialized || authLoading) && showLoading) {
     return <SystemLoadingScreen />;
   }
 
-  if (status.loading) {
+  if (status.loading || !initialized || authLoading) {
     return null;
   }
 
