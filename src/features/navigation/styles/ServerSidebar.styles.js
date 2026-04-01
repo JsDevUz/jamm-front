@@ -19,7 +19,7 @@ export const SidebarContainer = styled.div`
     flex-direction: row;
     justify-content: space-between;
     align-items: flex-start;
-    padding: 6px 10px calc(2px + env(safe-area-inset-bottom, 0px));
+    padding: 6px 10px calc(6px + env(safe-area-inset-bottom, 0px));
     border-top: 1px solid rgba(255, 255, 255, 0.08);
     background: var(--background-color);
     overflow: visible;
