@@ -2499,6 +2499,12 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
 
         <FolderBar>
           <FolderScroller>
+            <FolderAddButton
+              type="button"
+              onClick={() => setIsFolderEditorOpen(true)}
+            >
+              <Plus size={16} />
+            </FolderAddButton>
             <FolderChip
               type="button"
               $active={selectedFolderFilter === NO_FOLDER_FILTER_ID}
@@ -2522,12 +2528,6 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
                 </FolderChip>
               );
             })}
-            <FolderAddButton
-              type="button"
-              onClick={() => setIsFolderEditorOpen(true)}
-            >
-              <Plus size={16} />
-            </FolderAddButton>
           </FolderScroller>
         </FolderBar>
 
