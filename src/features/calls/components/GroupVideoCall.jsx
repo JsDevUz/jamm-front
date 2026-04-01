@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState, useCallback } from "react";
+import React, { useRef, useEffect, useState, useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import styled, { keyframes, css } from "styled-components";
 import { createPortal } from "react-dom";
@@ -359,6 +359,127 @@ const VideoGrid = styled.div`
   }}
 `;
 
+const StageLayout = styled.div`
+  flex: 1;
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  min-width: 0;
+  min-height: 0;
+  position: relative;
+  grid-template-columns: ${(p) =>
+    p.$mobile
+      ? "minmax(0, 1fr)"
+      : p.$immersive
+        ? "minmax(0, 1fr) minmax(240px, 0.34fr)"
+        : "minmax(0, 1fr) minmax(220px, 0.3fr)"};
+  grid-template-rows: ${(p) =>
+    p.$mobile && !p.$immersive ? "minmax(0, 1fr) auto" : "minmax(0, 1fr)"};
+  overflow: hidden;
+`;
+
+const StageMain = styled.div`
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--call-surface) 92%, black 8%);
+  border: 1px solid var(--call-border);
+`;
+
+const StageRail = styled.div`
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+`;
+
+const StageRailGrid = styled.div`
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  display: grid;
+  gap: 10px;
+  align-content: start;
+  grid-template-columns: ${(p) => {
+    if (p.$mobile && p.$immersive) return "1fr";
+    if (p.$mobile) return "repeat(2, minmax(0, 1fr))";
+    return p.$immersive ? "repeat(2, minmax(0, 1fr))" : "1fr";
+  }};
+  grid-auto-rows: ${(p) => (p.$immersive ? "minmax(120px, 1fr)" : "minmax(132px, 1fr)")};
+  padding-right: ${(p) => (p.$mobile && !p.$immersive ? "0" : "4px")};
+`;
+
+const StageRailLabel = styled.div`
+  color: var(--call-muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  margin-bottom: 10px;
+  padding-left: 4px;
+`;
+
+const MobileImmersiveRail = styled.div`
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  width: min(28vw, 122px);
+  max-height: calc(100% - 36px);
+  display: grid;
+  gap: 8px;
+  overflow: auto;
+  z-index: 7;
+`;
+
+const StageBadge = styled.div`
+  position: absolute;
+  left: 14px;
+  bottom: 14px;
+  z-index: 7;
+  max-width: calc(100% - 108px);
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.58);
+  backdrop-filter: blur(10px);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+`;
+
+const StageActions = styled.div`
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 8;
+  display: flex;
+  gap: 8px;
+`;
+
+const StageActionBtn = styled.button`
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.58);
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform 0.16s ease, background 0.16s ease;
+
+  &:hover {
+    transform: translateY(-1px);
+    background: rgba(0, 0, 0, 0.72);
+  }
+`;
+
 const VideoTile = styled.div`
   position: relative;
   border-radius: 14px;
@@ -372,12 +493,25 @@ const VideoTile = styled.div`
       p.$isLocal
         ? "color-mix(in srgb, var(--call-primary) 44%, transparent)"
         : "var(--call-border)"};
+  box-shadow: ${(p) =>
+    p.$active ? "0 0 0 1px rgba(255,255,255,0.12), 0 18px 36px rgba(0,0,0,0.24)" : "none"};
+  cursor: ${(p) => (p.$clickable ? "pointer" : "default")};
+  transition: border-color 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease;
+
+  &:hover {
+    transform: ${(p) => (p.$clickable ? "translateY(-1px)" : "none")};
+    border-color: ${(p) =>
+      p.$active
+        ? "color-mix(in srgb, var(--call-primary) 78%, white 6%)"
+        : "color-mix(in srgb, var(--call-primary) 42%, transparent)"};
+  }
+
   video {
     width: 100%;
     height: 100%;
     object-fit: cover;
     display: block;
-    transform: ${(p) => (p.$isLocal ? "scaleX(-1)" : "none")};
+    transform: ${(p) => (p.$mirror ? "scaleX(-1)" : "none")};
   }
 `;
 
@@ -863,11 +997,15 @@ const FullscreenBtn = styled.button`
   color: #fff;
   padding: 5px;
   cursor: pointer;
-  opacity: 0;
+  opacity: ${(p) => (p.$visible ? 1 : 0)};
   transition: opacity 0.15s;
   z-index: 5;
   &:hover {
     background: rgba(114, 137, 218, 0.7);
+  }
+
+  @media (max-width: 768px) {
+    opacity: 1;
   }
 `;
 
@@ -877,10 +1015,17 @@ const VideoEl = ({
   isLocal = false,
   label,
   isCamOn = true,
+  isScreenShare = false,
+  canFullscreen = false,
+  isFullscreen = false,
+  onToggleFullscreen,
+  onSelect,
+  isActive = false,
+  compact = false,
+  handRaised = false,
 }) => {
   const { t } = useTranslation();
   const ref = useRef(null);
-  const tileRef = useRef(null);
 
   useEffect(() => {
     const node = ref.current;
@@ -927,34 +1072,51 @@ const VideoEl = ({
     };
   }, [isCamOn, stream]);
 
-  const goFullscreen = () => {
-    const el = tileRef.current;
-    if (!el) return;
-    if (document.fullscreenElement) {
-      document.exitFullscreen();
-    } else {
-      el.requestFullscreen?.() || el.webkitRequestFullscreen?.();
-    }
-  };
+  const handleTileClick = useCallback(() => {
+    onSelect?.();
+  }, [onSelect]);
+
+  const handleToggleFullscreen = useCallback(
+    (event) => {
+      event.stopPropagation();
+      onToggleFullscreen?.();
+    },
+    [onToggleFullscreen],
+  );
 
   return (
     <VideoTile
       $isLocal={isLocal}
-      ref={tileRef}
-      onDoubleClick={goFullscreen}
-      style={{ cursor: "pointer" }}
-      onMouseEnter={(e) => {
-        const b = e.currentTarget.querySelector(".fs-btn");
-        if (b) b.style.opacity = 1;
-      }}
-      onMouseLeave={(e) => {
-        const b = e.currentTarget.querySelector(".fs-btn");
-        if (b) b.style.opacity = 0;
-      }}
+      $mirror={isLocal && !isScreenShare}
+      $active={isActive}
+      $clickable={Boolean(onSelect)}
+      onClick={handleTileClick}
+      style={compact ? { minHeight: 120 } : undefined}
     >
-      <FullscreenBtn className="fs-btn" onClick={goFullscreen}>
-        <Maximize size={14} />
-      </FullscreenBtn>
+      {canFullscreen ? (
+        <FullscreenBtn
+          type="button"
+          $visible={isActive || compact}
+          onClick={handleToggleFullscreen}
+          aria-label={isFullscreen ? "Exit fullscreen tile" : "Fullscreen tile"}
+        >
+          {isFullscreen ? <Minimize2 size={14} /> : <Maximize size={14} />}
+        </FullscreenBtn>
+      ) : null}
+      {handRaised ? (
+        <span
+          style={{
+            position: "absolute",
+            top: 8,
+            left: 8,
+            fontSize: 24,
+            zIndex: 5,
+            filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.5))",
+          }}
+        >
+          <Hand size={20} color="#faa61a" fill="#faa61a" />
+        </span>
+      ) : null}
       {isCamOn && stream ? (
         <video ref={ref} autoPlay playsInline muted={muted} />
       ) : (
@@ -964,7 +1126,7 @@ const VideoEl = ({
         </NoCamera>
       )}
       <TileLabel>
-        {!isCamOn && <VideoOff size={11} />}
+        {!isCamOn && !isScreenShare && <VideoOff size={11} />}
         {label}
         {isLocal && t("groupCall.localSuffix")}
       </TileLabel>
@@ -991,9 +1153,15 @@ const GroupVideoCall = ({
   const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
   const [showDrawer, setShowDrawer] = useState(false);
+  const [selectedTileId, setSelectedTileId] = useState(null);
+  const [fullscreenTileId, setFullscreenTileId] = useState(null);
   const [pipWindow, setPipWindow] = useState(null);
   const [pipContainer, setPipContainer] = useState(null);
   const pipCloseIntentRef = useRef(false);
+  const [viewport, setViewport] = useState(() => ({
+    width: typeof window !== "undefined" ? window.innerWidth : 1280,
+    height: typeof window !== "undefined" ? window.innerHeight : 720,
+  }));
 
   const currentUser = useAuthStore((state) => state.user);
   const updateActiveCall = useMeetCallStore((state) => state.updateActiveCall);
@@ -1051,6 +1219,21 @@ const GroupVideoCall = ({
   });
 
   const [privacyUpdating, setPrivacyUpdating] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+
+    const handleResize = () => {
+      setViewport({
+        width: window.innerWidth,
+        height: window.innerHeight,
+      });
+    };
+
+    handleResize();
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   useEffect(() => {
     updateActiveCall?.({ isPrivate: roomIsPrivate });
@@ -1343,11 +1526,7 @@ const GroupVideoCall = ({
 
   if (!isOpen || !roomId) return null;
 
-  const totalTiles =
-    1 +
-    remoteStreams.length +
-    (screenStream ? 1 : 0) +
-    remoteScreenStreams.length;
+  const participantsCount = 1 + remoteStreams.length;
   const primaryRemote = remoteStreams[0] || null;
   const primaryRemoteState = primaryRemote
     ? remotePeerStates[primaryRemote.peerId]
@@ -1382,8 +1561,111 @@ const GroupVideoCall = ({
     },
     [minimizedPreviewStream],
   );
-  const isMobileViewport =
-    typeof window !== "undefined" && window.innerWidth <= 768;
+  const isMobileViewport = viewport.width <= 768;
+  const isLandscapeViewport = viewport.width > viewport.height;
+
+  const callTiles = useMemo(() => {
+    const tiles = [
+      {
+        id: "local",
+        peerId: "local",
+        stream: localStream,
+        label: displayName,
+        isLocal: true,
+        isScreenShare: false,
+        hasVideo: Boolean(localStream) && isCamOn,
+        handRaised: false,
+        isCamOn,
+        muted: true,
+      },
+    ];
+
+    if (screenStream) {
+      tiles.unshift({
+        id: "local-screen",
+        peerId: "local",
+        stream: screenStream,
+        label: `${displayName} · Ekran`,
+        isLocal: true,
+        isScreenShare: true,
+        hasVideo: true,
+        handRaised: false,
+        isCamOn: true,
+        muted: true,
+      });
+    }
+
+    remoteStreams.forEach(({ peerId, stream, displayName: remoteName }) => {
+      const peerState = remotePeerStates[peerId];
+      const isRemoteCamOn =
+        peerState?.hasVideo !== false && peerState?.videoMuted !== true;
+
+      tiles.push({
+        id: peerId,
+        peerId,
+        stream,
+        label: remoteName,
+        isLocal: false,
+        isScreenShare: false,
+        hasVideo: Boolean(stream) && isRemoteCamOn,
+        handRaised: raisedHands.has(peerId),
+        isCamOn: isRemoteCamOn,
+        muted: false,
+      });
+    });
+
+    remoteScreenStreams.forEach(({ peerId, stream, displayName: remoteName }) => {
+      tiles.unshift({
+        id: `screen-${peerId}`,
+        peerId,
+        stream,
+        label: `${remoteName} · Ekran`,
+        isLocal: false,
+        isScreenShare: true,
+        hasVideo: Boolean(stream),
+        handRaised: false,
+        isCamOn: true,
+        muted: false,
+      });
+    });
+
+    return tiles;
+  }, [
+    displayName,
+    isCamOn,
+    localStream,
+    raisedHands,
+    remotePeerStates,
+    remoteScreenStreams,
+    remoteStreams,
+    screenStream,
+  ]);
+
+  const tileCount = callTiles.length;
+  const defaultStageTileId =
+    callTiles.find((tile) => tile.isScreenShare && tile.hasVideo)?.id || null;
+
+  useEffect(() => {
+    setSelectedTileId((current) =>
+      current && callTiles.some((tile) => tile.id === current) ? current : null,
+    );
+  }, [callTiles]);
+
+  useEffect(() => {
+    setFullscreenTileId((current) => {
+      if (!current) return null;
+      const currentTile = callTiles.find((tile) => tile.id === current);
+      if (!currentTile?.hasVideo) {
+        return null;
+      }
+      return current;
+    });
+  }, [callTiles]);
+
+  const activeStageTileId = fullscreenTileId || selectedTileId || defaultStageTileId;
+  const activeStageTile = callTiles.find((tile) => tile.id === activeStageTileId) || null;
+  const sideTiles = callTiles.filter((tile) => tile.id !== activeStageTileId);
+  const hasStageLayout = Boolean(activeStageTile);
 
   const qualityTone =
     networkQuality === "poor"
@@ -1391,6 +1673,49 @@ const GroupVideoCall = ({
       : networkQuality === "limited"
         ? "var(--call-primary)"
         : "var(--call-success)";
+
+  const handleStageSelect = useCallback((tileId) => {
+    setSelectedTileId((current) => (current === tileId ? null : tileId));
+    setFullscreenTileId((current) => (current === tileId ? null : current));
+  }, []);
+
+  const handleToggleTileFullscreen = useCallback(
+    (tileId) => {
+      const tile = callTiles.find((entry) => entry.id === tileId);
+      if (!tile?.hasVideo) return;
+
+      setSelectedTileId(tileId);
+      setFullscreenTileId((current) => (current === tileId ? null : tileId));
+    },
+    [callTiles],
+  );
+
+  const handleResetStage = useCallback(() => {
+    setFullscreenTileId(null);
+    setSelectedTileId(null);
+  }, []);
+
+  const renderCallTile = (
+    tile,
+    { compact = false, selectable = true, showFullscreenControl = true } = {},
+  ) => (
+    <VideoEl
+      key={tile.id}
+      stream={tile.stream}
+      muted={tile.muted}
+      isLocal={tile.isLocal}
+      label={tile.label}
+      isCamOn={tile.isCamOn}
+      isScreenShare={tile.isScreenShare}
+      canFullscreen={showFullscreenControl && tile.hasVideo}
+      isFullscreen={fullscreenTileId === tile.id}
+      onToggleFullscreen={() => handleToggleTileFullscreen(tile.id)}
+      onSelect={selectable ? () => handleStageSelect(tile.id) : undefined}
+      isActive={activeStageTileId === tile.id}
+      compact={compact}
+      handRaised={tile.handRaised}
+    />
+  );
 
   const handleScreenShareToggle = useCallback(async () => {
     const isIOS =
@@ -1467,7 +1792,7 @@ const GroupVideoCall = ({
             style={{ position: "relative" }}
           >
             <Users size={13} />
-            {totalTiles}
+            {participantsCount}
             {isCreator && knockRequests.length > 0 && (
               <NotifBadge>{knockRequests.length}</NotifBadge>
             )}
@@ -1500,7 +1825,7 @@ const GroupVideoCall = ({
           <div>
             <MiniTitle>{roomTitle || chatTitle || t("groupCall.roomDefault")}</MiniTitle>
             <MiniMeta>
-              {t("groupCall.participants", { count: totalTiles })} •{" "}
+              {t("groupCall.participants", { count: participantsCount })} •{" "}
               {roomIsPrivate ? t("groupCall.privateRoom") : t("groupCall.publicRoom")}
             </MiniMeta>
           </div>
@@ -1535,9 +1860,9 @@ const GroupVideoCall = ({
           </MiniPreview>
           <MiniOverlay>
             <div>
-              <MiniTitle>{roomTitle || chatTitle || t("groupCall.roomDefault")}</MiniTitle>
-              <MiniMeta>
-                {t("groupCall.participants", { count: totalTiles })} •{" "}
+            <MiniTitle>{roomTitle || chatTitle || t("groupCall.roomDefault")}</MiniTitle>
+            <MiniMeta>
+                {t("groupCall.participants", { count: participantsCount })} •{" "}
                 {roomIsPrivate ? t("groupCall.privateRoom") : t("groupCall.publicRoom")}
               </MiniMeta>
             </div>
@@ -1581,74 +1906,67 @@ const GroupVideoCall = ({
             <span>{t("groupCall.rejectedDescription")}</span>
             <TinyBtn onClick={onClose}>{t("groupCall.close")}</TinyBtn>
           </CenterBox>
-        ) : (
-          <VideoGrid $count={totalTiles}>
-            <VideoEl
-              stream={localStream}
-              muted
-              isLocal
-              label={displayName}
-              isCamOn={isCamOn}
-            />
-            {/* Local screen share tile */}
-            {screenStream && (
-              <VideoEl
-                stream={screenStream}
-                muted
-                label={`${displayName} (Ekran)`}
-                isCamOn
-              />
-            )}
-            {remoteStreams.map(({ peerId, stream, displayName: n }) => {
-              const peerState = remotePeerStates[peerId];
-              const isRemoteCamOn =
-                peerState?.hasVideo !== false && peerState?.videoMuted !== true;
-              return (
-              <div key={peerId} style={{ position: "relative" }}>
-                <VideoEl stream={stream} label={n} isCamOn={isRemoteCamOn} />
-                {raisedHands.has(peerId) && (
-                  <span
-                    style={{
-                      position: "absolute",
-                      top: 8,
-                      left: 8,
-                      fontSize: 24,
-                      zIndex: 5,
-                      filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.5))",
-                    }}
-                  >
-                    <Hand size={20} color="#faa61a" fill="#faa61a" />
-                  </span>
-                )}
-                {!isRemoteCamOn && (
-                  <span
-                    style={{
-                      position: "absolute",
-                      top: 8,
-                      right: 8,
-                      fontSize: 12,
-                      zIndex: 5,
-                      padding: "4px 8px",
-                      borderRadius: 999,
-                      background: "rgba(0,0,0,0.5)",
-                      color: "white",
-                    }}
-                  >
-                    {t("groupCall.cameraOff")}
-                  </span>
-                )}
+        ) : hasStageLayout && activeStageTile ? (
+          <StageLayout
+            $mobile={isMobileViewport}
+            $immersive={Boolean(fullscreenTileId)}
+            $landscape={isLandscapeViewport}
+          >
+            <StageMain>
+              <div style={{ height: "100%" }}>
+                {renderCallTile(activeStageTile, {
+                  selectable: false,
+                  showFullscreenControl: false,
+                })}
               </div>
-              );
-            })}
-            {/* Remote screen share tiles */}
-            {remoteScreenStreams.map(({ peerId, stream, displayName: n }) => (
-              <VideoEl
-                key={`screen-${peerId}`}
-                stream={stream}
-                label={`${n} (Ekran)`}
-                isCamOn
-              />
-            ))}
+              <StageActions>
+                {selectedTileId && !fullscreenTileId ? (
+                  <StageActionBtn type="button" onClick={handleResetStage}>
+                    <ArrowLeft size={18} />
+                  </StageActionBtn>
+                ) : null}
+                {activeStageTile.hasVideo ? (
+                  <StageActionBtn
+                    type="button"
+                    onClick={() => handleToggleTileFullscreen(activeStageTile.id)}
+                  >
+                    {fullscreenTileId === activeStageTile.id ? (
+                      <Minimize2 size={18} />
+                    ) : (
+                      <Maximize size={18} />
+                    )}
+                  </StageActionBtn>
+                ) : null}
+              </StageActions>
+              <StageBadge>
+                {activeStageTile.label}
+              </StageBadge>
+              {isMobileViewport && fullscreenTileId && sideTiles.length > 0 ? (
+                <MobileImmersiveRail>
+                  {sideTiles.map((tile) => renderCallTile(tile, { compact: true }))}
+                </MobileImmersiveRail>
+              ) : null}
+            </StageMain>
+
+            {!isMobileViewport || !fullscreenTileId ? (
+              <StageRail>
+                {sideTiles.length > 0 ? <StageRailLabel>Qolganlar</StageRailLabel> : null}
+                <StageRailGrid
+                  $mobile={isMobileViewport}
+                  $immersive={Boolean(fullscreenTileId)}
+                >
+                  {sideTiles.map((tile) =>
+                    renderCallTile(tile, {
+                      compact: true,
+                    }),
+                  )}
+                </StageRailGrid>
+              </StageRail>
+            ) : null}
+          </StageLayout>
+        ) : (
+          <VideoGrid $count={tileCount}>
+            {callTiles.map((tile) => renderCallTile(tile))}
           </VideoGrid>
         )}
 
@@ -1659,7 +1977,7 @@ const GroupVideoCall = ({
             <PanelHead>
               <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <Users size={15} color="#7289da" />
-                {t("groupCall.members", { count: totalTiles })}
+                {t("groupCall.members", { count: participantsCount })}
               </span>
               <DrawerClose onClick={() => setShowDrawer(false)}>
                 <XCircle size={16} />
@@ -1747,7 +2065,7 @@ const GroupVideoCall = ({
                 style={{ display: "flex", alignItems: "center", gap: "4px" }}
               >
                 <CheckSquare size={12} color="#43b581" /> Qo'shilganlar (
-                {totalTiles})
+                {participantsCount})
               </SectionLabel>
               {/* Local user */}
               <MemberRow>

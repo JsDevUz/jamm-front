@@ -32,9 +32,12 @@ export const AppContainer = styled.div`
   height: var(--app-height, 100dvh);
   background-color: var(--background-color);
   overflow: hidden;
+  box-sizing: border-box;
 
   @media (max-width: 700px) {
     flex-direction: column;
+    padding-top: constant(safe-area-inset-top);
+    padding-top: env(safe-area-inset-top, 0px);
   }
 `;
 
