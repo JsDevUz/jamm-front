@@ -48,6 +48,7 @@
     "minimizePane": "Minimize panel"
   },
   "installPrompt": {
+    "menuTitle": "Install the app",
     "title": "Install Jamm",
     "subtitle": "Open it faster and use it like a standalone app.",
     "heroTitle": "Launching from the home screen is smoother",

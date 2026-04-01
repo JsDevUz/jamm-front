@@ -16,6 +16,7 @@ import {
 import styled from "styled-components";
 
 const DISMISSED_KEY = "jamm-install-prompt-dismissed-v1";
+export const OPEN_INSTALL_APP_PROMPT_EVENT = "jamm:open-install-app-prompt";
 
 const Card = styled.div`
   display: flex;
@@ -156,6 +157,21 @@ export default function InstallAppPrompt({ currentUser }) {
     return () => {
       window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
       window.removeEventListener("appinstalled", handleInstalled);
+    };
+  }, [isInstalled]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || isInstalled) {
+      return undefined;
+    }
+
+    const handleManualOpen = () => {
+      setIsOpen(true);
+    };
+
+    window.addEventListener(OPEN_INSTALL_APP_PROMPT_EVENT, handleManualOpen);
+    return () => {
+      window.removeEventListener(OPEN_INSTALL_APP_PROMPT_EVENT, handleManualOpen);
     };
   }, [isInstalled]);
 

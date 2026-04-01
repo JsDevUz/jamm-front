@@ -5,6 +5,7 @@ import {
   Calendar,
   Camera,
   ChevronRight,
+  Download,
   Edit2,
   Globe,
   GraduationCap,
@@ -22,6 +23,7 @@ import UserNameWithDecoration from "../../../shared/ui/users/UserNameWithDecorat
 import ImageLightbox from "../../../shared/ui/media/ImageLightbox";
 import useAuthStore from "../../../store/authStore";
 import packageJson from "../../../../package.json";
+import { OPEN_INSTALL_APP_PROMPT_EVENT } from "../../../app/components/InstallAppPrompt";
 
 const fadeIn = keyframes`
   from {
@@ -52,6 +54,14 @@ const Sidebar = styled.aside`
     width: 100%;
   }
 `;
+
+const isStandaloneMode = () => {
+  if (typeof window === "undefined") return false;
+  return Boolean(
+    window.matchMedia?.("(display-mode: standalone)")?.matches ||
+      window.navigator.standalone === true,
+  );
+};
 
 const Cover = styled.div`
   position: relative;
@@ -472,6 +482,8 @@ const ProfileSidebar = ({
   const displayName =
     targetUser?.nickname || targetUser?.username || t("common.userFallback");
   const logout = useAuthStore((state) => state.logout);
+  const isMobile = typeof window !== "undefined" && window.innerWidth <= 768;
+  const canInstallApp = isOwnProfile && isMobile && !isStandaloneMode();
   const handle = `@${(targetUser?.username || "user").toLowerCase()}`;
   const avatarLetter = displayName.charAt(0).toUpperCase();
   const userAvatar = targetUser?.avatar;
@@ -486,6 +498,11 @@ const ProfileSidebar = ({
     { value: String(articleCount), label: t("profile.stats.articles") },
     { value: String(courseCount), label: t("profile.stats.courses") },
   ];
+
+  const openInstallAppPrompt = () => {
+    if (typeof window === "undefined") return;
+    window.dispatchEvent(new CustomEvent(OPEN_INSTALL_APP_PROMPT_EVENT));
+  };
 
   return (
     <Sidebar data-tour="profile-overview">
@@ -631,6 +648,18 @@ const ProfileSidebar = ({
               </FooterMeta>
               <VersionBadge>v{packageJson.version}</VersionBadge>
             </FooterRow>
+            {canInstallApp ? (
+              <FooterRow as="button" type="button" onClick={openInstallAppPrompt}>
+                <FooterMeta>
+                  <strong>{t("installPrompt.menuTitle")}</strong>
+                  <span>{t("installPrompt.subtitle")}</span>
+                </FooterMeta>
+                <LogoutAction as="span" style={{ color: "var(--primary-color)" }}>
+                  <Download size={14} />
+                  {t("installPrompt.install")}
+                </LogoutAction>
+              </FooterRow>
+            ) : null}
             <FooterRow as="button" type="button" onClick={() => logout()}>
               <FooterMeta>
                 <strong>Log out</strong>

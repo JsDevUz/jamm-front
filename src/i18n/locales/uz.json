@@ -48,6 +48,7 @@
     "minimizePane": "Panelni kichraytirish"
   },
   "installPrompt": {
+    "menuTitle": "Ilovani o'rnatish",
     "title": "Jamm ni qurilmaga o'rnating",
     "subtitle": "Tezroq ochiladi va alohida ilova kabi ishlaydi.",
     "heroTitle": "Home screen dan ochish qulayroq",
