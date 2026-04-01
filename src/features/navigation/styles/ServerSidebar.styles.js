@@ -16,10 +16,15 @@ export const SidebarContainer = styled.div`
     order: 2;
     width: 100%;
     height: auto;
+    min-height: 64px;
+    min-height: calc(64px + constant(safe-area-inset-bottom));
+    min-height: calc(64px + env(safe-area-inset-bottom, 0px));
     flex-direction: row;
     justify-content: space-between;
     align-items: flex-start;
-    padding: 6px 10px calc(6px + env(safe-area-inset-bottom, 0px));
+    padding: 6px 10px 12px;
+    padding: 6px 10px calc(12px + constant(safe-area-inset-bottom));
+    padding: 6px 10px calc(12px + env(safe-area-inset-bottom, 0px));
     border-top: 1px solid rgba(255, 255, 255, 0.08);
     background: var(--background-color);
     overflow: visible;
