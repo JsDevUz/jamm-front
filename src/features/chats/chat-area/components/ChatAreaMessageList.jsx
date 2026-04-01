@@ -11,7 +11,6 @@ import {
 import OfficalBadge from "../../../../shared/ui/badges/OfficalBadge";
 import UserNameWithDecoration from "../../../../shared/ui/users/UserNameWithDecoration";
 import { useChatAreaContext } from "../context/ChatAreaContext";
-import useKeyboardAvoid from "../../../../shared/hooks/useKeyboardAvoid";
 
 const ScrollArea = styled.div`
   display: flex;
@@ -435,7 +434,7 @@ const NewMessagesChip = styled.span`
   padding: 0 6px;
 `;
 
-const ChatAreaMessageList = () => {
+const ChatAreaMessageList = ({ keyboardHeight = 0 }) => {
   const {
     messages,
     messageGroups,
@@ -473,7 +472,6 @@ const ChatAreaMessageList = () => {
   const previousMessageCountRef = useRef(0);
   const [swipeState, setSwipeState] = useState({ messageId: null, offset: 0 });
   const [pendingNewMessageIds, setPendingNewMessageIds] = useState([]);
-  const { keyboardHeight } = useKeyboardAvoid();
   const currentChatMembers = useMemo(
     () => currentChat?.members || [],
     [currentChat?.members],

@@ -42,11 +42,7 @@ const isEditableElement = (element) => {
 const resetViewportVariables = (root) => {
   if (typeof window === "undefined" || !root) return;
 
-  const fallbackHeight = window.innerHeight || 0;
   root.style.setProperty("--keyboard-height", "0px");
-  root.style.setProperty("--app-height", `${fallbackHeight}px`);
-  root.style.setProperty("--visual-viewport-height", `${fallbackHeight}px`);
-  root.style.setProperty("--visual-viewport-offset-top", "0px");
   root.dataset.mobileKeyboardOpen = "false";
 };
 

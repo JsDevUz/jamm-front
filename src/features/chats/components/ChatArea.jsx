@@ -17,6 +17,7 @@ import {
   ChatMainColumn,
   OuterChatWrapper,
 } from "../chat-area/styles/layout";
+import useKeyboardAvoid from "../../../shared/hooks/useKeyboardAvoid";
 
 const ChatArea = ({
   onBack,
@@ -54,6 +55,7 @@ const ChatArea = ({
     navigate,
     chats,
   });
+  const { keyboardHeight, scrollIntoViewOnFocus } = useKeyboardAvoid();
 
   if (!displayChat && !selectedChatId) return null;
 
@@ -80,8 +82,11 @@ const ChatArea = ({
 
           <ChatMain>
             <ChatMainColumn>
-              <ChatAreaMessageList />
-              <ChatAreaComposer />
+              <ChatAreaMessageList keyboardHeight={keyboardHeight} />
+              <ChatAreaComposer
+                keyboardHeight={keyboardHeight}
+                scrollIntoViewOnFocus={scrollIntoViewOnFocus}
+              />
             </ChatMainColumn>
           </ChatMain>
 

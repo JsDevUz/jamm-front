@@ -4,7 +4,6 @@ import styled from "styled-components";
 import { Plus, SendHorizontal } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { useChatAreaContext } from "../context/ChatAreaContext";
-import useKeyboardAvoid from "../../../../shared/hooks/useKeyboardAvoid";
 
 const MessageInputContainer = styled.div`
   padding: 12px 16px calc(16px + env(safe-area-inset-bottom, 0px));
@@ -205,7 +204,10 @@ const MessageInput = styled.textarea`
   -webkit-overflow-scrolling: touch;
 `;
 
-const ChatAreaComposer = () => {
+const ChatAreaComposer = ({
+  keyboardHeight = 0,
+  scrollIntoViewOnFocus = () => {},
+}) => {
   const [showComingSoonTooltip, setShowComingSoonTooltip] = useState(false);
   const {
     currentChat,
@@ -226,7 +228,6 @@ const ChatAreaComposer = () => {
   } = useChatAreaContext();
   const isComposerDisabled = Boolean(currentChat?.id) && isLoadingMessages;
   const canSend = Boolean(messageInput.trim()) && !isComposerDisabled;
-  const { keyboardHeight, scrollIntoViewOnFocus } = useKeyboardAvoid();
   const focusMessageInput = () => {
     if (!messageInputRef.current) return;
 
