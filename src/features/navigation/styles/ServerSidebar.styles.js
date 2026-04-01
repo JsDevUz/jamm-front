@@ -13,32 +13,19 @@ export const SidebarContainer = styled.div`
   overflow-x: hidden;
 
   @media (max-width: 700px) {
-    position: fixed;
-    bottom: calc(12px + env(safe-area-inset-bottom, 0px));
-    left: 14px;
-    right: 14px;
-    width: auto;
+    order: 2;
+    width: 100%;
     height: auto;
     flex-direction: row;
-    justify-content: space-around;
-    align-items: center;
-    padding: 10px 12px calc(10px + env(safe-area-inset-bottom, 0px));
-    border-radius: 20px;
-    background: rgba(var(--tertiary-color-rgb, 32, 34, 37), 0.7);
-    backdrop-filter: blur(4px) saturate(160%);
-    -webkit-backdrop-filter: blur(4px) saturate(160%);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
-    z-index: 100;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding: 6px 10px calc(2px + env(safe-area-inset-bottom, 0px));
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    background: var(--background-color);
     overflow: visible;
-    transition:
-      opacity 0.18s ease,
-      transform 0.22s ease;
 
     html[data-mobile-keyboard-open="true"] & {
-      opacity: 0;
-      transform: translateY(calc(100% + 48px));
-      pointer-events: none;
+      display: none;
     }
   }
 `;
@@ -69,9 +56,47 @@ export const NavButton = styled.button`
   }
 
   @media (max-width: 700px) {
+    width: auto;
+    height: auto;
+    flex: 1;
     margin-bottom: 0;
-    width: 44px;
-    height: 44px;
+    padding: 0 4px;
+    border-radius: 0;
+    background: transparent;
+    color: ${(props) => (props.$active ? "#fff" : "var(--text-secondary-color)")};
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 3px;
+
+    &:hover {
+      background: transparent;
+      color: ${(props) => (props.$active ? "#fff" : "var(--text-color)")};
+      transform: none;
+    }
+  }
+`;
+
+export const IconSlot = styled.div`
+  min-width: 28px;
+  height: 28px;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+`;
+
+export const NavLabel = styled.span`
+  display: none;
+
+  @media (max-width: 700px) {
+    display: block;
+    font-size: 11px;
+    line-height: 14px;
+    font-weight: 600;
+    color: ${(props) => (props.$active ? "#fff" : "var(--text-secondary-color)")};
+    text-align: center;
+    white-space: nowrap;
   }
 `;
 
@@ -140,9 +165,42 @@ export const AvatarButton = styled.button`
   }
 
   @media (max-width: 700px) {
+    width: auto;
+    height: auto;
+    flex: 1;
     margin-bottom: 0;
-    width: 40px;
-    height: 40px;
+    padding: 0 4px;
+    border: none;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 3px;
+
+    &:hover {
+      transform: none;
+      border-color: transparent;
+      box-shadow: none;
+    }
+  }
+`;
+
+export const ProfileAvatarWrap = styled.div`
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  position: relative;
+  overflow: visible;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  @media (max-width: 700px) {
+    width: 24px;
+    height: 24px;
+    border-radius: 12px;
   }
 `;
 
@@ -150,11 +208,39 @@ export const AvatarImage = styled.img`
   width: 100%;
   height: 100%;
   object-fit: cover;
+  border-radius: inherit;
 `;
 
 export const AvatarFallback = styled.span`
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   font-size: 16px;
   font-weight: 800;
   color: white;
   line-height: 1;
+  background: var(--primary-color);
+
+  @media (max-width: 700px) {
+    font-size: 11px;
+  }
+`;
+
+export const ProfileStatusDot = styled.span`
+  display: none;
+  position: absolute;
+  right: -2px;
+  bottom: -1px;
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  background: #46c46b;
+  border: 1.5px solid var(--background-color);
+
+  @media (max-width: 700px) {
+    display: block;
+  }
 `;

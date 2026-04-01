@@ -164,9 +164,11 @@ export const MainContent = styled.div`
   overflow: hidden;
 
   @media (max-width: 700px) {
+    order: 1;
     flex-direction: column;
     width: 100%;
-    height: var(--app-height, 100dvh);
+    height: auto;
+    min-height: 0;
     box-sizing: border-box;
   }
 `;

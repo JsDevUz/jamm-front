@@ -13,8 +13,12 @@ import {
   AvatarButton,
   AvatarFallback,
   AvatarImage,
+  IconSlot,
   NavBadge,
   NavButton,
+  NavLabel,
+  ProfileAvatarWrap,
+  ProfileStatusDot,
   SidebarContainer,
   Spacer,
 } from "../styles/ServerSidebar.styles";
@@ -72,10 +76,21 @@ export default function ServerSidebar({
           onMouseEnter={() => onPreloadNav && onPreloadNav(item.id)}
           title={t(item.labelKey)}
         >
-          <item.icon size={20} />
-          {item.id === "chats" && totalUnreadCount > 0 && (
-            <NavBadge>{totalUnreadCount}</NavBadge>
-          )}
+          <IconSlot>
+            <item.icon size={20} />
+            {item.id === "chats" && totalUnreadCount > 0 && (
+              <NavBadge>{totalUnreadCount}</NavBadge>
+            )}
+          </IconSlot>
+          <NavLabel
+            $active={
+              item.id === "chats"
+                ? ["chats", "users", "groups", "meets"].includes(selectedNav)
+                : selectedNav === item.id
+            }
+          >
+            {t(item.labelKey)}
+          </NavLabel>
         </NavButton>
       ))}
 
@@ -89,11 +104,19 @@ export default function ServerSidebar({
         onMouseEnter={() => onPreloadNav && onPreloadNav("profile")}
         title={`${displayName} — ${t("navigation.profile")}`}
       >
-        {currentUser?.avatar ? (
-          <AvatarImage src={currentUser.avatar} alt={displayName} />
-        ) : (
-          <AvatarFallback>{avatarLetter}</AvatarFallback>
-        )}
+        <IconSlot>
+          <ProfileAvatarWrap>
+            {currentUser?.avatar ? (
+              <AvatarImage src={currentUser.avatar} alt={displayName} />
+            ) : (
+              <AvatarFallback>{avatarLetter}</AvatarFallback>
+            )}
+            <ProfileStatusDot />
+          </ProfileAvatarWrap>
+        </IconSlot>
+        <NavLabel $active={selectedNav === "profile"}>
+          {t("navigation.profile")}
+        </NavLabel>
       </AvatarButton>
     </SidebarContainer>
   );
