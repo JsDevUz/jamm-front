@@ -9,6 +9,9 @@ const queryClient = new QueryClient();
 
 let viewportSyncFrame = null;
 let lastViewportSnapshot = "";
+let stableAppHeight = 0;
+let stableViewportWidth = 0;
+let stableOrientation = "";
 
 const syncAppHeight = () => {
   if (viewportSyncFrame) {
@@ -17,13 +20,35 @@ const syncAppHeight = () => {
 
   viewportSyncFrame = window.requestAnimationFrame(() => {
     const viewport = window.visualViewport;
-    const layoutViewportHeight = Math.max(
+    const rawLayoutViewportHeight = Math.max(
       document.documentElement?.clientHeight || 0,
       window.innerHeight || 0,
     );
+    const layoutViewportWidth = Math.max(
+      document.documentElement?.clientWidth || 0,
+      window.innerWidth || 0,
+    );
+    const nextOrientation =
+      layoutViewportWidth > rawLayoutViewportHeight ? "landscape" : "portrait";
+    const widthShifted = Math.abs(layoutViewportWidth - stableViewportWidth) > 120;
+
+    if (
+      !stableAppHeight ||
+      stableOrientation !== nextOrientation ||
+      widthShifted
+    ) {
+      stableAppHeight = rawLayoutViewportHeight;
+      stableViewportWidth = layoutViewportWidth;
+      stableOrientation = nextOrientation;
+    } else {
+      stableAppHeight = Math.max(stableAppHeight, rawLayoutViewportHeight);
+      stableViewportWidth = layoutViewportWidth;
+    }
+
+    const layoutViewportHeight = stableAppHeight;
     const visualViewportHeight = viewport?.height || layoutViewportHeight || 0;
     const visualViewportOffsetTop = viewport?.offsetTop || 0;
-    const snapshot = `${layoutViewportHeight}|${visualViewportHeight}|${visualViewportOffsetTop}`;
+    const snapshot = `${layoutViewportWidth}|${layoutViewportHeight}|${visualViewportHeight}|${visualViewportOffsetTop}|${stableOrientation}`;
 
     if (snapshot === lastViewportSnapshot) {
       viewportSyncFrame = null;
