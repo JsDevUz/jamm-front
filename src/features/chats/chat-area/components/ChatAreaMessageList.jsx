@@ -24,20 +24,22 @@ const ScrollArea = styled.div`
 const MessagesContainer = styled.div`
   flex: 1;
   overflow-y: auto;
-  padding: 16px 8px calc(20px + env(safe-area-inset-bottom, 0px));
+  padding: 16px 8px
+    ${(props) =>
+      props.$keyboardOpen
+        ? "calc(96px + env(safe-area-inset-bottom, 0px))"
+        : "calc(20px + env(safe-area-inset-bottom, 0px))"};
   display: flex;
   flex-direction: column;
   min-height: 0;
   -webkit-overflow-scrolling: touch;
-  scroll-padding-bottom: calc(92px + env(safe-area-inset-bottom, 0px));
+  scroll-padding-bottom: ${(props) =>
+    props.$keyboardOpen
+      ? "calc(124px + env(safe-area-inset-bottom, 0px))"
+      : "calc(92px + env(safe-area-inset-bottom, 0px))"};
   transition:
     padding-bottom 0.25s ease,
     scroll-padding-bottom 0.25s ease;
-
-  html[data-mobile-keyboard-open="true"] & {
-    padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px));
-    scroll-padding-bottom: calc(124px + env(safe-area-inset-bottom, 0px));
-  }
 
   &::-webkit-scrollbar {
     width: 8px;
@@ -56,6 +58,9 @@ const MessagesContainer = styled.div`
 const MessageContainer = styled.div`
   display: flex;
   flex-direction: column;
+  flex: 1;
+  min-height: 100%;
+  justify-content: flex-end;
 `;
 
 const DateSeparator = styled.div`
@@ -348,6 +353,17 @@ const InitialLoaderState = styled.div`
   font-weight: 600;
 `;
 
+const InitialLayoutSkeleton = styled.div`
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: var(--background-color);
+`;
+
 const ReceiptStatus = styled.span`
   margin-left: 4px;
   display: flex;
@@ -384,7 +400,10 @@ const FailedReceiptButton = styled.button`
 const NewMessagesButton = styled.button`
   position: absolute;
   right: 16px;
-  bottom: calc(92px + env(safe-area-inset-bottom, 0px));
+  bottom: ${(props) =>
+    props.$keyboardOpen
+      ? "calc(136px + env(safe-area-inset-bottom, 0px))"
+      : "calc(92px + env(safe-area-inset-bottom, 0px))"};
   z-index: 6;
   border: none;
   border-radius: 999px;
@@ -409,13 +428,12 @@ const NewMessagesButton = styled.button`
     transform: translateY(0) scale(0.98);
   }
 
-  html[data-mobile-keyboard-open="true"] & {
-    bottom: calc(136px + env(safe-area-inset-bottom, 0px));
-  }
-
   @media (max-width: 768px) {
     right: 12px;
-    bottom: calc(96px + env(safe-area-inset-bottom, 0px));
+    bottom: ${(props) =>
+      props.$keyboardOpen
+        ? "calc(136px + env(safe-area-inset-bottom, 0px))"
+        : "calc(96px + env(safe-area-inset-bottom, 0px))"};
     padding: 10px;
   }
 `;
@@ -470,8 +488,13 @@ const ChatAreaMessageList = ({ keyboardHeight = 0 }) => {
   const previousContainerHeightRef = useRef(0);
   const previousLastMessageIdRef = useRef(null);
   const previousMessageCountRef = useRef(0);
+  const initialAnchorResolvedRef = useRef(false);
   const [swipeState, setSwipeState] = useState({ messageId: null, offset: 0 });
   const [pendingNewMessageIds, setPendingNewMessageIds] = useState([]);
+  const [messageListVisible, setMessageListVisible] = useState(false);
+  const [viewportHeight, setViewportHeight] = useState(0);
+  const [contentHeight, setContentHeight] = useState(0);
+  const keyboardOpen = keyboardHeight > 0;
   const currentChatMembers = useMemo(
     () => currentChat?.members || [],
     [currentChat?.members],
@@ -493,16 +516,31 @@ const ChatAreaMessageList = ({ keyboardHeight = 0 }) => {
     autoFillAttemptsRef.current = 0;
     previousLastMessageIdRef.current = null;
     previousMessageCountRef.current = 0;
+    initialAnchorResolvedRef.current = false;
     setPendingNewMessageIds([]);
+    setMessageListVisible(false);
+    setViewportHeight(0);
+    setContentHeight(0);
   }, [currentChat?.id]);
+
+  const shouldAutofillInitialViewport =
+    !messageListVisible &&
+    initialAnchorResolvedRef.current &&
+    viewportHeight > 0 &&
+    contentHeight > 0 &&
+    !isLoadingMessages &&
+    messagesHasMore &&
+    contentHeight <= viewportHeight + 16 &&
+    autoFillAttemptsRef.current < 10;
 
   useEffect(() => {
     if (!initialScrollTargetMessageId) return;
 
-    const timer = window.setTimeout(() => {
+    const frameId = window.requestAnimationFrame(() => {
       if (initialScrollTargetMessageId === "__bottom__") {
         shouldStickToBottomRef.current = true;
         scrollToBottom("auto");
+        initialAnchorResolvedRef.current = true;
         setInitialScrollTargetMessageId(null);
         return;
       }
@@ -516,16 +554,60 @@ const ChatAreaMessageList = ({ keyboardHeight = 0 }) => {
         behavior: "auto",
         block: "center",
       });
+      initialAnchorResolvedRef.current = true;
       setInitialScrollTargetMessageId(null);
-    }, 80);
+    });
 
-    return () => window.clearTimeout(timer);
+    return () => window.cancelAnimationFrame(frameId);
   }, [
     initialScrollTargetMessageId,
     messageRefs,
     messages,
     setInitialScrollTargetMessageId,
   ]);
+
+  useEffect(() => {
+    if (!shouldAutofillInitialViewport) {
+      return;
+    }
+
+    autoFillAttemptsRef.current += 1;
+    const frameId = window.requestAnimationFrame(() => {
+      fetchMoreMessages();
+    });
+
+    return () => window.cancelAnimationFrame(frameId);
+  }, [fetchMoreMessages, shouldAutofillInitialViewport]);
+
+  useEffect(() => {
+    if (messageListVisible) return;
+    if (!initialAnchorResolvedRef.current) return;
+    if (isLoadingMessages) return;
+    if (shouldAutofillInitialViewport) return;
+
+    const frameId = window.requestAnimationFrame(() => {
+      setMessageListVisible(true);
+    });
+
+    return () => window.cancelAnimationFrame(frameId);
+  }, [
+    isLoadingMessages,
+    messageListVisible,
+    shouldAutofillInitialViewport,
+  ]);
+
+  useEffect(() => {
+    const scrollContainer = scrollContainerRef.current;
+    if (!scrollContainer) return;
+
+    const syncMeasurements = () => {
+      setViewportHeight(Math.ceil(scrollContainer.clientHeight || 0));
+      setContentHeight(Math.ceil(scrollContainer.scrollHeight || 0));
+    };
+
+    const frameId = window.requestAnimationFrame(syncMeasurements);
+    return () => window.cancelAnimationFrame(frameId);
+  }, [currentChat?.id, isLoadingMessages, keyboardHeight, messageGroups.length]);
 
   const resetSwipeState = () => {
     swipeGestureRef.current = null;
@@ -611,6 +693,10 @@ const ChatAreaMessageList = ({ keyboardHeight = 0 }) => {
   };
 
   const handleMessagesScroll = (event) => {
+    if (!messageListVisible) {
+      return;
+    }
+
     const element = event.currentTarget;
     shouldStickToBottomRef.current = isNearBottom(element);
 
@@ -781,38 +867,6 @@ const ChatAreaMessageList = ({ keyboardHeight = 0 }) => {
     };
   }, [currentChat?.id]);
 
-  useEffect(() => {
-    const scrollContainer = document.getElementById("scrollableChatArea");
-
-    if (
-      !scrollContainer ||
-      !currentChat?.id ||
-      isLoadingMessages ||
-      !messagesHasMore ||
-      messages.length === 0
-    ) {
-      return;
-    }
-
-    if (scrollContainer.scrollHeight > scrollContainer.clientHeight + 16) {
-      autoFillAttemptsRef.current = 0;
-      return;
-    }
-
-    if (autoFillAttemptsRef.current >= 10) {
-      return;
-    }
-
-    autoFillAttemptsRef.current += 1;
-    fetchMoreMessages();
-  }, [
-    currentChat?.id,
-    fetchMoreMessages,
-    isLoadingMessages,
-    messages.length,
-    messagesHasMore,
-  ]);
-
   const handleOpenMessageMenu = (message, event) => {
     event.preventDefault();
     event.stopPropagation();
@@ -850,11 +904,18 @@ const ChatAreaMessageList = ({ keyboardHeight = 0 }) => {
 
   return (
     <ScrollArea>
+      {!messageListVisible ? (
+        <InitialLayoutSkeleton>
+          <InitialLoaderState>Xabarlar yuklanmoqda...</InitialLoaderState>
+        </InitialLayoutSkeleton>
+      ) : null}
       <MessagesContainer
         id="scrollableChatArea"
         ref={scrollContainerRef}
+        $keyboardOpen={keyboardOpen}
         onContextMenu={(event) => event.preventDefault()}
         onScroll={handleMessagesScroll}
+        style={!messageListVisible ? { visibility: "hidden" } : undefined}
       >
         {isLoadingMessages && messages.length === 0 ? (
           <InitialLoaderState>Xabarlar yuklanmoqda...</InitialLoaderState>
@@ -1048,6 +1109,7 @@ const ChatAreaMessageList = ({ keyboardHeight = 0 }) => {
       {pendingNewMessageIds.length > 0 ? (
         <NewMessagesButton
           type="button"
+          $keyboardOpen={keyboardOpen}
           onClick={handleJumpToBottom}
           aria-label="Yangi xabarlarga tushish"
           title="Yangi xabarlarga tushish"

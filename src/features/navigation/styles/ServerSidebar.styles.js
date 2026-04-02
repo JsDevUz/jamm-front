@@ -83,8 +83,8 @@ export const NavButton = styled.button`
 `;
 
 export const IconSlot = styled.div`
-  min-width: 28px;
-  height: 28px;
+  min-width: 44px;
+  height: 44px;
   position: relative;
   display: inline-flex;
   align-items: center;

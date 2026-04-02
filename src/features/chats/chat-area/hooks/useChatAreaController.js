@@ -519,13 +519,14 @@ export default function useChatAreaController({
 
   useEffect(() => {
     if (!messageInputRef.current) return;
+    if (!replyMessage && !editingMessage) return;
 
     messageInputRef.current.focus();
     messageInputRef.current.setSelectionRange(
       messageInputRef.current.value.length,
       messageInputRef.current.value.length,
     );
-  }, [selectedChatId, selectedNav, replyMessage, currentChat?.id]);
+  }, [editingMessage, replyMessage]);
 
   useEffect(() => {
     if (!messageInputRef.current) return;

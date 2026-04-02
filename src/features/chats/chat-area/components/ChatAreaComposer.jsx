@@ -6,17 +6,17 @@ import { toast } from "react-hot-toast";
 import { useChatAreaContext } from "../context/ChatAreaContext";
 
 const MessageInputContainer = styled.div`
-  padding: 12px 16px calc(16px + env(safe-area-inset-bottom, 0px));
+  padding: 12px 16px
+    ${(props) =>
+      props.$keyboardOpen
+        ? "12px"
+        : "calc(16px + env(safe-area-inset-bottom, 0px))"};
   background-color: var(--secondary-color);
   border-top: 1px solid var(--border-color);
   position: relative;
   transition:
     padding-bottom 0.25s ease,
     border-color 0.25s ease;
-
-  html[data-mobile-keyboard-open="true"] & {
-    padding-bottom: 12px;
-  }
 `;
 
 const ComposerStack = styled.div`
@@ -206,6 +206,7 @@ const MessageInput = styled.textarea`
 
 const ChatAreaComposer = ({
   keyboardHeight = 0,
+  keyboardOpen = false,
   scrollIntoViewOnFocus = () => {},
 }) => {
   const [showComingSoonTooltip, setShowComingSoonTooltip] = useState(false);
@@ -249,7 +250,7 @@ const ChatAreaComposer = ({
 
   if (previewChat && !currentChat && previewChat.type !== "user") {
     return (
-      <MessageInputContainer>
+      <MessageInputContainer $keyboardOpen={keyboardOpen}>
         <JoinPreview>
           <JoinPreviewText>Siz ushbu guruh a'zosi emassiz</JoinPreviewText>
           <JoinPreviewButton
@@ -273,7 +274,7 @@ const ChatAreaComposer = ({
   }
 
   return (
-    <MessageInputContainer>
+    <MessageInputContainer $keyboardOpen={keyboardOpen}>
       <ComposerStack>
         {editingMessage && (
           <ReplyPreview>
