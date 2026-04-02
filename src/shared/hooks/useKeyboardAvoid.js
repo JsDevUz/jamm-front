@@ -96,8 +96,10 @@ export default function useKeyboardAvoid(containerRef) {
     };
 
     const handleFocusOut = () => {
-      // iOS Safari often updates visualViewport late when keyboard closes.
-      scheduleKeyboardReset(80);
+      scheduleKeyboardReset(0);
+      window.setTimeout(() => {
+        scheduleKeyboardReset(0);
+      }, 120);
     };
 
     const handlePageShow = () => {

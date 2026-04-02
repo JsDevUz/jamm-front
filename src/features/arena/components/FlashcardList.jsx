@@ -263,7 +263,6 @@ const FolderAddButton = styled.button`
   width: 38px;
   height: 38px;
   flex: 0 0 auto;
-  margin-left: auto;
   position: sticky;
   right: 0;
   z-index: 1;

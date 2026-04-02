@@ -43,13 +43,6 @@ body {
     max-height: var(--app-height) !important;
     overflow: hidden !important;
   }
-
-  :root[data-mobile-keyboard-open="true"] body,
-  :root[data-mobile-keyboard-open="true"] #root {
-    position: fixed;
-    inset: 0;
-    width: 100%;
-  }
 }
 
 button {
