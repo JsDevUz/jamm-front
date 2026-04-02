@@ -207,7 +207,6 @@ const MessageInput = styled.textarea`
 const ChatAreaComposer = ({
   keyboardHeight = 0,
   keyboardOpen = false,
-  scrollIntoViewOnFocus = () => {},
 }) => {
   const [showComingSoonTooltip, setShowComingSoonTooltip] = useState(false);
   const {
@@ -233,7 +232,6 @@ const ChatAreaComposer = ({
     if (!messageInputRef.current) return;
 
     messageInputRef.current.focus({ preventScroll: true });
-    scrollIntoViewOnFocus(messageInputRef.current);
     const caretPosition = messageInputRef.current.value.length;
     messageInputRef.current.setSelectionRange(caretPosition, caretPosition);
   };
@@ -342,9 +340,6 @@ const ChatAreaComposer = ({
             onKeyDown={handleSendMessage}
             readOnly={isComposerDisabled}
             disabled={isComposerDisabled}
-            onFocus={(event) => {
-              scrollIntoViewOnFocus(event.currentTarget);
-            }}
             placeholder={isComposerDisabled ? "Suhbat yuklanmoqda..." : "Xabar..."}
             rows={1}
             maxLength={400}

@@ -136,21 +136,14 @@ export default function useKeyboardAvoid(containerRef) {
 
   const scrollIntoViewOnFocus = useCallback(
     (element) => {
-      if (!element?.scrollIntoView) return;
+      if (!element?.scrollIntoView || !containerRef?.current) return;
 
       const scrollTarget = () => {
-        element.scrollIntoView({
+        containerRef.current.scrollIntoView({
           behavior: isiOS ? "auto" : "smooth",
           block: "nearest",
           inline: "nearest",
         });
-
-        if (containerRef?.current) {
-          containerRef.current.scrollIntoView({
-            behavior: isiOS ? "auto" : "smooth",
-            block: "nearest",
-          });
-        }
       };
 
       if (isiOS) {

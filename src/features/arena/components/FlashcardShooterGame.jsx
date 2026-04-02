@@ -85,6 +85,10 @@ const GameHeader = styled.div`
   justify-content: space-between;
   align-items: center;
   margin-bottom: 8px;
+
+  @media (max-width: 768px) {
+    padding-top: calc(8px + env(safe-area-inset-top, 0px));
+  }
 `;
 
 const BackBtn = styled.button`

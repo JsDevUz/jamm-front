@@ -27,7 +27,7 @@ const Container = styled.div`
     max-width: 100%;
     border-radius: 0;
     border: none;
-    padding: 16px;
+    padding: calc(16px + env(safe-area-inset-top, 0px)) 16px 16px;
     z-index: 100;
     overflow-y: auto;
   }
@@ -49,9 +49,9 @@ const Header = styled.div`
   z-index: 10;
 
   @media (max-width: 768px) {
-    top: -16px;
-    margin-top: -16px;
-    padding-top: 16px;
+    top: 0;
+    margin-top: 0;
+    padding-top: 0;
     margin-left: -16px;
     margin-right: -16px;
     padding-left: 16px;

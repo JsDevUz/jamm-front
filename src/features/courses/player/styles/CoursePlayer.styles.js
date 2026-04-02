@@ -112,6 +112,9 @@ export const TopBar = styled.div`
 export const TopBarLeft = styled.div`
   display: flex;
   align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
 `;
 
 export const TopBarTitle = styled.div`
@@ -119,6 +122,10 @@ export const TopBarTitle = styled.div`
   font-weight: 600;
   color: white;
   text-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 `;
 
 const MobileBackButtonBase = styled.button`
@@ -288,6 +295,13 @@ export const ControlsRow = styled.div`
   display: flex;
   align-items: center;
   justify-content: space-between;
+
+  @media (max-width: 768px) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+    gap: 10px;
+  }
 `;
 
 export const ControlsLeft = styled.div`
@@ -295,12 +309,24 @@ export const ControlsLeft = styled.div`
   align-items: center;
   gap: 8px;
   margin-right: 8px;
+
+  @media (max-width: 768px) {
+    min-width: 0;
+    margin-right: 0;
+    flex-wrap: wrap;
+    row-gap: 6px;
+  }
 `;
 
 export const ControlsRight = styled.div`
   display: flex;
   align-items: center;
   gap: 8px;
+
+  @media (max-width: 768px) {
+    flex-shrink: 0;
+    justify-content: flex-end;
+  }
 `;
 
 export const ControlButton = styled.button`
@@ -444,6 +470,13 @@ export const TimeDisplay = styled.span`
   font-weight: 500;
   font-variant-numeric: tabular-nums;
   user-select: none;
+
+  @media (max-width: 768px) {
+    order: 10;
+    flex-shrink: 0;
+    font-size: 12px;
+    line-height: 1.25;
+  }
 `;
 
 export const CurrentSegmentLabel = styled.div`
@@ -461,9 +494,14 @@ export const CurrentSegmentLabel = styled.div`
   user-select: none;
 
   @media (max-width: 768px) {
-    max-width: 140px;
+    order: 11;
+    flex: 1 1 100%;
+    width: 100%;
+    max-width: none;
+    min-width: 0;
     font-size: 11px;
     padding: 5px 9px;
+    line-height: 1.2;
   }
 `;
 

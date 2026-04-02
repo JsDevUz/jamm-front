@@ -19,7 +19,6 @@ import {
   MiniBadge,
   MobileLessonStrip,
   PaneContent,
-  PaneDangerButton,
   PaneGhostButton,
   PaneLessonButton,
   PaneLessonList,
@@ -51,9 +50,7 @@ const CoursePlayerAdminPane = ({ isOpen, onClose }) => {
     courseId,
     currentLessonData,
     handleLessonClick,
-    openLessonEditor,
     handlePublishLesson,
-    setLessonToDelete,
   } = useCoursePlayerContext();
   const [activeTab, setActiveTab] = useState("homework");
 
@@ -121,12 +118,6 @@ const CoursePlayerAdminPane = ({ isOpen, onClose }) => {
             <PaneTopActions>
               {currentLessonData ? (
                 <>
-                  <PaneGhostButton
-                    type="button"
-                    onClick={() => openLessonEditor(currentLessonData)}
-                  >
-                    {t("coursePlayer.playlist.edit")}
-                  </PaneGhostButton>
                   {(currentLessonData.status || "published") === "draft" &&
                   selectedHasMedia ? (
                     <PanePrimaryButton
@@ -142,18 +133,6 @@ const CoursePlayerAdminPane = ({ isOpen, onClose }) => {
                       {t("coursePlayer.adminPane.publish")}
                     </PanePrimaryButton>
                   ) : null}
-                  <PaneDangerButton
-                    type="button"
-                    onClick={() =>
-                      setLessonToDelete(
-                        currentLessonData._id ||
-                          currentLessonData.id ||
-                          currentLessonData.urlSlug,
-                      )
-                    }
-                  >
-                    {t("coursePlayer.adminPane.deleteLesson")}
-                  </PaneDangerButton>
                 </>
               ) : null}
               <PaneGhostButton type="button" onClick={onClose}>

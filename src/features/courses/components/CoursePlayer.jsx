@@ -622,16 +622,20 @@ const CoursePlayer = ({ courseId, initialLessonSlug, onClose }) => {
     if (!course) return;
 
     const courseSlug = course.urlSlug || course._id || course.id;
+    const coursePath = `/courses/${courseSlug}`;
     const lessonSlug =
       currentLessonData?.urlSlug ||
       currentLessonData?._id ||
       currentLessonData?.id;
 
     const nextPath = lessonSlug
-      ? `/courses/${courseSlug}/${lessonSlug}`
-      : `/courses/${courseSlug}`;
+      ? `${coursePath}/${lessonSlug}`
+      : coursePath;
 
-    if (window.location.pathname !== nextPath) {
+    if (
+      window.location.pathname.startsWith(`${coursePath}/`) &&
+      window.location.pathname !== nextPath
+    ) {
       window.history.replaceState(null, "", nextPath);
     }
   }, [course, currentLessonData]);
@@ -1230,12 +1234,7 @@ const CoursePlayer = ({ courseId, initialLessonSlug, onClose }) => {
     if (lessonData) {
       const lessonSlug = lessonData.urlSlug || lessonData._id || lessonData.id;
       const courseSlug = course.urlSlug || course._id || course.id;
-      // Update URL without full page reload
-      window.history.replaceState(
-        null,
-        "",
-        `/courses/${courseSlug}/${lessonSlug}`,
-      );
+      navigate(`/courses/${courseSlug}/${lessonSlug}`);
     }
   };
 

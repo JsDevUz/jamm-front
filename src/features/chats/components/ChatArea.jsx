@@ -55,7 +55,7 @@ const ChatArea = ({
     navigate,
     chats,
   });
-  const { keyboardHeight, scrollIntoViewOnFocus } = useKeyboardAvoid();
+  const { keyboardHeight } = useKeyboardAvoid();
   const keyboardOpen = keyboardHeight > 0;
 
   if (!displayChat && !selectedChatId) return null;
@@ -87,7 +87,6 @@ const ChatArea = ({
               <ChatAreaComposer
                 keyboardHeight={keyboardHeight}
                 keyboardOpen={keyboardOpen}
-                scrollIntoViewOnFocus={scrollIntoViewOnFocus}
               />
             </ChatMainColumn>
           </ChatMain>

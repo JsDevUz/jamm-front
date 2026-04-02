@@ -561,6 +561,10 @@ const BackBtn = styled.button`
   &:hover {
     color: var(--text-color);
   }
+
+  @media (max-width: 768px) {
+    margin-top: calc(8px + env(safe-area-inset-top, 0px));
+  }
 `;
 
 const RevealBtn = styled.button`
@@ -698,6 +702,11 @@ const ClassicTopBar = styled.div`
   gap: 12px;
   padding: 10px 18px;
   min-height: 64px;
+
+  @media (max-width: 768px) {
+    padding: calc(10px + env(safe-area-inset-top, 0px)) 18px 10px;
+    min-height: calc(64px + env(safe-area-inset-top, 0px));
+  }
 `;
 
 const ClassicTopIconButton = styled.button`

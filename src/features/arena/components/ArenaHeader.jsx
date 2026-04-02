@@ -8,14 +8,14 @@ const HeaderRow = styled.div`
   justify-content: space-between;
   align-items: center;
   margin-bottom: 24px;
-  ${mobileTopSafePadding(10, 0, 0, 0)};
+  ${mobileTopSafePadding(14, 0, 0, 0)};
 
   @media (max-width: 768px) {
     margin-bottom: 18px;
   }
 
   @media (max-width: 480px) {
-    padding-top: calc(6px + env(safe-area-inset-top, 0px));
+    padding-top: calc(10px + env(safe-area-inset-top, 0px));
     margin-bottom: 14px;
   }
 `;

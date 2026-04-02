@@ -229,6 +229,10 @@ const BackBtn = styled.button`
   color: var(--text-muted-color);
   cursor: pointer;
   font-weight: 700;
+
+  @media (max-width: 768px) {
+    margin-top: calc(8px + env(safe-area-inset-top, 0px));
+  }
 `;
 
 const DetailTitle = styled.h2`

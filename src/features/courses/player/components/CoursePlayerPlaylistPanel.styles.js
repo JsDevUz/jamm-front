@@ -132,6 +132,7 @@ export const LessonItem = styled.div`
   cursor: ${(props) => (props.$interactive ? "pointer" : "default")};
   transition: all 0.15s ease;
   position: relative;
+  touch-action: manipulation;
 
   &:hover {
     background-color: var(--hover-color);
@@ -251,10 +252,15 @@ export const DeleteLessonBtn = styled.button`
   align-items: center;
   justify-content: center;
   opacity: 0;
+  pointer-events: none;
   transition: all 0.15s;
 
-  ${LessonItem}:hover & {
-    opacity: 1;
+  @media (hover: hover) and (pointer: fine) {
+    ${LessonItem}:hover &,
+    ${LessonItem}:focus-within & {
+      opacity: 1;
+      pointer-events: auto;
+    }
   }
 
   &:hover {
