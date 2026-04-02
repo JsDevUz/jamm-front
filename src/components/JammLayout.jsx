@@ -177,6 +177,12 @@ const JammLayout = ({
     closePremiumUpgradeModal,
   } = usePremiumUpgradeModalStore();
   const mainContentRef = useRef(null);
+  const hasMobileChatDetailOpen =
+    isMobile &&
+    ["chats", "users", "groups"].includes(selectedNav) &&
+    selectedChatId &&
+    selectedChatId !== "0" &&
+    selectedChatId !== 0;
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth <= 768);
@@ -844,11 +850,13 @@ const JammLayout = ({
           </NotificationPromptActions>
         </NotificationPromptBanner>
       )}
-      <ServerSidebar
-        selectedNav={selectedNav}
-        onSelectNav={handleSelectNav}
-        onPreloadNav={handlePreloadNav}
-      />
+      {!hasMobileChatDetailOpen ? (
+        <ServerSidebar
+          selectedNav={selectedNav}
+          onSelectNav={handleSelectNav}
+          onPreloadNav={handlePreloadNav}
+        />
+      ) : null}
       <MainContent ref={mainContentRef}>
         {selectedNav === "courses" ||
         selectedNav === "arena" ||

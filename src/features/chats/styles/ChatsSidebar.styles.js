@@ -14,8 +14,8 @@ export const SidebarContainer = styled.div`
 
   @media (max-width: 768px) {
     width: 100%;
-    height: var(--app-height, 100dvh);
-    margin-top: calc(-1 * env(safe-area-inset-top, 0px));
+    height: 100%;
+    min-height: 0;
   }
 `;
 
