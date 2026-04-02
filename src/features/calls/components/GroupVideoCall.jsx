@@ -122,7 +122,7 @@ const TopBar = styled.div`
     flex-direction: column;
     align-items: stretch;
     gap: 10px;
-    padding: 12px 14px;
+    padding: calc(12px + env(safe-area-inset-top, 0px)) 14px 12px;
   }
 `;
 
@@ -389,6 +389,8 @@ const StageMain = styled.div`
   border-radius: 18px;
   background: color-mix(in srgb, var(--call-surface) 92%, black 8%);
   border: 1px solid var(--call-border);
+  padding: 4px;
+  box-sizing: border-box;
 `;
 
 const StageRail = styled.div`
@@ -897,28 +899,61 @@ const ControlBar = styled.div`
   align-items: center;
   justify-content: center;
   gap: 14px;
-  padding: 16px;
-  background: color-mix(in srgb, var(--call-bg) 76%, transparent);
-  border-top: 1px solid var(--call-border);
+  align-self: center;
+  width: max-content;
+  max-width: calc(100% - 24px);
+  margin: 0 auto calc(14px + env(safe-area-inset-bottom, 0px));
+  padding: 12px 16px;
+  background: rgba(24, 24, 27, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 30px;
+  box-shadow: 0 16px 44px rgba(0, 0, 0, 0.32);
   flex-shrink: 0;
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
 `;
 
 const CtrlBtn = styled.button`
-  width: 50px;
-  height: 50px;
-  border-radius: 50%;
-  border: none;
+  width: ${(p) => (p.$danger ? "92px" : "62px")};
+  height: 58px;
+  border-radius: ${(p) => (p.$danger ? "22px" : "20px")};
+  border: 1px solid
+    ${(p) =>
+      p.$danger
+        ? "rgba(255,255,255,0.06)"
+        : p.$state === "off"
+          ? "rgba(244, 114, 182, 0.16)"
+          : p.$state === "accent"
+            ? "rgba(250, 166, 26, 0.18)"
+            : "rgba(255,255,255,0.06)"};
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   transition: all 0.18s ease;
+  position: relative;
+  flex-shrink: 0;
   ${(p) =>
     p.$danger
-      ? `background: var(--call-danger); color: white; &:hover { background: color-mix(in srgb, var(--call-danger) 88%, black); transform: scale(1.08); }`
-      : p.$active
-        ? `background: color-mix(in srgb, var(--call-panel) 88%, transparent); color: var(--call-text); border: 1px solid var(--call-border); &:hover { background: color-mix(in srgb, var(--call-panel) 96%, transparent); }`
-        : `background: color-mix(in srgb, var(--call-danger) 15%, transparent); color: var(--call-danger); border: 1px solid color-mix(in srgb, var(--call-danger) 30%, transparent); &:hover { background: color-mix(in srgb, var(--call-danger) 25%, transparent); }`}
+      ? `background: #d64a3a; color: white; &:hover { background: #c63f30; transform: translateY(-1px); }`
+      : p.$state === "off"
+        ? `background: rgba(247, 200, 204, 0.96); color: #7b241f; &:hover { background: rgba(248, 214, 217, 1); transform: translateY(-1px); }`
+        : p.$state === "accent"
+          ? `background: rgba(54, 54, 56, 0.98); color: #faa61a; &:hover { background: rgba(66, 66, 68, 1); transform: translateY(-1px); }`
+          : `background: rgba(54, 54, 56, 0.98); color: #f5f5f5; &:hover { background: rgba(66, 66, 68, 1); transform: translateY(-1px); }`}
+
+  @media (max-width: 480px) {
+    width: ${(p) => (p.$danger ? "84px" : "58px")};
+    height: 54px;
+  }
+`;
+
+const ControlDivider = styled.div`
+  width: 1px;
+  height: 34px;
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  flex-shrink: 0;
 `;
 
 const CenterBox = styled.div`
@@ -1139,7 +1174,6 @@ const VideoEl = ({
       ) : (
         <NoCamera $compact={compact}>
           <Avatar $compact={compact}>{label?.charAt(0)?.toUpperCase() || "?"}</Avatar>
-          <span style={{ fontSize: compact ? 11 : 12 }}>{label}</span>
         </NoCamera>
       )}
       <TileLabel $compact={compact}>
@@ -2385,7 +2419,7 @@ const GroupVideoCall = ({
 
       {!isMinimized && <ControlBar>
         <CtrlBtn
-          $active={isMicOn}
+          $state={isMicOn ? "on" : "off"}
           onClick={toggleMic}
           style={micLocked ? { opacity: 0.5, cursor: "not-allowed" } : {}}
         >
@@ -2398,7 +2432,7 @@ const GroupVideoCall = ({
           )}
         </CtrlBtn>
         <CtrlBtn
-          $active={isCamOn}
+          $state={isCamOn ? "on" : "off"}
           onClick={toggleCam}
           style={camLocked ? { opacity: 0.5, cursor: "not-allowed" } : {}}
         >
@@ -2411,32 +2445,22 @@ const GroupVideoCall = ({
           )}
         </CtrlBtn>
         {!isMobileViewport && (
-          <CtrlBtn $active={isScreenSharing} onClick={handleScreenShareToggle}>
+          <CtrlBtn $state={isScreenSharing ? "accent" : "neutral"} onClick={handleScreenShareToggle}>
             {isScreenSharing ? <MonitorOff size={21} /> : <Monitor size={21} />}
           </CtrlBtn>
         )}
         <CtrlBtn
-          $active={isHandRaised}
+          $state={isHandRaised ? "accent" : "neutral"}
           onClick={toggleHandRaise}
-          style={
-            isHandRaised
-              ? { background: "rgba(250,166,26,0.2)", color: "#faa61a" }
-              : {}
-          }
         >
           <Hand size={21} />
         </CtrlBtn>
         {isCreator && !isMobileViewport && (
           <div style={{ position: "relative" }}>
             <CtrlBtn
-              $active={isRecording}
+              $state={isRecording ? "accent" : "neutral"}
               onClick={() =>
                 isRecording ? stopRecording() : setShowRecordMenu((p) => !p)
-              }
-              style={
-                isRecording
-                  ? { background: "rgba(240,71,71,0.2)", color: "#f04747" }
-                  : {}
               }
             >
               <Circle size={21} fill={isRecording ? "#f04747" : "none"} />
@@ -2469,6 +2493,7 @@ const GroupVideoCall = ({
             )}
           </div>
         )}
+        <ControlDivider />
         <CtrlBtn $danger onClick={handleLeave}>
           <PhoneOff size={21} />
         </CtrlBtn>

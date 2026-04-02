@@ -248,13 +248,15 @@ const NavScroll = styled.div`
   width: 100%;
   overflow-y: auto;
   padding-bottom: 18px;
+  scroll-padding-bottom: 18px;
 
   &::-webkit-scrollbar {
     width: 0;
   }
 
   @media (max-width: 768px) {
-    padding-bottom: 80px; /* Space for mobile bottom navigation */
+    padding-bottom: calc(124px + env(safe-area-inset-bottom, 0px));
+    scroll-padding-bottom: calc(124px + env(safe-area-inset-bottom, 0px));
   }
 `;
 
