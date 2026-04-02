@@ -16,28 +16,35 @@ const syncAppHeight = () => {
   }
 
   viewportSyncFrame = window.requestAnimationFrame(() => {
-  const viewport = window.visualViewport;
-  const viewportHeight = viewport?.height || window.innerHeight || 0;
-  const viewportOffsetTop = viewport?.offsetTop || 0;
-  const appHeight = viewportHeight + viewportOffsetTop;
-  const snapshot = `${appHeight}|${viewportHeight}|${viewportOffsetTop}`;
+    const viewport = window.visualViewport;
+    const layoutViewportHeight = Math.max(
+      document.documentElement?.clientHeight || 0,
+      window.innerHeight || 0,
+    );
+    const visualViewportHeight = viewport?.height || layoutViewportHeight || 0;
+    const visualViewportOffsetTop = viewport?.offsetTop || 0;
+    const snapshot = `${layoutViewportHeight}|${visualViewportHeight}|${visualViewportOffsetTop}`;
 
-  if (snapshot === lastViewportSnapshot) {
-    return;
-  }
+    if (snapshot === lastViewportSnapshot) {
+      viewportSyncFrame = null;
+      return;
+    }
 
-  lastViewportSnapshot = snapshot;
+    lastViewportSnapshot = snapshot;
 
-  document.documentElement.style.setProperty("--app-height", `${appHeight}px`);
-  document.documentElement.style.setProperty(
-    "--visual-viewport-height",
-    `${viewportHeight}px`,
-  );
-  document.documentElement.style.setProperty(
-    "--visual-viewport-offset-top",
-    `${viewportOffsetTop}px`,
-  );
-  viewportSyncFrame = null;
+    document.documentElement.style.setProperty(
+      "--app-height",
+      `${layoutViewportHeight}px`,
+    );
+    document.documentElement.style.setProperty(
+      "--visual-viewport-height",
+      `${visualViewportHeight}px`,
+    );
+    document.documentElement.style.setProperty(
+      "--visual-viewport-offset-top",
+      `${visualViewportOffsetTop}px`,
+    );
+    viewportSyncFrame = null;
   });
 };
 
