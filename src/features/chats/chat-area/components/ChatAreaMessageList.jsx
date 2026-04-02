@@ -27,16 +27,16 @@ const MessagesContainer = styled.div`
   padding: 16px 8px
     ${(props) =>
       props.$keyboardOpen
-        ? "calc(96px + env(safe-area-inset-bottom, 0px))"
-        : "calc(20px + env(safe-area-inset-bottom, 0px))"};
+        ? "calc(84px + env(safe-area-inset-bottom, 0px))"
+        : "calc(10px + env(safe-area-inset-bottom, 0px))"};
   display: flex;
   flex-direction: column;
   min-height: 0;
   -webkit-overflow-scrolling: touch;
   scroll-padding-bottom: ${(props) =>
     props.$keyboardOpen
-      ? "calc(124px + env(safe-area-inset-bottom, 0px))"
-      : "calc(92px + env(safe-area-inset-bottom, 0px))"};
+      ? "calc(112px + env(safe-area-inset-bottom, 0px))"
+      : "calc(72px + env(safe-area-inset-bottom, 0px))"};
   transition:
     padding-bottom 0.25s ease,
     scroll-padding-bottom 0.25s ease;

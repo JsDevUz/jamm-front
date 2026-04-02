@@ -36,7 +36,7 @@ const ChatHeader = styled.div`
   }
 
   @media (max-width: 480px) {
-    padding: 8px 12px;
+    padding: calc(8px + env(safe-area-inset-top, 0px)) 12px 8px;
     min-height: 48px;
   }
 `;

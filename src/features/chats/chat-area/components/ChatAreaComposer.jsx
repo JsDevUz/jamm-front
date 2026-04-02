@@ -9,8 +9,8 @@ const MessageInputContainer = styled.div`
   padding: 12px 16px
     ${(props) =>
       props.$keyboardOpen
-        ? "12px"
-        : "calc(16px + env(safe-area-inset-bottom, 0px))"};
+        ? "10px"
+        : "calc(8px + env(safe-area-inset-bottom, 0px))"};
   background-color: var(--secondary-color);
   border-top: 1px solid var(--border-color);
   position: relative;
