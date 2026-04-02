@@ -11,7 +11,10 @@ const isIosDevice = () =>
 const getViewportMetrics = () => {
   if (typeof window === "undefined") {
     return {
+      appHeight: 0,
       keyboardHeight: 0,
+      offsetTop: 0,
+      viewportHeight: 0,
     };
   }
 
@@ -22,9 +25,13 @@ const getViewportMetrics = () => {
     0,
     (window.innerHeight || 0) - viewportHeight - offsetTop,
   );
+  const appHeight = viewportHeight + offsetTop;
 
   return {
+    appHeight,
     keyboardHeight,
+    offsetTop,
+    viewportHeight,
   };
 };
 
@@ -57,7 +64,7 @@ export default function useKeyboardAvoid(containerRef) {
     const root = document.documentElement;
     let frameId = null;
     let resetTimeoutId = null;
-    let lastKeyboardHeight = -1;
+    let lastSnapshot = "";
 
     const syncViewport = () => {
       if (frameId) {
@@ -65,14 +72,23 @@ export default function useKeyboardAvoid(containerRef) {
       }
 
       frameId = window.requestAnimationFrame(() => {
-        const { keyboardHeight: nextKeyboardHeight } = getViewportMetrics();
+        const {
+          appHeight,
+          keyboardHeight: nextKeyboardHeight,
+          offsetTop,
+          viewportHeight,
+        } = getViewportMetrics();
+        const nextSnapshot = `${appHeight}|${viewportHeight}|${offsetTop}|${nextKeyboardHeight}`;
 
-        if (nextKeyboardHeight !== lastKeyboardHeight) {
-          lastKeyboardHeight = nextKeyboardHeight;
-          setKeyboardHeight(nextKeyboardHeight);
+        if (nextSnapshot !== lastSnapshot) {
+          lastSnapshot = nextSnapshot;
+          root.style.setProperty("--app-height", `${appHeight}px`);
+          root.style.setProperty("--visual-viewport-height", `${viewportHeight}px`);
+          root.style.setProperty("--visual-viewport-offset-top", `${offsetTop}px`);
           root.style.setProperty("--keyboard-height", `${nextKeyboardHeight}px`);
           root.dataset.mobileKeyboardOpen =
             nextKeyboardHeight > 0 ? "true" : "false";
+          setKeyboardHeight(nextKeyboardHeight);
         }
 
         frameId = null;
@@ -89,9 +105,11 @@ export default function useKeyboardAvoid(containerRef) {
       resetTimeoutId = window.setTimeout(() => {
         const activeElement = document.activeElement;
         if (!isEditableElement(activeElement)) {
-          lastKeyboardHeight = 0;
+          lastSnapshot = "";
           setKeyboardHeight(0);
           resetViewportVariables(root);
+          syncViewport();
+          window.setTimeout(syncViewport, 140);
         }
       }, delay);
     };

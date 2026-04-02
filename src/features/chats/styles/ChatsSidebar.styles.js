@@ -15,6 +15,7 @@ export const SidebarContainer = styled.div`
   @media (max-width: 768px) {
     width: 100%;
     height: var(--app-height, 100dvh);
+    margin-top: calc(-1 * env(safe-area-inset-top, 0px));
   }
 `;
 
@@ -24,6 +25,10 @@ export const TopHeader = styled.div`
   align-items: center;
   border-bottom: 1px solid var(--border-color);
   justify-content: space-between;
+
+  @media (max-width: 768px) {
+    padding-top: calc(12px + env(safe-area-inset-top, 0px));
+  }
 `;
 
 export const HeaderSearch = styled(SidebarSearchField).attrs((props) => ({

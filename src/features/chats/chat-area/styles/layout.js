@@ -15,7 +15,6 @@ export const ChatContainer = styled.div`
     position: fixed;
     top: var(--visual-viewport-offset-top, 0px);
     left: 0;
-    padding-top: env(safe-area-inset-top, 0px);
     z-index: 1000;
     animation: slideInRight 0.3s ease-out;
   }
