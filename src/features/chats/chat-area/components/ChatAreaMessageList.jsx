@@ -27,7 +27,7 @@ const MessagesContainer = styled.div`
   padding: 16px 8px
     ${(props) =>
       props.$keyboardOpen
-        ? "calc(84px + env(safe-area-inset-bottom, 0px))"
+        ? "84px"
         : "calc(10px + env(safe-area-inset-bottom, 0px))"};
   display: flex;
   flex-direction: column;
@@ -35,7 +35,7 @@ const MessagesContainer = styled.div`
   -webkit-overflow-scrolling: touch;
   scroll-padding-bottom: ${(props) =>
     props.$keyboardOpen
-      ? "calc(112px + env(safe-area-inset-bottom, 0px))"
+      ? "112px"
       : "calc(72px + env(safe-area-inset-bottom, 0px))"};
   transition:
     padding-bottom 0.25s ease,

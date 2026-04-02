@@ -17,6 +17,22 @@ import { normalizeReadByIds } from "../features/chats/chat-area/utils/chatAreaMe
 const ChatsContext = createContext();
 const deliveredNotificationKeys = new Set();
 
+const matchesSelectedChat = (chat, targetId) => {
+  if (!chat || !targetId) return false;
+
+  const normalizedTargetId = String(targetId);
+  return [
+    chat.urlSlug,
+    chat.privateurl,
+    chat.jammId,
+    chat.id,
+    chat._id,
+    chat.username,
+  ]
+    .filter(Boolean)
+    .some((value) => String(value) === normalizedTargetId);
+};
+
 export const useChats = () => {
   return useContext(ChatsContext);
 };
@@ -108,9 +124,7 @@ export const ChatsProvider = ({ children }) => {
         const newChats = [...prev];
         const chat = { ...newChats[chatIndex] };
 
-        const isCurrentChat =
-          String(chat.urlSlug) === String(selectedChatId) ||
-          String(chat.id) === String(selectedChatId);
+        const isCurrentChat = matchesSelectedChat(chat, selectedChatId);
 
         chat.lastMessage = rawMsg.content;
         chat.hasMessages = true;
@@ -655,10 +669,7 @@ export const ChatsProvider = ({ children }) => {
     if (!selectedChatId || selectedChatId === "0") return;
     setChats((prev) =>
       prev.map((c) => {
-        if (
-          String(c.urlSlug) === String(selectedChatId) ||
-          String(c.id) === String(selectedChatId)
-        ) {
+        if (matchesSelectedChat(c, selectedChatId)) {
           return { ...c, unread: 0 };
         }
         return c;

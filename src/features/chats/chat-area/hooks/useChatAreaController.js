@@ -21,6 +21,22 @@ import {
   normalizeSenderId,
 } from "../utils/chatAreaMessageUtils";
 
+const matchesSelectedChat = (chat, targetId) => {
+  if (!chat || !targetId) return false;
+
+  const normalizedTargetId = String(targetId);
+  return [
+    chat.urlSlug,
+    chat.privateurl,
+    chat.jammId,
+    chat.id,
+    chat._id,
+    chat.username,
+  ]
+    .filter(Boolean)
+    .some((value) => String(value) === normalizedTargetId);
+};
+
 export default function useChatAreaController({
   selectedChatId,
   selectedNav,
@@ -73,8 +89,8 @@ export default function useChatAreaController({
   );
   const resetChatAreaUi = useChatAreaUiStore((state) => state.resetChatAreaUi);
 
-  const currentChat = chats.find(
-    (chat) => chat.urlSlug === selectedChatId || chat.id === selectedChatId,
+  const currentChat = chats.find((chat) =>
+    matchesSelectedChat(chat, selectedChatId),
   );
 
   const [messageInput, setMessageInput] = useState("");
@@ -937,9 +953,14 @@ export default function useChatAreaController({
           (chat) => !chat.isGroup && chat.isSavedMessages,
         );
 
-        if (savedMessagesChat?.jammId || savedMessagesChat?.urlSlug) {
+        if (
+          savedMessagesChat?.urlSlug ||
+          savedMessagesChat?.privateurl ||
+          savedMessagesChat?.jammId ||
+          savedMessagesChat?.id
+        ) {
           navigate(
-            `/users/${savedMessagesChat.jammId || savedMessagesChat.urlSlug}`,
+            `/users/${savedMessagesChat.urlSlug || savedMessagesChat.privateurl || savedMessagesChat.jammId || savedMessagesChat.id}`,
           );
           return;
         }
@@ -971,7 +992,9 @@ export default function useChatAreaController({
       );
 
       if (existingChat) {
-        navigate(`/users/${existingChat.jammId}`);
+        navigate(
+          `/users/${existingChat.urlSlug || existingChat.privateurl || existingChat.jammId || existingChat.id}`,
+        );
         return;
       }
 
