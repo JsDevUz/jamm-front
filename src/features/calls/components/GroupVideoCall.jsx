@@ -373,8 +373,7 @@ const StageLayout = styled.div`
       : p.$immersive
         ? "minmax(0, 1fr) minmax(240px, 0.34fr)"
         : "minmax(0, 1fr) minmax(220px, 0.3fr)"};
-  grid-template-rows: ${(p) =>
-    p.$mobile && !p.$immersive ? "minmax(0, 1fr) auto" : "minmax(0, 1fr)"};
+  grid-template-rows: minmax(0, 1fr);
   overflow: hidden;
 `;
 
@@ -434,6 +433,33 @@ const MobileImmersiveRail = styled.div`
   z-index: 7;
 `;
 
+const MobileTopRail = styled.div`
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  right: 108px;
+  z-index: 8;
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+`;
+
+const MobileTopRailTile = styled.div`
+  flex: 0 0 min(28vw, 112px);
+  width: min(28vw, 112px);
+  min-width: 88px;
+  height: min(20vw, 96px);
+  min-height: 76px;
+`;
+
 const StageBadge = styled.div`
   position: absolute;
   left: 14px;
@@ -482,12 +508,13 @@ const StageActionBtn = styled.button`
 
 const VideoTile = styled.div`
   position: relative;
-  border-radius: 14px;
+  border-radius: ${(p) => (p.$compact ? "20px" : "14px")};
   overflow: hidden;
   background: var(--call-panel);
   min-width: 0;
   min-height: 0;
   height: 100%;
+  isolation: isolate;
   border: 2px solid
     ${(p) =>
       p.$isLocal
@@ -509,9 +536,13 @@ const VideoTile = styled.div`
   video {
     width: 100%;
     height: 100%;
-    object-fit: cover;
+    object-fit: ${(p) => (p.$screenShare ? "contain" : "cover")};
     display: block;
     transform: ${(p) => (p.$mirror ? "scaleX(-1)" : "none")};
+    background: ${(p) =>
+      p.$screenShare
+        ? "color-mix(in srgb, var(--call-surface) 94%, black 6%)"
+        : "black"};
   }
 `;
 
@@ -522,36 +553,40 @@ const TileLabel = styled.div`
   background: rgba(0, 0, 0, 0.55);
   backdrop-filter: blur(6px);
   color: white;
-  font-size: 12px;
+  font-size: ${(p) => (p.$compact ? "11px" : "12px")};
   font-weight: 600;
-  padding: 3px 10px;
+  padding: ${(p) => (p.$compact ? "4px 8px" : "3px 10px")};
   border-radius: 20px;
   display: flex;
   align-items: center;
   gap: 5px;
+  max-width: calc(100% - 20px);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 `;
 
 const NoCamera = styled.div`
   width: 100%;
   height: 100%;
-  min-height: 120px;
+  min-height: ${(p) => (p.$compact ? "76px" : "120px")};
   display: flex;
   align-items: center;
   justify-content: center;
   flex-direction: column;
-  gap: 10px;
+  gap: ${(p) => (p.$compact ? "6px" : "10px")};
   color: var(--call-muted);
 `;
 
 const Avatar = styled.div`
-  width: 60px;
-  height: 60px;
+  width: ${(p) => (p.$compact ? "44px" : "60px")};
+  height: ${(p) => (p.$compact ? "44px" : "60px")};
   border-radius: 50%;
   background: var(--call-panel);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 26px;
+  font-size: ${(p) => (p.$compact ? "20px" : "26px")};
   font-weight: 700;
   color: var(--call-text);
 `;
@@ -1087,11 +1122,12 @@ const VideoEl = ({
   return (
     <VideoTile
       $isLocal={isLocal}
+      $compact={compact}
       $mirror={isLocal && !isScreenShare}
+      $screenShare={isScreenShare}
       $active={isActive}
       $clickable={Boolean(onSelect)}
       onClick={handleTileClick}
-      style={compact ? { minHeight: 120 } : undefined}
     >
       {canFullscreen ? (
         <FullscreenBtn
@@ -1120,12 +1156,12 @@ const VideoEl = ({
       {isCamOn && stream ? (
         <video ref={ref} autoPlay playsInline muted={muted} />
       ) : (
-        <NoCamera>
-          <Avatar>{label?.charAt(0)?.toUpperCase() || "?"}</Avatar>
-          <span style={{ fontSize: 12 }}>{label}</span>
+        <NoCamera $compact={compact}>
+          <Avatar $compact={compact}>{label?.charAt(0)?.toUpperCase() || "?"}</Avatar>
+          <span style={{ fontSize: compact ? 11 : 12 }}>{label}</span>
         </NoCamera>
       )}
-      <TileLabel>
+      <TileLabel $compact={compact}>
         {!isCamOn && !isScreenShare && <VideoOff size={11} />}
         {label}
         {isLocal && t("groupCall.localSuffix")}
@@ -1155,6 +1191,7 @@ const GroupVideoCall = ({
   const [showDrawer, setShowDrawer] = useState(false);
   const [selectedTileId, setSelectedTileId] = useState(null);
   const [fullscreenTileId, setFullscreenTileId] = useState(null);
+  const [lastSpeakerPeerId, setLastSpeakerPeerId] = useState(null);
   const [pipWindow, setPipWindow] = useState(null);
   const [pipContainer, setPipContainer] = useState(null);
   const pipCloseIntentRef = useRef(false);
@@ -1662,10 +1699,159 @@ const GroupVideoCall = ({
     });
   }, [callTiles]);
 
+  useEffect(() => {
+    if (!remoteStreams.length) {
+      setLastSpeakerPeerId(null);
+      return;
+    }
+
+    setLastSpeakerPeerId((current) => {
+      if (current && remoteStreams.some((streamItem) => streamItem.peerId === current)) {
+        return current;
+      }
+      return remoteStreams[0]?.peerId || null;
+    });
+  }, [remoteStreams]);
+
+  useEffect(() => {
+    if (
+      typeof window === "undefined" ||
+      typeof (window.AudioContext || window.webkitAudioContext) !== "function" ||
+      remoteStreams.length === 0
+    ) {
+      return undefined;
+    }
+
+    const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
+    const audioContext = new AudioContextCtor();
+    let rafId = 0;
+    let disposed = false;
+    let lastCommittedPeerId = null;
+    let lastCommitAt = 0;
+
+    const analysers = remoteStreams
+      .map(({ peerId, stream }) => {
+        const peerState = remotePeerStates[peerId];
+        const audioTracks =
+          stream
+            ?.getAudioTracks?.()
+            ?.filter(
+              (track) => track.readyState === "live" && peerState?.audioMuted !== true,
+            ) || [];
+
+        if (audioTracks.length === 0) return null;
+
+        try {
+          const source = audioContext.createMediaStreamSource(new MediaStream(audioTracks));
+          const analyser = audioContext.createAnalyser();
+          analyser.fftSize = 256;
+          analyser.smoothingTimeConstant = 0.82;
+          source.connect(analyser);
+
+          return {
+            peerId,
+            source,
+            analyser,
+            data: new Uint8Array(analyser.frequencyBinCount),
+          };
+        } catch {
+          return null;
+        }
+      })
+      .filter(Boolean);
+
+    if (!analysers.length) {
+      audioContext.close().catch(() => {});
+      return undefined;
+    }
+
+    audioContext.resume?.().catch(() => {});
+
+    const detectSpeaker = () => {
+      if (disposed) return;
+
+      let strongestPeerId = null;
+      let strongestLevel = 0;
+
+      analysers.forEach((item) => {
+        item.analyser.getByteTimeDomainData(item.data);
+
+        let totalDelta = 0;
+        for (let index = 0; index < item.data.length; index += 1) {
+          totalDelta += Math.abs(item.data[index] - 128);
+        }
+
+        const averageDelta = totalDelta / item.data.length;
+        if (averageDelta > strongestLevel) {
+          strongestLevel = averageDelta;
+          strongestPeerId = item.peerId;
+        }
+      });
+
+      if (strongestPeerId && strongestLevel > 10) {
+        const now = performance.now();
+        if (strongestPeerId !== lastCommittedPeerId || now - lastCommitAt > 1200) {
+          lastCommittedPeerId = strongestPeerId;
+          lastCommitAt = now;
+          setLastSpeakerPeerId((current) =>
+            current === strongestPeerId ? current : strongestPeerId,
+          );
+        } else {
+          lastCommitAt = now;
+        }
+      }
+
+      rafId = window.requestAnimationFrame(detectSpeaker);
+    };
+
+    rafId = window.requestAnimationFrame(detectSpeaker);
+
+    return () => {
+      disposed = true;
+      if (rafId) {
+        window.cancelAnimationFrame(rafId);
+      }
+      analysers.forEach((item) => {
+        try {
+          item.source.disconnect();
+        } catch {}
+        try {
+          item.analyser.disconnect();
+        } catch {}
+      });
+      audioContext.close().catch(() => {});
+    };
+  }, [remotePeerStates, remoteStreams]);
+
   const activeStageTileId = fullscreenTileId || selectedTileId || defaultStageTileId;
   const activeStageTile = callTiles.find((tile) => tile.id === activeStageTileId) || null;
   const sideTiles = callTiles.filter((tile) => tile.id !== activeStageTileId);
   const hasStageLayout = Boolean(activeStageTile);
+
+  const mobileCompactTiles = useMemo(() => {
+    if (!isMobileViewport || !hasStageLayout) return [];
+
+    const selfTile =
+      sideTiles.find((tile) => tile.id === "local") ||
+      callTiles.find((tile) => tile.id === "local") ||
+      null;
+
+    const speakingTile =
+      sideTiles.find(
+        (tile) =>
+          !tile.isLocal &&
+          !tile.isScreenShare &&
+          tile.peerId === lastSpeakerPeerId,
+      ) ||
+      sideTiles.find((tile) => !tile.isLocal && !tile.isScreenShare) ||
+      sideTiles.find((tile) => !tile.isLocal) ||
+      null;
+
+    const compactTiles = [];
+    if (selfTile) compactTiles.push(selfTile);
+    if (speakingTile && speakingTile.id !== selfTile?.id) compactTiles.push(speakingTile);
+    return compactTiles.slice(0, 2);
+  }, [callTiles, hasStageLayout, isMobileViewport, lastSpeakerPeerId, sideTiles]);
 
   const qualityTone =
     networkQuality === "poor"
@@ -1941,14 +2127,21 @@ const GroupVideoCall = ({
               <StageBadge>
                 {activeStageTile.label}
               </StageBadge>
-              {isMobileViewport && fullscreenTileId && sideTiles.length > 0 ? (
-                <MobileImmersiveRail>
-                  {sideTiles.map((tile) => renderCallTile(tile, { compact: true }))}
-                </MobileImmersiveRail>
+              {isMobileViewport && mobileCompactTiles.length > 0 ? (
+                <MobileTopRail>
+                  {mobileCompactTiles.map((tile) => (
+                    <MobileTopRailTile key={`compact-${tile.id}`}>
+                      {renderCallTile(tile, {
+                        compact: true,
+                        showFullscreenControl: false,
+                      })}
+                    </MobileTopRailTile>
+                  ))}
+                </MobileTopRail>
               ) : null}
             </StageMain>
 
-            {!isMobileViewport || !fullscreenTileId ? (
+            {!isMobileViewport ? (
               <StageRail>
                 {sideTiles.length > 0 ? <StageRailLabel>Qolganlar</StageRailLabel> : null}
                 <StageRailGrid

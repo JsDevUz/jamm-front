@@ -244,6 +244,11 @@ export const ScrollPane = styled.div`
   flex: 1;
   overflow-y: auto;
   position: relative;
+  scrollbar-gutter: stable both-edges;
+
+  @supports not (scrollbar-gutter: stable) {
+    overflow-y: scroll;
+  }
 
   ${(props) => props.$focused && focusedPaneStyles}
 `;
