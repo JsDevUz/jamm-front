@@ -11,9 +11,9 @@ export const ChatContainer = styled.div`
 
   @media (max-width: 768px) {
     width: 100%;
-    height: var(--visual-viewport-height, var(--app-height, 100dvh));
+    height: var(--app-height, 100dvh);
     position: fixed;
-    top: var(--visual-viewport-offset-top, 0px);
+    top: 0;
     left: 0;
     z-index: 1000;
     animation: slideInRight 0.3s ease-out;
@@ -41,7 +41,7 @@ export const OuterChatWrapper = styled.div`
   position: relative;
 
   @media (max-width: 768px) {
-    height: var(--visual-viewport-height, var(--app-height, 100dvh));
+    height: var(--app-height, 100dvh);
   }
 `;
 
@@ -50,6 +50,13 @@ export const ChatMain = styled.div`
   flex: 1;
   overflow: hidden;
   position: relative;
+  box-sizing: border-box;
+
+  @media (max-width: 768px) {
+    padding-bottom: ${(props) => `${props.$keyboardHeight || 0}px`};
+    transition: padding-bottom 0.22s ease;
+    will-change: padding-bottom;
+  }
 `;
 
 export const ChatMainColumn = styled.div`

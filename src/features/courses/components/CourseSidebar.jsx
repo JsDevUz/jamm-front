@@ -21,6 +21,10 @@ import CreateCourseDialog from "./CreateCourseDialog";
 import ConfirmDialog from "../../../shared/ui/dialogs/ConfirmDialog";
 import SidebarSearchField from "../../../shared/ui/forms/SidebarSearchField";
 import { SidebarIconButton as ButtonWrapper } from "../../../shared/ui/buttons/IconButton";
+import {
+  mobileFullscreenPane,
+  mobileTopSafePadding,
+} from "../../../shared/styles/mobileSafeArea";
 
 const SidebarContainer = styled.div`
   width: 340px;
@@ -32,7 +36,7 @@ const SidebarContainer = styled.div`
 
   @media (max-width: 768px) {
     width: 100%;
-    height: calc(100vh);
+    height: var(--app-height, 100dvh);
   }
 `;
 
@@ -42,6 +46,7 @@ const HeaderSection = styled.div`
   display: flex;
   align-items: center;
   justify-content: space-between;
+  ${mobileTopSafePadding(12, 16, 12, 16)};
 `;
 
 const HeaderTitle = styled.h2`

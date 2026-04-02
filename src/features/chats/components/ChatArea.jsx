@@ -81,7 +81,7 @@ const ChatArea = ({
             headerMenuRef={headerMenuRef}
           />
 
-          <ChatMain>
+          <ChatMain $keyboardHeight={keyboardHeight}>
             <ChatMainColumn>
               <ChatAreaMessageList keyboardHeight={keyboardHeight} />
               <ChatAreaComposer

@@ -1,4 +1,8 @@
 import styled from "styled-components";
+import {
+  mobileFullscreenPane,
+  mobileTopSafePadding,
+} from "../../../../shared/styles/mobileSafeArea";
 
 export const PlayerContainer = styled.div`
   flex: 1;
@@ -13,10 +17,7 @@ export const PlayerContainer = styled.div`
   }
 
   @media (max-width: 768px) {
-    position: fixed;
-    inset: 0;
-    width: 100%;
-    height: 100vh;
+    ${mobileFullscreenPane};
     z-index: 9999;
     animation: slideInFromRight 0.3s ease-out;
   }
@@ -105,6 +106,7 @@ export const TopBar = styled.div`
   display: flex;
   align-items: center;
   justify-content: space-between;
+  ${mobileTopSafePadding(12, 16, 12, 16)};
 `;
 
 export const TopBarLeft = styled.div`

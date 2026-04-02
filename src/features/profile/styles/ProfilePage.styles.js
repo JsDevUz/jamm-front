@@ -1,5 +1,6 @@
 import styled from "styled-components";
 import { PaneDivider, PaneDividerButton } from "../../../components/JammLayout.styles";
+import { mobileFullscreenPane } from "../../../shared/styles/mobileSafeArea";
 
 export const ProfileContainer = styled.div`
   display: flex;
@@ -36,12 +37,7 @@ export const RightPanel = styled.div`
       : ""}
 
   @media (max-width: 768px) {
-    position: fixed;
-    top: 0;
-    right: 0;
-    bottom: 0;
-    width: 100%;
-    height: 100vh;
+    ${mobileFullscreenPane};
     z-index: 9999;
     animation: slideInFromRight 0.3s ease-out;
   }

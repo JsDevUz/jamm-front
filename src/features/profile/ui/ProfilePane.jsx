@@ -1,4 +1,5 @@
 import styled from "styled-components";
+import { mobileTopSafePadding } from "../../../shared/styles/mobileSafeArea";
 
 export const ProfilePaneWrapper = styled.div`
   display: flex;
@@ -17,6 +18,7 @@ export const ProfilePaneHeader = styled.div`
   position: sticky;
   top: 0;
   z-index: 10;
+  ${mobileTopSafePadding(14, 18, 14, 18)};
 `;
 
 export const ProfilePaneTitle = styled.h2`

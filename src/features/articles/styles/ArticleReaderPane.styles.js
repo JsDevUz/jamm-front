@@ -1,4 +1,8 @@
 import styled from "styled-components";
+import {
+  mobileFullscreenPane,
+  mobileTopSafePadding,
+} from "../../../shared/styles/mobileSafeArea";
 
 export const Pane = styled.div`
   display: flex;
@@ -21,12 +25,7 @@ export const Pane = styled.div`
   }
 
   @media (max-width: 768px) {
-    position: fixed;
-    top: 0;
-    right: 0;
-    bottom: 0;
-    width: 100%;
-    height: 100vh;
+    ${mobileFullscreenPane};
     z-index: 9999;
   }
 
@@ -58,7 +57,7 @@ export const Wrap = styled.div`
   padding: 28px 28px 72px;
 
   @media (max-width: 768px) {
-    padding: 18px 16px 96px;
+    ${mobileTopSafePadding(18, 16, 96, 16)};
   }
 `;
 

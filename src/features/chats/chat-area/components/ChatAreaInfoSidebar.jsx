@@ -7,6 +7,10 @@ import ImageLightbox from "../../../../shared/ui/media/ImageLightbox";
 import UserNameWithDecoration from "../../../../shared/ui/users/UserNameWithDecoration";
 import useChatAreaUiStore from "../store/useChatAreaUiStore";
 import { RESOLVED_APP_BASE_URL } from "../../../../config/env";
+import {
+  mobileFullscreenPane,
+  mobileTopSafePadding,
+} from "../../../../shared/styles/mobileSafeArea";
 
 const RightSidebar = styled.div`
   width: 350px;
@@ -27,12 +31,7 @@ const RightSidebar = styled.div`
   }
 
   @media (max-width: 768px) {
-    position: fixed;
-    top: 0;
-    right: 0;
-    bottom: 0;
-    width: 100%;
-    height: 100vh;
+    ${mobileFullscreenPane};
     z-index: 9999;
     animation: slideInFromRight 0.3s ease-out;
   }
@@ -56,6 +55,12 @@ const SidebarHeader = styled.div`
   border-bottom: 1px solid var(--border-color);
   font-weight: 600;
   color: var(--text-color);
+  ${mobileTopSafePadding(12, 16, 12, 16)};
+
+  @media (max-width: 768px) {
+    height: auto;
+    min-height: 56px;
+  }
 `;
 
 const SidebarCloseButton = styled.button`

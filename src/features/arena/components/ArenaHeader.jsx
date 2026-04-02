@@ -1,12 +1,23 @@
 import React from "react";
 import styled from "styled-components";
 import { ArrowLeft } from "lucide-react";
+import { mobileTopSafePadding } from "../../../shared/styles/mobileSafeArea";
 
 const HeaderRow = styled.div`
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 24px;
+  ${mobileTopSafePadding(10, 0, 0, 0)};
+
+  @media (max-width: 768px) {
+    margin-bottom: 18px;
+  }
+
+  @media (max-width: 480px) {
+    padding-top: calc(6px + env(safe-area-inset-top, 0px));
+    margin-bottom: 14px;
+  }
 `;
 
 const LeftSide = styled.div`

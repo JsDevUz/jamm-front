@@ -375,6 +375,10 @@ const StageLayout = styled.div`
         : "minmax(0, 1fr) minmax(220px, 0.3fr)"};
   grid-template-rows: minmax(0, 1fr);
   overflow: hidden;
+
+  @media (max-width: 768px) {
+    padding-top: ${(p) => (p.$mobileCompactCount > 0 ? "108px" : "14px")};
+  }
 `;
 
 const StageMain = styled.div`
@@ -435,47 +439,20 @@ const MobileImmersiveRail = styled.div`
 
 const MobileTopRail = styled.div`
   position: absolute;
-  top: 14px;
-  left: 14px;
-  right: 108px;
+  top: 16px;
+  right: 16px;
   z-index: 8;
-  display: flex;
-  align-items: stretch;
+  display: grid;
   gap: 8px;
-  overflow-x: auto;
-  padding-bottom: 2px;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: none;
-
-  &::-webkit-scrollbar {
-    display: none;
-  }
+  width: min(30vw, 126px);
+  max-width: 126px;
+  justify-items: stretch;
 `;
 
 const MobileTopRailTile = styled.div`
-  flex: 0 0 min(28vw, 112px);
-  width: min(28vw, 112px);
-  min-width: 88px;
+  width: 100%;
   height: min(20vw, 96px);
   min-height: 76px;
-`;
-
-const StageBadge = styled.div`
-  position: absolute;
-  left: 14px;
-  bottom: 14px;
-  z-index: 7;
-  max-width: calc(100% - 108px);
-  padding: 8px 14px;
-  border-radius: 999px;
-  background: rgba(0, 0, 0, 0.58);
-  backdrop-filter: blur(10px);
-  color: #fff;
-  font-size: 13px;
-  font-weight: 700;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
 `;
 
 const StageActions = styled.div`
@@ -543,6 +520,10 @@ const VideoTile = styled.div`
       p.$screenShare
         ? "color-mix(in srgb, var(--call-surface) 94%, black 6%)"
         : "black"};
+
+    @media (max-width: 768px) {
+      object-fit: contain;
+    }
   }
 `;
 
@@ -2097,7 +2078,21 @@ const GroupVideoCall = ({
             $mobile={isMobileViewport}
             $immersive={Boolean(fullscreenTileId)}
             $landscape={isLandscapeViewport}
+            $mobileCompactCount={mobileCompactTiles.length}
           >
+            {isMobileViewport && mobileCompactTiles.length > 0 ? (
+              <MobileTopRail>
+                {mobileCompactTiles.map((tile) => (
+                  <MobileTopRailTile key={`compact-${tile.id}`}>
+                    {renderCallTile(tile, {
+                      compact: true,
+                      showFullscreenControl: false,
+                    })}
+                  </MobileTopRailTile>
+                ))}
+              </MobileTopRail>
+            ) : null}
+
             <StageMain>
               <div style={{ height: "100%" }}>
                 {renderCallTile(activeStageTile, {
@@ -2124,21 +2119,6 @@ const GroupVideoCall = ({
                   </StageActionBtn>
                 ) : null}
               </StageActions>
-              <StageBadge>
-                {activeStageTile.label}
-              </StageBadge>
-              {isMobileViewport && mobileCompactTiles.length > 0 ? (
-                <MobileTopRail>
-                  {mobileCompactTiles.map((tile) => (
-                    <MobileTopRailTile key={`compact-${tile.id}`}>
-                      {renderCallTile(tile, {
-                        compact: true,
-                        showFullscreenControl: false,
-                      })}
-                    </MobileTopRailTile>
-                  ))}
-                </MobileTopRail>
-              ) : null}
             </StageMain>
 
             {!isMobileViewport ? (

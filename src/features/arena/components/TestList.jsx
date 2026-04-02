@@ -31,18 +31,13 @@ import { SidebarIconButton as ButtonWrapper } from "../../../shared/ui/buttons/I
 import { RESOLVED_APP_BASE_URL } from "../../../config/env";
 import ConfirmDialog from "../../../shared/ui/dialogs/ConfirmDialog";
 import { APP_LIMITS, isPremiumUser } from "../../../constants/appLimits";
+import { mobileFullscreenPane } from "../../../shared/styles/mobileSafeArea";
 const Container = styled.div`
   display: flex;
   flex-direction: column;
 
   @media (max-width: 768px) {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    width: 100%;
-    height: 100vh;
+    ${mobileFullscreenPane};
     z-index: 9999;
     background-color: var(--background-color);
     animation: slideInFromRight 0.3s ease-out;

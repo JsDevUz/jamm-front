@@ -1,4 +1,8 @@
 import styled from "styled-components";
+import {
+  mobileFullscreenPane,
+  mobileTopSafePadding,
+} from "../../../../shared/styles/mobileSafeArea";
 
 export const PaneOverlay = styled.div`
   position: fixed;
@@ -25,8 +29,13 @@ export const PaneShell = styled.div`
 
   @media (max-width: 980px) {
     width: 100%;
-    min-height: 100dvh;
+    min-height: var(--app-height, 100dvh);
     height: auto;
+  }
+
+  @media (max-width: 768px) {
+    ${mobileFullscreenPane};
+    overflow-y: auto;
   }
 `;
 
@@ -173,6 +182,7 @@ export const PaneTopBar = styled.div`
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  ${mobileTopSafePadding(12, 16, 12, 16)};
 `;
 
 export const PaneTopActions = styled.div`
