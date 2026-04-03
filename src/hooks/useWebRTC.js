@@ -62,40 +62,40 @@ const CALL_QUALITY_PROFILES = {
   screen: {
     key: "screen",
     label: "screen-share",
-    width: 960,
-    height: 540,
-    frameRate: 10,
-    videoBitrate: 450_000,
+    width: 1920,
+    height: 1080,
+    frameRate: 12,
+    videoBitrate: 2_400_000,
     audioBitrate: 32_000,
     scaleResolutionDownBy: 1,
   },
   screenLimited: {
     key: "screen-limited",
     label: "screen-fast",
-    width: 854,
-    height: 480,
-    frameRate: 8,
-    videoBitrate: 300_000,
+    width: 1600,
+    height: 900,
+    frameRate: 10,
+    videoBitrate: 1_600_000,
     audioBitrate: 32_000,
     scaleResolutionDownBy: 1,
   },
   screenPoor: {
     key: "screen-poor",
     label: "screen-lite",
-    width: 640,
-    height: 360,
-    frameRate: 6,
-    videoBitrate: 180_000,
+    width: 1280,
+    height: 720,
+    frameRate: 8,
+    videoBitrate: 900_000,
     audioBitrate: 32_000,
     scaleResolutionDownBy: 1,
   },
   screenCamera: {
     key: "screen-camera",
     label: "camera-low",
-    width: 240,
-    height: 135,
+    width: 320,
+    height: 180,
     frameRate: 6,
-    videoBitrate: 70_000,
+    videoBitrate: 90_000,
     audioBitrate: 32_000,
     scaleResolutionDownBy: 2,
   },
@@ -135,13 +135,13 @@ const resolveCallQualityProfile = ({
     (navigatorState.downlink > 0 && navigatorState.downlink < 1);
 
   if (isScreenSharing) {
-    if (isVeryWeakNetwork || peerCount >= 4) {
+    if (isVeryWeakNetwork || peerCount >= 8) {
       return CALL_QUALITY_PROFILES.screenPoor;
     }
     if (
       networkQuality === "limited" ||
       navigatorState.effectiveType === "3g" ||
-      peerCount >= 2
+      peerCount >= 5
     ) {
       return CALL_QUALITY_PROFILES.screenLimited;
     }
@@ -391,9 +391,10 @@ export function useWebRTC({
                 maxFramerate: screenProfile.frameRate,
                 scaleResolutionDownBy: screenProfile.scaleResolutionDownBy,
                 networkPriority: "high",
+                priority: "high",
               };
               params.encodings = encodings;
-              params.degradationPreference = "maintain-framerate";
+              params.degradationPreference = "maintain-resolution";
             } else if (sender.track.id === videoTrack?.id) {
               encodings[0] = {
                 ...encodings[0],
@@ -1393,6 +1394,8 @@ export function useWebRTC({
       });
       const screen = await navigator.mediaDevices.getDisplayMedia({
         video: {
+          logicalSurface: true,
+          cursor: "always",
           width: { ideal: nextScreenProfile.width, max: nextScreenProfile.width },
           height: { ideal: nextScreenProfile.height, max: nextScreenProfile.height },
           frameRate: {

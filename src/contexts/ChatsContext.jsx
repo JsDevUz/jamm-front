@@ -369,7 +369,8 @@ export const ChatsProvider = ({ children }) => {
             displayInfo = {
               name: "Saqlangan xabarlar",
               avatar: "",
-              urlSlug: chat._id,
+              username: resolvedCurrentUser.username,
+              urlSlug: resolvedCurrentUser.username || chat._id,
               isSavedMessages: true,
             };
           }

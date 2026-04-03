@@ -5,7 +5,10 @@ export const ChatContainer = styled.div`
   flex-direction: column;
   flex: 1;
   background-color: var(--background-color);
-  height: var(--app-height, 100dvh);
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
   overflow: hidden;
   box-sizing: border-box;
 
@@ -36,7 +39,9 @@ export const OuterChatWrapper = styled.div`
   display: flex;
   flex: 1;
   width: 100%;
-  height: var(--app-height, 100dvh);
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
   overflow: hidden;
   position: relative;
 
@@ -48,6 +53,8 @@ export const OuterChatWrapper = styled.div`
 export const ChatMain = styled.div`
   display: flex;
   flex: 1;
+  min-width: 0;
+  min-height: 0;
   overflow: hidden;
   position: relative;
   box-sizing: border-box;

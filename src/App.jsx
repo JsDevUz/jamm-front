@@ -19,11 +19,11 @@ import RouteMetadataManager from "./app/components/RouteMetadataManager";
 function App() {
   return (
     <Router>
-      <RouteMetadataManager />
       <ThemeProvider>
         <AppGate>
           <Toaster position="top-center" containerStyle={{ zIndex: 99999 }} />
           <ChatsProvider>
+            <RouteMetadataManager />
             <PresenceProvider>
               <CallProvider>
                 <CoursesProvider>

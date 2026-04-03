@@ -164,6 +164,8 @@ export const MainContent = styled.div`
   display: flex;
   flex: 1;
   height: 100%;
+  min-width: 0;
+  min-height: 0;
   overflow: hidden;
 
   @media (max-width: 700px) {
@@ -234,6 +236,8 @@ export const ContentPane = styled.div`
   flex: 1;
   flex-direction: column;
   height: 100%;
+  min-width: 0;
+  min-height: 0;
   overflow: hidden;
   position: relative;
 

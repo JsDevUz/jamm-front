@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { useLocation } from "react-router-dom";
 import { API_BASE_URL } from "../../config/env";
+import { useChats } from "../../contexts/ChatsContext";
 
 const DEFAULT_META = {
   title: "Jamm | Chat, Kurslar va Musobaqa Platformasi",
@@ -130,6 +131,22 @@ function getStaticMeta(pathname) {
   return NAV_META.find((item) => item.pattern.test(pathname)) || DEFAULT_META;
 }
 
+function matchesChatRoute(chat, targetId) {
+  if (!chat || !targetId) return false;
+
+  const normalizedTargetId = String(targetId);
+  return [
+    chat.urlSlug,
+    chat.privateurl,
+    chat.jammId,
+    chat.id,
+    chat._id,
+    chat.username,
+  ]
+    .filter(Boolean)
+    .some((value) => String(value) === normalizedTargetId);
+}
+
 async function fetchPreviewMeta(pathname) {
   const baseUrl = String(API_BASE_URL || "").replace(/\/+$/, "");
   if (!baseUrl) {
@@ -167,6 +184,7 @@ async function fetchPreviewMeta(pathname) {
 
 export default function RouteMetadataManager() {
   const location = useLocation();
+  const { chats = [] } = useChats();
 
   useEffect(() => {
     let cancelled = false;
@@ -177,6 +195,15 @@ export default function RouteMetadataManager() {
 
       if (!DYNAMIC_PREVIEW_PATTERNS.some((pattern) => pattern.test(pathname))) {
         return;
+      }
+
+      const chatRouteMatch = pathname.match(/^\/(users|groups)\/([^/]+)$/);
+      if (chatRouteMatch) {
+        const [, , resourceId] = chatRouteMatch;
+        const matchedChat = chats.find((chat) => matchesChatRoute(chat, resourceId));
+        if (matchedChat) {
+          return;
+        }
       }
 
       try {
@@ -194,7 +221,7 @@ export default function RouteMetadataManager() {
     return () => {
       cancelled = true;
     };
-  }, [location.pathname]);
+  }, [chats, location.pathname]);
 
   return null;
 }

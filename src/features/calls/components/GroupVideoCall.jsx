@@ -31,6 +31,7 @@ import {
   User,
   ShieldAlert,
   Minimize2,
+  RefreshCcw,
 } from "lucide-react";
 import { useWebRTC } from "../../../hooks/useWebRTC";
 import useAuthStore from "../../../store/authStore";
@@ -367,13 +368,13 @@ const StageLayout = styled.div`
   min-width: 0;
   min-height: 0;
   position: relative;
-  grid-template-columns: ${(p) =>
-    p.$mobile
-      ? "minmax(0, 1fr)"
-      : p.$immersive
-        ? "minmax(0, 1fr) minmax(240px, 0.34fr)"
-        : "minmax(0, 1fr) minmax(220px, 0.3fr)"};
-  grid-template-rows: minmax(0, 1fr);
+  grid-template-columns: ${(p) => {
+    if (p.$mobile) return "minmax(0, 1fr)";
+    if (p.$immersive) return "minmax(0, 1fr)";
+    return "minmax(0, 1fr) minmax(220px, 0.3fr)";
+  }};
+  grid-template-rows: ${(p) =>
+    p.$immersive && !p.$mobile ? "minmax(0, 1fr) auto" : "minmax(0, 1fr)"};
   overflow: hidden;
 
   @media (max-width: 768px) {
@@ -389,7 +390,7 @@ const StageMain = styled.div`
   border-radius: 18px;
   background: color-mix(in srgb, var(--call-surface) 92%, black 8%);
   border: 1px solid var(--call-border);
-  padding: 4px;
+  padding: ${(p) => (p.$immersive ? "0" : "4px")};
   box-sizing: border-box;
 `;
 
@@ -402,19 +403,26 @@ const StageRail = styled.div`
 `;
 
 const StageRailGrid = styled.div`
-  flex: 1;
+  flex: ${(p) => (p.$immersive && !p.$mobile ? "0" : "1")};
   min-height: 0;
-  overflow: auto;
+  overflow-x: ${(p) => (p.$immersive && !p.$mobile ? "auto" : "hidden")};
+  overflow-y: ${(p) => (p.$immersive && !p.$mobile ? "hidden" : "auto")};
   display: grid;
   gap: 10px;
   align-content: start;
   grid-template-columns: ${(p) => {
     if (p.$mobile && p.$immersive) return "1fr";
     if (p.$mobile) return "repeat(2, minmax(0, 1fr))";
-    return p.$immersive ? "repeat(2, minmax(0, 1fr))" : "1fr";
+    return p.$immersive ? "unset" : "1fr";
   }};
+  grid-template-rows: ${(p) =>
+    p.$immersive && !p.$mobile ? "minmax(0, 1fr)" : "unset"};
+  grid-auto-flow: ${(p) => (p.$immersive && !p.$mobile ? "column" : "row")};
+  grid-auto-columns: ${(p) =>
+    p.$immersive && !p.$mobile ? "minmax(180px, 220px)" : "auto"};
   grid-auto-rows: ${(p) => (p.$immersive ? "minmax(120px, 1fr)" : "minmax(132px, 1fr)")};
   padding-right: ${(p) => (p.$mobile && !p.$immersive ? "0" : "4px")};
+  padding-bottom: ${(p) => (p.$immersive && !p.$mobile ? "4px" : "0")};
 `;
 
 const StageRailLabel = styled.div`
@@ -515,17 +523,16 @@ const VideoTile = styled.div`
   video {
     width: 100%;
     height: 100%;
-    object-fit: ${(p) => (p.$screenShare ? "contain" : "cover")};
+    object-fit: ${(p) => {
+      if (p.$screenShare) return p.$compact ? "cover" : "contain";
+      return p.$mobile ? "contain" : "cover";
+    }};
     display: block;
     transform: ${(p) => (p.$mirror ? "scaleX(-1)" : "none")};
     background: ${(p) =>
       p.$screenShare
         ? "color-mix(in srgb, var(--call-surface) 94%, black 6%)"
         : "black"};
-
-    @media (max-width: 768px) {
-      object-fit: contain;
-    }
   }
 `;
 
@@ -772,36 +779,6 @@ const MemberName = styled.div`
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-`;
-
-const MemberStatusRow = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-  color: var(--call-muted);
-  font-size: 11px;
-`;
-
-const MemberStatusBadge = styled.div`
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 3px 7px;
-  border-radius: 999px;
-  border: 1px solid
-    ${(props) =>
-      props.$tone === "danger"
-        ? "color-mix(in srgb, var(--call-danger) 30%, transparent)"
-        : "color-mix(in srgb, var(--call-success) 30%, transparent)"};
-  background: ${(props) =>
-    props.$tone === "danger"
-      ? "color-mix(in srgb, var(--call-danger) 12%, transparent)"
-      : "color-mix(in srgb, var(--call-success) 12%, transparent)"};
-  color: ${(props) =>
-    props.$tone === "danger"
-      ? "var(--call-danger)"
-      : "var(--call-success)"};
 `;
 
 const MemberIcons = styled.div`
@@ -1074,6 +1051,7 @@ const VideoEl = ({
   isActive = false,
   compact = false,
   handRaised = false,
+  isMobile = false,
 }) => {
   const { t } = useTranslation();
   const ref = useRef(null);
@@ -1139,6 +1117,7 @@ const VideoEl = ({
     <VideoTile
       $isLocal={isLocal}
       $compact={compact}
+      $mobile={isMobile}
       $mirror={isLocal && !isScreenShare}
       $screenShare={isScreenShare}
       $active={isActive}
@@ -1242,6 +1221,7 @@ const GroupVideoCall = ({
     camLocked,
     toggleMic,
     toggleCam,
+    switchCamera,
     leaveCall,
     error,
     roomTitle,
@@ -1259,6 +1239,7 @@ const GroupVideoCall = ({
     setRoomPrivacy,
     networkQuality,
     qualityProfile,
+    canSwitchCamera,
   } = useWebRTC({
     roomId,
     displayName,
@@ -1915,6 +1896,7 @@ const GroupVideoCall = ({
       isActive={activeStageTileId === tile.id}
       compact={compact}
       handRaised={tile.handRaised}
+      isMobile={isMobileViewport}
     />
   );
 
@@ -2127,7 +2109,7 @@ const GroupVideoCall = ({
               </MobileTopRail>
             ) : null}
 
-            <StageMain>
+            <StageMain $immersive={Boolean(fullscreenTileId)}>
               <div style={{ height: "100%" }}>
                 {renderCallTile(activeStageTile, {
                   selectable: false,
@@ -2281,24 +2263,6 @@ const GroupVideoCall = ({
                 </MemberAvatar>
                 <MemberInfo>
                   <MemberName>{displayName} (Sen)</MemberName>
-                  <MemberStatusRow>
-                    <MemberStatusBadge $tone={isMicOn ? "success" : "danger"}>
-                      {isMicOn ? (
-                        <Mic size={11} />
-                      ) : (
-                        <MicOff size={11} />
-                      )}
-                      {isMicOn ? "Mikrofon on" : "Mikrofon off"}
-                    </MemberStatusBadge>
-                    <MemberStatusBadge $tone={isCamOn ? "success" : "danger"}>
-                      {isCamOn ? (
-                        <Video size={11} />
-                      ) : (
-                        <VideoOff size={11} />
-                      )}
-                      {isCamOn ? "Kamera on" : "Kamera off"}
-                    </MemberStatusBadge>
-                  </MemberStatusRow>
                 </MemberInfo>
                 <MemberIcons>
                   {isMicOn ? (
@@ -2333,28 +2297,6 @@ const GroupVideoCall = ({
                         )}
                         {n}
                       </MemberName>
-                      <MemberStatusRow>
-                        <MemberStatusBadge
-                          $tone={isPeerMicOn ? "success" : "danger"}
-                        >
-                          {isPeerMicOn ? (
-                            <Mic size={11} />
-                          ) : (
-                            <MicOff size={11} />
-                          )}
-                          {isPeerMicOn ? "Mikrofon on" : "Mikrofon off"}
-                        </MemberStatusBadge>
-                        <MemberStatusBadge
-                          $tone={isPeerCamOn ? "success" : "danger"}
-                        >
-                          {isPeerCamOn ? (
-                            <Video size={11} />
-                          ) : (
-                            <VideoOff size={11} />
-                          )}
-                          {isPeerCamOn ? "Kamera on" : "Kamera off"}
-                        </MemberStatusBadge>
-                      </MemberStatusRow>
                     </MemberInfo>
                     <MemberIcons>
                       {isCreator ? (
@@ -2449,6 +2391,16 @@ const GroupVideoCall = ({
             {isScreenSharing ? <MonitorOff size={21} /> : <Monitor size={21} />}
           </CtrlBtn>
         )}
+        {isMobileViewport && canSwitchCamera ? (
+          <CtrlBtn
+            $state="neutral"
+            onClick={switchCamera}
+            aria-label={t("privateCall.switchCamera", "Switch camera")}
+            title={t("privateCall.switchCamera", "Switch camera")}
+          >
+            <RefreshCcw size={21} />
+          </CtrlBtn>
+        ) : null}
         <CtrlBtn
           $state={isHandRaised ? "accent" : "neutral"}
           onClick={toggleHandRaise}

@@ -58,9 +58,13 @@ const MessagesContainer = styled.div`
 const MessageContainer = styled.div`
   display: flex;
   flex-direction: column;
-  flex: 1;
+  flex: 1 0 auto;
   min-height: 100%;
   justify-content: flex-end;
+
+  & > * {
+    flex-shrink: 0;
+  }
 `;
 
 const DateSeparator = styled.div`
@@ -82,6 +86,7 @@ const DateSeparator = styled.div`
 const MessageWrapper = styled.div`
   display: flex;
   flex-direction: column;
+  flex-shrink: 0;
   margin-bottom: 12px;
   align-items: ${(props) => (props.$isOwn ? "flex-end" : "flex-start")};
   cursor: pointer;
@@ -353,6 +358,18 @@ const InitialLoaderState = styled.div`
   font-weight: 600;
 `;
 
+const EmptyState = styled.div`
+  flex: 1;
+  min-height: 220px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: var(--text-secondary-color);
+  font-size: 14px;
+  padding: 24px 16px;
+`;
+
 const InitialLayoutSkeleton = styled.div`
   position: absolute;
   inset: 0;
@@ -495,6 +512,7 @@ const ChatAreaMessageList = ({ keyboardHeight = 0 }) => {
   const [viewportHeight, setViewportHeight] = useState(0);
   const [contentHeight, setContentHeight] = useState(0);
   const keyboardOpen = keyboardHeight > 0;
+  const showInitialLoader = isLoadingMessages && !messageListVisible;
   const currentChatMembers = useMemo(
     () => currentChat?.members || [],
     [currentChat?.members],
@@ -546,7 +564,11 @@ const ChatAreaMessageList = ({ keyboardHeight = 0 }) => {
       }
 
       const targetElement = messageRefs.current[initialScrollTargetMessageId];
-      if (!targetElement) return;
+      if (!targetElement) {
+        initialAnchorResolvedRef.current = true;
+        setInitialScrollTargetMessageId(null);
+        return;
+      }
 
       shouldStickToBottomRef.current = false;
       setPendingNewMessageIds([]);
@@ -565,6 +587,46 @@ const ChatAreaMessageList = ({ keyboardHeight = 0 }) => {
     messages,
     setInitialScrollTargetMessageId,
   ]);
+
+  useEffect(() => {
+    if (messageListVisible) return;
+    if (isLoadingMessages) return;
+    if (messages.length === 0) return;
+    if (initialAnchorResolvedRef.current) return;
+
+    initialAnchorResolvedRef.current = true;
+
+    const frameId = window.requestAnimationFrame(() => {
+      setMessageListVisible(true);
+    });
+
+    return () => window.cancelAnimationFrame(frameId);
+  }, [isLoadingMessages, messageListVisible, messages.length]);
+
+  useEffect(() => {
+    if (isLoadingMessages || messageListVisible) return;
+
+    const frameId = window.requestAnimationFrame(() => {
+      setMessageListVisible(true);
+    });
+
+    return () => window.cancelAnimationFrame(frameId);
+  }, [isLoadingMessages, messageListVisible]);
+
+  useEffect(() => {
+    if (messageListVisible) return;
+    if (isLoadingMessages) return;
+    if (initialScrollTargetMessageId) return;
+    if (initialAnchorResolvedRef.current) return;
+
+    initialAnchorResolvedRef.current = true;
+
+    const frameId = window.requestAnimationFrame(() => {
+      setMessageListVisible(true);
+    });
+
+    return () => window.cancelAnimationFrame(frameId);
+  }, [initialScrollTargetMessageId, isLoadingMessages, messageListVisible]);
 
   useEffect(() => {
     if (!shouldAutofillInitialViewport) {
@@ -904,7 +966,7 @@ const ChatAreaMessageList = ({ keyboardHeight = 0 }) => {
 
   return (
     <ScrollArea>
-      {!messageListVisible ? (
+      {showInitialLoader ? (
         <InitialLayoutSkeleton>
           <InitialLoaderState>Xabarlar yuklanmoqda...</InitialLoaderState>
         </InitialLayoutSkeleton>
@@ -915,7 +977,7 @@ const ChatAreaMessageList = ({ keyboardHeight = 0 }) => {
         $keyboardOpen={keyboardOpen}
         onContextMenu={(event) => event.preventDefault()}
         onScroll={handleMessagesScroll}
-        style={!messageListVisible ? { visibility: "hidden" } : undefined}
+        style={showInitialLoader ? { visibility: "hidden" } : undefined}
       >
         {isLoadingMessages && messages.length === 0 ? (
           <InitialLoaderState>Xabarlar yuklanmoqda...</InitialLoaderState>
@@ -924,6 +986,9 @@ const ChatAreaMessageList = ({ keyboardHeight = 0 }) => {
           <LoaderText>Oldingi xabarlar yuklanmoqda...</LoaderText>
         ) : null}
         <MessageContainer>
+          {!isLoadingMessages && messageGroups.length === 0 ? (
+            <EmptyState>Hozircha xabarlar yo&apos;q</EmptyState>
+          ) : null}
           {messageGroups.map((group, index) => {
             if (group.type === "date") {
               return (

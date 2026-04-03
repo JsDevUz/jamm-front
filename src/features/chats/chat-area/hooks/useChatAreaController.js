@@ -287,6 +287,10 @@ export default function useChatAreaController({
     if (!currentChat) return;
 
     const loadMessages = async () => {
+      setMessages([]);
+      setMessagesCursor(null);
+      setMessagesHasMore(true);
+      setInitialScrollTargetMessageId(null);
       setIsLoadingMessages(true);
       const result = await fetchMessages(currentChat.id);
       const loadedMessages = result.data || [];
