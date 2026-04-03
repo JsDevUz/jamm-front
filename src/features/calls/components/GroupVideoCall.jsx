@@ -967,52 +967,6 @@ const RecBadge = styled.div`
   animation: ${recPulse} 1.5s ease infinite;
 `;
 
-const RecordMenu = styled.div`
-  position: absolute;
-  bottom: 62px;
-  left: 50%;
-  transform: translateX(-50%);
-  background: #1e2124;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 12px;
-  padding: 6px;
-  min-width: 220px;
-  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.5);
-  animation: ${slideIn} 0.15s ease;
-  z-index: 100;
-`;
-
-const RecordOption = styled.button`
-  width: 100%;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 14px;
-  border: none;
-  border-radius: 8px;
-  background: transparent;
-  color: #dcddde;
-  font-size: 13px;
-  cursor: pointer;
-  transition: all 0.12s;
-  text-align: left;
-  &:hover {
-    background: rgba(114, 137, 218, 0.15);
-    color: #fff;
-  }
-`;
-
-const RecordOptionIcon = styled.div`
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: ${(p) => p.$bg || "rgba(255,255,255,0.06)"};
-  flex-shrink: 0;
-`;
-
 // ─── VideoEl ──────────────────────────────────────────────────────────────────
 
 const FullscreenBtn = styled.button`
@@ -1305,11 +1259,8 @@ const GroupVideoCall = ({
 
   // ─── Recording logic ─────────────────────────────────────────────────────────
   const [isRecording, setIsRecording] = useState(false);
-  const [showRecordMenu, setShowRecordMenu] = useState(false);
   const mediaRecorderRef = useRef(null);
   const chunksRef = useRef([]);
-  const canvasRef = useRef(null);
-  const drawIntervalRef = useRef(null);
   const recordScreenStreamRef = useRef(null);
 
   const mixAllAudio = useCallback(() => {
@@ -1332,48 +1283,15 @@ const GroupVideoCall = ({
   }, [localStream, remoteStreams]);
 
   const startRecording = useCallback(
-    async (mode) => {
+    async () => {
       try {
-        setShowRecordMenu(false);
-        let videoStream;
-
-        if (mode === "screen") {
-          // Record screen share via getDisplayMedia
-          const screen = await navigator.mediaDevices.getDisplayMedia({
-            video: true,
-            audio: false,
-          });
-          recordScreenStreamRef.current = screen;
-          videoStream = screen;
-          // Auto stop when user stops share
-          screen.getVideoTracks()[0].onended = () => stopRecording();
-        } else {
-          // Record all tiles via canvas composite
-          const canvas = document.createElement("canvas");
-          canvas.width = 1280;
-          canvas.height = 720;
-          canvasRef.current = canvas;
-          const ctx = canvas.getContext("2d");
-          const drawFrame = () => {
-            const videos = document.querySelectorAll("video");
-            const count = videos.length || 1;
-            const cols = count <= 1 ? 1 : count <= 4 ? 2 : 3;
-            const rows = Math.ceil(count / cols);
-            const w = canvas.width / cols;
-            const h = canvas.height / rows;
-            ctx.fillStyle = "#0b0d0f";
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-            videos.forEach((video, i) => {
-              const col = i % cols;
-              const row = Math.floor(i / cols);
-              try {
-                ctx.drawImage(video, col * w, row * h, w, h);
-              } catch {}
-            });
-          };
-          drawIntervalRef.current = setInterval(drawFrame, 33);
-          videoStream = canvas.captureStream(30);
-        }
+        const screen = await navigator.mediaDevices.getDisplayMedia({
+          video: true,
+          audio: false,
+        });
+        recordScreenStreamRef.current = screen;
+        const videoStream = screen;
+        screen.getVideoTracks()[0].onended = () => stopRecording();
 
         // Mix all audio
         const mixedAudio = mixAllAudio();
@@ -1398,17 +1316,12 @@ const GroupVideoCall = ({
         emitRecording(true);
       } catch (err) {
         console.error("Recording error:", err);
-        setShowRecordMenu(false);
       }
     },
     [mixAllAudio, emitRecording],
   );
 
   const stopRecording = useCallback(() => {
-    if (drawIntervalRef.current) {
-      clearInterval(drawIntervalRef.current);
-      drawIntervalRef.current = null;
-    }
     if (recordScreenStreamRef.current) {
       recordScreenStreamRef.current.getTracks().forEach((t) => t.stop());
       recordScreenStreamRef.current = null;
@@ -2408,42 +2321,12 @@ const GroupVideoCall = ({
           <Hand size={21} />
         </CtrlBtn>
         {isCreator && !isMobileViewport && (
-          <div style={{ position: "relative" }}>
-            <CtrlBtn
-              $state={isRecording ? "accent" : "neutral"}
-              onClick={() =>
-                isRecording ? stopRecording() : setShowRecordMenu((p) => !p)
-              }
-            >
-              <Circle size={21} fill={isRecording ? "#f04747" : "none"} />
-            </CtrlBtn>
-            {showRecordMenu && !isRecording && (
-              <RecordMenu>
-                <RecordOption onClick={() => startRecording("screen")}>
-                  <RecordOptionIcon $bg="rgba(114,137,218,0.15)">
-                    <Monitor size={16} color="#7289da" />
-                  </RecordOptionIcon>
-                  <div>
-                    <div style={{ fontWeight: 600 }}>Ekranni yozish</div>
-                    <div style={{ fontSize: 11, color: "#72767d" }}>
-                      Faqat ekran + barcha ovozlar
-                    </div>
-                  </div>
-                </RecordOption>
-                <RecordOption onClick={() => startRecording("all")}>
-                  <RecordOptionIcon $bg="rgba(240,71,71,0.12)">
-                    <Circle size={16} color="#f04747" />
-                  </RecordOptionIcon>
-                  <div>
-                    <div style={{ fontWeight: 600 }}>Hammasini yozish</div>
-                    <div style={{ fontSize: 11, color: "#72767d" }}>
-                      Barcha oynalar + barcha ovozlar
-                    </div>
-                  </div>
-                </RecordOption>
-              </RecordMenu>
-            )}
-          </div>
+          <CtrlBtn
+            $state={isRecording ? "accent" : "neutral"}
+            onClick={() => (isRecording ? stopRecording() : startRecording())}
+          >
+            <Circle size={21} fill={isRecording ? "#f04747" : "none"} />
+          </CtrlBtn>
         )}
         <ControlDivider />
         <CtrlBtn $danger onClick={handleLeave}>
