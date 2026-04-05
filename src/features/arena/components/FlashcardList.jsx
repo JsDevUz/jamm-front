@@ -1432,6 +1432,11 @@ const getDeckFolderIdentifier = (deck) => {
 const getDeckIdentifier = (deck) =>
   String(deck?._id || deck?.id || deck?.urlSlug || "");
 
+const getDeckCreatedAtValue = (deck) => {
+  const timestamp = new Date(deck?.createdAt || 0).getTime();
+  return Number.isFinite(timestamp) ? timestamp : 0;
+};
+
 const getFolderIdentifier = (folder) =>
   String(folder?.urlSlug || folder?._id || folder?.id || "");
 
@@ -1562,7 +1567,9 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
   }, [joinedFolders, ownedFolders, selectedFolder, selectedFolderFilter]);
   const filteredDecks = useMemo(() => {
     if (selectedFolderFilter === NO_FOLDER_FILTER_ID) {
-      return flashcardDecks.filter((deck) => !getDeckFolderIdentifier(deck));
+      return flashcardDecks
+        .filter((deck) => !getDeckFolderIdentifier(deck))
+        .sort((a, b) => getDeckCreatedAtValue(b) - getDeckCreatedAtValue(a));
     }
 
     const pagedFolderDecks = flashcardDecks.filter(
@@ -1592,7 +1599,9 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
       mergedDecks.push(deck);
     });
 
-    return mergedDecks;
+    return mergedDecks.sort(
+      (a, b) => getDeckCreatedAtValue(b) - getDeckCreatedAtValue(a),
+    );
   }, [flashcardDecks, selectedFolder, selectedFolderFilter]);
   const selectedFolderOwnerId =
     selectedFolder?.createdBy?._id ||

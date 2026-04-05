@@ -403,6 +403,17 @@ const GridImage = styled.img`
   }
 `;
 
+const buildTemplateTextFromCards = (cards = []) =>
+  cards
+    .map((card) => {
+      const front = String(card?.front || "").trim();
+      const back = String(card?.back || "").trim();
+      if (!front || !back) return "";
+      return `${front},${back};`;
+    })
+    .filter(Boolean)
+    .join("\n");
+
 const CreateFlashcardDialog = ({ onClose, initialDeck = null, folders = [] }) => {
   const { createFlashcardDeck, updateFlashcardDeck } = useArena();
   const currentUser = useAuthStore((state) => state.user);
@@ -449,7 +460,7 @@ const CreateFlashcardDialog = ({ onClose, initialDeck = null, folders = [] }) =>
             }))
           : [{ front: "", back: "", frontImage: "", backImage: "" }],
       );
-      setTemplateText("");
+      setTemplateText(buildTemplateTextFromCards(initialDeck?.cards || []));
       return;
     }
 
