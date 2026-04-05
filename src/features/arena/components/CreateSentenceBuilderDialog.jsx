@@ -4,7 +4,8 @@ import { Plus, Trash2, X } from "lucide-react";
 import toast from "react-hot-toast";
 import { useArena } from "../../../contexts/ArenaContext";
 import { SidebarIconButton as ButtonWrapper } from "../../../shared/ui/buttons/IconButton";
-import { APP_LIMITS } from "../../../constants/appLimits";
+import useAuthStore from "../../../store/authStore";
+import { APP_LIMITS, getTierLimit } from "../../../constants/appLimits";
 
 const fadeIn = keyframes`
   from {
@@ -310,7 +311,12 @@ const parsePatternToItems = (pattern = "") =>
 
 const CreateSentenceBuilderDialog = ({ onClose, initialDeck = null }) => {
   const { createSentenceBuilderDeck, updateSentenceBuilderDeck } = useArena();
+  const currentUser = useAuthStore((state) => state.user);
   const isEditing = Boolean(initialDeck?._id);
+  const maxItemsPerDeck = getTierLimit(
+    APP_LIMITS.sentenceBuilderItemsPerDeck,
+    currentUser,
+  );
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [pattern, setPattern] = useState("");
@@ -371,8 +377,8 @@ const CreateSentenceBuilderDialog = ({ onClose, initialDeck = null }) => {
   };
 
   const handleAddItem = () => {
-    if (items.length >= 30) {
-      toast.error("Bitta to'plamga maksimal 30 ta savol qo'shiladi");
+    if (items.length >= maxItemsPerDeck) {
+      toast.error(`Bitta to'plamga maksimal ${maxItemsPerDeck} ta savol qo'shiladi`);
       return;
     }
     setItems((prev) => [...prev, createEmptyItem()]);

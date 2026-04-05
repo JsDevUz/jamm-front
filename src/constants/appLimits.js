@@ -16,9 +16,12 @@ export const APP_LIMITS = {
   lessonVideosPerLesson: { ordinary: 1, premium: 3 },
   testsCreated: { ordinary: 30, premium: 100 },
   testShareLinksPerTest: { ordinary: 2, premium: 4 },
+  testsPerDeck: { ordinary: 30, premium: 50 },
   flashcardsCreated: { ordinary: 30, premium: 100 },
+  flashcardsPerDeck: { ordinary: 30, premium: 50 },
   sentenceBuildersCreated: { ordinary: 30, premium: 100 },
   sentenceBuilderShareLinksPerDeck: { ordinary: 2, premium: 4 },
+  sentenceBuilderItemsPerDeck: { ordinary: 30, premium: 50 },
   articleTitleChars: 120,
   articleExcerptChars: 220,
   articleTagChars: 24,
@@ -74,6 +77,9 @@ export const APP_LIMITS = {
 
 export const isPremiumUser = (user) =>
   user?.premiumStatus === "active" || user?.premiumStatus === "premium";
+
+export const getTierLimit = (limits, user) =>
+  isPremiumUser(user) ? limits.premium : limits.ordinary;
 
 export const countWords = (value = "") =>
   String(value)

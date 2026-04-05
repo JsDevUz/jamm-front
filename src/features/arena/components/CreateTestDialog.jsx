@@ -16,7 +16,8 @@ import { useArena } from "../../../contexts/ArenaContext";
 import * as arenaApi from "../../../api/arenaApi";
 import { SidebarIconButton as ButtonWrapper } from "../../../shared/ui/buttons/IconButton";
 import { CloseBtnWrapper } from "./CreateSentenceBuilderDialog";
-import { APP_LIMITS } from "../../../constants/appLimits";
+import useAuthStore from "../../../store/authStore";
+import { APP_LIMITS, getTierLimit } from "../../../constants/appLimits";
 
 const DialogOverlay = styled.div`
   position: fixed;
@@ -269,7 +270,9 @@ const createEmptyQuestion = () => ({
 
 const CreateTestDialog = ({ isOpen, onClose, initialTest = null }) => {
   const { fetchMyTests, updateTest } = useArena();
+  const currentUser = useAuthStore((state) => state.user);
   const isEditing = Boolean(initialTest?._id);
+  const maxQuestionsPerDeck = getTierLimit(APP_LIMITS.testsPerDeck, currentUser);
   const [mode, setMode] = useState("manual"); // 'manual' | 'template'
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -318,8 +321,8 @@ const CreateTestDialog = ({ isOpen, onClose, initialTest = null }) => {
   if (!isOpen) return null;
 
   const handleAddQuestion = () => {
-    if (questions.length >= 30) {
-      toast.error("Maksimal 30 ta savol qo'shish mumkin!");
+    if (questions.length >= maxQuestionsPerDeck) {
+      toast.error(`Maksimal ${maxQuestionsPerDeck} ta savol qo'shish mumkin!`);
       return;
     }
     setQuestions([
@@ -455,9 +458,9 @@ const CreateTestDialog = ({ isOpen, onClose, initialTest = null }) => {
         if (payloadQuestions.length === 0) {
           return toast.error("Andazada hech qanday savol topilmadi.");
         }
-        if (payloadQuestions.length > 30) {
+        if (payloadQuestions.length > maxQuestionsPerDeck) {
           return toast.error(
-            "Andazada savollar soni 30 tadan oshmasligi kerak!",
+            `Andazada savollar soni ${maxQuestionsPerDeck} tadan oshmasligi kerak!`,
           );
         }
       } catch (err) {
@@ -666,11 +669,11 @@ const CreateTestDialog = ({ isOpen, onClose, initialTest = null }) => {
                 type="button"
                 style={{ borderStyle: "dashed", padding: "16px" }}
                 onClick={handleAddQuestion}
-                disabled={questions.length >= 30}
+                disabled={questions.length >= maxQuestionsPerDeck}
               >
                 <Plus size={18} />{" "}
-                {questions.length >= 30
-                  ? "Limitga yetildi (30/30)"
+                {questions.length >= maxQuestionsPerDeck
+                  ? `Limitga yetildi (${maxQuestionsPerDeck}/${maxQuestionsPerDeck})`
                   : "Yana savol qo'shish"}
               </Button>
             </div>

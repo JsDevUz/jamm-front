@@ -13,7 +13,8 @@ import {
 import toast from "react-hot-toast";
 import { CloseBtnWrapper } from "./CreateSentenceBuilderDialog";
 import { SidebarIconButton as ButtonWrapper } from "../../../shared/ui/buttons/IconButton";
-import { APP_LIMITS } from "../../../constants/appLimits";
+import useAuthStore from "../../../store/authStore";
+import { APP_LIMITS, getTierLimit } from "../../../constants/appLimits";
 
 const fadeIn = keyframes`
   from {
@@ -404,7 +405,9 @@ const GridImage = styled.img`
 
 const CreateFlashcardDialog = ({ onClose, initialDeck = null, folders = [] }) => {
   const { createFlashcardDeck, updateFlashcardDeck } = useArena();
+  const currentUser = useAuthStore((state) => state.user);
   const isEditing = Boolean(initialDeck?._id);
+  const maxCardsPerDeck = getTierLimit(APP_LIMITS.flashcardsPerDeck, currentUser);
   const [title, setTitle] = useState("");
   const [selectedFolderId, setSelectedFolderId] = useState(null);
   const [inputMode, setInputMode] = useState("manual"); // 'manual' | 'template'
@@ -524,8 +527,8 @@ const CreateFlashcardDialog = ({ onClose, initialDeck = null, folders = [] }) =>
   };
 
   const handleAddCard = () => {
-    if (cards.length >= 30) {
-      toast.error("Maksimal 30 ta so'z qo'shish mumkin!");
+    if (cards.length >= maxCardsPerDeck) {
+      toast.error(`Maksimal ${maxCardsPerDeck} ta so'z qo'shish mumkin!`);
       return;
     }
     setCards([
@@ -588,8 +591,8 @@ const CreateFlashcardDialog = ({ onClose, initialDeck = null, folders = [] }) =>
       return;
     }
 
-    if (finalCards.length > 30) {
-      toast.error("Maksimal 30 ta so'z qo'shish mumkin!");
+    if (finalCards.length > maxCardsPerDeck) {
+      toast.error(`Maksimal ${maxCardsPerDeck} ta so'z qo'shish mumkin!`);
       return;
     }
 
@@ -731,10 +734,13 @@ const CreateFlashcardDialog = ({ onClose, initialDeck = null, folders = [] }) =>
                   </CardItem>
                 ))}
               </CardList>
-              <AddCardBtn onClick={handleAddCard} disabled={cards.length >= 30}>
+              <AddCardBtn
+                onClick={handleAddCard}
+                disabled={cards.length >= maxCardsPerDeck}
+              >
                 <Plus size={18} />{" "}
-                {cards.length >= 30
-                  ? "Limitga yetildi (30/30)"
+                {cards.length >= maxCardsPerDeck
+                  ? `Limitga yetildi (${maxCardsPerDeck}/${maxCardsPerDeck})`
                   : "Yangi so'z qo'shish"}
               </AddCardBtn>
             </>

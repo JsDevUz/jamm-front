@@ -1429,6 +1429,9 @@ const getDeckFolderIdentifier = (deck) => {
   return String(deck.folderId.urlSlug || deck.folderId._id || deck.folderId.id || "");
 };
 
+const getDeckIdentifier = (deck) =>
+  String(deck?._id || deck?.id || deck?.urlSlug || "");
+
 const getFolderIdentifier = (folder) =>
   String(folder?.urlSlug || folder?._id || folder?.id || "");
 
@@ -1562,15 +1565,42 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
       return flashcardDecks.filter((deck) => !getDeckFolderIdentifier(deck));
     }
 
-    return flashcardDecks.filter(
+    const pagedFolderDecks = flashcardDecks.filter(
       (deck) => getDeckFolderIdentifier(deck) === selectedFolderFilter,
     );
-  }, [flashcardDecks, selectedFolderFilter]);
+
+    if (!Array.isArray(selectedFolder?.decks) || selectedFolder.decks.length === 0) {
+      return pagedFolderDecks;
+    }
+
+    const pagedDeckMap = new Map(
+      pagedFolderDecks.map((deck) => [getDeckIdentifier(deck), deck]),
+    );
+    const seenDeckIds = new Set();
+    const mergedDecks = selectedFolder.decks.map((deck) => {
+      const deckId = getDeckIdentifier(deck);
+      if (deckId) {
+        seenDeckIds.add(deckId);
+      }
+      return pagedDeckMap.get(deckId) || deck;
+    });
+
+    pagedFolderDecks.forEach((deck) => {
+      const deckId = getDeckIdentifier(deck);
+      if (!deckId || seenDeckIds.has(deckId)) return;
+      seenDeckIds.add(deckId);
+      mergedDecks.push(deck);
+    });
+
+    return mergedDecks;
+  }, [flashcardDecks, selectedFolder, selectedFolderFilter]);
   const selectedFolderOwnerId =
     selectedFolder?.createdBy?._id ||
     selectedFolder?.createdBy?.id ||
     selectedFolder?.createdBy ||
     null;
+  const hasMoreFilteredDecks =
+    selectedFolderFilter === NO_FOLDER_FILTER_ID && flashcardsHasMore;
   const isSelectedOwnFolder =
     selectedFolderOwnerId && currentUserId
       ? String(selectedFolderOwnerId) === String(currentUserId)
@@ -1614,6 +1644,9 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
   }, []);
 
   const fetchMoreData = () => {
+    if (selectedFolderFilter !== NO_FOLDER_FILTER_ID) {
+      return;
+    }
     if (flashcardsHasMore) {
       fetchFlashcards(flashcardsPage + 1);
     }
@@ -2146,6 +2179,33 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
     setIsDeleting(true);
     try {
       await deleteFlashcardDeck(deckToDelete._id);
+      const deletedDeckId = getDeckIdentifier(deckToDelete);
+      const deletedDeckFolderId = getDeckFolderIdentifier(deckToDelete);
+      setFolders((prev) =>
+        prev.map((folder) => {
+          if (getFolderIdentifier(folder) !== deletedDeckFolderId) return folder;
+          const nextDecks = (folder.decks || []).filter(
+            (deck) => getDeckIdentifier(deck) !== deletedDeckId,
+          );
+          return {
+            ...folder,
+            decks: nextDecks,
+            deckCount: nextDecks.length,
+          };
+        }),
+      );
+      setViewingFolder((prev) => {
+        if (!prev || !deletedDeckFolderId) return prev;
+        if (getFolderIdentifier(prev) !== deletedDeckFolderId) return prev;
+        const nextDecks = (prev?.decks || []).filter(
+          (deck) => getDeckIdentifier(deck) !== deletedDeckId,
+        );
+        return {
+          ...prev,
+          decks: nextDecks,
+          deckCount: nextDecks.length,
+        };
+      });
       if (viewingDeck?._id === deckToDelete._id) setViewingDeck(null);
       if (studyingDeck?._id === deckToDelete._id) setStudyingDeck(null);
       if (showMembersForDeck?._id === deckToDelete._id) {
@@ -2278,6 +2338,15 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
     if (fullDeck) {
       setViewingFolder(null);
       setViewingDeck(fullDeck);
+    }
+  };
+
+  const openDeckPreview = async (deck) => {
+    if (!deck?._id) return;
+    const fullDeck = await fetchFlashcardDeck(deck._id);
+    if (fullDeck) {
+      setViewingDeck(fullDeck);
+      setOpenMenuId(null);
     }
   };
 
@@ -2542,7 +2611,7 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
         <InfiniteScroll
           dataLength={filteredDecks.length}
           next={fetchMoreData}
-          hasMore={flashcardsHasMore}
+          hasMore={hasMoreFilteredDecks}
           loader={
             <h4
               style={{
@@ -2621,8 +2690,7 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
                         >
                           <MenuItem
                             onClick={() => {
-                              setViewingDeck(deck);
-                              setOpenMenuId(null);
+                              void openDeckPreview(deck);
                             }}
                           >
                             <Eye size={14} />
@@ -2683,7 +2751,7 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
                       )}
                     </MenuWrap>
                   </CardTop>
-                  <Meta>Jami so'zlar: {deck.cards?.length || 0}</Meta>
+                  <Meta>Jami so'zlar: {deck.cardCount || deck.cards?.length || 0}</Meta>
                   <Meta>
                     {isOwner ? "Siz yaratgan" : `Muallif: ${creatorName}`}
                   </Meta>

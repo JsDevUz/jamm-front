@@ -375,7 +375,7 @@ export const FlashcardFolderViewDialog = ({
                         color: "var(--text-muted-color)",
                       }}
                     >
-                      {deck?.cards?.length || 0} ta karta
+                      {deck?.cardCount || deck?.cards?.length || 0} ta karta
                     </div>
                   </button>
                 ))}
