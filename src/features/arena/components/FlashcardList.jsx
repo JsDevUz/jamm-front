@@ -332,6 +332,36 @@ const CardHint = styled.div`
   font-weight: 700;
 `;
 
+const skeletonPulse = keyframes`
+  0% {
+    opacity: 0.48;
+  }
+  50% {
+    opacity: 0.9;
+  }
+  100% {
+    opacity: 0.48;
+  }
+`;
+
+const SkeletonCard = styled(Card)`
+  cursor: default;
+  pointer-events: none;
+
+  &:hover {
+    border-color: var(--border-color);
+    transform: none;
+  }
+`;
+
+const SkeletonBlock = styled.div`
+  border-radius: ${(props) => props.$radius || "10px"};
+  background: color-mix(in srgb, var(--text-muted-color) 12%, var(--secondary-color));
+  height: ${(props) => props.$height || "14px"};
+  width: ${(props) => props.$width || "100%"};
+  animation: ${skeletonPulse} 1.1s ease-in-out infinite;
+`;
+
 const MenuWrap = styled.div`
   position: relative;
   flex-shrink: 0;
@@ -1505,6 +1535,9 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
     );
     return saved === "back" ? "back" : "front";
   });
+  const [isDeckListLoading, setIsDeckListLoading] = useState(
+    flashcardDecks.length === 0,
+  );
   const gameBoardRef = useRef(null);
   const classicPointerStateRef = useRef({
     active: false,
@@ -1641,10 +1674,13 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
     if (hasFetched.current) return;
     if (flashcardDecks.length > 0) {
       hasFetched.current = true;
+      setIsDeckListLoading(false);
       return;
     }
+    setIsDeckListLoading(true);
     fetchFlashcards(1).finally(() => {
       hasFetched.current = true;
+      setIsDeckListLoading(false);
     });
   }, [fetchFlashcards, flashcardDecks.length]);
 
@@ -2662,6 +2698,21 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
             ) : null}
           </HeaderRow>
           <Grid>
+            {isDeckListLoading && filteredDecks.length === 0
+              ? Array.from({ length: 4 }).map((_, index) => (
+                  <SkeletonCard key={`flashcard-skeleton-${index}`}>
+                    <CardTop>
+                      <SkeletonBlock $height="20px" $width="56%" />
+                      <SkeletonBlock $height="34px" $width="34px" $radius="10px" />
+                    </CardTop>
+                    <SkeletonBlock $height="14px" $width="44%" />
+                    <SkeletonBlock $height="14px" $width="62%" />
+                    <CardHint>
+                      <SkeletonBlock $height="14px" $width="180px" />
+                    </CardHint>
+                  </SkeletonCard>
+                ))
+              : null}
             {filteredDecks.map((deck) => {
               const isOwner =
                 (deck.createdBy?._id || deck.createdBy) ===
@@ -2771,7 +2822,7 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
                 </Card>
               );
             })}
-            {filteredDecks.length === 0 && (
+            {!isDeckListLoading && filteredDecks.length === 0 && (
               <Meta>
                 {selectedFolderFilter === NO_FOLDER_FILTER_ID
                   ? "Foldersiz lug'atlar hozircha yo'q."

@@ -397,7 +397,7 @@ const CourseSidebar = ({
     onSelectCourse(course._id);
 
     const slug = course.urlSlug || course._id;
-    window.history.replaceState(null, "", `/courses/${slug}`);
+    navigate(`/courses/${slug}`);
   };
 
   const handleDeleteConfirm = async () => {
@@ -405,9 +405,12 @@ const CourseSidebar = ({
     try {
       setIsDeleting(true);
       await removeCourse(courseToDelete._id);
-      if (selectedCourse === courseToDelete._id) {
+      if (
+        selectedCourse === courseToDelete._id ||
+        selectedCourse === courseToDelete.urlSlug
+      ) {
         onSelectCourse(null);
-        window.history.replaceState(null, "", `/courses`);
+        navigate("/courses", { replace: true });
       }
       setCourseToDelete(null);
     } catch (err) {

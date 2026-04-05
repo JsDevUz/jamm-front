@@ -1,7 +1,6 @@
 import styled from "styled-components";
 import {
   mobileFullscreenPane,
-  mobileTopSafePadding,
 } from "../../../../shared/styles/mobileSafeArea";
 
 export const PlayerContainer = styled.div`
@@ -43,6 +42,10 @@ export const VideoSection = styled.div`
   @media (max-width: 1300px) {
     flex: none;
     overflow: visible;
+  }
+
+  @media (max-width: 768px) {
+    padding-top: env(safe-area-inset-top, 0px);
   }
 `;
 
@@ -106,7 +109,10 @@ export const TopBar = styled.div`
   display: flex;
   align-items: center;
   justify-content: space-between;
-  ${mobileTopSafePadding(12, 16, 12, 16)};
+
+  @media (max-width: 768px) {
+    padding: 12px 16px;
+  }
 `;
 
 export const TopBarLeft = styled.div`

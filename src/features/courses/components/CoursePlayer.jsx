@@ -37,6 +37,7 @@ import CoursePlayerAdminPane from "../player/components/CoursePlayerAdminPane";
 import CoursePlayerHomeworkSection from "../player/components/CoursePlayerHomeworkSection";
 import CoursePlayerLessonTestsSection from "../player/components/CoursePlayerLessonTestsSection";
 import CoursePlayerMaterialsSection from "../player/components/CoursePlayerMaterialsSection";
+import CoursePlayerCommentsSection from "../player/components/CoursePlayerCommentsSection";
 import CoursePlayerPlaylistPanel from "../player/components/CoursePlayerPlaylistPanel";
 import {
   AvatarImage,
@@ -119,6 +120,19 @@ import {
   getEntityId,
   getYouTubeId,
 } from "../player/utils/coursePlayerUtils";
+
+const hasEnabledHomeworkAssignments = (homework) => {
+  if (Array.isArray(homework?.assignments)) {
+    return homework.assignments.some((assignment) => assignment?.enabled !== false);
+  }
+
+  if (Array.isArray(homework)) {
+    return homework.some((assignment) => assignment?.enabled !== false);
+  }
+
+  return false;
+};
+
 const CoursePlayer = ({ courseId, initialLessonSlug, onClose }) => {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -231,10 +245,8 @@ const CoursePlayer = ({ courseId, initialLessonSlug, onClose }) => {
   const currentLessonData = course?.lessons?.[activeLesson];
   const hasLessonMaterials = Boolean(currentLessonData?.materials?.length);
   const hasLessonTests = Boolean(currentLessonData?.linkedTests?.length);
-  const hasHomeworkAssignments = Boolean(
-    currentLessonData?.homework?.assignments?.length ||
-      currentLessonData?.homework?.length ||
-      currentLessonData?.homework,
+  const hasHomeworkAssignments = hasEnabledHomeworkAssignments(
+    currentLessonData?.homework,
   );
   const hasLessonExtras =
     hasLessonMaterials || hasLessonTests || hasHomeworkBadge;
@@ -636,9 +648,9 @@ const CoursePlayer = ({ courseId, initialLessonSlug, onClose }) => {
       window.location.pathname.startsWith(`${coursePath}/`) &&
       window.location.pathname !== nextPath
     ) {
-      window.history.replaceState(null, "", nextPath);
+      navigate(nextPath, { replace: true });
     }
-  }, [course, currentLessonData]);
+  }, [course, currentLessonData, navigate]);
   const enrollStatus = enrollmentStatus;
   const canAccessLessons = isOwner || enrollStatus === "approved" || admin;
   const hasPassedRequiredTestsBeforeLesson = useCallback(
@@ -1877,6 +1889,8 @@ const CoursePlayer = ({ courseId, initialLessonSlug, onClose }) => {
               ) : null}
 
               {admin ? <CoursePlayerMaterialsSection /> : null}
+
+              <CoursePlayerCommentsSection />
             </>
           ) : canAccessLesson(activeLesson) && currentLessonData ? (
             <LockedView>
