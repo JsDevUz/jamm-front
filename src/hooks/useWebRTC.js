@@ -643,8 +643,8 @@ export function useWebRTC({
           const audioTracks = s.getAudioTracks();
 
           updateRemotePeerState(peerId, {
-            hasVideo: videoTracks.length > 0,
-            hasAudio: audioTracks.length > 0,
+            hasVideo: videoTracks.some((track) => track.readyState === "live"),
+            hasAudio: audioTracks.some((track) => track.readyState === "live"),
             videoMuted:
               videoTracks.length > 0
                 ? videoTracks.every(
@@ -1090,23 +1090,9 @@ export function useWebRTC({
         });
         socket.on("allow-mic", () => {
           setMicLocked(false);
-          const t = localStreamRef.current?.getAudioTracks()[0];
-          if (t) {
-            t.enabled = true;
-            setIsMicOn(true);
-            return;
-          }
-          ensureLocalAudioTrack().catch(() => {});
         });
         socket.on("allow-cam", () => {
           setCamLocked(false);
-          const t = localStreamRef.current?.getVideoTracks()[0];
-          if (t) {
-            t.enabled = true;
-            setIsCamOn(true);
-            return;
-          }
-          ensureLocalVideoTrack().catch(() => {});
         });
 
         // 5f. Hand raise signals

@@ -1740,27 +1740,45 @@ const GroupVideoCall = ({
   const mobileCompactTiles = useMemo(() => {
     if (!isMobileViewport || !hasStageLayout) return [];
 
-    const selfTile =
-      sideTiles.find((tile) => tile.id === "local") ||
-      callTiles.find((tile) => tile.id === "local") ||
-      null;
+    const activePeerId = activeStageTile?.peerId || null;
+    const compactTiles = [];
+    const pushUnique = (tile) => {
+      if (!tile || compactTiles.some((entry) => entry.id === tile.id)) {
+        return;
+      }
+      compactTiles.push(tile);
+    };
 
-    const speakingTile =
+    pushUnique(
       sideTiles.find(
         (tile) =>
           !tile.isLocal &&
           !tile.isScreenShare &&
+          tile.peerId !== activePeerId &&
           tile.peerId === lastSpeakerPeerId,
-      ) ||
-      sideTiles.find((tile) => !tile.isLocal && !tile.isScreenShare) ||
-      sideTiles.find((tile) => !tile.isLocal) ||
-      null;
+      ) || null,
+    );
+    pushUnique(
+      sideTiles.find(
+        (tile) => !tile.isLocal && !tile.isScreenShare && tile.peerId !== activePeerId,
+      ) || null,
+    );
+    pushUnique(sideTiles.find((tile) => !tile.isLocal && tile.peerId !== activePeerId) || null);
+    pushUnique(sideTiles.find((tile) => tile.id === "local" && tile.peerId !== activePeerId) || null);
+    sideTiles.forEach((tile) => {
+      if (tile.peerId !== activePeerId || tile.isScreenShare) {
+        pushUnique(tile);
+      }
+    });
 
-    const compactTiles = [];
-    if (selfTile) compactTiles.push(selfTile);
-    if (speakingTile && speakingTile.id !== selfTile?.id) compactTiles.push(speakingTile);
     return compactTiles.slice(0, 2);
-  }, [callTiles, hasStageLayout, isMobileViewport, lastSpeakerPeerId, sideTiles]);
+  }, [
+    activeStageTile?.peerId,
+    hasStageLayout,
+    isMobileViewport,
+    lastSpeakerPeerId,
+    sideTiles,
+  ]);
 
   const qualityTone =
     networkQuality === "poor"
