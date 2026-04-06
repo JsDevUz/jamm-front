@@ -116,11 +116,13 @@ const CourseThumbnail = styled.div`
   width: 48px;
   height: 48px;
   border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
   background: ${(props) =>
     props.gradient || "linear-gradient(135deg, #667eea, #764ba2)"};
   background-image: ${(props) => (props.src ? `url(${props.src})` : "none")};
   background-size: cover;
   background-position: center;
+  background-color: var(--tertiary-color);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -130,14 +132,22 @@ const CourseThumbnail = styled.div`
   flex-shrink: 0;
   position: relative;
   overflow: hidden;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  box-shadow:
+    0 2px 8px rgba(0, 0, 0, 0.2),
+    0 10px 24px rgba(0, 0, 0, 0.12);
 
   &::after {
     content: "";
     position: absolute;
     inset: 0;
     border-radius: 12px;
-    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+    background: linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.12) 0%,
+      rgba(255, 255, 255, 0) 42%
+    );
+    pointer-events: none;
   }
 `;
 

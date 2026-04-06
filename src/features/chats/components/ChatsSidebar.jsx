@@ -5,6 +5,7 @@ import {
   Bookmark,
   MessageSquare,
   Users,
+  Video,
 } from "lucide-react";
 import {
   Skeleton,
@@ -446,6 +447,7 @@ const ChatsSidebar = ({
             ? t("chatsSidebar.createGroup")
             : t("chatsSidebar.createMeet")
         }
+        addIcon={effectiveChatTab === "group" ? null : <Video size={18} />}
         searchTargetProps={{ "data-tour": "chats-search" }}
       />
 

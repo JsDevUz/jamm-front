@@ -1,11 +1,11 @@
 import React, { Suspense, lazy } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import ProtectedRoute from "./ProtectedRoute";
+import GlobalSearchPage from "../../features/search/GlobalSearchPage";
 const AuthPage = lazy(() => import("../../pages/AuthPage"));
 const JoinCallPage = lazy(() => import("../../pages/JoinCallPage"));
 const AppWrapper = lazy(() => import("./AppWrapper"));
 const SlugResolver = lazy(() => import("./SlugResolver"));
-const GlobalSearchPage = lazy(() => import("../../features/search/GlobalSearchPage"));
 
 export default function AppRoutes() {
   return (

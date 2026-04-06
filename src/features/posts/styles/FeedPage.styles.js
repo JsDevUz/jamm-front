@@ -76,7 +76,7 @@ export const FeedHeaderInner = styled.div`
   padding: 0 16px;
 
   @media (max-width: 768px) {
-    padding: 0 16px;
+    padding: 0;
   }
 `;
 
@@ -96,19 +96,19 @@ export const FeedTitle = styled.div`
 
 export const TabsRow = styled.div`
   display: flex;
-  margin-top: 12px;
+  flex-shrink: 0;
 `;
 
 export const Tab = styled.button`
   flex: 1;
-  padding: 12px 0;
+  padding: 11px 0;
   background: transparent;
   border: none;
-  border-bottom: 3px solid
+  border-bottom: 2px solid
     ${(props) => (props.$active ? "var(--primary-color)" : "transparent")};
   color: ${(props) =>
     props.$active ? "var(--primary-color)" : "var(--text-muted-color)"};
-  font-size: 15px;
+  font-size: 14px;
   font-weight: ${(props) => (props.$active ? "700" : "500")};
   cursor: pointer;
   transition: all 0.2s;

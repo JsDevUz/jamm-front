@@ -6,10 +6,11 @@ import {
 
 export const Pane = styled.div`
   display: flex;
+  flex-direction: column;
   flex: 1;
   min-width: 0;
   height: 100%;
-  overflow-y: auto;
+  overflow: hidden;
   background: var(--background-color);
 
   @media (max-width: 1024px) {
@@ -57,13 +58,53 @@ export const Wrap = styled.div`
   padding: 28px 28px 72px;
 
   @media (max-width: 768px) {
-    ${mobileTopSafePadding(18, 16, 96, 16)};
+    padding: 18px 16px 96px;
   }
 `;
 
+export const ReaderHeader = styled.div`
+  position: sticky;
+  top: 0;
+  z-index: 8;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 12px;
+  min-height: 64px;
+  padding: 12px 24px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border-color) 88%, transparent);
+  background: color-mix(in srgb, var(--secondary-color) 90%, transparent);
+  backdrop-filter: blur(16px);
+
+  @media (max-width: 768px) {
+    ${mobileTopSafePadding(12, 16, 12, 16)};
+    min-height: calc(64px + env(safe-area-inset-top, 0px));
+  }
+`;
+
+export const ReaderHeaderTitle = styled.div`
+  min-width: 0;
+  color: var(--text-color);
+  font-size: 15px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+`;
+
+export const ReaderHeaderSpacer = styled.div`
+  width: 40px;
+  height: 40px;
+`;
+
+export const ReaderScrollArea = styled.div`
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+`;
+
 export const BackButton = styled.button`
-  display: none;
-  margin-bottom: 16px;
+  display: inline-flex;
   border: 1px solid var(--border-color);
   background: color-mix(in srgb, var(--input-color) 85%, transparent);
   color: var(--text-color);
@@ -73,10 +114,6 @@ export const BackButton = styled.button`
   align-items: center;
   gap: 8px;
   cursor: pointer;
-
-  @media (max-width: 768px) {
-    display: inline-flex;
-  }
 `;
 
 export const CoverButton = styled.button`

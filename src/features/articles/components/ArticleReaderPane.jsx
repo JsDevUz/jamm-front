@@ -25,6 +25,10 @@ import {
   LightboxOverlay,
   Meta,
   Pane,
+  ReaderHeader,
+  ReaderHeaderSpacer,
+  ReaderHeaderTitle,
+  ReaderScrollArea,
   Title,
   Wrap,
 } from "../styles/ArticleReaderPane.styles";
@@ -117,7 +121,7 @@ const ArticleReaderPane = ({ articleIdentifier, onBack }) => {
 
   return (
     <Pane>
-      <Wrap>
+      <ReaderHeader>
         <BackButton
           onClick={() => {
             onBack?.();
@@ -127,43 +131,49 @@ const ArticleReaderPane = ({ articleIdentifier, onBack }) => {
           <ArrowLeft size={16} />
           {t("articles.backToList")}
         </BackButton>
+        <ReaderHeaderTitle>{article.title}</ReaderHeaderTitle>
+        <ReaderHeaderSpacer />
+      </ReaderHeader>
 
-        {article.coverImage ? (
-          <CoverButton type="button" onClick={() => setCoverLightboxOpen(true)}>
-            <CoverImage src={article.coverImage} alt={article.title} />
-          </CoverButton>
-        ) : null}
+      <ReaderScrollArea>
+        <Wrap>
+          {article.coverImage ? (
+            <CoverButton type="button" onClick={() => setCoverLightboxOpen(true)}>
+              <CoverImage src={article.coverImage} alt={article.title} />
+            </CoverButton>
+          ) : null}
 
-        <Title>{article.title}</Title>
-        {article.excerpt ? <Excerpt>{article.excerpt}</Excerpt> : null}
+          <Title>{article.title}</Title>
+          {article.excerpt ? <Excerpt>{article.excerpt}</Excerpt> : null}
 
-        <Meta>
-          <UserNameWithDecoration
-            user={article.author}
-            fallback={t("articles.author")}
-            showPremiumBadge={false}
-          />
-          <span>{dayjs(article.publishedAt || article.createdAt).format("DD MMM YYYY · HH:mm")}</span>
-        </Meta>
+          <Meta>
+            <UserNameWithDecoration
+              user={article.author}
+              fallback={t("articles.author")}
+              showPremiumBadge={false}
+            />
+            <span>{dayjs(article.publishedAt || article.createdAt).format("DD MMM YYYY · HH:mm")}</span>
+          </Meta>
 
-        <Actions>
-          <ActionButton $active={article.liked} onClick={handleLike}>
-            <Heart size={16} fill={article.liked ? "currentColor" : "none"} />
-            {article.likes}
-          </ActionButton>
-          <ActionButton onClick={() => setCommentOpen(true)}>
-            <MessageCircle size={16} />
-            {article.comments}
-          </ActionButton>
-          <ActionButton as="div">
-            <Eye size={16} />
-            {article.views}
-          </ActionButton>
-        </Actions>
+          <Actions>
+            <ActionButton $active={article.liked} onClick={handleLike}>
+              <Heart size={16} fill={article.liked ? "currentColor" : "none"} />
+              {article.likes}
+            </ActionButton>
+            <ActionButton onClick={() => setCommentOpen(true)}>
+              <MessageCircle size={16} />
+              {article.comments}
+            </ActionButton>
+            <ActionButton as="div">
+              <Eye size={16} />
+              {article.views}
+            </ActionButton>
+          </Actions>
 
-        <Divider />
-        <MarkdownRenderer content={content} enableImageLightbox />
-      </Wrap>
+          <Divider />
+          <MarkdownRenderer content={content} enableImageLightbox />
+        </Wrap>
+      </ReaderScrollArea>
 
       {commentOpen && (
         <ArticleComments

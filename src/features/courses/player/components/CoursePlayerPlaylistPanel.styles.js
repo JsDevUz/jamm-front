@@ -251,17 +251,9 @@ export const DeleteLessonBtn = styled.button`
   display: flex;
   align-items: center;
   justify-content: center;
-  opacity: 0;
-  pointer-events: none;
+  opacity: 1;
+  pointer-events: auto;
   transition: all 0.15s;
-
-  @media (hover: hover) and (pointer: fine) {
-    ${LessonItem}:hover &,
-    ${LessonItem}:focus-within & {
-      opacity: 1;
-      pointer-events: auto;
-    }
-  }
 
   &:hover {
     background: color-mix(in srgb, var(--danger-color) 16%, transparent);

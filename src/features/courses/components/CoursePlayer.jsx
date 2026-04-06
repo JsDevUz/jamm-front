@@ -3,8 +3,7 @@ import { useTranslation } from "react-i18next";
 import {
   Play,
   Pause,
-  Volume2,
-  VolumeX,
+  Settings2,
   Copy,
   Maximize,
   Minimize,
@@ -22,6 +21,8 @@ import {
   LogIn,
   AlertCircle,
   ArrowLeft,
+  SkipBack,
+  SkipForward,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { useCourses } from "../../../contexts/CoursesContext";
@@ -42,18 +43,17 @@ import CoursePlayerPlaylistPanel from "../player/components/CoursePlayerPlaylist
 import {
   AvatarImage,
   BufferedProgress,
-  CenterPlayButton,
   CompactEnrollmentSection,
   ControlButton,
   ControlsBar,
   ControlsLeft,
   ControlsRight,
   ControlsRow,
-  CurrentSegmentLabel,
   CreatorAvatar,
   CreatorCount,
   CreatorMeta,
   CreatorName,
+  CenterControlsRow,
   EnrollmentActions,
   EnrollmentInfo,
   FloatingBackButton,
@@ -84,9 +84,9 @@ import {
   NonSelectableVideo,
   PlaybackErrorOverlay,
   PlaybackErrorText,
-  PlayerBackButton,
   PlayerContainer,
   ProgressContainer,
+  ProgressThumb,
   ProgressSegmentDivider,
   ProgressFilled,
   ProgressHoverTooltip,
@@ -95,12 +95,18 @@ import {
   SpeedMenuAnchor,
   SpeedMenuHeader,
   SpeedOption,
+  SpeedSection,
+  SegmentList,
+  SegmentOption,
+  SegmentOptionTitle,
+  SegmentOptionMeta,
   SpeedToggleButton,
   Spinner,
-  TimeDisplay,
   TopBar,
   TopBarLeft,
   TopBarTitle,
+  TopBarTitleWrap,
+  TopBarSubtitle,
   TransparentVideoOverlay,
   VideoInfo,
   VideoMeta,
@@ -109,8 +115,8 @@ import {
   VideoTitle,
   VideoWrapper,
   ViewCount,
-  VolumeContainer,
-  VolumeSlider,
+  MainPlayButton,
+  SeekControlButton,
   YouTubeIframe,
 } from "../player/styles/CoursePlayer.styles";
 import {
@@ -231,7 +237,7 @@ const CoursePlayer = ({ courseId, initialLessonSlug, onClose }) => {
 
     hideControlsTimer.current = setTimeout(() => {
       setShowControls(false);
-    }, 2200);
+    }, 3200);
   }, [isPlaying]);
 
   const course = courses.find(
@@ -299,6 +305,15 @@ const CoursePlayer = ({ courseId, initialLessonSlug, onClose }) => {
       currentMediaItem?.videoUrl ||
       activeMediaIndex,
   );
+  const currentLessonHeaderTitle = currentLessonData
+    ? `${activeLesson + 1}-dars: ${currentLessonData.title || course?.name || "Dars"}`
+    : course?.name || "Dars";
+  const playbackSourceLabel =
+    playbackStreamType === "hls"
+      ? "Adaptive"
+      : playbackStreamType === "direct"
+        ? "Direct"
+        : playbackStreamType || "Direct";
 
   const handleCopyCurrentLessonLink = useCallback(async () => {
     const courseSlug = course?.urlSlug || course?._id || course?.id;
@@ -961,10 +976,19 @@ const CoursePlayer = ({ courseId, initialLessonSlug, onClose }) => {
     }
 
     clickActionTimerRef.current = setTimeout(() => {
-      togglePlay();
+      setShowSettings(false);
+      setShowControls((prev) => {
+        const next = !prev;
+        if (next) {
+          resetControlsHideTimer();
+        } else if (hideControlsTimer.current) {
+          clearTimeout(hideControlsTimer.current);
+        }
+        return next;
+      });
       clickActionTimerRef.current = null;
     }, 220);
-  }, [togglePlay]);
+  }, [resetControlsHideTimer]);
 
   const handlePlayerSurfaceDoubleClick = useCallback((event) => {
     if (!videoWrapperRef.current) return;
@@ -1034,13 +1058,6 @@ const CoursePlayer = ({ courseId, initialLessonSlug, onClose }) => {
     [activeMediaIndex, duration, lessonMediaItems.length, segmentDurations, totalLessonDuration],
   );
 
-  const handleVolumeChange = useCallback((e) => {
-    const val = parseFloat(e.target.value);
-    setVolume(val);
-    if (videoRef.current) videoRef.current.volume = val;
-    setIsMuted(val === 0);
-  }, []);
-
   const toggleMute = useCallback(() => {
     if (!videoRef.current) return;
     if (isMuted) {
@@ -1064,6 +1081,7 @@ const CoursePlayer = ({ courseId, initialLessonSlug, onClose }) => {
       Boolean(video?.webkitDisplayingFullscreen);
 
     if (isCurrentlyFullscreen) {
+      setShowSettings(false);
       if (doc.exitFullscreen) {
         doc.exitFullscreen().catch?.(() => {});
       } else if (doc.webkitExitFullscreen) {
@@ -1076,6 +1094,7 @@ const CoursePlayer = ({ courseId, initialLessonSlug, onClose }) => {
     }
 
     if (wrapper?.requestFullscreen) {
+      setShowSettings(false);
       wrapper
         .requestFullscreen()
         .then?.(() => setIsFullscreen(true))
@@ -1089,12 +1108,14 @@ const CoursePlayer = ({ courseId, initialLessonSlug, onClose }) => {
     }
 
     if (wrapper?.webkitRequestFullscreen) {
+      setShowSettings(false);
       wrapper.webkitRequestFullscreen();
       setIsFullscreen(true);
       return;
     }
 
     if (video?.webkitEnterFullscreen) {
+      setShowSettings(false);
       video.webkitEnterFullscreen();
       setIsFullscreen(true);
     }
@@ -1140,6 +1161,24 @@ const CoursePlayer = ({ courseId, initialLessonSlug, onClose }) => {
     if (videoRef.current) videoRef.current.playbackRate = speed;
     setShowSettings(false);
   }, []);
+
+  const handleSegmentSelect = useCallback(
+    (index) => {
+      if (index === activeMediaIndex) {
+        setShowSettings(false);
+        return;
+      }
+
+      shouldAutoplayNextMediaRef.current = isPlaying;
+      pendingSeekTimeRef.current = 0;
+      setCurrentTime(0);
+      setActiveMediaIndex(index);
+      setShowSettings(false);
+      setShowControls(true);
+      resetControlsHideTimer();
+    },
+    [activeMediaIndex, isPlaying, resetControlsHideTimer],
+  );
 
   const handleProgressHover = useCallback(
     (e) => {
@@ -1636,28 +1675,65 @@ const CoursePlayer = ({ courseId, initialLessonSlug, onClose }) => {
                     </PlaybackErrorOverlay>
                   )}
 
-                  <CenterPlayButton
-                    $visible={!isPlaying && !playbackError}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      togglePlay();
-                    }}
-                  >
-                    <Play size={32} fill="white" color="white" />
-                  </CenterPlayButton>
-
                   <VideoOverlay
                     $visible={showControls || !isPlaying}
                     onClick={(e) => e.stopPropagation()}
                   >
                     <TopBar>
                       <TopBarLeft>
-                        <PlayerBackButton onClick={() => onClose()}>
+                        <FloatingBackButton onClick={() => onClose()}>
                           <ArrowLeft size={20} />
-                        </PlayerBackButton>
-                        <TopBarTitle>{currentLessonData.title}</TopBarTitle>
+                        </FloatingBackButton>
+                        <TopBarTitleWrap>
+                          <TopBarTitle>{currentLessonHeaderTitle}</TopBarTitle>
+                          <TopBarSubtitle>
+                            {(course?.name || "Jamm Course")} · {playbackSourceLabel}
+                          </TopBarSubtitle>
+                        </TopBarTitleWrap>
                       </TopBarLeft>
                     </TopBar>
+
+                    <CenterControlsRow>
+                      <SeekControlButton
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          skipBackward();
+                          setShowControls(true);
+                          resetControlsHideTimer();
+                        }}
+                        aria-label="10 soniya orqaga"
+                      >
+                        <SkipBack size={20} />
+                      </SeekControlButton>
+
+                      <MainPlayButton
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          togglePlay();
+                        }}
+                        aria-label={isPlaying ? "Videoni to'xtatish" : "Videoni ijro etish"}
+                      >
+                        {isBuffering && isPlaying ? (
+                          <Spinner style={{ width: 22, height: 22, borderWidth: 3 }} />
+                        ) : isPlaying ? (
+                          <Pause size={24} />
+                        ) : (
+                          <Play size={24} fill="white" color="white" />
+                        )}
+                      </MainPlayButton>
+
+                      <SeekControlButton
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          skipForward();
+                          setShowControls(true);
+                          resetControlsHideTimer();
+                        }}
+                        aria-label="10 soniya oldinga"
+                      >
+                        <SkipForward size={20} />
+                      </SeekControlButton>
+                    </CenterControlsRow>
 
                     <ControlsBar>
                       <ProgressContainer
@@ -1676,6 +1752,7 @@ const CoursePlayer = ({ courseId, initialLessonSlug, onClose }) => {
                       >
                         <BufferedProgress $width={buffered} />
                         <ProgressFilled $width={overallProgressPercent} />
+                        <ProgressThumb $left={overallProgressPercent} />
                         {segmentBoundaries.map((left) => (
                           <ProgressSegmentDivider key={left} $left={left} />
                         ))}
@@ -1689,40 +1766,13 @@ const CoursePlayer = ({ courseId, initialLessonSlug, onClose }) => {
 
                       <ControlsRow>
                         <ControlsLeft>
-                          <ControlButton onClick={togglePlay}>
-                            {isPlaying ? (
-                              <Pause size={20} />
-                            ) : (
-                              <Play size={20} fill="white" />
-                            )}
-                          </ControlButton>
-                          <VolumeContainer>
-                            <ControlButton onClick={toggleMute}>
-                              {isMuted ? (
-                                <VolumeX size={18} />
-                              ) : (
-                                <Volume2 size={18} />
-                              )}
-                            </ControlButton>
-                            <VolumeSlider
-                              type="range"
-                              min="0"
-                              max="1"
-                              step="0.05"
-                              value={isMuted ? 0 : volume}
-                              onChange={handleVolumeChange}
-                            />
-                          </VolumeContainer>
-                          <TimeDisplay>
+                          <SpeedToggleButton as="div" $active={false}>
+                            {activeMediaIndex + 1}/{Math.max(lessonMediaItems.length, 1)}
+                          </SpeedToggleButton>
+                          <TopBarTitle as="div" style={{ fontSize: 13, fontWeight: 600 }}>
                             {formatTime(overallCurrentTime)} /{" "}
                             {formatTime(totalLessonDuration || duration)}
-                          </TimeDisplay>
-                          {lessonMediaItems.length > 1 ? (
-                            <CurrentSegmentLabel title={currentMediaItem?.title || ""}>
-                              {currentMediaItem?.title ||
-                                `${currentLessonData?.title || "Video"} ${activeMediaIndex + 1}`}
-                            </CurrentSegmentLabel>
-                          ) : null}
+                          </TopBarTitle>
                         </ControlsLeft>
                         <ControlsRight>
                           <SpeedMenuAnchor onClick={(e) => e.stopPropagation()}>
@@ -1732,22 +1782,45 @@ const CoursePlayer = ({ courseId, initialLessonSlug, onClose }) => {
                               $active={showSettings}
                               $accent={playbackSpeed !== 1}
                             >
-                              {playbackSpeed}x
+                              <Settings2 size={14} />
+                              Sozlamalar
                             </SpeedToggleButton>
                             {showSettings && (
                               <SpeedMenu>
                                 <SpeedMenuHeader>{t("coursePlayer.speed.title")}</SpeedMenuHeader>
-                                {[0.5, 0.75, 1, 1.25, 1.5, 2].map((speed) => (
-                                  <SpeedOption
-                                    key={speed}
-                                    onClick={() => handleSpeedChange(speed)}
-                                    $active={playbackSpeed === speed}
-                                  >
-                                    {speed === 1
-                                      ? t("coursePlayer.speed.normal")
-                                      : `${speed}x`}
-                                  </SpeedOption>
-                                ))}
+                                <SpeedSection>
+                                  {[0.5, 0.75, 1, 1.25, 1.5, 2].map((speed) => (
+                                    <SpeedOption
+                                      key={speed}
+                                      onClick={() => handleSpeedChange(speed)}
+                                      $active={playbackSpeed === speed}
+                                    >
+                                      {speed === 1
+                                        ? t("coursePlayer.speed.normal")
+                                        : `${speed}x`}
+                                    </SpeedOption>
+                                  ))}
+                                </SpeedSection>
+                                {lessonMediaItems.length > 1 ? (
+                                  <SegmentList>
+                                    <SpeedMenuHeader>Playlist</SpeedMenuHeader>
+                                    {segmentLabels.map((segment, index) => (
+                                      <SegmentOption
+                                        key={segment.key}
+                                        onClick={() => handleSegmentSelect(index)}
+                                        $active={index === activeMediaIndex}
+                                      >
+                                        <SegmentOptionTitle $active={index === activeMediaIndex}>
+                                          {segment.title || `Video ${index + 1}`}
+                                        </SegmentOptionTitle>
+                                        <SegmentOptionMeta>
+                                          {index + 1}/{lessonMediaItems.length} ·{" "}
+                                          {formatTime(Number(segmentDurations[index] || 0))}
+                                        </SegmentOptionMeta>
+                                      </SegmentOption>
+                                    ))}
+                                  </SegmentList>
+                                ) : null}
                               </SpeedMenu>
                             )}
                           </SpeedMenuAnchor>

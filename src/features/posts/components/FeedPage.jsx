@@ -29,9 +29,6 @@ import CreatePostDialog from "./CreatePostDialog";
 import PostComments from "./PostComments";
 import {
   ActionButton,
-  ComposeAvatar,
-  ComposeBar,
-  ComposePlaceholder,
   EmptyIcon,
   EmptyState,
   FeedContainer,
@@ -400,10 +397,6 @@ const FeedPage = () => {
     };
   }, [activePosts, viewPost]);
 
-  const displayName =
-    currentUser?.nickname || currentUser?.username || t("common.you");
-  const avatarLetter = displayName.charAt(0).toUpperCase();
-
   const handleCreate = async (payload) => {
     await createPost(payload);
     if (activeTab !== "foryou") setActiveTab("foryou");
@@ -490,17 +483,6 @@ const FeedPage = () => {
             }
             scrollableTarget="scrollableFeed"
           >
-            <ComposeBar onClick={() => setIsCreateOpen(true)}>
-              <ComposeAvatar>
-                {currentUser?.avatar ? (
-                  <img src={currentUser.avatar} alt={displayName} />
-                ) : (
-                  avatarLetter
-                )}
-              </ComposeAvatar>
-              <ComposePlaceholder>{t("feed.composePlaceholder")}</ComposePlaceholder>
-            </ComposeBar>
-
             {loading && activePosts.length === 0 ? (
               <FeedSkeletonWrap>
                 {[...Array(3)].map((_, index) => (

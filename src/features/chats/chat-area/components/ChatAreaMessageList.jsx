@@ -32,7 +32,7 @@ const MessagesContainer = styled.div`
   display: flex;
   flex-direction: column;
   min-height: 0;
-  background-image: url("/chat-area-bg.webp");
+  background-image: url("/chat-area-bg.jpg");
   background-size: 420px auto;
   background-repeat: repeat;
   background-position: center;

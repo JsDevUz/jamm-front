@@ -108,7 +108,7 @@ export const TopBar = styled.div`
   padding: 16px 20px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 10px;
 
   @media (max-width: 768px) {
     padding: 12px 16px;
@@ -125,13 +125,30 @@ export const TopBarLeft = styled.div`
 
 export const TopBarTitle = styled.div`
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 700;
   color: white;
   text-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+`;
+
+export const TopBarTitleWrap = styled.div`
+  min-width: 0;
+  flex: 1;
+  display: grid;
+  gap: 2px;
+`;
+
+export const TopBarSubtitle = styled.div`
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 11px;
+  font-weight: 500;
 `;
 
 const MobileBackButtonBase = styled.button`
@@ -189,24 +206,20 @@ export const CenterPlayButton = styled.button`
 `;
 
 export const ControlsBar = styled.div`
-  padding: 0 16px 12px;
+  padding: 10px 16px 14px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
+  background: linear-gradient(180deg, rgba(7, 10, 18, 0.08), rgba(7, 10, 18, 0.9));
 `;
 
 export const ProgressContainer = styled.div`
   width: 100%;
-  height: 4px;
-  background: rgba(255, 255, 255, 0.2);
-  border-radius: 2px;
+  height: 8px;
+  background: rgba(255, 255, 255, 0.16);
+  border-radius: 999px;
   cursor: pointer;
   position: relative;
-  transition: height 0.15s ease;
-
-  &:hover {
-    height: 6px;
-  }
 `;
 
 export const ProgressSegmentDivider = styled.div`
@@ -225,30 +238,10 @@ export const ProgressSegmentDivider = styled.div`
 export const ProgressFilled = styled.div`
   height: 100%;
   background: var(--primary-color);
-  border-radius: 2px;
+  border-radius: 999px;
   position: relative;
   transition: width 0.1s linear;
   width: ${(props) => `${props.$width}%`};
-
-  &::after {
-    content: "";
-    position: absolute;
-    right: -6px;
-    top: 50%;
-    transform: translateY(-50%);
-    width: 12px;
-    height: 12px;
-    border-radius: 50%;
-    background: var(--primary-color);
-    box-shadow: 0 0 4px
-      color-mix(in srgb, var(--primary-color) 50%, transparent);
-    opacity: 0;
-    transition: opacity 0.15s;
-  }
-
-  ${ProgressContainer}:hover &::after {
-    opacity: 1;
-  }
 `;
 
 export const BufferedProgress = styled.div`
@@ -256,9 +249,23 @@ export const BufferedProgress = styled.div`
   top: 0;
   left: 0;
   height: 100%;
-  background: rgba(255, 255, 255, 0.15);
-  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.28);
+  border-radius: 999px;
   width: ${(props) => `${props.$width}%`};
+`;
+
+export const ProgressThumb = styled.div`
+  position: absolute;
+  top: 50%;
+  left: ${(props) => `${props.$left}%`};
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  background: var(--primary-color);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--primary-color) 40%, transparent);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 4;
 `;
 
 export const ProgressHoverTooltip = styled.div`
@@ -301,6 +308,7 @@ export const ControlsRow = styled.div`
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 12px;
 
   @media (max-width: 768px) {
     display: grid;
@@ -315,6 +323,7 @@ export const ControlsLeft = styled.div`
   align-items: center;
   gap: 8px;
   margin-right: 8px;
+  min-width: 0;
 
   @media (max-width: 768px) {
     min-width: 0;
@@ -328,6 +337,7 @@ export const ControlsRight = styled.div`
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-shrink: 0;
 
   @media (max-width: 768px) {
     flex-shrink: 0;
@@ -336,11 +346,11 @@ export const ControlsRight = styled.div`
 `;
 
 export const ControlButton = styled.button`
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
+  width: 34px;
+  height: 34px;
+  border-radius: 17px;
   border: none;
-  background: none;
+  background: rgba(255, 255, 255, 0.12);
   color: white;
   cursor: pointer;
   display: flex;
@@ -349,8 +359,53 @@ export const ControlButton = styled.button`
   transition: all 0.15s ease;
 
   &:hover {
-    background: rgba(255, 255, 255, 0.15);
-    transform: scale(1.1);
+    background: rgba(255, 255, 255, 0.18);
+  }
+`;
+
+export const CenterControlsRow = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  padding: 0 24px;
+`;
+
+export const SeekControlButton = styled.button`
+  width: 38px;
+  height: 38px;
+  border-radius: 29px;
+  border: none;
+  background: rgba(0, 0, 0, 0.4);
+  color: white;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s ease, transform 0.15s ease;
+
+  &:hover {
+    background: rgba(0, 0, 0, 0.54);
+    transform: scale(1.04);
+  }
+`;
+
+export const MainPlayButton = styled.button`
+  width: 54px;
+  height: 54px;
+  border-radius: 37px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(0, 0, 0, 0.44);
+  color: white;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s ease, transform 0.15s ease;
+
+  &:hover {
+    background: rgba(0, 0, 0, 0.58);
+    transform: scale(1.04);
   }
 `;
 
@@ -359,13 +414,14 @@ export const SpeedMenuAnchor = styled.div`
 `;
 
 export const SpeedToggleButton = styled(ControlButton)`
-  font-size: 11px;
-  font-weight: 700;
   width: auto;
-  padding: 0 8px;
-  border-radius: 4px;
-  height: 25px;
-
+  min-width: 34px;
+  height: 34px;
+  padding: 0 10px;
+  gap: 6px;
+  border-radius: 17px;
+  font-size: 12px;
+  font-weight: 700;
   border: 1px solid
     ${(props) =>
       props.$active ? "var(--primary-color)" : "rgba(255, 255, 255, 0.2)"};
@@ -374,13 +430,14 @@ export const SpeedToggleButton = styled(ControlButton)`
 
 export const SpeedMenu = styled.div`
   position: absolute;
-  bottom: 44px;
+  bottom: 46px;
   right: 0;
   background: rgba(15, 15, 20, 0.97);
   border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 10px;
+  border-radius: 14px;
   overflow: hidden;
-  min-width: 110px;
+  min-width: 220px;
+  max-width: min(280px, calc(100vw - 32px));
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
   z-index: 50;
 `;
@@ -416,6 +473,50 @@ export const SpeedOption = styled.button`
         ? "color-mix(in srgb, var(--primary-color) 16%, transparent)"
         : "rgba(255, 255, 255, 0.06)"};
   }
+`;
+
+export const SpeedSection = styled.div`
+  display: grid;
+`;
+
+export const SegmentList = styled.div`
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  display: grid;
+`;
+
+export const SegmentOption = styled.button`
+  width: 100%;
+  padding: 11px 14px;
+  display: grid;
+  gap: 3px;
+  text-align: left;
+  border: none;
+  cursor: pointer;
+  background: ${(props) =>
+    props.$active
+      ? "color-mix(in srgb, var(--primary-color) 16%, transparent)"
+      : "transparent"};
+  transition: background 0.15s ease;
+
+  &:hover {
+    background: ${(props) =>
+      props.$active
+        ? "color-mix(in srgb, var(--primary-color) 16%, transparent)"
+        : "rgba(255, 255, 255, 0.06)"};
+  }
+`;
+
+export const SegmentOptionTitle = styled.div`
+  color: ${(props) => (props.$active ? "var(--primary-color)" : "white")};
+  font-size: 13px;
+  font-weight: ${(props) => (props.$active ? 700 : 600)};
+  line-height: 1.3;
+`;
+
+export const SegmentOptionMeta = styled.div`
+  color: rgba(255, 255, 255, 0.62);
+  font-size: 11px;
+  font-weight: 500;
 `;
 
 export const LoadingOverlay = styled.div`

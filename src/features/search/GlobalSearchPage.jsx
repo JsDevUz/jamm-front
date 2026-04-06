@@ -197,6 +197,26 @@ const MIN_SEARCH_LENGTH = 1;
 
 const getInitial = (value = "") => value.trim().charAt(0).toUpperCase() || "?";
 
+function SearchAvatar({ src, label, alt }) {
+  const [hasError, setHasError] = useState(false);
+
+  useEffect(() => {
+    setHasError(false);
+  }, [src]);
+
+  const showImage = Boolean(src) && !hasError;
+
+  return (
+    <Avatar $image={showImage}>
+      {showImage ? (
+        <img src={src} alt={alt} onError={() => setHasError(true)} />
+      ) : (
+        getInitial(label)
+      )}
+    </Avatar>
+  );
+}
+
 export default function GlobalSearchPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -398,9 +418,11 @@ export default function GlobalSearchPage() {
                 type="button"
                 onClick={() => void handleOpenPrivateChat(user)}
               >
-                <Avatar $image={Boolean(user.avatar)}>
-                  {user.avatar ? <img src={user.avatar} alt={user.username || "user"} /> : getInitial(user.nickname || user.username)}
-                </Avatar>
+                <SearchAvatar
+                  src={user.avatar}
+                  alt={user.username || "user"}
+                  label={user.nickname || user.username}
+                />
                 <ResultBody>
                   <ResultTitle>{user.nickname || user.username}</ResultTitle>
                   <ResultMeta>@{user.username}</ResultMeta>
@@ -414,9 +436,11 @@ export default function GlobalSearchPage() {
                 type="button"
                 onClick={() => navigate(`/groups/${group.urlSlug || group.id || group._id}`)}
               >
-                <Avatar $image={Boolean(group.avatar)}>
-                  {group.avatar ? <img src={group.avatar} alt={group.name || "group"} /> : getInitial(group.name)}
-                </Avatar>
+                <SearchAvatar
+                  src={group.avatar}
+                  alt={group.name || "group"}
+                  label={group.name}
+                />
                 <ResultBody>
                   <ResultTitle>{group.name || "Guruh"}</ResultTitle>
                   <ResultMeta>{group.membersCount ? `${group.membersCount} a'zo` : "Guruh"}</ResultMeta>
@@ -430,9 +454,11 @@ export default function GlobalSearchPage() {
                 type="button"
                 onClick={() => navigate(`/articles/${article.slug || article._id}`)}
               >
-                <Avatar $image={Boolean(article.coverImage)}>
-                  {article.coverImage ? <img src={article.coverImage} alt={article.title || "article"} /> : getInitial(article.title)}
-                </Avatar>
+                <SearchAvatar
+                  src={article.coverImage}
+                  alt={article.title || "article"}
+                  label={article.title}
+                />
                 <ResultBody>
                   <ResultTitle>{article.title || "Maqola"}</ResultTitle>
                   <ResultMeta>{article.excerpt || article.author?.nickname || article.author?.username || ""}</ResultMeta>
@@ -446,9 +472,11 @@ export default function GlobalSearchPage() {
                 type="button"
                 onClick={() => navigate(`/courses/${course.urlSlug || course._id}`)}
               >
-                <Avatar $image={Boolean(course.image)}>
-                  {course.image ? <img src={course.image} alt={course.name || "course"} /> : getInitial(course.name)}
-                </Avatar>
+                <SearchAvatar
+                  src={course.image}
+                  alt={course.name || "course"}
+                  label={course.name}
+                />
                 <ResultBody>
                   <ResultTitle>{course.name || "Kurs"}</ResultTitle>
                   <ResultMeta>{course.description || ""}</ResultMeta>

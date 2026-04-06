@@ -1,12 +1,11 @@
 import React from "react";
+import { MdArticle, MdSchool } from "react-icons/md";
 import { useTranslation } from "react-i18next";
 import { useChats } from "../../../contexts/ChatsContext";
 import useAuthStore from "../../../store/authStore";
 import {
   AdminSolidIcon,
-  ArticlesSolidIcon,
   ChatsSolidIcon,
-  CoursesSolidIcon,
   FeedSolidIcon,
 } from "../../../shared/ui/icons/NavSolidIcons";
 import {
@@ -26,8 +25,8 @@ import {
 const baseNavItems = [
   { id: "feed", icon: FeedSolidIcon, labelKey: "navigation.feed" },
   { id: "chats", icon: ChatsSolidIcon, labelKey: "navigation.chats" },
-  { id: "articles", icon: ArticlesSolidIcon, labelKey: "navigation.articles" },
-  { id: "courses", icon: CoursesSolidIcon, labelKey: "navigation.courses" },
+  { id: "articles", icon: MdArticle, labelKey: "navigation.articles" },
+  { id: "courses", icon: MdSchool, labelKey: "navigation.courses" },
 ];
 
 export default function ServerSidebar({
