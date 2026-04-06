@@ -1,14 +1,14 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Copy, Plus } from "lucide-react";
+import { Copy } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import { createArticle, fetchArticles } from "../../../api/articlesApi";
 import { RESOLVED_APP_BASE_URL } from "../../../config/env";
 import ArticleEditorDialog from "./ArticleEditorDialog";
 import { Skeleton } from "../../../shared/ui/feedback/Skeleton";
+import SectionHeader from "../../../shared/ui/navigation/SectionHeader";
 import {
-  AddArticleButton,
   ArticleItem,
   ArticleCopyButton,
   ArticleItemActions,
@@ -21,8 +21,6 @@ import {
   EmptyState,
   Excerpt,
   Meta,
-  SearchInput,
-  SearchWrap,
   SidebarContainer,
   StyledInfiniteScroll,
   Title,
@@ -31,10 +29,10 @@ import {
 const ArticlesSidebar = ({ selectedArticleId }) => {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const location = useLocation();
   const [articles, setArticles] = useState([]);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
-  const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [editorOpen, setEditorOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -62,20 +60,6 @@ const ArticlesSidebar = ({ selectedArticleId }) => {
     setPage(nextPage);
     setHasMore(nextPage < (response?.totalPages || 1));
   };
-
-  const filteredArticles = useMemo(() => {
-    if (!query.trim()) return articles;
-    const needle = query.trim().toLowerCase();
-
-    return articles.filter((article) => {
-      const author = article.author?.nickname || article.author?.username || "";
-      return (
-        article.title?.toLowerCase().includes(needle) ||
-        article.excerpt?.toLowerCase().includes(needle) ||
-        author.toLowerCase().includes(needle)
-      );
-    });
-  }, [articles, query]);
 
   const handleCreateArticle = async (payload) => {
     setSaving(true);
@@ -125,34 +109,32 @@ const ArticlesSidebar = ({ selectedArticleId }) => {
 
   return (
     <SidebarContainer>
-      <SearchWrap>
-        <SearchInput
-          placeholder={t("articles.searchPlaceholder")}
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-        />
-        <AddArticleButton
-          onClick={() => setEditorOpen(true)}
-          title={t("articles.createTitle")}
-        >
-          <Plus size={16} />
-        </AddArticleButton>
-      </SearchWrap>
+      <SectionHeader
+        title={t("navigation.articles")}
+        onSearch={() =>
+          navigate("/search?tab=articles", {
+            state: { from: `${location.pathname}${location.search}` },
+          })
+        }
+        onAdd={() => setEditorOpen(true)}
+        searchTitle={t("articles.searchPlaceholder")}
+        addTitle={t("articles.createTitle")}
+      />
 
       <ArticleList id="articles-sidebar-scroll">
         {loading ? (
           <>{renderArticleSkeletons(1)}</>
-        ) : filteredArticles.length === 0 ? (
+        ) : articles.length === 0 ? (
           <EmptyState>{t("articles.notFound")}</EmptyState>
         ) : (
           <StyledInfiniteScroll
-            dataLength={filteredArticles.length}
+            dataLength={articles.length}
             next={loadMore}
-            hasMore={hasMore && !query.trim()}
+            hasMore={hasMore}
             loader={<>{renderArticleSkeletons(2)}</>}
             scrollableTarget="articles-sidebar-scroll"
           >
-            {filteredArticles.map((article) => {
+            {articles.map((article) => {
               const target = article.slug || article._id;
               return (
                 <ArticleItem

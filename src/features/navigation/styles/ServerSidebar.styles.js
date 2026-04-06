@@ -25,7 +25,6 @@ export const SidebarContainer = styled.div`
     padding: 4px 10px 6px;
     padding: 4px 10px calc(6px + constant(safe-area-inset-bottom));
     padding: 4px 10px calc(6px + env(safe-area-inset-bottom, 0px));
-    border-top: 1px solid rgba(255, 255, 255, 0.08);
     background: var(--background-color);
     overflow: visible;
 
@@ -68,7 +67,8 @@ export const NavButton = styled.button`
     padding: 0 4px;
     border-radius: 0;
     background: transparent;
-    color: ${(props) => (props.$active ? "#fff" : "var(--text-secondary-color)")};
+    color: ${(props) =>
+      props.$active ? "var(--primary-color)" : "var(--text-secondary-color)"};
     flex-direction: column;
     align-items: center;
     justify-content: flex-start;
@@ -99,7 +99,8 @@ export const NavLabel = styled.span`
     font-size: 11px;
     line-height: 14px;
     font-weight: 600;
-    color: ${(props) => (props.$active ? "#fff" : "var(--text-secondary-color)")};
+    color: ${(props) =>
+      props.$active ? "var(--primary-color)" : "var(--text-secondary-color)"};
     text-align: center;
     white-space: nowrap;
   }

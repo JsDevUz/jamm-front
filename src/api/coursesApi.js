@@ -8,6 +8,13 @@ export const fetchCourses = async (page = 1, limit = 15) => {
   return data;
 };
 
+export const searchCourses = async (query, limit = 20) => {
+  const { data } = await axiosInstance.get(
+    `/courses/search?q=${encodeURIComponent(query)}&limit=${limit}`,
+  );
+  return data;
+};
+
 export const createCourse = async (payload) => {
   const { data } = await axiosInstance.post("/courses", payload);
   return data;

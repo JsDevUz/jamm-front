@@ -5,6 +5,7 @@ const AuthPage = lazy(() => import("../../pages/AuthPage"));
 const JoinCallPage = lazy(() => import("../../pages/JoinCallPage"));
 const AppWrapper = lazy(() => import("./AppWrapper"));
 const SlugResolver = lazy(() => import("./SlugResolver"));
+const GlobalSearchPage = lazy(() => import("../../features/search/GlobalSearchPage"));
 
 export default function AppRoutes() {
   return (
@@ -63,6 +64,14 @@ export default function AppRoutes() {
           element={
             <ProtectedRoute>
               <SlugResolver />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/search"
+          element={
+            <ProtectedRoute>
+              <GlobalSearchPage />
             </ProtectedRoute>
           }
         />

@@ -1,12 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
   Bookmark,
   MessageSquare,
-  Plus,
   Users,
-  Video,
 } from "lucide-react";
 import {
   Skeleton,
@@ -17,7 +15,7 @@ import UserNameWithDecoration from "../../../shared/ui/users/UserNameWithDecorat
 import { useChats } from "../../../contexts/ChatsContext";
 import { usePresence } from "../../../contexts/PresenceContext";
 import useAuthStore from "../../../store/authStore";
-import { SidebarIconButton as ButtonWrapper } from "../../../shared/ui/buttons/IconButton";
+import SectionHeader from "../../../shared/ui/navigation/SectionHeader";
 import {
   AvatarImage,
   AvatarWrapper,
@@ -38,7 +36,6 @@ import {
   EndMessage,
   FilterButton,
   FilterContainer,
-  HeaderSearch,
   OnlineDot,
   OnlineSubtext,
   SearchLoadingBody,
@@ -49,7 +46,6 @@ import {
   SidebarItemSkeletonBody,
   SidebarItemSkeletonMeta,
   StyledInfiniteScroll,
-  TopHeader,
   UnreadBadge,
   ChatTime,
 } from "../styles/ChatsSidebar.styles";
@@ -76,6 +72,7 @@ const ChatsSidebar = ({
   const { isUserOnline, getOnlineCount, fetchBulkStatuses } = usePresence();
   const currentUser = useAuthStore((state) => state.user);
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [searchQuery, setSearchQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState("all");
@@ -374,11 +371,10 @@ const ChatsSidebar = ({
       </SidebarItemSkeleton>
     ));
 
-  const hasHeaderAction =
-    selectedNav === "groups" ||
-    selectedNav === "users" ||
-    (selectedNav === "chats" && effectiveChatTab === "private") ||
-    (selectedNav === "chats" && effectiveChatTab === "group");
+  const headerTitle =
+    selectedNav === "groups" || effectiveChatTab === "group"
+      ? t("chatsSidebar.tabs.groups")
+      : t("navigation.chats", { defaultValue: "Chatlar" });
 
   const renderAvatarContent = (chat) => {
     if (chat.isSavedMessages) {
@@ -431,34 +427,27 @@ const ChatsSidebar = ({
 
   return (
     <SidebarContainer>
-      <TopHeader>
-        <HeaderSearch
-          data-tour="chats-search"
-          $hasAction={hasHeaderAction}
-          type="text"
-          placeholder={t("chatsSidebar.searchPlaceholder")}
-          value={searchQuery}
-          onChange={(event) => setSearchQuery(event.target.value)}
-        />
-        {(selectedNav === "groups" ||
-          (selectedNav === "chats" && effectiveChatTab === "group")) && (
-          <ButtonWrapper
-            onClick={onOpenCreateGroup}
-            title={t("chatsSidebar.createGroup")}
-          >
-            <Plus size={18} />
-          </ButtonWrapper>
-        )}
-        {(selectedNav === "users" ||
-          (selectedNav === "chats" && effectiveChatTab === "private")) && (
-          <ButtonWrapper
-            onClick={onOpenCreateMeet}
-            title={t("chatsSidebar.createMeet")}
-          >
-            <Video size={18} />
-          </ButtonWrapper>
-        )}
-      </TopHeader>
+      <SectionHeader
+        title={headerTitle}
+        onSearch={() =>
+          navigate(
+            `/search?tab=${effectiveChatTab === "group" ? "groups" : "private"}`,
+            {
+              state: { from: `${location.pathname}${location.search}` },
+            },
+          )
+        }
+        onAdd={
+          effectiveChatTab === "group" ? onOpenCreateGroup : onOpenCreateMeet
+        }
+        searchTitle={t("chatsSidebar.searchPlaceholder")}
+        addTitle={
+          effectiveChatTab === "group"
+            ? t("chatsSidebar.createGroup")
+            : t("chatsSidebar.createMeet")
+        }
+        searchTargetProps={{ "data-tour": "chats-search" }}
+      />
 
       {(selectedNav === "chats" ||
         selectedNav === "users" ||

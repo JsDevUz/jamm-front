@@ -1,14 +1,14 @@
 import React from "react";
-import {
-  Flame,
-  GraduationCap,
-  LayoutDashboard,
-  MessagesSquare,
-  Newspaper,
-} from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useChats } from "../../../contexts/ChatsContext";
 import useAuthStore from "../../../store/authStore";
+import {
+  AdminSolidIcon,
+  ArticlesSolidIcon,
+  ChatsSolidIcon,
+  CoursesSolidIcon,
+  FeedSolidIcon,
+} from "../../../shared/ui/icons/NavSolidIcons";
 import {
   AvatarButton,
   AvatarFallback,
@@ -24,10 +24,10 @@ import {
 } from "../styles/ServerSidebar.styles";
 
 const baseNavItems = [
-  { id: "feed", icon: Flame, labelKey: "navigation.feed" },
-  { id: "chats", icon: MessagesSquare, labelKey: "navigation.chats" },
-  { id: "articles", icon: Newspaper, labelKey: "navigation.articles" },
-  { id: "courses", icon: GraduationCap, labelKey: "navigation.courses" },
+  { id: "feed", icon: FeedSolidIcon, labelKey: "navigation.feed" },
+  { id: "chats", icon: ChatsSolidIcon, labelKey: "navigation.chats" },
+  { id: "articles", icon: ArticlesSolidIcon, labelKey: "navigation.articles" },
+  { id: "courses", icon: CoursesSolidIcon, labelKey: "navigation.courses" },
 ];
 
 export default function ServerSidebar({
@@ -58,7 +58,7 @@ export default function ServerSidebar({
     currentUser?.officialBadgeKey === "ceo"
       ? [
           ...baseNavItems,
-          { id: "admin", icon: LayoutDashboard, labelKey: "navigation.admin" },
+          { id: "admin", icon: AdminSolidIcon, labelKey: "navigation.admin" },
         ]
       : baseNavItems;
 

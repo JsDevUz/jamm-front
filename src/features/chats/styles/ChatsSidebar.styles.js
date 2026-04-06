@@ -46,7 +46,6 @@ export const FilterContainer = styled.div`
 
 export const ChatsTabsRow = styled.div`
   display: flex;
-  border-bottom: 1px solid var(--border-color);
   flex-shrink: 0;
 `;
 
@@ -58,7 +57,7 @@ export const ChatsTab = styled.button`
   border-bottom: 2px solid
     ${(props) => (props.$active ? "var(--primary-color)" : "transparent")};
   color: ${(props) =>
-    props.$active ? "var(--text-color)" : "var(--text-muted-color)"};
+    props.$active ? "var(--primary-color)" : "var(--text-muted-color)"};
   font-size: 14px;
   font-weight: ${(props) => (props.$active ? "700" : "500")};
   cursor: pointer;
@@ -86,7 +85,7 @@ export const ChatsTabBadge = styled.span`
   align-items: center;
   justify-content: center;
   background: ${(props) =>
-    props.$active ? "rgba(255, 255, 255, 0.18)" : "var(--primary-color)"};
+    props.$active ? "var(--primary-color)" : "var(--primary-color)"};
   color: white;
   font-size: 11px;
   font-weight: 700;

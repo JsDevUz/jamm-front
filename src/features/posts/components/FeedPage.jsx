@@ -9,12 +9,11 @@ import {
   MessageCircle,
   MoreHorizontal,
   Pencil,
-  Plus,
   Trash2,
   Users,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import useAuthStore from "../../../store/authStore";
 import { usePosts } from "../../../contexts/PostsContext";
 import {
@@ -22,7 +21,7 @@ import {
   SkeletonCircle,
 } from "../../../shared/ui/feedback/Skeleton";
 import ConfirmDialog from "../../../shared/ui/dialogs/ConfirmDialog";
-import { SidebarIconButton as ButtonWrapper } from "../../../shared/ui/buttons/IconButton";
+import SectionHeader from "../../../shared/ui/navigation/SectionHeader";
 import { renderInlineMarkup } from "../../../shared/utils/renderInlineMarkup";
 import UserNameWithDecoration from "../../../shared/ui/users/UserNameWithDecoration";
 import ImageLightbox from "../../../shared/ui/media/ImageLightbox";
@@ -45,7 +44,6 @@ import {
   FeedSkeletonBody,
   FeedSkeletonRow,
   FeedSkeletonWrap,
-  FeedTitle,
   ListStatus,
   PostActions,
   PostAuthor,
@@ -219,6 +217,7 @@ const FeedPage = () => {
   const { t } = useTranslation();
   const currentUser = useAuthStore((state) => state.user);
   const navigate = useNavigate();
+  const location = useLocation();
   const {
     forYouPosts,
     forYouPage,
@@ -452,12 +451,17 @@ const FeedPage = () => {
     <FeedContainer>
       <FeedHeader>
         <FeedHeaderInner>
-          <FeedTitle>
-            <h1>{t("feed.title")}</h1>
-            <ButtonWrapper onClick={() => setIsCreateOpen(true)}>
-              <Plus size={14} />
-            </ButtonWrapper>
-          </FeedTitle>
+          <SectionHeader
+            title={t("feed.title")}
+            onSearch={() =>
+              navigate("/search?tab=private", {
+                state: { from: `${location.pathname}${location.search}` },
+              })
+            }
+            onAdd={() => setIsCreateOpen(true)}
+            searchTitle={t("common.search", { defaultValue: "Qidirish" })}
+            addTitle={t("feed.createTitle", { defaultValue: "Post yaratish" })}
+          />
           <TabsRow>
             <Tab $active={activeTab === "foryou"} onClick={() => setActiveTab("foryou")}>
               {t("feed.tabs.forYou")}

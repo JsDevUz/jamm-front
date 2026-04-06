@@ -7,6 +7,13 @@ export const fetchArticles = async (page = 1, limit = 20) => {
   return data;
 };
 
+export const searchArticles = async (query, limit = 20) => {
+  const { data } = await axiosInstance.get(
+    `/articles/search?q=${encodeURIComponent(query)}&limit=${limit}`,
+  );
+  return data;
+};
+
 export const fetchUserArticles = async (identifier) => {
   const { data } = await axiosInstance.get(`/articles/user/${identifier}`);
   return data;

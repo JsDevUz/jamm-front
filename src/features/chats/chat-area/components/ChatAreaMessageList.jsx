@@ -32,6 +32,10 @@ const MessagesContainer = styled.div`
   display: flex;
   flex-direction: column;
   min-height: 0;
+  background-image: url("/chat-area-bg.webp");
+  background-size: 420px auto;
+  background-repeat: repeat;
+  background-position: center;
   -webkit-overflow-scrolling: touch;
   scroll-padding-bottom: ${(props) =>
     props.$keyboardOpen
@@ -267,7 +271,7 @@ const MessageBubble = styled.div`
   border-radius: ${(props) => (props.$hasReply ? "10px" : "10px")};
   word-wrap: break-word;
   background-color: ${(props) =>
-    props.$isOwn ? "var(--hover-color)" : "var(--input-color)"};
+    props.$isOwn ? "var(--input-color)" : "var(--input-color)"};
   color: ${(props) => (props.$isOwn ? "white" : "var(--text-color)")};
   /* text-align: ${(props) => (props.$isOwn ? "right" : "left")}; */
   transform: translateX(${(props) => props.$swipeOffset ?? 0}px);

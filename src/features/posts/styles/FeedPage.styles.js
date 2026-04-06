@@ -64,7 +64,6 @@ export const FeedHeader = styled.div`
   width: 100%;
   display: flex;
   justify-content: center;
-  border-bottom: 1px solid var(--border-color);
   background: var(--secondary-color);
   position: sticky;
   top: 0;
@@ -108,7 +107,7 @@ export const Tab = styled.button`
   border-bottom: 3px solid
     ${(props) => (props.$active ? "var(--primary-color)" : "transparent")};
   color: ${(props) =>
-    props.$active ? "var(--text-color)" : "var(--text-muted-color)"};
+    props.$active ? "var(--primary-color)" : "var(--text-muted-color)"};
   font-size: 15px;
   font-weight: ${(props) => (props.$active ? "700" : "500")};
   cursor: pointer;

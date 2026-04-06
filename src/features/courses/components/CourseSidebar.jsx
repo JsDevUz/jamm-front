@@ -1,9 +1,8 @@
 import React, { useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import styled from "styled-components";
 import {
-  Plus,
   Users,
   Lock,
   CheckCircle,
@@ -19,8 +18,7 @@ import { useCourses } from "../../../contexts/CoursesContext";
 import InfiniteScroll from "react-infinite-scroll-component";
 import CreateCourseDialog from "./CreateCourseDialog";
 import ConfirmDialog from "../../../shared/ui/dialogs/ConfirmDialog";
-import SidebarSearchField from "../../../shared/ui/forms/SidebarSearchField";
-import { SidebarIconButton as ButtonWrapper } from "../../../shared/ui/buttons/IconButton";
+import SectionHeader from "../../../shared/ui/navigation/SectionHeader";
 
 const SidebarContainer = styled.div`
   width: 340px;
@@ -36,43 +34,9 @@ const SidebarContainer = styled.div`
   }
 `;
 
-const HeaderSection = styled.div`
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--border-color);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-`;
-
-const HeaderTitle = styled.h2`
-  font-size: 16px;
-  font-weight: 700;
-  color: var(--text-color);
-`;
-
-const CreateButton = styled.button`
-  background: none;
-  border: none;
-  color: var(--text-muted-color);
-  cursor: pointer;
-  padding: 4px;
-  border-radius: 4px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s;
-
-  &:hover {
-    color: var(--text-color);
-    background-color: var(--hover-color);
-  }
-`;
-
 const TabsContainer = styled.div`
   display: flex;
-  padding: 0 16px;
   gap: 8px;
-  border-bottom: 1px solid var(--border-color);
 `;
 
 const NavTab = styled.button`
@@ -89,7 +53,7 @@ const NavTab = styled.button`
   cursor: pointer;
   background-color: transparent;
   color: ${(props) =>
-    props.$active ? "var(--text-color)" : "var(--text-muted-color)"};
+    props.$active ? "var(--primary-color)" : "var(--text-muted-color)"};
   transition: color 0.2s ease;
   position: relative;
 
@@ -100,20 +64,14 @@ const NavTab = styled.button`
   &::after {
     content: "";
     position: absolute;
-    left: 12px;
-    right: 12px;
+    left: 0px;
+    right: 0px;
     bottom: 0;
     height: 2px;
     border-radius: 999px;
     background: ${(props) =>
       props.$active ? "var(--primary-color)" : "transparent"};
   }
-`;
-
-const HeaderSearch = styled(SidebarSearchField)`
-  flex: 1;
-  min-width: 0;
-  margin-right: 12px;
 `;
 
 const CourseList = styled.div`
@@ -286,6 +244,7 @@ const CourseSidebar = ({
 }) => {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const location = useLocation();
   const {
     courses,
     loading,
@@ -297,7 +256,6 @@ const CourseSidebar = ({
     fetchCourses,
     ensureCoursesLoaded,
   } = useCourses();
-  const [searchQuery, setSearchQuery] = useState("");
 
   React.useEffect(() => {
     if (viewMode === "courses") {
@@ -353,31 +311,16 @@ const CourseSidebar = ({
     [t],
   );
 
-  const filteredCourses = React.useMemo(() => {
-    if (!searchQuery) {
-      return courses.filter((course) => {
+  const filteredCourses = React.useMemo(
+    () =>
+      courses.filter((course) => {
         const status = isEnrolled(course._id);
         return (
           status === "admin" || status === "approved" || status === "pending"
         );
-      });
-    }
-    return courses.filter(
-      (course) =>
-        course.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        course.description.toLowerCase().includes(searchQuery.toLowerCase()),
-    );
-  }, [courses, searchQuery, isEnrolled]);
-
-  const filteredArenaItems = React.useMemo(() => {
-    const normalizedQuery = searchQuery.trim().toLowerCase();
-    if (!normalizedQuery) return arenaItems;
-
-    return arenaItems.filter((item) => {
-      const haystack = `${item.title} ${item.description}`.toLowerCase();
-      return haystack.includes(normalizedQuery);
-    });
-  }, [arenaItems, searchQuery]);
+      }),
+    [courses, isEnrolled],
+  );
 
   const getStatusLabel = (courseId) => {
     const status = isEnrolled(courseId);
@@ -424,35 +367,29 @@ const CourseSidebar = ({
   return (
     <>
       <SidebarContainer>
-        <HeaderSection>
-          <div
-            data-tour="courses-search"
-            style={{ display: "flex", flex: 1, minWidth: 0 }}
-          >
-            <HeaderSearch
-              type="text"
-              placeholder={
-                viewMode === "arena"
-                  ? t("courseSidebar.arena.searchPlaceholder", {
-                      defaultValue: "Arena qidirish...",
-                    })
-                  : t("courseSidebar.searchPlaceholder")
-              }
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-          </div>
-          {viewMode === "courses" && (
-            <div data-tour="courses-create">
-              <ButtonWrapper
-                onClick={() => setIsCreateOpen(true)}
-                title={t("courseSidebar.createTitle")}
-              >
-                <Plus size={18} />
-              </ButtonWrapper>
-            </div>
-          )}
-        </HeaderSection>
+        <SectionHeader
+          title={
+            viewMode === "arena"
+              ? t("courseSidebar.tabs.arena")
+              : t("navigation.courses")
+          }
+          onSearch={() =>
+            navigate("/search?tab=courses", {
+              state: { from: `${location.pathname}${location.search}` },
+            })
+          }
+          onAdd={() => setIsCreateOpen(true)}
+          searchTitle={
+            viewMode === "arena"
+              ? t("courseSidebar.arena.searchPlaceholder", {
+                  defaultValue: "Arena qidirish...",
+                })
+              : t("courseSidebar.searchPlaceholder")
+          }
+          addTitle={t("courseSidebar.createTitle")}
+          searchTargetProps={{ "data-tour": "courses-search" }}
+          addTargetProps={{ "data-tour": "courses-create" }}
+        />
 
         <TabsContainer data-tour="courses-tabs">
           <NavTab
@@ -462,7 +399,7 @@ const CourseSidebar = ({
               navigate("/courses");
             }}
           >
-            <BookOpen size={16} /> {t("courseSidebar.tabs.courses")}
+            {t("courseSidebar.tabs.courses")}
           </NavTab>
           <NavTab
             $active={viewMode === "arena"}
@@ -472,13 +409,13 @@ const CourseSidebar = ({
               navigate("/arena");
             }}
           >
-            <Swords size={16} /> {t("courseSidebar.tabs.arena")}
+            {t("courseSidebar.tabs.arena")}
           </NavTab>
         </TabsContainer>
 
         {viewMode === "arena" ? (
           <CourseList>
-            {filteredArenaItems.map((item) => (
+            {arenaItems.map((item) => (
               <CourseItem
                 key={item.key}
                 $active={activeArenaTab === item.key}
@@ -514,7 +451,7 @@ const CourseSidebar = ({
                 <InfiniteScroll
                   dataLength={filteredCourses.length}
                   next={() => fetchCourses(coursesPage + 1)}
-                  hasMore={coursesHasMore && !searchQuery}
+                  hasMore={coursesHasMore}
                   loader={
                     <div
                       style={{
@@ -528,7 +465,7 @@ const CourseSidebar = ({
                     </div>
                   }
                   endMessage={
-                    filteredCourses.length > 0 && !searchQuery ? (
+                    filteredCourses.length > 0 ? (
                       <div
                         style={{
                           textAlign: "center",
