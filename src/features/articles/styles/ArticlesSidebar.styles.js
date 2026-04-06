@@ -30,6 +30,42 @@ export const SearchInput = styled(SidebarSearchField)``;
 
 export const AddArticleButton = styled(SidebarIconButton)``;
 
+export const TabsRow = styled.div`
+  display: flex;
+  flex-shrink: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+`;
+
+export const SortTab = styled.button`
+  flex: 0 0 auto;
+  min-height: 52px;
+  min-width: 92px;
+  padding: 10px 16px;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid
+    ${(props) => (props.$active ? "var(--primary-color)" : "transparent")};
+  color: ${(props) =>
+    props.$active ? "var(--primary-color)" : "var(--text-muted-color)"};
+  font-size: 14px;
+  line-height: 16px;
+  font-weight: ${(props) => (props.$active ? "700" : "500")};
+  text-align: center;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: all 0.2s;
+
+  &:hover {
+    color: var(--text-color);
+    background: var(--hover-color);
+  }
+`;
+
 export const ArticleList = styled.div`
   flex: 1;
   overflow-y: auto;

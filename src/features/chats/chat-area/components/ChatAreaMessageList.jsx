@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import styled from "styled-components";
+import styled, { keyframes } from "styled-components";
 import {
   Check,
   CheckCheck,
@@ -19,6 +19,18 @@ const ScrollArea = styled.div`
   min-width: 0;
   min-height: 0;
   position: relative;
+`;
+
+const skeletonPulse = keyframes`
+  0% {
+    opacity: 0.58;
+  }
+  50% {
+    opacity: 0.9;
+  }
+  100% {
+    opacity: 0.58;
+  }
 `;
 
 const MessagesContainer = styled.div`
@@ -344,10 +356,19 @@ const EditedIndicator = styled.span`
 `;
 
 const LoaderText = styled.h4`
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 4;
   text-align: center;
-  padding: 10px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--surface-color);
+  border: 1px solid var(--border-color);
   color: var(--text-muted-color);
   margin: 0;
+  pointer-events: none;
 `;
 
 const InitialLoaderState = styled.div`
@@ -379,10 +400,47 @@ const InitialLayoutSkeleton = styled.div`
   inset: 0;
   z-index: 3;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-  background: var(--background-color);
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 12px;
+  padding: 16px 8px calc(10px + env(safe-area-inset-bottom, 0px));
+  background-image: url("/chat-area-bg.jpg");
+  background-size: 420px auto;
+  background-repeat: repeat;
+  background-position: center;
+`;
+
+const SkeletonRow = styled.div`
+  display: flex;
+  align-items: flex-end;
+  justify-content: ${(props) => (props.$isOwn ? "flex-end" : "flex-start")};
+  gap: 8px;
+`;
+
+const SkeletonAvatar = styled.div`
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  background: color-mix(in srgb, white 8%, transparent);
+  margin-bottom: 8px;
+  flex-shrink: 0;
+  animation: ${skeletonPulse} 1.35s ease-in-out infinite;
+`;
+
+const SkeletonAvatarSpacer = styled.div`
+  width: 34px;
+  flex-shrink: 0;
+`;
+
+const SkeletonBubble = styled.div`
+  width: ${(props) => props.$width};
+  height: ${(props) => props.$height}px;
+  max-width: 88%;
+  border-radius: 18px;
+  background: color-mix(in srgb, white 8%, transparent);
+  border: 1px solid color-mix(in srgb, white 4%, transparent);
+  animation: ${skeletonPulse} 1.35s ease-in-out infinite;
+  animation-delay: ${(props) => props.$delay || "0s"};
 `;
 
 const ReceiptStatus = styled.span`
@@ -474,6 +532,15 @@ const NewMessagesChip = styled.span`
 `;
 
 const ChatAreaMessageList = ({ keyboardHeight = 0 }) => {
+  const chatSkeletonItems = [
+    { id: "s1", own: false, width: "66%", height: 96, delay: "0s" },
+    { id: "s2", own: false, width: "54%", height: 84, delay: "0.08s" },
+    { id: "s3", own: true, width: "78%", height: 88, delay: "0.16s" },
+    { id: "s4", own: false, width: "61%", height: 92, delay: "0.24s" },
+    { id: "s5", own: true, width: "86%", height: 90, delay: "0.32s" },
+    { id: "s6", own: false, width: "71%", height: 92, delay: "0.4s" },
+    { id: "s7", own: true, width: "58%", height: 82, delay: "0.48s" },
+  ];
   const {
     messages,
     messageGroups,
@@ -972,7 +1039,17 @@ const ChatAreaMessageList = ({ keyboardHeight = 0 }) => {
     <ScrollArea>
       {showInitialLoader ? (
         <InitialLayoutSkeleton>
-          <InitialLoaderState>Xabarlar yuklanmoqda...</InitialLoaderState>
+          {chatSkeletonItems.map((item) => (
+            <SkeletonRow key={item.id} $isOwn={item.own}>
+              {!item.own ? <SkeletonAvatar /> : null}
+              <SkeletonBubble
+                $width={item.width}
+                $height={item.height}
+                $delay={item.delay}
+              />
+              {item.own ? <SkeletonAvatarSpacer /> : null}
+            </SkeletonRow>
+          ))}
         </InitialLayoutSkeleton>
       ) : null}
       <MessagesContainer
@@ -983,9 +1060,6 @@ const ChatAreaMessageList = ({ keyboardHeight = 0 }) => {
         onScroll={handleMessagesScroll}
         style={showInitialLoader ? { visibility: "hidden" } : undefined}
       >
-        {isLoadingMessages && messages.length === 0 ? (
-          <InitialLoaderState>Xabarlar yuklanmoqda...</InitialLoaderState>
-        ) : null}
         {isLoadingMessages && messages.length > 0 ? (
           <LoaderText>Oldingi xabarlar yuklanmoqda...</LoaderText>
         ) : null}

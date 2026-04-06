@@ -20,6 +20,8 @@ import CreateCourseDialog from "./CreateCourseDialog";
 import ConfirmDialog from "../../../shared/ui/dialogs/ConfirmDialog";
 import SectionHeader from "../../../shared/ui/navigation/SectionHeader";
 
+const DEFAULT_COURSE_GRADIENT = "linear-gradient(135deg, rgb(240, 147, 251), rgb(245, 87, 108))";
+
 const SidebarContainer = styled.div`
   width: 340px;
   height: 100vh;
@@ -117,38 +119,36 @@ const CourseThumbnail = styled.div`
   height: 48px;
   border-radius: 12px;
   border: 1px solid rgba(255, 255, 255, 0.08);
-  background: ${(props) =>
-    props.gradient || "linear-gradient(135deg, #667eea, #764ba2)"};
-  background-image: ${(props) => (props.src ? `url(${props.src})` : "none")};
-  background-size: cover;
-  background-position: center;
-  background-color: var(--tertiary-color);
+  background-color: var(--secondary-color);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: white;
-  font-weight: 700;
-  font-size: 18px;
   flex-shrink: 0;
   position: relative;
   overflow: hidden;
   box-shadow:
     0 2px 8px rgba(0, 0, 0, 0.2),
     0 10px 24px rgba(0, 0, 0, 0.12);
+`;
 
-  &::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    border-radius: 12px;
-    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
-    background: linear-gradient(
-      180deg,
-      rgba(255, 255, 255, 0.12) 0%,
-      rgba(255, 255, 255, 0) 42%
-    );
-    pointer-events: none;
-  }
+const CourseThumbnailImage = styled.img`
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+`;
+
+const CourseThumbnailFallback = styled.div`
+  width: 100%;
+  height: 100%;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: ${(props) => props.$gradient || DEFAULT_COURSE_GRADIENT};
+  color: white;
+  font-weight: 700;
+  font-size: 18px;
 `;
 
 const CourseInfo = styled.div`
@@ -434,8 +434,10 @@ const CourseSidebar = ({
                   navigate(item.path);
                 }}
               >
-                <CourseThumbnail gradient={item.gradient}>
-                  {item.icon}
+                <CourseThumbnail>
+                  <CourseThumbnailFallback $gradient={DEFAULT_COURSE_GRADIENT}>
+                    {item.icon}
+                  </CourseThumbnailFallback>
                 </CourseThumbnail>
                 <CourseInfo>
                   <CourseName>{item.title}</CourseName>
@@ -513,11 +515,16 @@ const CourseSidebar = ({
                         }
                         onClick={() => handleSelectCourse(course)}
                       >
-                        <CourseThumbnail
-                          src={course.image}
-                          gradient={course.gradient}
-                        >
-                          {!course.image && course.name.charAt(0)}
+                        <CourseThumbnail>
+                          {course.image ? (
+                            <CourseThumbnailImage src={course.image} alt={course.name} />
+                          ) : (
+                            <CourseThumbnailFallback
+                              $gradient={DEFAULT_COURSE_GRADIENT}
+                            >
+                              {course.name.charAt(0)}
+                            </CourseThumbnailFallback>
+                          )}
                         </CourseThumbnail>
                         <CourseInfo>
                           <CourseName>{course.name}</CourseName>

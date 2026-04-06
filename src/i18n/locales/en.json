@@ -226,6 +226,12 @@
     "noExcerpt": "No description",
     "author": "Author",
     "comments": "comments",
+    "tabs": {
+      "newest": "Newest",
+      "views": "Most read",
+      "likes": "Liked",
+      "commentsTop": "Discussed"
+    },
     "coverClose": "Close cover image"
   },
   "coursePlayer": {

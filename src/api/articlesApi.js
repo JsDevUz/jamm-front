@@ -1,8 +1,8 @@
 import axiosInstance from "./axiosInstance";
 
-export const fetchArticles = async (page = 1, limit = 20) => {
+export const fetchArticles = async (page = 1, limit = 20, sort = "newest") => {
   const { data } = await axiosInstance.get(
-    `/articles?page=${page}&limit=${limit}`,
+    `/articles?page=${page}&limit=${limit}&sort=${encodeURIComponent(sort)}`,
   );
   return data;
 };

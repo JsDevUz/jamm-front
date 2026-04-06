@@ -22,7 +22,9 @@ import {
   Excerpt,
   Meta,
   SidebarContainer,
+  SortTab,
   StyledInfiniteScroll,
+  TabsRow,
   Title,
 } from "../styles/ArticlesSidebar.styles";
 
@@ -30,6 +32,7 @@ const ArticlesSidebar = ({ selectedArticleId }) => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
+  const [activeSort, setActiveSort] = useState("newest");
   const [articles, setArticles] = useState([]);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
@@ -37,35 +40,51 @@ const ArticlesSidebar = ({ selectedArticleId }) => {
   const [editorOpen, setEditorOpen] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  const loadArticles = async () => {
-    setLoading(true);
+  const sortTabs = useMemo(
+    () => [
+      { key: "newest", label: t("articles.tabs.newest") },
+      { key: "views", label: t("articles.tabs.views") },
+      { key: "likes", label: t("articles.tabs.likes") },
+      { key: "comments", label: t("articles.tabs.commentsTop") },
+    ],
+    [t],
+  );
+
+  const loadArticles = async (targetPage = 1, append = false) => {
+    if (!append) {
+      setLoading(true);
+    }
     try {
-      const response = await fetchArticles(1, 20);
-      setArticles(response?.data || []);
-      setPage(1);
-      setHasMore(1 < (response?.totalPages || 1));
+      const response = await fetchArticles(targetPage, 20, activeSort);
+      const nextArticles = response?.data || [];
+      setArticles((prev) => (append ? [...prev, ...nextArticles] : nextArticles));
+      setPage(targetPage);
+      setHasMore(targetPage < (response?.totalPages || 1));
     } finally {
-      setLoading(false);
+      if (!append) {
+        setLoading(false);
+      }
     }
   };
 
   useEffect(() => {
-    loadArticles();
-  }, []);
+    void loadArticles(1, false);
+  }, [activeSort]);
 
   const loadMore = async () => {
     const nextPage = page + 1;
-    const response = await fetchArticles(nextPage, 20);
-    setArticles((prev) => [...prev, ...(response?.data || [])]);
-    setPage(nextPage);
-    setHasMore(nextPage < (response?.totalPages || 1));
+    await loadArticles(nextPage, true);
   };
 
   const handleCreateArticle = async (payload) => {
     setSaving(true);
     try {
       const created = await createArticle(payload);
-      setArticles((prev) => [created, ...prev]);
+      if (activeSort === "newest") {
+        setArticles((prev) => [created, ...prev]);
+      } else {
+        void loadArticles(1, false);
+      }
       setEditorOpen(false);
       navigate(`/articles/${created.slug || created._id}`);
     } finally {
@@ -120,6 +139,18 @@ const ArticlesSidebar = ({ selectedArticleId }) => {
         searchTitle={t("articles.searchPlaceholder")}
         addTitle={t("articles.createTitle")}
       />
+
+      <TabsRow>
+        {sortTabs.map((tab) => (
+          <SortTab
+            key={tab.key}
+            $active={activeSort === tab.key}
+            onClick={() => setActiveSort(tab.key)}
+          >
+            {tab.label}
+          </SortTab>
+        ))}
+      </TabsRow>
 
       <ArticleList id="articles-sidebar-scroll">
         {loading ? (
