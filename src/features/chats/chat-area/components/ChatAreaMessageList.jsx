@@ -19,6 +19,7 @@ const ScrollArea = styled.div`
   min-width: 0;
   min-height: 0;
   position: relative;
+  overflow: hidden;
 `;
 
 const skeletonPulse = keyframes`
@@ -44,7 +45,7 @@ const MessagesContainer = styled.div`
   display: flex;
   flex-direction: column;
   min-height: 0;
-  background-image: url("/chat-area-bg.jpg");
+  background-image: url("/chat-area-bg.webp");
   background-size: 420px auto;
   background-repeat: repeat;
   background-position: center;
@@ -404,10 +405,12 @@ const InitialLayoutSkeleton = styled.div`
   justify-content: flex-start;
   gap: 12px;
   padding: 16px 8px calc(10px + env(safe-area-inset-bottom, 0px));
-  background-image: url("/chat-area-bg.jpg");
+  background-image: url("/chat-area-bg.webp");
   background-size: 420px auto;
   background-repeat: repeat;
   background-position: center;
+  pointer-events: none;
+  overflow: hidden;
 `;
 
 const SkeletonRow = styled.div`
@@ -546,6 +549,9 @@ const ChatAreaMessageList = ({ keyboardHeight = 0 }) => {
     messageGroups,
     messagesHasMore,
     isLoadingMessages,
+    messagesCacheHydrated,
+    initialHistoryReady,
+    savedScrollOffset,
     fetchMoreMessages,
     currentUser,
     currentChat,
@@ -567,23 +573,26 @@ const ChatAreaMessageList = ({ keyboardHeight = 0 }) => {
     dismissLocalMessage,
     initialScrollTargetMessageId,
     setInitialScrollTargetMessageId,
+    persistScrollOffset,
   } = useChatAreaContext();
   const suppressClickRef = useRef(false);
   const swipeGestureRef = useRef(null);
-  const autoFillAttemptsRef = useRef(0);
   const scrollContainerRef = useRef(null);
   const shouldStickToBottomRef = useRef(true);
   const previousContainerHeightRef = useRef(0);
   const previousLastMessageIdRef = useRef(null);
   const previousMessageCountRef = useRef(0);
   const initialAnchorResolvedRef = useRef(false);
+  const scrollPersistTimeoutRef = useRef(null);
   const [swipeState, setSwipeState] = useState({ messageId: null, offset: 0 });
   const [pendingNewMessageIds, setPendingNewMessageIds] = useState([]);
   const [messageListVisible, setMessageListVisible] = useState(false);
-  const [viewportHeight, setViewportHeight] = useState(0);
-  const [contentHeight, setContentHeight] = useState(0);
   const keyboardOpen = keyboardHeight > 0;
-  const showInitialLoader = isLoadingMessages && !messageListVisible;
+  const showInitialLoader =
+    !messageListVisible &&
+    (!messagesCacheHydrated ||
+      !initialHistoryReady ||
+      (isLoadingMessages && messages.length === 0));
   const currentChatMembers = useMemo(
     () => currentChat?.members || [],
     [currentChat?.members],
@@ -602,27 +611,60 @@ const ChatAreaMessageList = ({ keyboardHeight = 0 }) => {
   };
 
   useEffect(() => {
-    autoFillAttemptsRef.current = 0;
     previousLastMessageIdRef.current = null;
     previousMessageCountRef.current = 0;
     initialAnchorResolvedRef.current = false;
+    if (scrollPersistTimeoutRef.current) {
+      window.clearTimeout(scrollPersistTimeoutRef.current);
+      scrollPersistTimeoutRef.current = null;
+    }
     setPendingNewMessageIds([]);
     setMessageListVisible(false);
-    setViewportHeight(0);
-    setContentHeight(0);
   }, [currentChat?.id]);
 
-  const shouldAutofillInitialViewport =
-    !messageListVisible &&
-    initialAnchorResolvedRef.current &&
-    viewportHeight > 0 &&
-    contentHeight > 0 &&
-    !isLoadingMessages &&
-    messagesHasMore &&
-    contentHeight <= viewportHeight + 16 &&
-    autoFillAttemptsRef.current < 10;
+  useEffect(() => {
+    return () => {
+      if (scrollPersistTimeoutRef.current) {
+        window.clearTimeout(scrollPersistTimeoutRef.current);
+        scrollPersistTimeoutRef.current = null;
+      }
+
+      const scrollContainer = scrollContainerRef.current;
+      if (scrollContainer) {
+        persistScrollOffset(scrollContainer.scrollTop || 0);
+      }
+    };
+  }, [persistScrollOffset]);
 
   useEffect(() => {
+    if (savedScrollOffset == null) return;
+    if (!messagesCacheHydrated || !initialHistoryReady) return;
+    if (messageListVisible) return;
+    if (initialAnchorResolvedRef.current) return;
+
+    const scrollContainer = scrollContainerRef.current;
+    if (!scrollContainer) return;
+
+    const frameId = window.requestAnimationFrame(() => {
+      scrollContainer.scrollTop = savedScrollOffset;
+      shouldStickToBottomRef.current = isNearBottom(scrollContainer);
+      if (shouldStickToBottomRef.current) {
+        setPendingNewMessageIds([]);
+      }
+      initialAnchorResolvedRef.current = true;
+      setMessageListVisible(true);
+    });
+
+    return () => window.cancelAnimationFrame(frameId);
+  }, [
+    initialHistoryReady,
+    messageListVisible,
+    messagesCacheHydrated,
+    savedScrollOffset,
+  ]);
+
+  useEffect(() => {
+    if (savedScrollOffset != null) return;
     if (!initialScrollTargetMessageId) return;
 
     const frameId = window.requestAnimationFrame(() => {
@@ -653,14 +695,17 @@ const ChatAreaMessageList = ({ keyboardHeight = 0 }) => {
 
     return () => window.cancelAnimationFrame(frameId);
   }, [
+    initialHistoryReady,
     initialScrollTargetMessageId,
     messageRefs,
     messages,
+    savedScrollOffset,
     setInitialScrollTargetMessageId,
   ]);
 
   useEffect(() => {
     if (messageListVisible) return;
+    if (!messagesCacheHydrated || !initialHistoryReady) return;
     if (isLoadingMessages) return;
     if (messages.length === 0) return;
     if (initialAnchorResolvedRef.current) return;
@@ -672,22 +717,36 @@ const ChatAreaMessageList = ({ keyboardHeight = 0 }) => {
     });
 
     return () => window.cancelAnimationFrame(frameId);
-  }, [isLoadingMessages, messageListVisible, messages.length]);
+  }, [
+    initialHistoryReady,
+    isLoadingMessages,
+    messageListVisible,
+    messages.length,
+    messagesCacheHydrated,
+  ]);
 
   useEffect(() => {
     if (isLoadingMessages || messageListVisible) return;
+    if (!messagesCacheHydrated || !initialHistoryReady) return;
 
     const frameId = window.requestAnimationFrame(() => {
       setMessageListVisible(true);
     });
 
     return () => window.cancelAnimationFrame(frameId);
-  }, [isLoadingMessages, messageListVisible]);
+  }, [
+    initialHistoryReady,
+    isLoadingMessages,
+    messageListVisible,
+    messagesCacheHydrated,
+  ]);
 
   useEffect(() => {
     if (messageListVisible) return;
     if (isLoadingMessages) return;
+    if (!messagesCacheHydrated || !initialHistoryReady) return;
     if (initialScrollTargetMessageId) return;
+    if (savedScrollOffset != null) return;
     if (initialAnchorResolvedRef.current) return;
 
     initialAnchorResolvedRef.current = true;
@@ -697,26 +756,19 @@ const ChatAreaMessageList = ({ keyboardHeight = 0 }) => {
     });
 
     return () => window.cancelAnimationFrame(frameId);
-  }, [initialScrollTargetMessageId, isLoadingMessages, messageListVisible]);
-
-  useEffect(() => {
-    if (!shouldAutofillInitialViewport) {
-      return;
-    }
-
-    autoFillAttemptsRef.current += 1;
-    const frameId = window.requestAnimationFrame(() => {
-      fetchMoreMessages();
-    });
-
-    return () => window.cancelAnimationFrame(frameId);
-  }, [fetchMoreMessages, shouldAutofillInitialViewport]);
+  }, [
+    initialHistoryReady,
+    initialScrollTargetMessageId,
+    isLoadingMessages,
+    messageListVisible,
+    messagesCacheHydrated,
+    savedScrollOffset,
+  ]);
 
   useEffect(() => {
     if (messageListVisible) return;
     if (!initialAnchorResolvedRef.current) return;
     if (isLoadingMessages) return;
-    if (shouldAutofillInitialViewport) return;
 
     const frameId = window.requestAnimationFrame(() => {
       setMessageListVisible(true);
@@ -726,21 +778,7 @@ const ChatAreaMessageList = ({ keyboardHeight = 0 }) => {
   }, [
     isLoadingMessages,
     messageListVisible,
-    shouldAutofillInitialViewport,
   ]);
-
-  useEffect(() => {
-    const scrollContainer = scrollContainerRef.current;
-    if (!scrollContainer) return;
-
-    const syncMeasurements = () => {
-      setViewportHeight(Math.ceil(scrollContainer.clientHeight || 0));
-      setContentHeight(Math.ceil(scrollContainer.scrollHeight || 0));
-    };
-
-    const frameId = window.requestAnimationFrame(syncMeasurements);
-    return () => window.cancelAnimationFrame(frameId);
-  }, [currentChat?.id, isLoadingMessages, keyboardHeight, messageGroups.length]);
 
   const resetSwipeState = () => {
     swipeGestureRef.current = null;
@@ -831,6 +869,13 @@ const ChatAreaMessageList = ({ keyboardHeight = 0 }) => {
     }
 
     const element = event.currentTarget;
+    if (scrollPersistTimeoutRef.current) {
+      window.clearTimeout(scrollPersistTimeoutRef.current);
+    }
+    scrollPersistTimeoutRef.current = window.setTimeout(() => {
+      persistScrollOffset(element.scrollTop || 0);
+      scrollPersistTimeoutRef.current = null;
+    }, 140);
     shouldStickToBottomRef.current = isNearBottom(element);
 
     if (shouldStickToBottomRef.current) {

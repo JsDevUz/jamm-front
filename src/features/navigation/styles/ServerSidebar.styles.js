@@ -22,9 +22,9 @@ export const SidebarContainer = styled.div`
     flex-direction: row;
     justify-content: space-between;
     align-items: flex-start;
-    padding: 4px 10px 6px;
-    padding: 4px 10px calc(6px + constant(safe-area-inset-bottom));
-    padding: 4px 10px calc(6px + env(safe-area-inset-bottom, 0px));
+    padding: 2px 10px 2px;
+    padding: 2px 10px calc(2px + constant(safe-area-inset-bottom));
+    padding: 2px 10px calc(2px + env(safe-area-inset-bottom, 0px));
     background: var(--background-color);
     overflow: visible;
 
@@ -72,7 +72,7 @@ export const NavButton = styled.button`
     flex-direction: column;
     align-items: center;
     justify-content: flex-start;
-    gap: 3px;
+    gap: 1px;
 
     &:hover {
       background: transparent;
@@ -97,7 +97,7 @@ export const NavLabel = styled.span`
   @media (max-width: 700px) {
     display: block;
     font-size: 11px;
-    line-height: 14px;
+    line-height: 13px;
     font-weight: 600;
     color: ${(props) =>
       props.$active ? "var(--primary-color)" : "var(--text-secondary-color)"};
@@ -183,7 +183,7 @@ export const AvatarButton = styled.button`
     flex-direction: column;
     align-items: center;
     justify-content: flex-start;
-    gap: 3px;
+    gap: 1px;
 
     &:hover {
       transform: none;

@@ -442,6 +442,90 @@ export const SpeedMenu = styled.div`
   z-index: 50;
 `;
 
+export const MobileSettingsSheetOverlay = styled.div`
+  position: fixed;
+  inset: 0;
+  z-index: 10020;
+  display: flex;
+  align-items: flex-end;
+  justify-content: stretch;
+  background: rgba(0, 0, 0, 0.52);
+  backdrop-filter: blur(4px);
+
+  @media (min-width: 769px) {
+    display: none;
+  }
+`;
+
+export const MobileSettingsSheetPanel = styled.div`
+  width: 100%;
+  max-height: min(72vh, 640px);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  background: var(--secondary-color);
+  border-top-left-radius: 24px;
+  border-top-right-radius: 24px;
+  border-top: 1px solid var(--border-color);
+  box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.34);
+  padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  animation: coursePlayerSheetIn 0.18s ease-out;
+
+  @keyframes coursePlayerSheetIn {
+    from {
+      transform: translateY(24px);
+      opacity: 0;
+    }
+
+    to {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  }
+`;
+
+export const MobileSettingsSheetHandle = styled.div`
+  width: 42px;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--border-color);
+  margin: 10px auto 8px;
+  flex-shrink: 0;
+`;
+
+export const MobileSettingsSheetHeader = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 18px 12px;
+  border-bottom: 1px solid var(--border-color);
+`;
+
+export const MobileSettingsSheetTitle = styled.div`
+  color: var(--text-color);
+  font-size: 17px;
+  font-weight: 800;
+`;
+
+export const MobileSettingsSheetClose = styled.button`
+  width: 34px;
+  height: 34px;
+  border: none;
+  border-radius: 10px;
+  background: var(--input-color);
+  color: var(--text-color);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+`;
+
+export const MobileSettingsSheetBody = styled.div`
+  overflow-y: auto;
+  padding: 12px 0 4px;
+`;
+
 export const SpeedMenuHeader = styled.div`
   padding: 8px 12px;
   font-size: 11px;
@@ -636,6 +720,10 @@ export const VideoInfo = styled.div`
   padding: 18px 24px 14px;
   border-bottom: 1px solid var(--border-color);
   flex-shrink: 0;
+
+  @media (max-width: 768px) {
+    display: none;
+  }
 `;
 
 export const VideoTitle = styled.h1`

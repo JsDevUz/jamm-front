@@ -240,45 +240,60 @@ export const LockedLessonTitle = styled.div`
   font-style: italic;
 `;
 
+export const LessonRowActions = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+`;
+
 export const DeleteLessonBtn = styled.button`
-  width: 26px;
-  height: 26px;
+  width: 28px;
+  height: 28px;
   border: none;
-  border-radius: 6px;
-  background: none;
-  color: var(--text-muted-color);
+  border-radius: 10px;
+  background: #40444b;
+  color: #f04747;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
   opacity: 1;
   pointer-events: auto;
-  transition: all 0.15s;
+  transition: background-color 0.15s ease, transform 0.15s ease, color 0.15s ease;
 
   &:hover {
-    background: color-mix(in srgb, var(--danger-color) 16%, transparent);
-    color: var(--danger-color);
+    background: #40444b;
+    color: #f04747;
+    transform: translateY(-1px);
   }
 `;
 
 export const EditLessonBtn = styled(DeleteLessonBtn)`
+  color: #5865f2;
+
   &:hover {
-    background: color-mix(in srgb, var(--primary-color) 14%, transparent);
-    color: var(--primary-color);
+    background: #40444b;
+    color: #5865f2;
   }
 `;
 
 export const PublishLessonBtn = styled(DeleteLessonBtn)`
+  color: #43b581;
+
   &:hover {
-    background: color-mix(in srgb, var(--success-color) 14%, transparent);
-    color: var(--success-color);
+    background: #40444b;
+    color: #43b581;
   }
 `;
 
 export const CopyLessonBtn = styled(DeleteLessonBtn)`
+  color: #72767d;
+
   &:hover {
-    background: color-mix(in srgb, var(--primary-color) 14%, transparent);
-    color: var(--primary-color);
+    background: #40444b;
+    color: #72767d;
   }
 `;
 

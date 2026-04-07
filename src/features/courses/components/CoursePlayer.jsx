@@ -23,6 +23,7 @@ import {
   ArrowLeft,
   SkipBack,
   SkipForward,
+  X,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { useCourses } from "../../../contexts/CoursesContext";
@@ -91,6 +92,13 @@ import {
   ProgressFilled,
   ProgressHoverTooltip,
   RoundedEnrollButton,
+  MobileSettingsSheetOverlay,
+  MobileSettingsSheetPanel,
+  MobileSettingsSheetHandle,
+  MobileSettingsSheetHeader,
+  MobileSettingsSheetTitle,
+  MobileSettingsSheetClose,
+  MobileSettingsSheetBody,
   SpeedMenu,
   SpeedMenuAnchor,
   SpeedMenuHeader,
@@ -213,6 +221,9 @@ const CoursePlayer = ({ courseId, initialLessonSlug, onClose }) => {
   // Player enhancements
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const [showSettings, setShowSettings] = useState(false);
+  const [isMobileViewport, setIsMobileViewport] = useState(
+    typeof window !== "undefined" ? window.innerWidth <= 768 : false,
+  );
   const [hoverTime, setHoverTime] = useState(null);
   const [hoverX, setHoverX] = useState(0);
   const [hoverSegmentLabel, setHoverSegmentLabel] = useState("");
@@ -239,6 +250,16 @@ const CoursePlayer = ({ courseId, initialLessonSlug, onClose }) => {
       setShowControls(false);
     }, 3200);
   }, [isPlaying]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+
+    const handleResize = () => setIsMobileViewport(window.innerWidth <= 768);
+    handleResize();
+    window.addEventListener("resize", handleResize);
+
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   const course = courses.find(
     (c) =>
@@ -1144,6 +1165,12 @@ const CoursePlayer = ({ courseId, initialLessonSlug, onClose }) => {
     };
   }, [currentMediaKey]);
 
+  useEffect(() => {
+    if (!isMobileViewport && showSettings) {
+      setShowSettings(false);
+    }
+  }, [isMobileViewport, showSettings]);
+
   useEffect(
     () => () => {
       if (clickActionTimerRef.current) {
@@ -1178,6 +1205,56 @@ const CoursePlayer = ({ courseId, initialLessonSlug, onClose }) => {
       resetControlsHideTimer();
     },
     [activeMediaIndex, isPlaying, resetControlsHideTimer],
+  );
+
+  const renderSettingsContent = useCallback(
+    () => (
+      <>
+        <SpeedMenuHeader>{t("coursePlayer.speed.title")}</SpeedMenuHeader>
+        <SpeedSection>
+          {[0.5, 0.75, 1, 1.25, 1.5, 2].map((speed) => (
+            <SpeedOption
+              key={speed}
+              onClick={() => handleSpeedChange(speed)}
+              $active={playbackSpeed === speed}
+            >
+              {speed === 1 ? t("coursePlayer.speed.normal") : `${speed}x`}
+            </SpeedOption>
+          ))}
+        </SpeedSection>
+        {lessonMediaItems.length > 1 ? (
+          <SegmentList>
+            <SpeedMenuHeader>Playlist</SpeedMenuHeader>
+            {segmentLabels.map((segment, index) => (
+              <SegmentOption
+                key={segment.key}
+                onClick={() => handleSegmentSelect(index)}
+                $active={index === activeMediaIndex}
+              >
+                <SegmentOptionTitle $active={index === activeMediaIndex}>
+                  {segment.title || `Video ${index + 1}`}
+                </SegmentOptionTitle>
+                <SegmentOptionMeta>
+                  {index + 1}/{lessonMediaItems.length} ·{" "}
+                  {formatTime(Number(segmentDurations[index] || 0))}
+                </SegmentOptionMeta>
+              </SegmentOption>
+            ))}
+          </SegmentList>
+        ) : null}
+      </>
+    ),
+    [
+      activeMediaIndex,
+      formatTime,
+      handleSegmentSelect,
+      handleSpeedChange,
+      lessonMediaItems.length,
+      playbackSpeed,
+      segmentDurations,
+      segmentLabels,
+      t,
+    ],
   );
 
   const handleProgressHover = useCallback(
@@ -1713,9 +1790,7 @@ const CoursePlayer = ({ courseId, initialLessonSlug, onClose }) => {
                         }}
                         aria-label={isPlaying ? "Videoni to'xtatish" : "Videoni ijro etish"}
                       >
-                        {isBuffering && isPlaying ? (
-                          <Spinner style={{ width: 22, height: 22, borderWidth: 3 }} />
-                        ) : isPlaying ? (
+                        {isPlaying ? (
                           <Pause size={24} />
                         ) : (
                           <Play size={24} fill="white" color="white" />
@@ -1785,42 +1860,9 @@ const CoursePlayer = ({ courseId, initialLessonSlug, onClose }) => {
                               <Settings2 size={14} />
                               Sozlamalar
                             </SpeedToggleButton>
-                            {showSettings && (
+                            {!isMobileViewport && showSettings && (
                               <SpeedMenu>
-                                <SpeedMenuHeader>{t("coursePlayer.speed.title")}</SpeedMenuHeader>
-                                <SpeedSection>
-                                  {[0.5, 0.75, 1, 1.25, 1.5, 2].map((speed) => (
-                                    <SpeedOption
-                                      key={speed}
-                                      onClick={() => handleSpeedChange(speed)}
-                                      $active={playbackSpeed === speed}
-                                    >
-                                      {speed === 1
-                                        ? t("coursePlayer.speed.normal")
-                                        : `${speed}x`}
-                                    </SpeedOption>
-                                  ))}
-                                </SpeedSection>
-                                {lessonMediaItems.length > 1 ? (
-                                  <SegmentList>
-                                    <SpeedMenuHeader>Playlist</SpeedMenuHeader>
-                                    {segmentLabels.map((segment, index) => (
-                                      <SegmentOption
-                                        key={segment.key}
-                                        onClick={() => handleSegmentSelect(index)}
-                                        $active={index === activeMediaIndex}
-                                      >
-                                        <SegmentOptionTitle $active={index === activeMediaIndex}>
-                                          {segment.title || `Video ${index + 1}`}
-                                        </SegmentOptionTitle>
-                                        <SegmentOptionMeta>
-                                          {index + 1}/{lessonMediaItems.length} ·{" "}
-                                          {formatTime(Number(segmentDurations[index] || 0))}
-                                        </SegmentOptionMeta>
-                                      </SegmentOption>
-                                    ))}
-                                  </SegmentList>
-                                ) : null}
+                                {renderSettingsContent()}
                               </SpeedMenu>
                             )}
                           </SpeedMenuAnchor>
@@ -2183,6 +2225,27 @@ const CoursePlayer = ({ courseId, initialLessonSlug, onClose }) => {
         onConfirm={handleDeleteLessonConfirm}
         isDanger={true}
       />
+
+      {isMobileViewport && showSettings ? (
+        <MobileSettingsSheetOverlay onClick={() => setShowSettings(false)}>
+          <MobileSettingsSheetPanel onClick={(event) => event.stopPropagation()}>
+            <MobileSettingsSheetHandle />
+            <MobileSettingsSheetHeader>
+              <MobileSettingsSheetTitle>
+                {t("coursePlayer.speed.title")}
+              </MobileSettingsSheetTitle>
+              <MobileSettingsSheetClose
+                type="button"
+                onClick={() => setShowSettings(false)}
+                aria-label="Sozlamalarni yopish"
+              >
+                <X size={18} />
+              </MobileSettingsSheetClose>
+            </MobileSettingsSheetHeader>
+            <MobileSettingsSheetBody>{renderSettingsContent()}</MobileSettingsSheetBody>
+          </MobileSettingsSheetPanel>
+        </MobileSettingsSheetOverlay>
+      ) : null}
     </CoursePlayerProvider>
   );
 };

@@ -21,6 +21,154 @@ import {
   normalizeSenderId,
 } from "../utils/chatAreaMessageUtils";
 
+const CHAT_MESSAGES_CACHE_VERSION = 1;
+const CHAT_MESSAGES_CACHE_PREFIX = "jamm.chat-area.messages";
+const CHAT_SCROLL_CACHE_PREFIX = "jamm.chat-area.scroll";
+const INITIAL_HISTORY_DAY_WINDOW = 5;
+const OLDER_HISTORY_FETCH_SAFETY_LIMIT = 20;
+
+const getScopedCacheKey = (prefix, userId, chatId) =>
+  `${prefix}.${encodeURIComponent(String(userId || "guest"))}.${encodeURIComponent(
+    String(chatId || "unknown"),
+  )}`;
+
+const readStorageEnvelope = (storageKey) => {
+  if (typeof window === "undefined") return null;
+
+  try {
+    const rawValue = window.localStorage.getItem(storageKey);
+    if (!rawValue) return null;
+
+    const parsed = JSON.parse(rawValue);
+    if (parsed?.version !== CHAT_MESSAGES_CACHE_VERSION) {
+      window.localStorage.removeItem(storageKey);
+      return null;
+    }
+
+    return parsed;
+  } catch {
+    window.localStorage.removeItem(storageKey);
+    return null;
+  }
+};
+
+const writeStorageEnvelope = (storageKey, data) => {
+  if (typeof window === "undefined") return;
+
+  window.localStorage.setItem(
+    storageKey,
+    JSON.stringify({
+      version: CHAT_MESSAGES_CACHE_VERSION,
+      updatedAt: new Date().toISOString(),
+      data,
+    }),
+  );
+};
+
+const loadCachedChatMessages = (userId, chatId) => {
+  const storageKey = getScopedCacheKey(CHAT_MESSAGES_CACHE_PREFIX, userId, chatId);
+  const envelope = readStorageEnvelope(storageKey);
+  const messages = envelope?.data?.messages;
+
+  if (!Array.isArray(messages)) {
+    return null;
+  }
+
+  return {
+    messages: messages.filter(Boolean),
+    nextCursor: envelope?.data?.nextCursor || null,
+    hasMore: Boolean(envelope?.data?.hasMore),
+  };
+};
+
+const saveCachedChatMessages = (userId, chatId, payload) => {
+  const storageKey = getScopedCacheKey(CHAT_MESSAGES_CACHE_PREFIX, userId, chatId);
+  writeStorageEnvelope(storageKey, {
+    messages: Array.isArray(payload?.messages) ? payload.messages : [],
+    nextCursor: payload?.nextCursor || null,
+    hasMore: Boolean(payload?.hasMore),
+  });
+};
+
+const loadCachedChatScrollOffset = (userId, chatId) => {
+  const storageKey = getScopedCacheKey(CHAT_SCROLL_CACHE_PREFIX, userId, chatId);
+  const envelope = readStorageEnvelope(storageKey);
+  const offset = Number(envelope?.data);
+  return Number.isFinite(offset) && offset >= 0 ? offset : null;
+};
+
+const saveCachedChatScrollOffset = (userId, chatId, offset) => {
+  const storageKey = getScopedCacheKey(CHAT_SCROLL_CACHE_PREFIX, userId, chatId);
+  writeStorageEnvelope(storageKey, Math.max(0, Number(offset) || 0));
+};
+
+const getMessageTimestamp = (message) => {
+  const parsed = new Date(message?.createdAt || 0).getTime();
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+const getDayStartTimestamp = (value) => {
+  const date = new Date(value);
+  date.setHours(0, 0, 0, 0);
+  return date.getTime();
+};
+
+const getOldestLoadedDayStart = (messages) => {
+  for (const message of messages || []) {
+    const timestamp = getMessageTimestamp(message);
+    if (timestamp !== null) {
+      return getDayStartTimestamp(timestamp);
+    }
+  }
+
+  return null;
+};
+
+const getInitialHistoryThreshold = () => {
+  const threshold = new Date();
+  threshold.setHours(0, 0, 0, 0);
+  threshold.setDate(threshold.getDate() - (INITIAL_HISTORY_DAY_WINDOW - 1));
+  return threshold.getTime();
+};
+
+const hasCoveredInitialHistoryWindow = (messages) => {
+  if (!Array.isArray(messages) || messages.length === 0) {
+    return true;
+  }
+
+  const oldestDayStart = getOldestLoadedDayStart(messages);
+  if (oldestDayStart === null) {
+    return true;
+  }
+
+  return oldestDayStart <= getInitialHistoryThreshold();
+};
+
+const mergeChronologicalMessages = (existingMessages, incomingMessages) => {
+  const mergedById = new Map();
+
+  for (const message of existingMessages || []) {
+    const messageId = String(message?.id || message?._id || "");
+    if (!messageId) continue;
+    mergedById.set(messageId, message);
+  }
+
+  for (const message of incomingMessages || []) {
+    const messageId = String(message?.id || message?._id || "");
+    if (!messageId) continue;
+    mergedById.set(messageId, {
+      ...(mergedById.get(messageId) || {}),
+      ...message,
+    });
+  }
+
+  return Array.from(mergedById.values()).sort((left, right) => {
+    const leftTime = getMessageTimestamp(left) || 0;
+    const rightTime = getMessageTimestamp(right) || 0;
+    return leftTime - rightTime;
+  });
+};
+
 const matchesSelectedChat = (chat, targetId) => {
   if (!chat || !targetId) return false;
 
@@ -98,6 +246,9 @@ export default function useChatAreaController({
   const [messagesCursor, setMessagesCursor] = useState(null);
   const [messagesHasMore, setMessagesHasMore] = useState(true);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
+  const [messagesCacheHydrated, setMessagesCacheHydrated] = useState(false);
+  const [savedScrollOffset, setSavedScrollOffset] = useState(null);
+  const [initialHistoryReady, setInitialHistoryReady] = useState(false);
   const [replyMessage, setReplyMessage] = useState(null);
   const [editingMessage, setEditingMessage] = useState(null);
   const [contextMenu, setContextMenu] = useState(null);
@@ -116,6 +267,8 @@ export default function useChatAreaController({
   const messageInputRef = useRef(null);
   const isRestoringChatInfoHistoryRef = useRef(false);
   const previousInfoSidebarStateRef = useRef(false);
+  const currentUserId = String(currentUser?._id || currentUser?.id || "");
+  const currentChatId = currentChat?.id || currentChat?._id || null;
 
   useEffect(() => {
     resetChatAreaUi();
@@ -284,59 +437,195 @@ export default function useChatAreaController({
   ]);
 
   useEffect(() => {
-    if (!currentChat) return;
+    setMessages([]);
+    setMessagesCursor(null);
+    setMessagesHasMore(true);
+    setInitialScrollTargetMessageId(null);
+    setSavedScrollOffset(null);
+    setMessagesCacheHydrated(false);
+    setInitialHistoryReady(false);
+    setIsLoadingMessages(false);
+
+    if (!currentChatId || !currentUserId) {
+      setMessagesCacheHydrated(true);
+      return;
+    }
+
+    const cachedMessages = loadCachedChatMessages(currentUserId, currentChatId);
+    const cachedScrollOffset = loadCachedChatScrollOffset(
+      currentUserId,
+      currentChatId,
+    );
+
+    if (cachedMessages) {
+      setMessages(cachedMessages.messages);
+      setMessagesCursor(cachedMessages.nextCursor || null);
+      setMessagesHasMore(Boolean(cachedMessages.hasMore));
+      setSavedScrollOffset(cachedScrollOffset);
+      setInitialHistoryReady(true);
+    } else {
+      setSavedScrollOffset(cachedScrollOffset);
+    }
+
+    setMessagesCacheHydrated(true);
+  }, [currentChatId, currentUserId]);
+
+  useEffect(() => {
+    if (!currentChatId || !currentUserId || !messagesCacheHydrated) {
+      return;
+    }
+
+    saveCachedChatMessages(currentUserId, currentChatId, {
+      messages,
+      nextCursor: messagesCursor,
+      hasMore: messagesHasMore,
+    });
+  }, [
+    currentChatId,
+    currentUserId,
+    messages,
+    messagesCacheHydrated,
+    messagesCursor,
+    messagesHasMore,
+  ]);
+
+  useEffect(() => {
+    if (!currentChat || !messagesCacheHydrated) return;
+    if (messages.length > 0 && initialHistoryReady) return;
+
+    let cancelled = false;
 
     const loadMessages = async () => {
-      setMessages([]);
-      setMessagesCursor(null);
-      setMessagesHasMore(true);
-      setInitialScrollTargetMessageId(null);
       setIsLoadingMessages(true);
-      const result = await fetchMessages(currentChat.id);
-      const loadedMessages = result.data || [];
+      setInitialScrollTargetMessageId(null);
 
-      setMessages(loadedMessages);
-      setMessagesCursor(result.nextCursor || null);
-      setMessagesHasMore(Boolean(result.hasMore));
-      setIsLoadingMessages(false);
+      try {
+        let result = await fetchMessages(currentChat.id);
+        let loadedMessages = result.data || [];
+        let nextCursor = result.nextCursor || null;
+        let nextHasMore = Boolean(result.hasMore);
 
-      const currentUserId = String(currentUser?._id || currentUser?.id || "");
-      const unreadMessageIds = loadedMessages
-        .filter((message) => {
-          const senderId = String(normalizeSenderId(message.senderId) || "");
-          const readBy = normalizeReadByIds(message.readBy);
-          return (
-            senderId &&
-            senderId !== currentUserId &&
-            !readBy.includes(currentUserId)
-          );
-        })
-        .map((message) => message.id || message._id)
-        .filter(Boolean);
+        for (
+          let attempt = 0;
+          attempt < OLDER_HISTORY_FETCH_SAFETY_LIMIT &&
+          loadedMessages.length > 0 &&
+          !hasCoveredInitialHistoryWindow(loadedMessages) &&
+          nextHasMore &&
+          nextCursor;
+          attempt += 1
+        ) {
+          const olderResult = await fetchMessages(currentChat.id, nextCursor);
+          const olderMessages = olderResult.data || [];
+          if (!olderMessages.length) {
+            nextCursor = olderResult.nextCursor || null;
+            nextHasMore = Boolean(olderResult.hasMore);
+            break;
+          }
 
-      if (unreadMessageIds.length > 0) {
-        markMessagesAsRead(currentChat.id, unreadMessageIds);
+          loadedMessages = [...olderMessages, ...loadedMessages];
+          nextCursor = olderResult.nextCursor || null;
+          nextHasMore = Boolean(olderResult.hasMore);
+        }
+
+        if (cancelled) {
+          return;
+        }
+
+        setMessages(loadedMessages);
+        setMessagesCursor(nextCursor);
+        setMessagesHasMore(nextHasMore);
+
+        const unreadMessageIds = loadedMessages
+          .filter((message) => {
+            const senderId = String(normalizeSenderId(message.senderId) || "");
+            const readBy = normalizeReadByIds(message.readBy);
+            return (
+              senderId &&
+              senderId !== currentUserId &&
+              !readBy.includes(currentUserId)
+            );
+          })
+          .map((message) => message.id || message._id)
+          .filter(Boolean);
+
+        if (unreadMessageIds.length > 0) {
+          markMessagesAsRead(currentChat.id, unreadMessageIds);
+        }
+
+        const firstUnread = loadedMessages.find(
+          (message) =>
+            String(normalizeSenderId(message.senderId) || "") !== currentUserId &&
+            !normalizeReadByIds(message.readBy).includes(currentUserId),
+        );
+
+        setInitialScrollTargetMessageId(
+          firstUnread ? firstUnread.id || firstUnread._id : "__bottom__",
+        );
+      } finally {
+        if (!cancelled) {
+          setIsLoadingMessages(false);
+          setInitialHistoryReady(true);
+        }
       }
-
-      const firstUnread = loadedMessages.find(
-        (message) =>
-          String(normalizeSenderId(message.senderId) || "") !== currentUserId &&
-          !normalizeReadByIds(message.readBy).includes(currentUserId),
-      );
-
-      setInitialScrollTargetMessageId(
-        firstUnread ? firstUnread.id || firstUnread._id : "__bottom__",
-      );
     };
 
-    loadMessages();
+    void loadMessages();
+
+    return () => {
+      cancelled = true;
+    };
   }, [
-    currentChat?.id,
-    currentUser?._id,
-    currentUser?.id,
+    currentChat,
+    currentUserId,
     fetchMessages,
+    initialHistoryReady,
     markMessagesAsRead,
+    messages.length,
+    messagesCacheHydrated,
     chatReconnectKey,
+  ]);
+
+  useEffect(() => {
+    if (!currentChat || !messagesCacheHydrated || !initialHistoryReady) {
+      return;
+    }
+
+    if (messages.length === 0) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const refreshLatestMessages = async () => {
+      try {
+        const latestResult = await fetchMessages(currentChat.id);
+        const latestMessages = latestResult.data || [];
+
+        if (cancelled || latestMessages.length === 0) {
+          return;
+        }
+
+        setMessages((previous) =>
+          mergeChronologicalMessages(previous, latestMessages),
+        );
+        setMessagesHasMore((previous) => previous || Boolean(latestResult.hasMore));
+        setMessagesCursor((previous) => previous || latestResult.nextCursor || null);
+      } catch {
+        // Cache-first refresh should stay silent.
+      }
+    };
+
+    void refreshLatestMessages();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    currentChat,
+    fetchMessages,
+    initialHistoryReady,
+    messages.length,
+    messagesCacheHydrated,
   ]);
 
   const fetchMoreMessages = async () => {
@@ -349,26 +638,71 @@ export default function useChatAreaController({
       return;
     }
 
+    const oldestLoadedDayStart = getOldestLoadedDayStart(messages);
+    if (!oldestLoadedDayStart) {
+      return;
+    }
+
     setIsLoadingMessages(true);
     const scrollContainer = document.getElementById("scrollableChatArea");
     const previousScrollHeight = scrollContainer?.scrollHeight || 0;
     const previousScrollTop = scrollContainer?.scrollTop || 0;
-    const result = await fetchMessages(currentChat.id, messagesCursor);
-    const nextMessages = result.data || [];
 
-    setMessages((previous) => [...nextMessages, ...previous]);
-    setMessagesCursor(result.nextCursor || null);
-    setMessagesHasMore(Boolean(result.hasMore));
-    setIsLoadingMessages(false);
+    try {
+      let nextCursor = messagesCursor;
+      let nextHasMore = messagesHasMore;
+      let collectedMessages = [];
 
-    setTimeout(() => {
-      if (scrollContainer) {
-        scrollContainer.scrollTop =
-          scrollContainer.scrollHeight -
-          previousScrollHeight +
-          previousScrollTop;
+      for (
+        let attempt = 0;
+        attempt < OLDER_HISTORY_FETCH_SAFETY_LIMIT &&
+        nextHasMore &&
+        nextCursor;
+        attempt += 1
+      ) {
+        const result = await fetchMessages(currentChat.id, nextCursor);
+        const olderMessages = result.data || [];
+
+        nextCursor = result.nextCursor || null;
+        nextHasMore = Boolean(result.hasMore);
+
+        if (!olderMessages.length) {
+          break;
+        }
+
+        collectedMessages = [...olderMessages, ...collectedMessages];
+        const combinedMessages = [...collectedMessages, ...messages];
+        const combinedOldestDayStart = getOldestLoadedDayStart(combinedMessages);
+
+        if (
+          combinedOldestDayStart === null ||
+          combinedOldestDayStart < oldestLoadedDayStart
+        ) {
+          break;
+        }
       }
-    }, 0);
+
+      if (!collectedMessages.length) {
+        setMessagesCursor(nextCursor);
+        setMessagesHasMore(nextHasMore);
+        return;
+      }
+
+      setMessages((previous) => [...collectedMessages, ...previous]);
+      setMessagesCursor(nextCursor);
+      setMessagesHasMore(nextHasMore);
+
+      setTimeout(() => {
+        if (scrollContainer) {
+          scrollContainer.scrollTop =
+            scrollContainer.scrollHeight -
+            previousScrollHeight +
+            previousScrollTop;
+        }
+      }, 0);
+    } finally {
+      setIsLoadingMessages(false);
+    }
   };
 
   useEffect(() => {
@@ -1294,6 +1628,14 @@ export default function useChatAreaController({
     toast.success("Havola nusxalandi");
   };
 
+  const persistScrollOffset = (offset) => {
+    if (!currentChatId || !currentUserId) {
+      return;
+    }
+
+    saveCachedChatScrollOffset(currentUserId, currentChatId, offset);
+  };
+
   const contextValue = useMemo(
     () => ({
       currentChat,
@@ -1306,6 +1648,9 @@ export default function useChatAreaController({
       messages,
       messagesHasMore,
       isLoadingMessages,
+      messagesCacheHydrated,
+      initialHistoryReady,
+      savedScrollOffset,
       messageGroups,
       contextMenu,
       replyMessage,
@@ -1333,6 +1678,7 @@ export default function useChatAreaController({
       submitMessage,
       dismissLocalMessage,
       handleSendMessage,
+      persistScrollOffset,
     }),
     [
       contextMenu,
@@ -1353,10 +1699,14 @@ export default function useChatAreaController({
       messages,
       messagesHasMore,
       isLoadingMessages,
+      initialHistoryReady,
+      messagesCacheHydrated,
       initialScrollTargetMessageId,
       navigate,
       previewChat,
+      persistScrollOffset,
       replyMessage,
+      savedScrollOffset,
       selectedNav,
       setInitialScrollTargetMessageId,
     ],

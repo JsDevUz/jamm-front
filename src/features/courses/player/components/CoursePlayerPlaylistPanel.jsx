@@ -34,6 +34,7 @@ import {
   LessonMeta,
   LessonMetaItem,
   LessonNumber,
+  LessonRowActions,
   LessonTitle,
   LockedLessonTitle,
   MobileBackBtn,
@@ -202,47 +203,49 @@ const CoursePlayerPlaylistPanel = () => {
                   )}
                 </LessonInfo>
 
-                <CopyLessonBtn
-                  onClick={(event) => handleCopyLessonLink(event, lesson)}
-                  title={t("coursePlayer.playlist.copyLesson")}
-                  aria-label={t("common.copy")}
-                >
-                  <Copy size={14} />
-                </CopyLessonBtn>
+                <LessonRowActions>
+                  <CopyLessonBtn
+                    onClick={(event) => handleCopyLessonLink(event, lesson)}
+                    title={t("coursePlayer.playlist.copyLesson")}
+                    aria-label={t("common.copy")}
+                  >
+                    <Copy size={14} />
+                  </CopyLessonBtn>
 
-                {admin && (
-                  <>
-                    <EditLessonBtn
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        openLessonEditor(lesson);
-                      }}
-                      title={t("coursePlayer.playlist.edit")}
-                    >
-                      <Pencil size={14} />
-                    </EditLessonBtn>
-                    {lesson.status === "draft" && hasLessonMedia && (
-                      <PublishLessonBtn
+                  {admin && (
+                    <>
+                      <EditLessonBtn
                         onClick={(event) => {
                           event.stopPropagation();
-                          handlePublishLesson(lesson);
+                          openLessonEditor(lesson);
                         }}
-                        title={t("addLesson.publish")}
+                        title={t("coursePlayer.playlist.edit")}
                       >
-                        <Check size={14} />
-                      </PublishLessonBtn>
-                    )}
-                    <DeleteLessonBtn
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        setLessonToDelete(lesson._id);
-                      }}
-                      title={t("common.delete")}
-                    >
-                      <Trash2 size={14} />
-                    </DeleteLessonBtn>
-                  </>
-                )}
+                        <Pencil size={14} />
+                      </EditLessonBtn>
+                      {lesson.status === "draft" && hasLessonMedia && (
+                        <PublishLessonBtn
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            handlePublishLesson(lesson);
+                          }}
+                          title={t("addLesson.publish")}
+                        >
+                          <Check size={14} />
+                        </PublishLessonBtn>
+                      )}
+                      <DeleteLessonBtn
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setLessonToDelete(lesson._id);
+                        }}
+                        title={t("common.delete")}
+                      >
+                        <Trash2 size={14} />
+                      </DeleteLessonBtn>
+                    </>
+                  )}
+                </LessonRowActions>
               </LessonItem>
             );
           })

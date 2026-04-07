@@ -22,6 +22,22 @@ import SectionHeader from "../../../shared/ui/navigation/SectionHeader";
 
 const DEFAULT_COURSE_GRADIENT = "linear-gradient(135deg, rgb(240, 147, 251), rgb(245, 87, 108))";
 
+const getCourseGradientCss = (gradient) => {
+  const matches = String(gradient || "").match(
+    /(#[0-9a-fA-F]{3,8}|rgba?\([^)]*\)|hsla?\([^)]*\))/g,
+  );
+
+  if (matches && matches.length >= 2) {
+    return `linear-gradient(135deg, ${matches[0]}, ${matches[1]})`;
+  }
+
+  if (matches && matches.length === 1) {
+    return `linear-gradient(135deg, ${matches[0]}, ${matches[0]})`;
+  }
+
+  return DEFAULT_COURSE_GRADIENT;
+};
+
 const SidebarContainer = styled.div`
   width: 340px;
   height: 100vh;
@@ -520,7 +536,7 @@ const CourseSidebar = ({
                             <CourseThumbnailImage src={course.image} alt={course.name} />
                           ) : (
                             <CourseThumbnailFallback
-                              $gradient={DEFAULT_COURSE_GRADIENT}
+                              $gradient={getCourseGradientCss(course.gradient)}
                             >
                               {course.name.charAt(0)}
                             </CourseThumbnailFallback>

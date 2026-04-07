@@ -14,9 +14,15 @@ const MessageInputContainer = styled.div`
   background-color: var(--secondary-color);
   border-top: 1px solid var(--border-color);
   position: relative;
+  will-change: transform;
   transition:
     padding-bottom 0.25s ease,
+    transform 0.22s ease,
     border-color 0.25s ease;
+
+  @media (max-width: 768px) {
+    transform: ${(props) => (props.$keyboardOpen ? "translateY(-10px)" : "translateY(0)")};
+  }
 `;
 
 const ComposerStack = styled.div`
