@@ -101,6 +101,750 @@ const CALL_QUALITY_PROFILES = {
   },
 };
 
+const WHITEBOARD_COLOR_PATTERN = /^#[0-9a-f]{6}$/i;
+const WHITEBOARD_DEFAULT_COLOR = "#0f172a";
+const WHITEBOARD_DEFAULT_SIZE = 4;
+const WHITEBOARD_MAX_STROKES = 320;
+const WHITEBOARD_MAX_POINTS_PER_STROKE = 1200;
+const WHITEBOARD_APPEND_BATCH_LIMIT = 24;
+const WHITEBOARD_BOARD_TAB_ID = "board";
+const WHITEBOARD_TAB_ID_PATTERN = /^[a-zA-Z0-9_-]{1,80}$/;
+const WHITEBOARD_MAX_TABS = 6;
+const WHITEBOARD_PDF_LIBRARY_MAX_ITEMS = 24;
+const WHITEBOARD_MIN_ZOOM = 0.5;
+const WHITEBOARD_MAX_ZOOM = 3;
+
+const createWhiteboardBoardTab = () => ({
+  id: WHITEBOARD_BOARD_TAB_ID,
+  type: "board",
+  title: "board",
+  strokes: [],
+});
+
+const createInitialWhiteboardState = () => ({
+  isActive: false,
+  ownerPeerId: "",
+  ownerDisplayName: "",
+  activeTabId: WHITEBOARD_BOARD_TAB_ID,
+  tabs: [createWhiteboardBoardTab()],
+  pdfLibrary: [],
+});
+
+const clampUnitValue = (value) => {
+  const nextValue = Number(value);
+  if (!Number.isFinite(nextValue)) {
+    return null;
+  }
+
+  return Math.min(1, Math.max(0, nextValue));
+};
+
+const normalizeWhiteboardPoint = (point) => {
+  if (!point || typeof point !== "object") {
+    return null;
+  }
+
+  const x = clampUnitValue(point.x);
+  const y = clampUnitValue(point.y);
+  if (x === null || y === null) {
+    return null;
+  }
+
+  return { x, y };
+};
+
+const normalizeWhiteboardTabId = (tabId) => {
+  if (typeof tabId !== "string") {
+    return "";
+  }
+
+  const nextTabId = tabId.trim();
+  return WHITEBOARD_TAB_ID_PATTERN.test(nextTabId) ? nextTabId : "";
+};
+
+const normalizeWhiteboardTitle = (title) =>
+  typeof title === "string"
+    ? title
+        .replace(/[\u0000-\u001F\u007F]/g, " ")
+        .replace(/\s+/g, " ")
+        .trim()
+        .slice(0, 80)
+    : "";
+
+const normalizeWhiteboardFileUrl = (fileUrl) => {
+  if (typeof fileUrl !== "string") {
+    return "";
+  }
+
+  const nextFileUrl = fileUrl.trim().slice(0, 2048);
+  if (
+    nextFileUrl.startsWith("http://") ||
+    nextFileUrl.startsWith("https://") ||
+    nextFileUrl.startsWith("/")
+  ) {
+    return nextFileUrl;
+  }
+
+  return "";
+};
+
+const normalizeWhiteboardFileName = (fileName) =>
+  typeof fileName === "string"
+    ? fileName
+        .replace(/[\u0000-\u001F\u007F]/g, " ")
+        .replace(/\s+/g, " ")
+        .trim()
+        .slice(0, 120)
+    : "";
+
+const normalizeWhiteboardPoints = (
+  points,
+  limit = WHITEBOARD_APPEND_BATCH_LIMIT,
+) => {
+  if (!Array.isArray(points)) {
+    return [];
+  }
+
+  return points
+    .slice(0, limit)
+    .map((point) => normalizeWhiteboardPoint(point))
+    .filter(Boolean);
+};
+
+const trimWhiteboardStrokes = (strokes) => {
+  if (!Array.isArray(strokes)) {
+    return [];
+  }
+
+  if (strokes.length <= WHITEBOARD_MAX_STROKES) {
+    return strokes;
+  }
+
+  return strokes.slice(strokes.length - WHITEBOARD_MAX_STROKES);
+};
+
+const normalizeWhiteboardPageNumber = (pageNumber) => {
+  const nextPageNumber = Number(pageNumber);
+  if (!Number.isFinite(nextPageNumber)) {
+    return 1;
+  }
+
+  return Math.min(5000, Math.max(1, Math.round(nextPageNumber)));
+};
+
+const normalizeWhiteboardSelectedPages = (selectedPages) => {
+  if (!Array.isArray(selectedPages)) {
+    return [];
+  }
+
+  return Array.from(
+    new Set(
+      selectedPages
+        .slice(0, 240)
+        .map((pageNumber) => normalizeWhiteboardPageNumber(pageNumber))
+        .filter((pageNumber) => Number.isFinite(pageNumber) && pageNumber > 0),
+    ),
+  ).sort((left, right) => left - right);
+};
+
+const normalizeWhiteboardSelectedPagesMode = (selectedPagesMode, selectedPages) =>
+  selectedPagesMode === "custom" || normalizeWhiteboardSelectedPages(selectedPages).length > 0
+    ? "custom"
+    : "all";
+
+const normalizeWhiteboardScrollRatio = (scrollRatio) => {
+  const nextScrollRatio = Number(scrollRatio);
+  if (!Number.isFinite(nextScrollRatio)) {
+    return 0;
+  }
+
+  return Math.min(1, Math.max(0, nextScrollRatio));
+};
+
+const normalizeWhiteboardViewportLeftRatio = (leftRatio) => {
+  const nextLeftRatio = Number(leftRatio);
+  if (!Number.isFinite(nextLeftRatio)) {
+    return 0;
+  }
+
+  return Math.min(1, Math.max(0, nextLeftRatio));
+};
+
+const normalizeWhiteboardZoom = (zoom) => {
+  const nextZoom = Number(zoom);
+  if (!Number.isFinite(nextZoom)) {
+    return 1;
+  }
+
+  return Math.min(WHITEBOARD_MAX_ZOOM, Math.max(WHITEBOARD_MIN_ZOOM, nextZoom));
+};
+
+const normalizeWhiteboardText = (value) =>
+  typeof value === "string" ? value.replace(/\s+$/g, "").slice(0, 240) : "";
+
+const normalizeWhiteboardStroke = (stroke) => {
+  if (!stroke || typeof stroke !== "object") {
+    return null;
+  }
+
+  const strokeId =
+    typeof stroke.id === "string" && stroke.id.trim()
+      ? stroke.id.trim().slice(0, 80)
+      : "";
+  if (!strokeId) {
+    return null;
+  }
+
+  const points = normalizeWhiteboardPoints(
+    stroke.points,
+    WHITEBOARD_MAX_POINTS_PER_STROKE,
+  );
+  if (points.length === 0) {
+    return null;
+  }
+
+  return {
+    id: strokeId,
+    tool:
+      stroke.tool === "eraser"
+        ? "eraser"
+        : stroke.tool === "text"
+          ? "text"
+          : "pen",
+    color:
+      typeof stroke.color === "string" &&
+      WHITEBOARD_COLOR_PATTERN.test(stroke.color.trim())
+        ? stroke.color.trim().toLowerCase()
+        : WHITEBOARD_DEFAULT_COLOR,
+    size: Math.min(
+      24,
+      Math.max(2, Math.round(Number(stroke.size) || WHITEBOARD_DEFAULT_SIZE)),
+    ),
+    points,
+    text: normalizeWhiteboardText(stroke.text),
+  };
+};
+
+const normalizeWhiteboardPdfPageState = (pageState) => {
+  if (!pageState || typeof pageState !== "object") {
+    return null;
+  }
+
+  return {
+    pageNumber: normalizeWhiteboardPageNumber(pageState.pageNumber),
+    strokes: trimWhiteboardStrokes(
+      (Array.isArray(pageState.strokes) ? pageState.strokes : [])
+        .map((stroke) => normalizeWhiteboardStroke(stroke))
+        .filter(Boolean),
+    ),
+  };
+};
+
+const normalizeWhiteboardTab = (tab) => {
+  if (!tab || typeof tab !== "object") {
+    return null;
+  }
+
+  const tabId = normalizeWhiteboardTabId(tab.id);
+  if (!tabId) {
+    return null;
+  }
+
+  if (tab.type === "pdf") {
+    const fileUrl = normalizeWhiteboardFileUrl(tab.fileUrl);
+    const fileName = normalizeWhiteboardFileName(tab.fileName);
+    if (!fileUrl || !fileName) {
+      return null;
+    }
+
+    return {
+      id: tabId,
+      type: "pdf",
+      title:
+        normalizeWhiteboardTitle(tab.title) ||
+        fileName.replace(/\.pdf$/i, "") ||
+        "PDF",
+      fileUrl,
+      fileName,
+      fileSize: Math.max(0, Math.round(Number(tab.fileSize) || 0)),
+      scrollRatio: normalizeWhiteboardScrollRatio(tab.scrollRatio),
+      zoom: normalizeWhiteboardZoom(tab.zoom),
+      viewportPageNumber: normalizeWhiteboardPageNumber(tab.viewportPageNumber),
+      viewportPageOffsetRatio: normalizeWhiteboardScrollRatio(tab.viewportPageOffsetRatio),
+      viewportLeftRatio: normalizeWhiteboardViewportLeftRatio(tab.viewportLeftRatio),
+      selectedPagesMode: normalizeWhiteboardSelectedPagesMode(
+        tab.selectedPagesMode,
+        tab.selectedPages,
+      ),
+      selectedPages: normalizeWhiteboardSelectedPages(tab.selectedPages),
+      pages: (Array.isArray(tab.pages) ? tab.pages : [])
+        .map((pageState) => normalizeWhiteboardPdfPageState(pageState))
+        .filter(Boolean)
+        .sort((left, right) => left.pageNumber - right.pageNumber),
+    };
+  }
+
+  return {
+    id: WHITEBOARD_BOARD_TAB_ID,
+    type: "board",
+    title: normalizeWhiteboardTitle(tab.title) || "board",
+    strokes: trimWhiteboardStrokes(
+      (Array.isArray(tab.strokes) ? tab.strokes : [])
+        .map((stroke) => normalizeWhiteboardStroke(stroke))
+        .filter(Boolean),
+    ),
+  };
+};
+
+const normalizeWhiteboardPdfLibraryItem = (item) => {
+  if (!item || typeof item !== "object") {
+    return null;
+  }
+
+  const itemId = normalizeWhiteboardTabId(item.id);
+  const fileUrl = normalizeWhiteboardFileUrl(item.fileUrl);
+  const fileName = normalizeWhiteboardFileName(item.fileName);
+  if (!itemId || !fileUrl || !fileName) {
+    return null;
+  }
+
+  const createdAt = Number(item.createdAt);
+
+  return {
+    id: itemId,
+    title:
+      normalizeWhiteboardTitle(item.title) ||
+      fileName.replace(/\.pdf$/i, "") ||
+      "PDF",
+    fileUrl,
+    fileName,
+    fileSize: Math.max(0, Math.round(Number(item.fileSize) || 0)),
+    createdAt:
+      Number.isFinite(createdAt) && createdAt > 0 ? Math.round(createdAt) : Date.now(),
+  };
+};
+
+const mergeWhiteboardPdfLibraryItems = (...collections) =>
+  collections
+    .flatMap((collection) => (Array.isArray(collection) ? collection : []))
+    .map((item) => normalizeWhiteboardPdfLibraryItem(item))
+    .filter(Boolean)
+    .reduce((accumulator, item) => {
+      const existingIndex = accumulator.findIndex(
+        (entry) => entry.id === item.id || entry.fileUrl === item.fileUrl,
+      );
+      if (existingIndex >= 0) {
+        accumulator[existingIndex] =
+          accumulator[existingIndex].createdAt >= item.createdAt
+            ? accumulator[existingIndex]
+            : item;
+      } else {
+        accumulator.push(item);
+      }
+      return accumulator;
+    }, [])
+    .sort((left, right) => right.createdAt - left.createdAt)
+    .slice(0, WHITEBOARD_PDF_LIBRARY_MAX_ITEMS);
+
+const getWhiteboardPdfLibraryStorageKey = (userId) =>
+  `jamm:whiteboard-pdf-library:${String(userId || "anon")}`;
+
+const readStoredWhiteboardPdfLibrary = (userId) => {
+  if (typeof window === "undefined") {
+    return [];
+  }
+
+  try {
+    const rawValue = window.localStorage.getItem(
+      getWhiteboardPdfLibraryStorageKey(userId),
+    );
+    if (!rawValue) {
+      return [];
+    }
+
+    return mergeWhiteboardPdfLibraryItems(JSON.parse(rawValue));
+  } catch {
+    return [];
+  }
+};
+
+const writeStoredWhiteboardPdfLibrary = (userId, items) => {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  try {
+    window.localStorage.setItem(
+      getWhiteboardPdfLibraryStorageKey(userId),
+      JSON.stringify(mergeWhiteboardPdfLibraryItems(items)),
+    );
+  } catch {}
+};
+
+const ensureWhiteboardTabs = (tabs) => {
+  const normalizedTabs = Array.isArray(tabs)
+    ? tabs.map((tab) => normalizeWhiteboardTab(tab)).filter(Boolean)
+    : [];
+  const boardTab =
+    normalizedTabs.find((tab) => tab.type === "board") || createWhiteboardBoardTab();
+  const pdfTabs = normalizedTabs
+    .filter((tab) => tab.type === "pdf")
+    .slice(0, WHITEBOARD_MAX_TABS - 1);
+
+  return [boardTab, ...pdfTabs];
+};
+
+const normalizeWhiteboardState = (rawState) => ({
+  isActive: Boolean(rawState?.isActive),
+  ownerPeerId:
+    typeof rawState?.ownerPeerId === "string" ? rawState.ownerPeerId : "",
+  ownerDisplayName:
+    typeof rawState?.ownerDisplayName === "string"
+      ? rawState.ownerDisplayName
+      : "",
+  activeTabId: (() => {
+    const tabs = ensureWhiteboardTabs(rawState?.tabs);
+    const normalizedTabId = normalizeWhiteboardTabId(rawState?.activeTabId);
+    return tabs.some((tab) => tab.id === normalizedTabId)
+      ? normalizedTabId
+      : WHITEBOARD_BOARD_TAB_ID;
+  })(),
+  tabs: ensureWhiteboardTabs(rawState?.tabs),
+  pdfLibrary: (Array.isArray(rawState?.pdfLibrary) ? rawState.pdfLibrary : [])
+    .map((item) => normalizeWhiteboardPdfLibraryItem(item))
+    .filter(Boolean)
+    .sort((left, right) => right.createdAt - left.createdAt),
+});
+
+const mergeWhiteboardTabsWithPreservedSelections = (nextState, prevState) => {
+  const prevTabs = Array.isArray(prevState?.tabs) ? prevState.tabs : [];
+
+  return {
+    ...nextState,
+    tabs: ensureWhiteboardTabs(
+      (Array.isArray(nextState.tabs) ? nextState.tabs : []).map((tab) => {
+        if (tab.type !== "pdf") {
+          return tab;
+        }
+
+        const previousTab =
+          prevTabs.find((entry) => entry.id === tab.id) ||
+          prevTabs.find(
+            (entry) =>
+              entry.type === "pdf" &&
+              entry.fileUrl === tab.fileUrl &&
+              entry.title === tab.title,
+          );
+
+        if (
+          tab.selectedPagesMode === "custom" &&
+          tab.selectedPages.length === 0 &&
+          previousTab?.type === "pdf" &&
+          previousTab.selectedPagesMode === "custom" &&
+          previousTab.selectedPages.length > 0
+        ) {
+          return {
+            ...tab,
+            selectedPages: previousTab.selectedPages,
+          };
+        }
+
+        return tab;
+      }),
+    ),
+  };
+};
+
+const resolveWhiteboardTargetTabId = (state, tabId) => {
+  const normalizedTabId = normalizeWhiteboardTabId(tabId);
+  if (normalizedTabId && state.tabs.some((tab) => tab.id === normalizedTabId)) {
+    return normalizedTabId;
+  }
+
+  return WHITEBOARD_BOARD_TAB_ID;
+};
+
+const updateWhiteboardTabs = (state, updater) => {
+  const nextTabs = ensureWhiteboardTabs(updater(Array.isArray(state.tabs) ? state.tabs : []));
+  const activeTabId = nextTabs.some((tab) => tab.id === state.activeTabId)
+    ? state.activeTabId
+    : WHITEBOARD_BOARD_TAB_ID;
+
+  return {
+    ...state,
+    tabs: nextTabs,
+    activeTabId,
+  };
+};
+
+const updateWhiteboardTabById = (state, tabId, updater) =>
+  updateWhiteboardTabs(state, (tabs) =>
+    tabs.map((tab) => (tab.id === tabId ? updater(tab) || tab : tab)),
+  );
+
+const upsertWhiteboardStrokeInState = (state, { tabId, pageNumber, stroke }) => {
+  const targetTabId = resolveWhiteboardTargetTabId(state, tabId);
+
+  return {
+    ...updateWhiteboardTabById(state, targetTabId, (tab) => {
+      if (tab.type === "pdf") {
+        const targetPageNumber = normalizeWhiteboardPageNumber(pageNumber);
+        const pages = [...tab.pages];
+        const pageIndex = pages.findIndex((page) => page.pageNumber === targetPageNumber);
+        const nextPage =
+          pageIndex >= 0
+            ? pages[pageIndex]
+            : { pageNumber: targetPageNumber, strokes: [] };
+        const nextPageState = {
+          ...nextPage,
+          strokes: trimWhiteboardStrokes([
+            ...nextPage.strokes.filter((existingStroke) => existingStroke.id !== stroke.id),
+            stroke,
+          ]),
+        };
+
+        if (pageIndex >= 0) {
+          pages[pageIndex] = nextPageState;
+        } else {
+          pages.push(nextPageState);
+        }
+
+        return {
+          ...tab,
+          pages: pages.sort((left, right) => left.pageNumber - right.pageNumber),
+        };
+      }
+
+      return {
+        ...tab,
+        strokes: trimWhiteboardStrokes([
+          ...tab.strokes.filter((existingStroke) => existingStroke.id !== stroke.id),
+          stroke,
+        ]),
+      };
+    }),
+    isActive: true,
+    activeTabId: targetTabId,
+  };
+};
+
+const appendWhiteboardStrokePointsInState = (state, { tabId, pageNumber, strokeId, points }) => {
+  const targetTabId = resolveWhiteboardTargetTabId(state, tabId);
+
+  return {
+    ...updateWhiteboardTabById(state, targetTabId, (tab) => {
+      if (tab.type === "pdf") {
+        const targetPageNumber = normalizeWhiteboardPageNumber(pageNumber);
+        return {
+          ...tab,
+          pages: tab.pages.map((page) =>
+            page.pageNumber !== targetPageNumber
+              ? page
+              : {
+                  ...page,
+                  strokes: page.strokes.map((stroke) =>
+                    stroke.id !== strokeId
+                      ? stroke
+                      : {
+                          ...stroke,
+                          points: [...stroke.points, ...points].slice(
+                            0,
+                            WHITEBOARD_MAX_POINTS_PER_STROKE,
+                          ),
+                        },
+                  ),
+                },
+          ),
+        };
+      }
+
+      return {
+        ...tab,
+        strokes: tab.strokes.map((stroke) =>
+          stroke.id !== strokeId
+            ? stroke
+            : {
+                ...stroke,
+                points: [...stroke.points, ...points].slice(
+                  0,
+                  WHITEBOARD_MAX_POINTS_PER_STROKE,
+                ),
+              },
+        ),
+      };
+    }),
+    isActive: true,
+    activeTabId: targetTabId,
+  };
+};
+
+const removeWhiteboardStrokeFromState = (state, { tabId, pageNumber, strokeId }) => {
+  const targetTabId = resolveWhiteboardTargetTabId(state, tabId);
+
+  return {
+    ...updateWhiteboardTabById(state, targetTabId, (tab) => {
+      if (tab.type === "pdf") {
+        const targetPageNumber = normalizeWhiteboardPageNumber(pageNumber);
+        return {
+          ...tab,
+          pages: tab.pages.map((page) =>
+            page.pageNumber !== targetPageNumber
+              ? page
+              : {
+                  ...page,
+                  strokes: page.strokes.filter((stroke) => stroke.id !== strokeId),
+                },
+          ),
+        };
+      }
+
+      return {
+        ...tab,
+        strokes: tab.strokes.filter((stroke) => stroke.id !== strokeId),
+      };
+    }),
+    activeTabId: targetTabId,
+  };
+};
+
+const clearWhiteboardTargetInState = (state, { tabId, pageNumber }) => {
+  const targetTabId = resolveWhiteboardTargetTabId(state, tabId);
+
+  return {
+    ...updateWhiteboardTabById(state, targetTabId, (tab) => {
+      if (tab.type === "pdf") {
+        const targetPageNumber = normalizeWhiteboardPageNumber(pageNumber);
+        return {
+          ...tab,
+          pages: tab.pages.map((page) =>
+            page.pageNumber !== targetPageNumber ? page : { ...page, strokes: [] },
+          ),
+        };
+      }
+
+      return {
+        ...tab,
+        strokes: [],
+      };
+    }),
+    activeTabId: targetTabId,
+  };
+};
+
+const addWhiteboardPdfTabToState = (state, nextTab) => {
+  const normalizedTab = normalizeWhiteboardTab({
+    ...nextTab,
+    type: "pdf",
+    pages: [],
+    scrollRatio: 0,
+    zoom: 1,
+    viewportPageNumber: 1,
+    viewportPageOffsetRatio: 0,
+    viewportLeftRatio: 0,
+    selectedPagesMode:
+      nextTab.selectedPagesMode ||
+      normalizeWhiteboardSelectedPagesMode("custom", nextTab.selectedPages),
+    selectedPages: nextTab.selectedPages,
+  });
+  if (!normalizedTab || normalizedTab.type !== "pdf") {
+    return state;
+  }
+
+  const filteredTabs = (Array.isArray(state.tabs) ? state.tabs : []).filter(
+    (tab) => tab.id !== normalizedTab.id,
+  );
+  const nextTabs = ensureWhiteboardTabs([...filteredTabs, normalizedTab]).slice(
+    0,
+    WHITEBOARD_MAX_TABS,
+  );
+
+  return {
+    ...state,
+    isActive: true,
+    activeTabId: normalizedTab.id,
+    tabs: nextTabs,
+  };
+};
+
+const addWhiteboardPdfLibraryItemToState = (state, item) => {
+  const normalizedItem = normalizeWhiteboardPdfLibraryItem(item);
+  if (!normalizedItem) {
+    return state;
+  }
+
+  const nextLibrary = mergeWhiteboardPdfLibraryItems(state.pdfLibrary, [normalizedItem]);
+
+  return {
+    ...state,
+    pdfLibrary: nextLibrary,
+  };
+};
+
+const removeWhiteboardTabFromState = (state, tabId) => {
+  const normalizedTabId = normalizeWhiteboardTabId(tabId);
+  if (!normalizedTabId || normalizedTabId === WHITEBOARD_BOARD_TAB_ID) {
+    return state;
+  }
+
+  const nextTabs = ensureWhiteboardTabs(
+    (Array.isArray(state.tabs) ? state.tabs : []).filter((tab) => tab.id !== normalizedTabId),
+  );
+
+  return {
+    ...state,
+    tabs: nextTabs,
+    activeTabId:
+      state.activeTabId === normalizedTabId ? WHITEBOARD_BOARD_TAB_ID : state.activeTabId,
+  };
+};
+
+const setWhiteboardActiveTabInState = (state, tabId) => {
+  const targetTabId = resolveWhiteboardTargetTabId(state, tabId);
+  return {
+    ...state,
+    isActive: true,
+    activeTabId: targetTabId,
+  };
+};
+
+const setWhiteboardPdfViewportInState = (
+  state,
+  { tabId, scrollRatio, zoom, viewportPageNumber, viewportPageOffsetRatio, viewportLeftRatio },
+) => {
+  const targetTabId = resolveWhiteboardTargetTabId(state, tabId);
+
+  return {
+    ...updateWhiteboardTabById(state, targetTabId, (tab) =>
+      tab.type !== "pdf"
+        ? tab
+        : {
+            ...tab,
+            scrollRatio:
+              typeof scrollRatio === "undefined"
+                ? tab.scrollRatio
+                : normalizeWhiteboardScrollRatio(scrollRatio),
+            zoom:
+              typeof zoom === "undefined"
+                ? normalizeWhiteboardZoom(tab.zoom)
+                : normalizeWhiteboardZoom(zoom),
+            viewportPageNumber:
+              typeof viewportPageNumber === "undefined"
+                ? normalizeWhiteboardPageNumber(tab.viewportPageNumber)
+                : normalizeWhiteboardPageNumber(viewportPageNumber),
+            viewportPageOffsetRatio:
+              typeof viewportPageOffsetRatio === "undefined"
+                ? normalizeWhiteboardScrollRatio(tab.viewportPageOffsetRatio)
+                : normalizeWhiteboardScrollRatio(viewportPageOffsetRatio),
+            viewportLeftRatio:
+              typeof viewportLeftRatio === "undefined"
+                ? normalizeWhiteboardViewportLeftRatio(tab.viewportLeftRatio)
+                : normalizeWhiteboardViewportLeftRatio(viewportLeftRatio),
+          },
+    ),
+    activeTabId: targetTabId,
+  };
+};
+
 const getNavigatorConnectionState = () => {
   const connection =
     navigator.connection ||
@@ -214,6 +958,9 @@ export function useWebRTC({
   const [qualityProfile, setQualityProfile] = useState(
     CALL_QUALITY_PROFILES.balanced,
   );
+  const [whiteboardState, setWhiteboardState] = useState(() =>
+    createInitialWhiteboardState(),
+  );
   const [cameraFacingMode, setCameraFacingMode] = useState("user");
   const [videoInputCount, setVideoInputCount] = useState(0);
   const screenStreamRef = useRef(null);
@@ -225,6 +972,9 @@ export function useWebRTC({
   const statsIntervalRef = useRef(null);
   const qualityProfileRef = useRef(CALL_QUALITY_PROFILES.balanced);
   const cameraFacingModeRef = useRef("user");
+  const whiteboardStateRef = useRef(createInitialWhiteboardState());
+  const storedPdfLibraryRef = useRef([]);
+  const currentUserId = String(currentUser?._id || currentUser?.id || "");
 
   // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -257,6 +1007,43 @@ export function useWebRTC({
       },
     }));
   }, []);
+
+  const commitWhiteboardState = useCallback((updater) => {
+    setWhiteboardState((prev) => {
+      const nextState =
+        typeof updater === "function" ? updater(prev) : updater;
+      whiteboardStateRef.current = nextState;
+      return nextState;
+    });
+  }, []);
+
+  const resetWhiteboardState = useCallback(() => {
+    const nextState = createInitialWhiteboardState();
+    whiteboardStateRef.current = nextState;
+    setWhiteboardState(nextState);
+  }, []);
+
+  useEffect(() => {
+    const storedLibrary = readStoredWhiteboardPdfLibrary(currentUserId);
+    storedPdfLibraryRef.current = storedLibrary;
+    if (storedLibrary.length === 0) {
+      return;
+    }
+
+    commitWhiteboardState((prev) => ({
+      ...prev,
+      pdfLibrary: mergeWhiteboardPdfLibraryItems(prev.pdfLibrary, storedLibrary),
+    }));
+  }, [commitWhiteboardState, currentUserId]);
+
+  useEffect(() => {
+    const mergedLibrary = mergeWhiteboardPdfLibraryItems(
+      storedPdfLibraryRef.current,
+      whiteboardState.pdfLibrary,
+    );
+    storedPdfLibraryRef.current = mergedLibrary;
+    writeStoredWhiteboardPdfLibrary(currentUserId, mergedLibrary);
+  }, [currentUserId, whiteboardState.pdfLibrary]);
 
   const removeRemoteStream = useCallback((peerId) => {
     setRemoteStreams((prev) => prev.filter((r) => r.peerId !== peerId));
@@ -1055,23 +1842,120 @@ export function useWebRTC({
           }
         });
 
-        // 5c. Screen share signals from peers
+        // 5c. Whiteboard sync
+        socket.on("whiteboard-state", (payload) => {
+          const nextState = normalizeWhiteboardState(payload);
+          const mergedState = {
+            ...mergeWhiteboardTabsWithPreservedSelections(
+              nextState,
+              whiteboardStateRef.current,
+            ),
+            pdfLibrary: mergeWhiteboardPdfLibraryItems(
+              nextState.pdfLibrary,
+              storedPdfLibraryRef.current,
+            ),
+          };
+          storedPdfLibraryRef.current = mergedState.pdfLibrary;
+          whiteboardStateRef.current = mergedState;
+          setWhiteboardState(mergedState);
+        });
+
+        socket.on("whiteboard-started", (payload) => {
+          commitWhiteboardState((prev) => ({
+            ...prev,
+            isActive: true,
+            ownerPeerId: payload?.ownerPeerId || prev.ownerPeerId,
+            ownerDisplayName:
+              payload?.ownerDisplayName || prev.ownerDisplayName,
+            activeTabId:
+              normalizeWhiteboardTabId(payload?.activeTabId) || prev.activeTabId,
+          }));
+        });
+
+        socket.on("whiteboard-stopped", ({ ownerPeerId }) => {
+          commitWhiteboardState((prev) => ({
+            ...prev,
+            isActive: false,
+            ownerPeerId:
+              typeof ownerPeerId === "string" ? ownerPeerId : prev.ownerPeerId,
+          }));
+        });
+
+        socket.on("whiteboard-cleared", () => {
+          commitWhiteboardState((prev) =>
+            clearWhiteboardTargetInState(prev, {
+              tabId: prev.activeTabId,
+              pageNumber: 1,
+            }),
+          );
+        });
+
+        socket.on("whiteboard-stroke-started", ({ tabId, pageNumber, stroke }) => {
+          const normalizedStroke = normalizeWhiteboardStroke(stroke);
+          if (!normalizedStroke) {
+            return;
+          }
+
+          commitWhiteboardState((prev) =>
+            upsertWhiteboardStrokeInState(prev, {
+              tabId,
+              pageNumber,
+              stroke: normalizedStroke,
+            }),
+          );
+        });
+
+        socket.on("whiteboard-stroke-appended", ({ tabId, pageNumber, strokeId, points }) => {
+          if (typeof strokeId !== "string" || !strokeId.trim()) {
+            return;
+          }
+
+          const normalizedPoints = normalizeWhiteboardPoints(points);
+          if (normalizedPoints.length === 0) {
+            return;
+          }
+
+          commitWhiteboardState((prev) =>
+            appendWhiteboardStrokePointsInState(prev, {
+              tabId,
+              pageNumber,
+              strokeId,
+              points: normalizedPoints,
+            }),
+          );
+        });
+
+        socket.on("whiteboard-stroke-removed", ({ tabId, pageNumber, strokeId }) => {
+          if (typeof strokeId !== "string" || !strokeId.trim()) {
+            return;
+          }
+
+          commitWhiteboardState((prev) =>
+            removeWhiteboardStrokeFromState(prev, {
+              tabId,
+              pageNumber,
+              strokeId,
+            }),
+          );
+        });
+
+        // 5d. Screen share signals from peers
         socket.on("screen-share-stopped", ({ peerId: sharerPeerId }) => {
           removeRemoteScreenStream(sharerPeerId);
         });
 
-        // 5d. Recording signals from peers
+        // 5e. Recording signals from peers
         socket.on("recording-started", () => setRemoteIsRecording(true));
         socket.on("recording-stopped", () => setRemoteIsRecording(false));
 
-        // 5e. Kicked signal
+        // 5f. Kicked signal
         socket.on("kicked", () => {
           setError("Siz yaratuvchi tomonidan chiqarib yuborildingiz");
           setJoinStatus("rejected");
           leaveCall();
         });
 
-        // 5e. Creator media control signals
+        // 5g. Creator media control signals
         socket.on("force-mute-mic", () => {
           const t = localStreamRef.current?.getAudioTracks()[0];
           if (t) {
@@ -1095,7 +1979,7 @@ export function useWebRTC({
           setCamLocked(false);
         });
 
-        // 5f. Hand raise signals
+        // 5h. Hand raise signals
         socket.on("hand-raised", ({ peerId: pid }) => {
           setRaisedHands((prev) => new Set([...prev, pid]));
         });
@@ -1107,7 +1991,7 @@ export function useWebRTC({
           });
         });
 
-        // 5g. Server-side error (e.g. premium limit, auth failed)
+        // 5i. Server-side error (e.g. premium limit, auth failed)
         socket.on("error", ({ message }) => {
           if (!isMounted) return;
 
@@ -1200,6 +2084,7 @@ export function useWebRTC({
       setNetworkQuality("good");
       setQualityProfile(CALL_QUALITY_PROFILES.balanced);
       qualityProfileRef.current = CALL_QUALITY_PROFILES.balanced;
+      resetWhiteboardState();
       setKnockRequests([]);
       if (statsIntervalRef.current) {
         clearInterval(statsIntervalRef.current);
@@ -1218,10 +2103,12 @@ export function useWebRTC({
     isPrivate,
     attachSignalingListeners,
     buildCameraConstraints,
+    commitWhiteboardState,
     currentUser?._id,
     currentUser?.id,
     refreshVideoInputCount,
     removeRemoteScreenStream,
+    resetWhiteboardState,
   ]);
 
   // ─── Creator: approve / reject ────────────────────────────────────────────────
@@ -1341,12 +2228,13 @@ export function useWebRTC({
       setNetworkQuality("good");
       setQualityProfile(CALL_QUALITY_PROFILES.balanced);
       qualityProfileRef.current = CALL_QUALITY_PROFILES.balanced;
+      resetWhiteboardState();
       if (statsIntervalRef.current) {
         clearInterval(statsIntervalRef.current);
         statsIntervalRef.current = null;
       }
     }
-  }, [roomId]);
+  }, [resetWhiteboardState, roomId]);
 
   // ─── Screen Share ─────────────────────────────────────────────────────────────
 
@@ -1536,6 +2424,421 @@ export function useWebRTC({
     [roomId],
   );
 
+  const toggleWhiteboard = useCallback(() => {
+    if (!isCreator || !socketRef.current) {
+      return false;
+    }
+
+    const nextActive = !whiteboardStateRef.current.isActive;
+    const ownerPeerId = socketRef.current.id || whiteboardStateRef.current.ownerPeerId;
+
+    commitWhiteboardState((prev) => ({
+      ...prev,
+      isActive: nextActive,
+      ownerPeerId,
+      ownerDisplayName: displayName || prev.ownerDisplayName || "Host",
+    }));
+
+    socketRef.current.emit(nextActive ? "whiteboard-start" : "whiteboard-stop", {
+      roomId,
+    });
+
+    return true;
+  }, [commitWhiteboardState, displayName, isCreator, roomId]);
+
+  const clearWhiteboard = useCallback(() => {
+    if (!isCreator || !socketRef.current) {
+      return false;
+    }
+
+    const activeTabId = resolveWhiteboardTargetTabId(
+      whiteboardStateRef.current,
+      whiteboardStateRef.current.activeTabId,
+    );
+
+    commitWhiteboardState((prev) =>
+      clearWhiteboardTargetInState(prev, {
+        tabId: activeTabId,
+        pageNumber: 1,
+      }),
+    );
+    socketRef.current.emit("whiteboard-clear", { roomId, tabId: activeTabId });
+    return true;
+  }, [commitWhiteboardState, isCreator, roomId]);
+
+  const clearWhiteboardPage = useCallback(
+    ({ tabId, pageNumber }) => {
+      if (!isCreator || !socketRef.current) {
+        return false;
+      }
+
+      const targetTabId = resolveWhiteboardTargetTabId(
+        whiteboardStateRef.current,
+        tabId || whiteboardStateRef.current.activeTabId,
+      );
+
+      commitWhiteboardState((prev) =>
+        clearWhiteboardTargetInState(prev, {
+          tabId: targetTabId,
+          pageNumber,
+        }),
+      );
+      socketRef.current.emit("whiteboard-clear", {
+        roomId,
+        tabId: targetTabId,
+        pageNumber,
+      });
+      return true;
+    },
+    [commitWhiteboardState, isCreator, roomId],
+  );
+
+  const undoWhiteboard = useCallback(
+    ({ tabId, pageNumber }) => {
+      if (!isCreator || !socketRef.current) {
+        return false;
+      }
+
+      const targetTabId = resolveWhiteboardTargetTabId(
+        whiteboardStateRef.current,
+        tabId || whiteboardStateRef.current.activeTabId,
+      );
+      socketRef.current.emit("whiteboard-undo", {
+        roomId,
+        tabId: targetTabId,
+        pageNumber,
+      });
+      return true;
+    },
+    [isCreator, roomId],
+  );
+
+  const redoWhiteboard = useCallback(
+    ({ tabId, pageNumber }) => {
+      if (!isCreator || !socketRef.current) {
+        return false;
+      }
+
+      const targetTabId = resolveWhiteboardTargetTabId(
+        whiteboardStateRef.current,
+        tabId || whiteboardStateRef.current.activeTabId,
+      );
+      socketRef.current.emit("whiteboard-redo", {
+        roomId,
+        tabId: targetTabId,
+        pageNumber,
+      });
+      return true;
+    },
+    [isCreator, roomId],
+  );
+
+  const setWhiteboardActiveTab = useCallback(
+    (tabId) => {
+      if (!isCreator || !socketRef.current) {
+        return false;
+      }
+
+      const targetTabId = resolveWhiteboardTargetTabId(whiteboardStateRef.current, tabId);
+      commitWhiteboardState((prev) => setWhiteboardActiveTabInState(prev, targetTabId));
+      socketRef.current.emit("whiteboard-tab-activate", {
+        roomId,
+        tabId: targetTabId,
+      });
+      return true;
+    },
+    [commitWhiteboardState, isCreator, roomId],
+  );
+
+  const uploadWhiteboardPdf = useCallback(
+    async (file) => {
+      if (!isCreator || !socketRef.current || !(file instanceof File)) {
+        return { ok: false, error: "PDF upload unavailable" };
+      }
+
+      const formData = new FormData();
+      formData.append("file", file);
+
+      try {
+        const { data } = await axiosInstance.post("/courses/upload-media", formData);
+        const itemId =
+          typeof crypto !== "undefined" && crypto.randomUUID
+            ? `pdf-lib-${crypto.randomUUID()}`
+            : `pdf-lib-${Date.now().toString(36)}-${Math.random()
+                .toString(36)
+                .slice(2, 8)}`;
+        const nextItem = {
+          id: itemId,
+          title: file.name.replace(/\.pdf$/i, ""),
+          fileUrl: data?.fileUrl || data?.url || "",
+          fileName: data?.fileName || file.name,
+          fileSize: data?.fileSize || file.size || 0,
+          createdAt: Date.now(),
+        };
+
+        if (!normalizeWhiteboardFileUrl(nextItem.fileUrl)) {
+          return { ok: false, error: "PDF URL missing" };
+        }
+
+        commitWhiteboardState((prev) =>
+          addWhiteboardPdfLibraryItemToState(prev, nextItem),
+        );
+        socketRef.current.emit("whiteboard-pdf-library-add", {
+          roomId,
+          itemId: nextItem.id,
+          title: nextItem.title,
+          fileUrl: nextItem.fileUrl,
+          fileName: nextItem.fileName,
+          fileSize: nextItem.fileSize,
+          createdAt: nextItem.createdAt,
+        });
+        return { ok: true, item: nextItem };
+      } catch (error) {
+        return {
+          ok: false,
+          error:
+            error?.response?.data?.message ||
+            error?.message ||
+            "PDF upload failed",
+        };
+      }
+    },
+    [commitWhiteboardState, isCreator, roomId],
+  );
+
+  const addWhiteboardPdfTab = useCallback(
+    (item, options = {}) => {
+      if (!isCreator || !socketRef.current) {
+        return { ok: false, error: "PDF open unavailable" };
+      }
+
+      const libraryItem = normalizeWhiteboardPdfLibraryItem(item);
+      const selectedPages = normalizeWhiteboardSelectedPages(options?.selectedPages);
+      if (!libraryItem) {
+        return { ok: false, error: "PDF item missing" };
+      }
+
+      const tabId =
+        typeof crypto !== "undefined" && crypto.randomUUID
+          ? `pdf-${crypto.randomUUID()}`
+          : `pdf-${Date.now().toString(36)}-${Math.random()
+              .toString(36)
+              .slice(2, 8)}`;
+
+      commitWhiteboardState((prev) => ({
+        ...addWhiteboardPdfTabToState(prev, {
+          id: tabId,
+          title: libraryItem.title,
+          fileUrl: libraryItem.fileUrl,
+          fileName: libraryItem.fileName,
+          fileSize: libraryItem.fileSize,
+          selectedPagesMode: selectedPages.length > 0 ? "custom" : "all",
+          selectedPages,
+        }),
+        pdfLibrary: addWhiteboardPdfLibraryItemToState(prev, libraryItem).pdfLibrary,
+        ownerPeerId: socketRef.current.id || prev.ownerPeerId,
+        ownerDisplayName: displayName || prev.ownerDisplayName || "Host",
+      }));
+      socketRef.current.emit("whiteboard-pdf-add", {
+        roomId,
+        tabId,
+        libraryItemId: libraryItem.id,
+        title: libraryItem.title,
+        fileUrl: libraryItem.fileUrl,
+        fileName: libraryItem.fileName,
+        fileSize: libraryItem.fileSize,
+        createdAt: libraryItem.createdAt,
+        selectedPagesMode: selectedPages.length > 0 ? "custom" : "all",
+        selectedPages,
+      });
+      return { ok: true, tabId };
+    },
+    [commitWhiteboardState, displayName, isCreator, roomId],
+  );
+
+  const removeWhiteboardTab = useCallback(
+    (tabId) => {
+      if (!isCreator || !socketRef.current) {
+        return false;
+      }
+
+      const normalizedTabId = normalizeWhiteboardTabId(tabId);
+      if (!normalizedTabId || normalizedTabId === WHITEBOARD_BOARD_TAB_ID) {
+        return false;
+      }
+
+      commitWhiteboardState((prev) => removeWhiteboardTabFromState(prev, normalizedTabId));
+      socketRef.current.emit("whiteboard-tab-remove", {
+        roomId,
+        tabId: normalizedTabId,
+      });
+      return true;
+    },
+    [commitWhiteboardState, isCreator, roomId],
+  );
+
+  const syncWhiteboardPdfViewport = useCallback(
+    ({
+      tabId,
+      scrollRatio,
+      zoom,
+      viewportPageNumber,
+      viewportPageOffsetRatio,
+      viewportLeftRatio,
+    }) => {
+      if (!isCreator || !socketRef.current) {
+        return false;
+      }
+
+      const targetTabId = resolveWhiteboardTargetTabId(
+        whiteboardStateRef.current,
+        tabId || whiteboardStateRef.current.activeTabId,
+      );
+      commitWhiteboardState((prev) =>
+        setWhiteboardPdfViewportInState(prev, {
+          tabId: targetTabId,
+          scrollRatio,
+          zoom,
+          viewportPageNumber,
+          viewportPageOffsetRatio,
+          viewportLeftRatio,
+        }),
+      );
+      socketRef.current.emit("whiteboard-pdf-viewport", {
+        roomId,
+        tabId: targetTabId,
+        scrollRatio,
+        zoom,
+        viewportPageNumber,
+        viewportPageOffsetRatio,
+        viewportLeftRatio,
+      });
+      return true;
+    },
+    [commitWhiteboardState, isCreator, roomId],
+  );
+
+  const startWhiteboardStroke = useCallback(
+    ({ tabId, pageNumber, strokeId, tool, color, size, point, text }) => {
+      if (!isCreator || !socketRef.current) {
+        return false;
+      }
+
+      const firstPoint = normalizeWhiteboardPoints([point], 1)[0];
+      const stroke = normalizeWhiteboardStroke({
+        id: strokeId,
+        tool,
+        color,
+        size,
+        points: firstPoint ? [firstPoint] : [],
+        text,
+      });
+
+      if (!stroke || !firstPoint) {
+        return false;
+      }
+
+      const ownerPeerId = socketRef.current.id || whiteboardStateRef.current.ownerPeerId;
+      const targetTabId = resolveWhiteboardTargetTabId(
+        whiteboardStateRef.current,
+        tabId || whiteboardStateRef.current.activeTabId,
+      );
+      commitWhiteboardState((prev) => ({
+        ...upsertWhiteboardStrokeInState(prev, {
+          tabId: targetTabId,
+          pageNumber,
+          stroke,
+        }),
+        ownerPeerId,
+        ownerDisplayName: displayName || prev.ownerDisplayName || "Host",
+      }));
+
+      socketRef.current.emit("whiteboard-stroke-start", {
+        roomId,
+        tabId: targetTabId,
+        pageNumber,
+        strokeId: stroke.id,
+        tool: stroke.tool,
+        color: stroke.color,
+        size: stroke.size,
+        point: firstPoint,
+        text: stroke.text,
+      });
+      return true;
+    },
+    [commitWhiteboardState, displayName, isCreator, roomId],
+  );
+
+  const appendWhiteboardStroke = useCallback(
+    ({ tabId, pageNumber, strokeId, points }) => {
+      if (!isCreator || !socketRef.current || typeof strokeId !== "string") {
+        return false;
+      }
+
+      const normalizedPoints = normalizeWhiteboardPoints(points);
+      if (normalizedPoints.length === 0) {
+        return false;
+      }
+
+      const targetTabId = resolveWhiteboardTargetTabId(
+        whiteboardStateRef.current,
+        tabId || whiteboardStateRef.current.activeTabId,
+      );
+      commitWhiteboardState((prev) =>
+        appendWhiteboardStrokePointsInState(prev, {
+          tabId: targetTabId,
+          pageNumber,
+          strokeId,
+          points: normalizedPoints,
+        }),
+      );
+
+      socketRef.current.emit("whiteboard-stroke-append", {
+        roomId,
+        tabId: targetTabId,
+        pageNumber,
+        strokeId,
+        points: normalizedPoints,
+      });
+      return true;
+    },
+    [commitWhiteboardState, isCreator, roomId],
+  );
+
+  const removeWhiteboardStroke = useCallback(
+    ({ tabId, pageNumber, strokeId }) => {
+      if (
+        !isCreator ||
+        !socketRef.current ||
+        typeof strokeId !== "string" ||
+        !strokeId.trim()
+      ) {
+        return false;
+      }
+
+      const targetTabId = resolveWhiteboardTargetTabId(
+        whiteboardStateRef.current,
+        tabId || whiteboardStateRef.current.activeTabId,
+      );
+      commitWhiteboardState((prev) =>
+        removeWhiteboardStrokeFromState(prev, {
+          tabId: targetTabId,
+          pageNumber,
+          strokeId,
+        }),
+      );
+
+      socketRef.current.emit("whiteboard-stroke-remove", {
+        roomId,
+        tabId: targetTabId,
+        pageNumber,
+        strokeId: strokeId.trim(),
+      });
+      return true;
+    },
+    [commitWhiteboardState, isCreator, roomId],
+  );
+
   return {
     localStream,
     remoteStreams,
@@ -1572,6 +2875,20 @@ export function useWebRTC({
     setRoomPrivacy,
     networkQuality,
     qualityProfile,
+    whiteboardState,
+    toggleWhiteboard,
+    clearWhiteboard,
+    clearWhiteboardPage,
+    undoWhiteboard,
+    redoWhiteboard,
+    setWhiteboardActiveTab,
+    uploadWhiteboardPdf,
+    addWhiteboardPdfTab,
+    removeWhiteboardTab,
+    syncWhiteboardPdfViewport,
+    startWhiteboardStroke,
+    appendWhiteboardStroke,
+    removeWhiteboardStroke,
     cameraFacingMode,
     canSwitchCamera: isLikelyMobileDevice() && videoInputCount > 1,
   };

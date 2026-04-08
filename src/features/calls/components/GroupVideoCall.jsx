@@ -31,6 +31,7 @@ import {
   User,
   ShieldAlert,
   Minimize2,
+  PenSquare,
   RefreshCcw,
 } from "lucide-react";
 import { useWebRTC } from "../../../hooks/useWebRTC";
@@ -38,6 +39,7 @@ import useAuthStore from "../../../store/authStore";
 import useMeetCallStore from "../../../store/meetCallStore";
 import { RESOLVED_APP_BASE_URL } from "../../../config/env";
 import { updateMeetPrivacy } from "../../../utils/meetStore";
+import WhiteboardTile from "./WhiteboardTile";
 
 const slideIn = keyframes`
   from { opacity: 0; transform: translateY(24px); }
@@ -48,6 +50,10 @@ const pulse = keyframes`
   0%, 100% { opacity: 1; }
   50%       { opacity: 0.3; }
 `;
+
+const WHITEBOARD_DEFAULT_COLOR = "#0f172a";
+const WHITEBOARD_DEFAULT_TOOL = "pen";
+const WHITEBOARD_DEFAULT_BRUSH_SIZE = 4;
 
 // ─── Layout ───────────────────────────────────────────────────────────────────
 
@@ -363,8 +369,8 @@ const VideoGrid = styled.div`
 const StageLayout = styled.div`
   flex: 1;
   display: grid;
-  gap: 12px;
-  padding: 14px;
+  gap: ${(p) => (p.$whiteboardFullscreen ? "0" : "12px")};
+  padding: ${(p) => (p.$whiteboardFullscreen ? "0" : "14px")};
   min-width: 0;
   min-height: 0;
   position: relative;
@@ -387,9 +393,12 @@ const StageMain = styled.div`
   min-width: 0;
   min-height: 0;
   overflow: hidden;
-  border-radius: 18px;
-  background: color-mix(in srgb, var(--call-surface) 92%, black 8%);
-  border: 1px solid var(--call-border);
+  border-radius: ${(p) => (p.$whiteboardFullscreen ? "0" : "18px")};
+  background: ${(p) =>
+    p.$whiteboardFullscreen
+      ? "transparent"
+      : "color-mix(in srgb, var(--call-surface) 92%, black 8%)"};
+  border: ${(p) => (p.$whiteboardFullscreen ? "none" : "1px solid var(--call-border)")};
   padding: ${(p) => (p.$immersive ? "0" : "4px")};
   box-sizing: border-box;
 `;
@@ -1143,6 +1152,7 @@ const GroupVideoCall = ({
   const [pipWindow, setPipWindow] = useState(null);
   const [pipContainer, setPipContainer] = useState(null);
   const pipCloseIntentRef = useRef(false);
+  const whiteboardWasActiveRef = useRef(false);
   const [viewport, setViewport] = useState(() => ({
     width: typeof window !== "undefined" ? window.innerWidth : 1280,
     height: typeof window !== "undefined" ? window.innerHeight : 720,
@@ -1193,6 +1203,20 @@ const GroupVideoCall = ({
     setRoomPrivacy,
     networkQuality,
     qualityProfile,
+    whiteboardState,
+    toggleWhiteboard,
+    clearWhiteboard,
+    clearWhiteboardPage,
+    undoWhiteboard,
+    redoWhiteboard,
+    setWhiteboardActiveTab,
+    uploadWhiteboardPdf,
+    addWhiteboardPdfTab,
+    removeWhiteboardTab,
+    syncWhiteboardPdfViewport,
+    startWhiteboardStroke,
+    appendWhiteboardStroke,
+    removeWhiteboardStroke,
     canSwitchCamera,
   } = useWebRTC({
     roomId,
@@ -1206,6 +1230,13 @@ const GroupVideoCall = ({
   });
 
   const [privacyUpdating, setPrivacyUpdating] = useState(false);
+  const [whiteboardTool, setWhiteboardTool] = useState(WHITEBOARD_DEFAULT_TOOL);
+  const [whiteboardColor, setWhiteboardColor] = useState(
+    WHITEBOARD_DEFAULT_COLOR,
+  );
+  const [whiteboardBrushSize, setWhiteboardBrushSize] = useState(
+    WHITEBOARD_DEFAULT_BRUSH_SIZE,
+  );
 
   useEffect(() => {
     if (typeof window === "undefined") return undefined;
@@ -1256,6 +1287,38 @@ const GroupVideoCall = ({
     setRoomPrivacy,
     updateActiveCall,
   ]);
+
+  const isWhiteboardActive = whiteboardState.isActive;
+  const whiteboardOwnerName =
+    whiteboardState.ownerDisplayName || t("groupCall.guest");
+  const whiteboardLabel = t("groupCall.whiteboard.sharedBy", {
+    name: whiteboardOwnerName,
+  });
+
+  const handleWhiteboardTopAction = useCallback(() => {
+    if (!isCreator) {
+      if (isWhiteboardActive) {
+        setSelectedTileId("whiteboard");
+        setFullscreenTileId(null);
+      }
+      return;
+    }
+
+    const success = toggleWhiteboard();
+    if (!success) {
+      toast.error(t("groupCall.whiteboard.toggleFailed"));
+      return;
+    }
+
+    if (!isWhiteboardActive) {
+      setSelectedTileId("whiteboard");
+      setFullscreenTileId(null);
+      return;
+    }
+
+    setSelectedTileId((current) => (current === "whiteboard" ? null : current));
+    setFullscreenTileId((current) => (current === "whiteboard" ? null : current));
+  }, [isCreator, isWhiteboardActive, t, toggleWhiteboard]);
 
   // ─── Recording logic ─────────────────────────────────────────────────────────
   const [isRecording, setIsRecording] = useState(false);
@@ -1510,16 +1573,18 @@ const GroupVideoCall = ({
   const isMobileViewport = viewport.width <= 768;
   const isLandscapeViewport = viewport.width > viewport.height;
 
-  const callTiles = useMemo(() => {
+  const videoTiles = useMemo(() => {
     const tiles = [
       {
         id: "local",
+        kind: "video",
         peerId: "local",
         stream: localStream,
         label: displayName,
         isLocal: true,
         isScreenShare: false,
         hasVideo: Boolean(localStream) && isCamOn,
+        canFullscreen: Boolean(localStream) && isCamOn,
         handRaised: false,
         isCamOn,
         muted: true,
@@ -1529,12 +1594,14 @@ const GroupVideoCall = ({
     if (screenStream) {
       tiles.unshift({
         id: "local-screen",
+        kind: "video",
         peerId: "local",
         stream: screenStream,
         label: `${displayName} · Ekran`,
         isLocal: true,
         isScreenShare: true,
         hasVideo: true,
+        canFullscreen: true,
         handRaised: false,
         isCamOn: true,
         muted: true,
@@ -1548,12 +1615,14 @@ const GroupVideoCall = ({
 
       tiles.push({
         id: peerId,
+        kind: "video",
         peerId,
         stream,
         label: remoteName,
         isLocal: false,
         isScreenShare: false,
         hasVideo: Boolean(stream) && isRemoteCamOn,
+        canFullscreen: Boolean(stream) && isRemoteCamOn,
         handRaised: raisedHands.has(peerId),
         isCamOn: isRemoteCamOn,
         muted: false,
@@ -1563,12 +1632,14 @@ const GroupVideoCall = ({
     remoteScreenStreams.forEach(({ peerId, stream, displayName: remoteName }) => {
       tiles.unshift({
         id: `screen-${peerId}`,
+        kind: "video",
         peerId,
         stream,
         label: `${remoteName} · Ekran`,
         isLocal: false,
         isScreenShare: true,
         hasVideo: Boolean(stream),
+        canFullscreen: Boolean(stream),
         handRaised: false,
         isCamOn: true,
         muted: false,
@@ -1587,26 +1658,63 @@ const GroupVideoCall = ({
     screenStream,
   ]);
 
-  const tileCount = callTiles.length;
+  const allTiles = useMemo(() => {
+    const tiles = [...videoTiles];
+
+    if (isWhiteboardActive) {
+      tiles.unshift({
+        id: "whiteboard",
+        kind: "whiteboard",
+        peerId: whiteboardState.ownerPeerId || "whiteboard",
+        label: whiteboardLabel,
+        canFullscreen: true,
+      });
+    }
+
+    return tiles;
+  }, [
+    isWhiteboardActive,
+    videoTiles,
+    whiteboardLabel,
+    whiteboardState.ownerPeerId,
+  ]);
+
+  const tileCount = allTiles.length;
   const defaultStageTileId =
-    callTiles.find((tile) => tile.isScreenShare && tile.hasVideo)?.id || null;
+    allTiles.find((tile) => tile.kind === "whiteboard")?.id ||
+    allTiles.find((tile) => tile.kind === "video" && tile.isScreenShare && tile.hasVideo)?.id ||
+    null;
 
   useEffect(() => {
     setSelectedTileId((current) =>
-      current && callTiles.some((tile) => tile.id === current) ? current : null,
+      current && allTiles.some((tile) => tile.id === current) ? current : null,
     );
-  }, [callTiles]);
+  }, [allTiles]);
 
   useEffect(() => {
     setFullscreenTileId((current) => {
       if (!current) return null;
-      const currentTile = callTiles.find((tile) => tile.id === current);
-      if (!currentTile?.hasVideo) {
+      const currentTile = allTiles.find((tile) => tile.id === current);
+      if (!currentTile?.canFullscreen) {
         return null;
       }
       return current;
     });
-  }, [callTiles]);
+  }, [allTiles]);
+
+  useEffect(() => {
+    if (isWhiteboardActive && !whiteboardWasActiveRef.current) {
+      setSelectedTileId("whiteboard");
+      setFullscreenTileId(null);
+    }
+
+    if (!isWhiteboardActive && whiteboardWasActiveRef.current) {
+      setSelectedTileId((current) => (current === "whiteboard" ? null : current));
+      setFullscreenTileId((current) => (current === "whiteboard" ? null : current));
+    }
+
+    whiteboardWasActiveRef.current = isWhiteboardActive;
+  }, [isWhiteboardActive]);
 
   useEffect(() => {
     if (!remoteStreams.length) {
@@ -1733,9 +1841,11 @@ const GroupVideoCall = ({
   }, [remotePeerStates, remoteStreams]);
 
   const activeStageTileId = fullscreenTileId || selectedTileId || defaultStageTileId;
-  const activeStageTile = callTiles.find((tile) => tile.id === activeStageTileId) || null;
-  const sideTiles = callTiles.filter((tile) => tile.id !== activeStageTileId);
+  const activeStageTile = allTiles.find((tile) => tile.id === activeStageTileId) || null;
+  const sideTiles = allTiles.filter((tile) => tile.id !== activeStageTileId);
   const hasStageLayout = Boolean(activeStageTile);
+  const isWhiteboardFullscreen =
+    Boolean(fullscreenTileId) && activeStageTile?.kind === "whiteboard";
 
   const mobileCompactTiles = useMemo(() => {
     if (!isMobileViewport || !hasStageLayout) return [];
@@ -1752,6 +1862,7 @@ const GroupVideoCall = ({
     pushUnique(
       sideTiles.find(
         (tile) =>
+          tile.kind === "video" &&
           !tile.isLocal &&
           !tile.isScreenShare &&
           tile.peerId !== activePeerId &&
@@ -1760,13 +1871,25 @@ const GroupVideoCall = ({
     );
     pushUnique(
       sideTiles.find(
-        (tile) => !tile.isLocal && !tile.isScreenShare && tile.peerId !== activePeerId,
+        (tile) =>
+          tile.kind === "video" &&
+          !tile.isLocal &&
+          !tile.isScreenShare &&
+          tile.peerId !== activePeerId,
       ) || null,
     );
-    pushUnique(sideTiles.find((tile) => !tile.isLocal && tile.peerId !== activePeerId) || null);
-    pushUnique(sideTiles.find((tile) => tile.id === "local" && tile.peerId !== activePeerId) || null);
+    pushUnique(
+      sideTiles.find(
+        (tile) => tile.kind === "video" && !tile.isLocal && tile.peerId !== activePeerId,
+      ) || null,
+    );
+    pushUnique(
+      sideTiles.find(
+        (tile) => tile.kind === "video" && tile.id === "local" && tile.peerId !== activePeerId,
+      ) || null,
+    );
     sideTiles.forEach((tile) => {
-      if (tile.peerId !== activePeerId || tile.isScreenShare) {
+      if (tile.peerId !== activePeerId || tile.kind !== "video" || tile.isScreenShare) {
         pushUnique(tile);
       }
     });
@@ -1794,13 +1917,13 @@ const GroupVideoCall = ({
 
   const handleToggleTileFullscreen = useCallback(
     (tileId) => {
-      const tile = callTiles.find((entry) => entry.id === tileId);
-      if (!tile?.hasVideo) return;
+      const tile = allTiles.find((entry) => entry.id === tileId);
+      if (!tile?.canFullscreen) return;
 
       setSelectedTileId(tileId);
       setFullscreenTileId((current) => (current === tileId ? null : tileId));
     },
-    [callTiles],
+    [allTiles],
   );
 
   const handleResetStage = useCallback(() => {
@@ -1808,7 +1931,7 @@ const GroupVideoCall = ({
     setSelectedTileId(null);
   }, []);
 
-  const renderCallTile = (
+  const renderVideoTile = (
     tile,
     { compact = false, selectable = true, showFullscreenControl = true } = {},
   ) => (
@@ -1830,6 +1953,72 @@ const GroupVideoCall = ({
       isMobile={isMobileViewport}
     />
   );
+
+  const renderWhiteboardTile = (
+    tile,
+    { compact = false, selectable = true, showFullscreenControl = true } = {},
+  ) => (
+    <WhiteboardTile
+      key={tile.id}
+      label={tile.label}
+      workspace={whiteboardState}
+      compact={compact}
+      isActive={activeStageTileId === tile.id}
+      isMobile={isMobileViewport}
+      canFullscreen={showFullscreenControl && tile.canFullscreen}
+      isFullscreen={fullscreenTileId === tile.id}
+      onToggleFullscreen={() => handleToggleTileFullscreen(tile.id)}
+      onSelect={selectable ? () => handleStageSelect(tile.id) : undefined}
+      interactive={Boolean(isCreator && activeStageTileId === tile.id && !compact)}
+      tool={whiteboardTool}
+      color={whiteboardColor}
+      brushSize={whiteboardBrushSize}
+      onToolChange={setWhiteboardTool}
+      onColorChange={setWhiteboardColor}
+      onBrushSizeChange={setWhiteboardBrushSize}
+      onClear={() => clearWhiteboard()}
+      onClearPage={clearWhiteboardPage}
+      onUndo={undoWhiteboard}
+      onRedo={redoWhiteboard}
+      onTabActivate={setWhiteboardActiveTab}
+      onPdfUpload={async (file) => {
+        const result = await uploadWhiteboardPdf(file);
+        if (!result?.ok) {
+          toast.error(result?.error || t("groupCall.whiteboard.pdfUploadFailed"));
+        }
+        return result;
+      }}
+      onPdfOpen={(item, options) => {
+        const result = addWhiteboardPdfTab(item, options);
+        if (!result?.ok) {
+          toast.error(result?.error || t("groupCall.whiteboard.pdfOpenFailed"));
+        }
+        return result;
+      }}
+      onTabRemove={removeWhiteboardTab}
+      onPdfViewportChange={syncWhiteboardPdfViewport}
+      onStrokeStart={startWhiteboardStroke}
+      onStrokeAppend={appendWhiteboardStroke}
+      onStrokeRemove={removeWhiteboardStroke}
+      showToolbar={Boolean(isCreator && activeStageTileId === tile.id && !compact)}
+    />
+  );
+
+  const renderTile = (
+    tile,
+    { compact = false, selectable = true, showFullscreenControl = true } = {},
+  ) =>
+    tile.kind === "whiteboard"
+      ? renderWhiteboardTile(tile, {
+          compact,
+          selectable,
+          showFullscreenControl,
+        })
+      : renderVideoTile(tile, {
+          compact,
+          selectable,
+          showFullscreenControl,
+        });
 
   const handleScreenShareToggle = useCallback(async () => {
     const isIOS =
@@ -1900,6 +2089,16 @@ const GroupVideoCall = ({
           {copied ? <Check size={13} /> : <Copy size={13} />}
           {copied ? t("groupCall.copied") : t("groupCall.copyLink")}
         </TinyBtn>
+        {(isCreator || isWhiteboardActive) && !isMinimized ? (
+          <TinyBtn onClick={handleWhiteboardTopAction}>
+            <PenSquare size={13} />
+            {isCreator
+              ? isWhiteboardActive
+                ? t("groupCall.whiteboard.hide")
+                : t("groupCall.whiteboard.show")
+              : t("groupCall.whiteboard.open")}
+          </TinyBtn>
+        ) : null}
         {!isMinimized && (
           <TinyBtn
             onClick={() => setShowDrawer((p) => !p)}
@@ -2024,14 +2223,15 @@ const GroupVideoCall = ({
           <StageLayout
             $mobile={isMobileViewport}
             $immersive={Boolean(fullscreenTileId)}
+            $whiteboardFullscreen={isWhiteboardFullscreen}
             $landscape={isLandscapeViewport}
             $mobileCompactCount={mobileCompactTiles.length}
           >
-            {isMobileViewport && mobileCompactTiles.length > 0 ? (
+            {isMobileViewport && mobileCompactTiles.length > 0 && !isWhiteboardFullscreen ? (
               <MobileTopRail>
                 {mobileCompactTiles.map((tile) => (
                   <MobileTopRailTile key={`compact-${tile.id}`}>
-                    {renderCallTile(tile, {
+                    {renderTile(tile, {
                       compact: true,
                       showFullscreenControl: false,
                     })}
@@ -2040,20 +2240,24 @@ const GroupVideoCall = ({
               </MobileTopRail>
             ) : null}
 
-            <StageMain $immersive={Boolean(fullscreenTileId)}>
+            <StageMain
+              $immersive={Boolean(fullscreenTileId)}
+              $whiteboardFullscreen={isWhiteboardFullscreen}
+            >
               <div style={{ height: "100%" }}>
-                {renderCallTile(activeStageTile, {
+                {renderTile(activeStageTile, {
                   selectable: false,
-                  showFullscreenControl: false,
+                  showFullscreenControl: isWhiteboardFullscreen,
                 })}
               </div>
+              {!isWhiteboardFullscreen ? (
               <StageActions>
                 {selectedTileId && !fullscreenTileId ? (
                   <StageActionBtn type="button" onClick={handleResetStage}>
                     <ArrowLeft size={18} />
                   </StageActionBtn>
                 ) : null}
-                {activeStageTile.hasVideo ? (
+                {activeStageTile.canFullscreen ? (
                   <StageActionBtn
                     type="button"
                     onClick={() => handleToggleTileFullscreen(activeStageTile.id)}
@@ -2066,9 +2270,10 @@ const GroupVideoCall = ({
                   </StageActionBtn>
                 ) : null}
               </StageActions>
+              ) : null}
             </StageMain>
 
-            {!isMobileViewport ? (
+            {!isMobileViewport && !isWhiteboardFullscreen ? (
               <StageRail>
                 {sideTiles.length > 0 ? <StageRailLabel>Qolganlar</StageRailLabel> : null}
                 <StageRailGrid
@@ -2076,7 +2281,7 @@ const GroupVideoCall = ({
                   $immersive={Boolean(fullscreenTileId)}
                 >
                   {sideTiles.map((tile) =>
-                    renderCallTile(tile, {
+                    renderTile(tile, {
                       compact: true,
                     }),
                   )}
@@ -2086,7 +2291,7 @@ const GroupVideoCall = ({
           </StageLayout>
         ) : (
           <VideoGrid $count={tileCount}>
-            {callTiles.map((tile) => renderCallTile(tile))}
+            {allTiles.map((tile) => renderTile(tile))}
           </VideoGrid>
         )}
 
