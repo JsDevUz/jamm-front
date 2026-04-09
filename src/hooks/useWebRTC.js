@@ -4,6 +4,7 @@ import axiosInstance from "../api/axiosInstance";
 import useAuthStore from "../store/authStore";
 import { API_BASE_URL } from "../config/env";
 import { isValidMeetRoomId } from "../utils/meetStore";
+import { APP_LIMITS, getTierLimit } from "../constants/appLimits";
 
 const SIGNAL_URL = API_BASE_URL;
 const MOBILE_CAMERA_MEDIA_QUERY = "(max-width: 768px)";
@@ -107,17 +108,33 @@ const WHITEBOARD_DEFAULT_SIZE = 4;
 const WHITEBOARD_MAX_STROKES = 320;
 const WHITEBOARD_MAX_POINTS_PER_STROKE = 1200;
 const WHITEBOARD_APPEND_BATCH_LIMIT = 24;
+const WHITEBOARD_MAX_TEXT_CHARS = 240;
 const WHITEBOARD_BOARD_TAB_ID = "board";
 const WHITEBOARD_TAB_ID_PATTERN = /^[a-zA-Z0-9_-]{1,80}$/;
 const WHITEBOARD_MAX_TABS = 6;
 const WHITEBOARD_PDF_LIBRARY_MAX_ITEMS = 24;
 const WHITEBOARD_MIN_ZOOM = 0.5;
 const WHITEBOARD_MAX_ZOOM = 3;
+const WHITEBOARD_BOARD_POINT_MIN = -0.5;
+const WHITEBOARD_BOARD_POINT_MAX = 1.5;
+const WHITEBOARD_MIN_VIEWPORT_BASE_WIDTH = 120;
+const WHITEBOARD_MAX_VIEWPORT_BASE_WIDTH = 4096;
+const WHITEBOARD_MIN_VIEWPORT_BASE_HEIGHT = 120;
+const WHITEBOARD_MAX_VIEWPORT_BASE_HEIGHT = 4096;
+const WHITEBOARD_TEXT_FONT_FAMILY_OPTIONS = ["sans", "serif", "mono", "hand"];
+const WHITEBOARD_TEXT_SIZE_OPTIONS = ["s", "m", "l", "xl"];
+const WHITEBOARD_TEXT_ALIGN_OPTIONS = ["left", "center", "right"];
+const WHITEBOARD_SHAPE_EDGE_OPTIONS = ["sharp", "rounded"];
+const WHITEBOARD_SHAPE_TOOLS = ["rectangle", "diamond", "triangle", "circle"];
+const WHITEBOARD_VECTOR_TOOLS = [...WHITEBOARD_SHAPE_TOOLS, "arrow"];
 
 const createWhiteboardBoardTab = () => ({
   id: WHITEBOARD_BOARD_TAB_ID,
   type: "board",
   title: "board",
+  zoom: 1,
+  viewportBaseWidth: WHITEBOARD_MIN_VIEWPORT_BASE_WIDTH,
+  viewportBaseHeight: WHITEBOARD_MIN_VIEWPORT_BASE_HEIGHT,
   strokes: [],
 });
 
@@ -136,7 +153,7 @@ const clampUnitValue = (value) => {
     return null;
   }
 
-  return Math.min(1, Math.max(0, nextValue));
+  return Math.min(WHITEBOARD_BOARD_POINT_MAX, Math.max(WHITEBOARD_BOARD_POINT_MIN, nextValue));
 };
 
 const normalizeWhiteboardPoint = (point) => {
@@ -279,8 +296,75 @@ const normalizeWhiteboardZoom = (zoom) => {
   return Math.min(WHITEBOARD_MAX_ZOOM, Math.max(WHITEBOARD_MIN_ZOOM, nextZoom));
 };
 
+const normalizeWhiteboardViewportBaseWidth = (value) => {
+  const nextValue = Number(value);
+  if (!Number.isFinite(nextValue)) {
+    return WHITEBOARD_MIN_VIEWPORT_BASE_WIDTH;
+  }
+
+  return Math.min(
+    WHITEBOARD_MAX_VIEWPORT_BASE_WIDTH,
+    Math.max(WHITEBOARD_MIN_VIEWPORT_BASE_WIDTH, Math.round(nextValue)),
+  );
+};
+
+const normalizeWhiteboardViewportBaseHeight = (value) => {
+  const nextValue = Number(value);
+  if (!Number.isFinite(nextValue)) {
+    return WHITEBOARD_MIN_VIEWPORT_BASE_HEIGHT;
+  }
+
+  return Math.min(
+    WHITEBOARD_MAX_VIEWPORT_BASE_HEIGHT,
+    Math.max(WHITEBOARD_MIN_VIEWPORT_BASE_HEIGHT, Math.round(nextValue)),
+  );
+};
+
 const normalizeWhiteboardText = (value) =>
   typeof value === "string" ? value.replace(/\s+$/g, "").slice(0, 240) : "";
+
+const normalizeWhiteboardTextFontFamily = (value) =>
+  WHITEBOARD_TEXT_FONT_FAMILY_OPTIONS.includes(value) ? value : "sans";
+
+const normalizeWhiteboardTextSize = (value) =>
+  WHITEBOARD_TEXT_SIZE_OPTIONS.includes(value) ? value : "m";
+
+const normalizeWhiteboardTextAlign = (value) =>
+  WHITEBOARD_TEXT_ALIGN_OPTIONS.includes(value) ? value : "left";
+
+const normalizeWhiteboardFontPixelSize = (value) => {
+  const nextValue = Number(value);
+  if (!Number.isFinite(nextValue)) {
+    return 0;
+  }
+
+  return Math.min(240, Math.max(8, Math.round(nextValue)));
+};
+
+const normalizeWhiteboardFillColor = (value) =>
+  typeof value === "string" && WHITEBOARD_COLOR_PATTERN.test(value.trim())
+    ? value.trim().toLowerCase()
+    : "";
+
+const normalizeWhiteboardShapeEdge = (value) =>
+  WHITEBOARD_SHAPE_EDGE_OPTIONS.includes(value) ? value : "sharp";
+
+const normalizeWhiteboardRotation = (value) => {
+  const nextValue = Number(value);
+  if (!Number.isFinite(nextValue)) {
+    return 0;
+  }
+
+  const turn = Math.PI * 2;
+  let normalized = nextValue % turn;
+  if (normalized > Math.PI) {
+    normalized -= turn;
+  } else if (normalized < -Math.PI) {
+    normalized += turn;
+  }
+
+  return normalized;
+};
 
 const normalizeWhiteboardStroke = (stroke) => {
   if (!stroke || typeof stroke !== "object") {
@@ -303,14 +387,18 @@ const normalizeWhiteboardStroke = (stroke) => {
     return null;
   }
 
+  const normalizedTool =
+    stroke.tool === "eraser"
+      ? "eraser"
+      : stroke.tool === "text"
+        ? "text"
+        : WHITEBOARD_VECTOR_TOOLS.includes(stroke.tool)
+          ? stroke.tool
+          : "pen";
+
   return {
     id: strokeId,
-    tool:
-      stroke.tool === "eraser"
-        ? "eraser"
-        : stroke.tool === "text"
-          ? "text"
-          : "pen",
+    tool: normalizedTool,
     color:
       typeof stroke.color === "string" &&
       WHITEBOARD_COLOR_PATTERN.test(stroke.color.trim())
@@ -322,6 +410,22 @@ const normalizeWhiteboardStroke = (stroke) => {
     ),
     points,
     text: normalizeWhiteboardText(stroke.text),
+    fillColor: normalizeWhiteboardFillColor(stroke.fillColor),
+    fontFamily: normalizeWhiteboardTextFontFamily(stroke.fontFamily),
+    textSize: normalizeWhiteboardTextSize(stroke.textSize),
+    textAlign: normalizeWhiteboardTextAlign(stroke.textAlign),
+    fontPixelSize:
+      normalizedTool === "text"
+        ? normalizeWhiteboardFontPixelSize(stroke.fontPixelSize)
+        : 0,
+    edgeStyle:
+      ["rectangle", "diamond", "triangle"].includes(normalizedTool)
+        ? normalizeWhiteboardShapeEdge(stroke.edgeStyle)
+        : "sharp",
+    rotation:
+      WHITEBOARD_SHAPE_TOOLS.includes(normalizedTool) || normalizedTool === "text"
+        ? normalizeWhiteboardRotation(stroke.rotation)
+        : 0,
   };
 };
 
@@ -372,6 +476,8 @@ const normalizeWhiteboardTab = (tab) => {
       viewportPageNumber: normalizeWhiteboardPageNumber(tab.viewportPageNumber),
       viewportPageOffsetRatio: normalizeWhiteboardScrollRatio(tab.viewportPageOffsetRatio),
       viewportLeftRatio: normalizeWhiteboardViewportLeftRatio(tab.viewportLeftRatio),
+      viewportVisibleHeightRatio: normalizeWhiteboardScrollRatio(tab.viewportVisibleHeightRatio),
+      viewportBaseWidth: normalizeWhiteboardViewportBaseWidth(tab.viewportBaseWidth),
       selectedPagesMode: normalizeWhiteboardSelectedPagesMode(
         tab.selectedPagesMode,
         tab.selectedPages,
@@ -388,6 +494,9 @@ const normalizeWhiteboardTab = (tab) => {
     id: WHITEBOARD_BOARD_TAB_ID,
     type: "board",
     title: normalizeWhiteboardTitle(tab.title) || "board",
+    zoom: normalizeWhiteboardZoom(tab.zoom),
+    viewportBaseWidth: normalizeWhiteboardViewportBaseWidth(tab.viewportBaseWidth),
+    viewportBaseHeight: normalizeWhiteboardViewportBaseHeight(tab.viewportBaseHeight),
     strokes: trimWhiteboardStrokes(
       (Array.isArray(tab.strokes) ? tab.strokes : [])
         .map((stroke) => normalizeWhiteboardStroke(stroke))
@@ -448,6 +557,18 @@ const mergeWhiteboardPdfLibraryItems = (...collections) =>
 
 const getWhiteboardPdfLibraryStorageKey = (userId) =>
   `jamm:whiteboard-pdf-library:${String(userId || "anon")}`;
+
+const sumWhiteboardPdfLibraryBytes = (items) =>
+  (Array.isArray(items) ? items : []).reduce(
+    (total, item) => total + Math.max(0, Number(item?.fileSize || 0)),
+    0,
+  );
+
+const formatWhiteboardBytesLabel = (bytes) => {
+  const nextBytes = Math.max(0, Number(bytes || 0));
+  const megaBytes = nextBytes / (1024 * 1024);
+  return `${Number.isInteger(megaBytes) ? megaBytes : megaBytes.toFixed(1)} MB`;
+};
 
 const readStoredWhiteboardPdfLibrary = (userId) => {
   if (typeof window === "undefined") {
@@ -678,6 +799,104 @@ const appendWhiteboardStrokePointsInState = (state, { tabId, pageNumber, strokeI
   };
 };
 
+const updateWhiteboardStrokeInState = (
+  state,
+  {
+    tabId,
+    pageNumber,
+    strokeId,
+    point,
+    points,
+    text,
+    color,
+    size,
+    fillColor,
+    fontFamily,
+    textSize,
+    textAlign,
+    fontPixelSize,
+    edgeStyle,
+    rotation,
+  },
+) => {
+  const targetTabId = resolveWhiteboardTargetTabId(state, tabId);
+
+  const applyStrokeUpdate = (stroke) =>
+    stroke.id !== strokeId
+      ? stroke
+      : {
+          ...stroke,
+          points:
+            Array.isArray(points) && points.length > 0
+              ? normalizeWhiteboardPoints(points, WHITEBOARD_MAX_POINTS_PER_STROKE)
+              : point && Number.isFinite(point.x) && Number.isFinite(point.y)
+                ? [{ x: point.x, y: point.y }]
+              : stroke.points,
+          text: typeof text === "string" ? text : stroke.text,
+          color:
+            typeof color === "string" && WHITEBOARD_COLOR_PATTERN.test(color.trim())
+              ? color.trim().toLowerCase()
+              : stroke.color,
+          size:
+            typeof size === "number"
+              ? Math.min(24, Math.max(2, Math.round(size)))
+              : stroke.size,
+          fillColor:
+            typeof fillColor === "string"
+              ? normalizeWhiteboardFillColor(fillColor)
+              : stroke.fillColor,
+          fontFamily:
+            typeof fontFamily === "string"
+              ? normalizeWhiteboardTextFontFamily(fontFamily)
+              : stroke.fontFamily,
+          textSize:
+            typeof textSize === "string"
+              ? normalizeWhiteboardTextSize(textSize)
+              : stroke.textSize,
+          textAlign:
+            typeof textAlign === "string"
+              ? normalizeWhiteboardTextAlign(textAlign)
+              : stroke.textAlign,
+          fontPixelSize:
+            typeof fontPixelSize === "number"
+              ? normalizeWhiteboardFontPixelSize(fontPixelSize)
+              : stroke.fontPixelSize,
+          edgeStyle:
+            typeof edgeStyle === "string"
+              ? normalizeWhiteboardShapeEdge(edgeStyle)
+              : stroke.edgeStyle,
+          rotation:
+            typeof rotation === "number"
+              ? normalizeWhiteboardRotation(rotation)
+              : stroke.rotation,
+        };
+
+  return {
+    ...updateWhiteboardTabById(state, targetTabId, (tab) => {
+      if (tab.type === "pdf") {
+        const targetPageNumber = normalizeWhiteboardPageNumber(pageNumber);
+        return {
+          ...tab,
+          pages: tab.pages.map((page) =>
+            page.pageNumber !== targetPageNumber
+              ? page
+              : {
+                  ...page,
+                  strokes: page.strokes.map(applyStrokeUpdate),
+                },
+          ),
+        };
+      }
+
+      return {
+        ...tab,
+        strokes: tab.strokes.map(applyStrokeUpdate),
+      };
+    }),
+    activeTabId: targetTabId,
+  };
+};
+
 const removeWhiteboardStrokeFromState = (state, { tabId, pageNumber, strokeId }) => {
   const targetTabId = resolveWhiteboardTargetTabId(state, tabId);
 
@@ -741,6 +960,8 @@ const addWhiteboardPdfTabToState = (state, nextTab) => {
     viewportPageNumber: 1,
     viewportPageOffsetRatio: 0,
     viewportLeftRatio: 0,
+    viewportVisibleHeightRatio: 0,
+    viewportBaseWidth: WHITEBOARD_MIN_VIEWPORT_BASE_WIDTH,
     selectedPagesMode:
       nextTab.selectedPagesMode ||
       normalizeWhiteboardSelectedPagesMode("custom", nextTab.selectedPages),
@@ -809,7 +1030,16 @@ const setWhiteboardActiveTabInState = (state, tabId) => {
 
 const setWhiteboardPdfViewportInState = (
   state,
-  { tabId, scrollRatio, zoom, viewportPageNumber, viewportPageOffsetRatio, viewportLeftRatio },
+  {
+    tabId,
+    scrollRatio,
+    zoom,
+    viewportPageNumber,
+    viewportPageOffsetRatio,
+    viewportLeftRatio,
+    viewportVisibleHeightRatio,
+    viewportBaseWidth,
+  },
 ) => {
   const targetTabId = resolveWhiteboardTargetTabId(state, tabId);
 
@@ -839,6 +1069,44 @@ const setWhiteboardPdfViewportInState = (
               typeof viewportLeftRatio === "undefined"
                 ? normalizeWhiteboardViewportLeftRatio(tab.viewportLeftRatio)
                 : normalizeWhiteboardViewportLeftRatio(viewportLeftRatio),
+            viewportVisibleHeightRatio:
+              typeof viewportVisibleHeightRatio === "undefined"
+                ? normalizeWhiteboardScrollRatio(tab.viewportVisibleHeightRatio)
+                : normalizeWhiteboardScrollRatio(viewportVisibleHeightRatio),
+            viewportBaseWidth:
+              typeof viewportBaseWidth === "undefined"
+                ? normalizeWhiteboardViewportBaseWidth(tab.viewportBaseWidth)
+                : normalizeWhiteboardViewportBaseWidth(viewportBaseWidth),
+          },
+    ),
+    activeTabId: targetTabId,
+  };
+};
+
+const setWhiteboardBoardZoomInState = (
+  state,
+  { tabId, zoom, viewportBaseWidth, viewportBaseHeight },
+) => {
+  const targetTabId = resolveWhiteboardTargetTabId(state, tabId);
+
+  return {
+    ...updateWhiteboardTabById(state, targetTabId, (tab) =>
+      tab.type !== "board"
+        ? tab
+        : {
+            ...tab,
+            zoom:
+              typeof zoom === "undefined"
+                ? normalizeWhiteboardZoom(tab.zoom)
+                : normalizeWhiteboardZoom(zoom),
+            viewportBaseWidth:
+              typeof viewportBaseWidth === "undefined"
+                ? normalizeWhiteboardViewportBaseWidth(tab.viewportBaseWidth)
+                : normalizeWhiteboardViewportBaseWidth(viewportBaseWidth),
+            viewportBaseHeight:
+              typeof viewportBaseHeight === "undefined"
+                ? normalizeWhiteboardViewportBaseHeight(tab.viewportBaseHeight)
+                : normalizeWhiteboardViewportBaseHeight(viewportBaseHeight),
           },
     ),
     activeTabId: targetTabId,
@@ -975,6 +1243,11 @@ export function useWebRTC({
   const whiteboardStateRef = useRef(createInitialWhiteboardState());
   const storedPdfLibraryRef = useRef([]);
   const currentUserId = String(currentUser?._id || currentUser?.id || "");
+  const whiteboardPdfTabLimit = getTierLimit(APP_LIMITS.whiteboardPdfTabs, currentUser);
+  const whiteboardPdfLibraryBytesLimit = getTierLimit(
+    APP_LIMITS.whiteboardPdfLibraryBytes,
+    currentUser,
+  );
 
   // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -1096,6 +1369,16 @@ export function useWebRTC({
     }),
     [],
   );
+
+  const syncLocalStreamState = useCallback((sourceStream) => {
+    const nextStream =
+      sourceStream instanceof MediaStream
+        ? new MediaStream(sourceStream.getTracks())
+        : new MediaStream();
+    localStreamRef.current = nextStream;
+    setLocalStream(nextStream);
+    return nextStream;
+  }, []);
 
   const applyMediaOptimization = useCallback(async (profile) => {
     const stream = localStreamRef.current;
@@ -1241,11 +1524,11 @@ export function useWebRTC({
 
       await Promise.all(replaceTasks);
       previousTrack?.stop();
-      setLocalStream(stream);
+      syncLocalStreamState(stream);
       await applyMediaOptimization(qualityProfileRef.current);
       return true;
     },
-    [applyMediaOptimization],
+    [applyMediaOptimization, syncLocalStreamState],
   );
 
   const ensureLocalAudioTrack = useCallback(async () => {
@@ -1296,7 +1579,7 @@ export function useWebRTC({
       });
 
       await Promise.all(senderTasks);
-      setLocalStream(stream);
+      syncLocalStreamState(stream);
       setIsMicOn(true);
       await applyMediaOptimization(qualityProfileRef.current);
       return true;
@@ -1304,7 +1587,37 @@ export function useWebRTC({
       console.error("Enable microphone error:", err);
       return false;
     }
-  }, [applyMediaOptimization]);
+  }, [applyMediaOptimization, syncLocalStreamState]);
+
+  const disableLocalVideoTrack = useCallback(async () => {
+    const stream = localStreamRef.current;
+    const currentTrack = stream?.getVideoTracks?.()[0] || null;
+    if (!stream || !currentTrack) {
+      setIsCamOn(false);
+      return true;
+    }
+
+    const replaceTasks = Object.values(peerConnectionsRef.current).map(async (pc) => {
+      const videoSender = pc
+        .getSenders()
+        .find((sender) => sender.track?.kind === "video" && sender.track.id === currentTrack.id);
+
+      if (!videoSender) {
+        return;
+      }
+
+      try {
+        await videoSender.replaceTrack(null);
+      } catch {}
+    });
+
+    await Promise.all(replaceTasks);
+    stream.removeTrack(currentTrack);
+    currentTrack.stop();
+    syncLocalStreamState(stream);
+    setIsCamOn(false);
+    return true;
+  }, [syncLocalStreamState]);
 
   const ensureLocalVideoTrack = useCallback(async () => {
     if (!navigator.mediaDevices?.getUserMedia) return false;
@@ -1744,30 +2057,36 @@ export function useWebRTC({
           iceConfigRef.current = buildFallbackIceConfig();
         }
 
-        // 1. Get local media
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: buildCameraConstraints(),
-          audio: {
-            echoCancellation: true,
-            noiseSuppression: true,
-            autoGainControl: true,
-            channelCount: 1,
-          },
-        });
+        // 1. Get only the tracks that should really start enabled.
+        const shouldStartWithMic = Boolean(initialMicOn);
+        const shouldStartWithCam = Boolean(initialCamOn);
+        const stream =
+          shouldStartWithMic || shouldStartWithCam
+            ? await navigator.mediaDevices.getUserMedia({
+                video: shouldStartWithCam ? buildCameraConstraints() : false,
+                audio: shouldStartWithMic
+                  ? {
+                      echoCancellation: true,
+                      noiseSuppression: true,
+                      autoGainControl: true,
+                      channelCount: 1,
+                    }
+                  : false,
+              })
+            : new MediaStream();
         if (!isMounted) {
           stream.getTracks().forEach((t) => t.stop());
           return;
         }
-        localStreamRef.current = stream;
-        setLocalStream(stream);
+        syncLocalStreamState(stream);
         await refreshVideoInputCount();
         await applyMediaOptimization(qualityProfileRef.current);
 
-        // Apply initial mic/cam state
+        // Keep state aligned with the tracks we actually opened.
         const audioTrack = stream.getAudioTracks()[0];
-        if (audioTrack) audioTrack.enabled = initialMicOn;
+        if (audioTrack) audioTrack.enabled = shouldStartWithMic;
         const videoTrack = stream.getVideoTracks()[0];
-        if (videoTrack) videoTrack.enabled = initialCamOn;
+        if (videoTrack) videoTrack.enabled = shouldStartWithCam;
         setIsMicOn(Boolean(audioTrack?.enabled));
         setIsCamOn(Boolean(videoTrack?.enabled));
 
@@ -1938,6 +2257,72 @@ export function useWebRTC({
             }),
           );
         });
+
+        socket.on(
+          "whiteboard-stroke-updated",
+          ({
+            tabId,
+            pageNumber,
+            strokeId,
+            point,
+            points,
+            text,
+            color,
+            size,
+            fillColor,
+            fontFamily,
+            textSize,
+            textAlign,
+            fontPixelSize,
+            edgeStyle,
+            rotation,
+          }) => {
+            if (typeof strokeId !== "string" || !strokeId.trim()) {
+              return;
+            }
+
+            commitWhiteboardState((prev) =>
+              updateWhiteboardStrokeInState(prev, {
+                tabId,
+                pageNumber,
+                strokeId,
+                point: normalizeWhiteboardPoint(point),
+                points: normalizeWhiteboardPoints(points, WHITEBOARD_MAX_POINTS_PER_STROKE),
+                text: typeof text === "string" ? text.slice(0, WHITEBOARD_MAX_TEXT_CHARS) : undefined,
+                color,
+                size: typeof size === "number" ? size : undefined,
+                fillColor:
+                  typeof fillColor === "string"
+                    ? normalizeWhiteboardFillColor(fillColor)
+                    : undefined,
+                fontFamily:
+                  typeof fontFamily === "string"
+                    ? normalizeWhiteboardTextFontFamily(fontFamily)
+                    : undefined,
+                textSize:
+                  typeof textSize === "string"
+                    ? normalizeWhiteboardTextSize(textSize)
+                    : undefined,
+                textAlign:
+                  typeof textAlign === "string"
+                    ? normalizeWhiteboardTextAlign(textAlign)
+                    : undefined,
+                fontPixelSize:
+                  typeof fontPixelSize === "number"
+                    ? normalizeWhiteboardFontPixelSize(fontPixelSize)
+                    : undefined,
+                edgeStyle:
+                  typeof edgeStyle === "string"
+                    ? normalizeWhiteboardShapeEdge(edgeStyle)
+                    : undefined,
+                rotation:
+                  typeof rotation === "number"
+                    ? normalizeWhiteboardRotation(rotation)
+                    : undefined,
+              }),
+            );
+          },
+        );
 
         // 5d. Screen share signals from peers
         socket.on("screen-share-stopped", ({ peerId: sharerPeerId }) => {
@@ -2148,12 +2533,11 @@ export function useWebRTC({
     if (camLocked) return; // creator locked
     const t = localStreamRef.current?.getVideoTracks()[0];
     if (t) {
-      t.enabled = !t.enabled;
-      setIsCamOn(t.enabled);
+      await disableLocalVideoTrack();
       return;
     }
     await ensureLocalVideoTrack();
-  }, [camLocked, ensureLocalVideoTrack]);
+  }, [camLocked, disableLocalVideoTrack, ensureLocalVideoTrack]);
 
   const switchCamera = useCallback(async () => {
     if (camLocked) return false;
@@ -2556,6 +2940,30 @@ export function useWebRTC({
         return { ok: false, error: "PDF upload unavailable" };
       }
 
+      const currentLibrary = Array.isArray(whiteboardStateRef.current?.pdfLibrary)
+        ? whiteboardStateRef.current.pdfLibrary
+        : [];
+      const nextLibrary = mergeWhiteboardPdfLibraryItems(currentLibrary, [
+        {
+          id: `preview-${file.name}-${file.size}`,
+          title: file.name.replace(/\.pdf$/i, ""),
+          fileUrl: "/preview",
+          fileName: file.name,
+          fileSize: file.size || 0,
+          createdAt: Date.now(),
+        },
+      ]);
+      const nextLibraryBytes = sumWhiteboardPdfLibraryBytes(nextLibrary);
+
+      if (nextLibraryBytes > whiteboardPdfLibraryBytesLimit) {
+        return {
+          ok: false,
+          error: `PDF kutubxona limiti ${formatWhiteboardBytesLabel(
+            whiteboardPdfLibraryBytesLimit,
+          )}`,
+        };
+      }
+
       const formData = new FormData();
       formData.append("file", file);
 
@@ -2603,7 +3011,12 @@ export function useWebRTC({
         };
       }
     },
-    [commitWhiteboardState, isCreator, roomId],
+    [
+      commitWhiteboardState,
+      isCreator,
+      roomId,
+      whiteboardPdfLibraryBytesLimit,
+    ],
   );
 
   const addWhiteboardPdfTab = useCallback(
@@ -2616,6 +3029,18 @@ export function useWebRTC({
       const selectedPages = normalizeWhiteboardSelectedPages(options?.selectedPages);
       if (!libraryItem) {
         return { ok: false, error: "PDF item missing" };
+      }
+
+      const currentPdfTabsCount = (Array.isArray(whiteboardStateRef.current?.tabs)
+        ? whiteboardStateRef.current.tabs
+        : []
+      ).filter((tab) => tab?.type === "pdf").length;
+
+      if (currentPdfTabsCount >= whiteboardPdfTabLimit) {
+        return {
+          ok: false,
+          error: `Bu tarifda ${whiteboardPdfTabLimit} ta PDF tab ochish mumkin`,
+        };
       }
 
       const tabId =
@@ -2653,7 +3078,13 @@ export function useWebRTC({
       });
       return { ok: true, tabId };
     },
-    [commitWhiteboardState, displayName, isCreator, roomId],
+    [
+      commitWhiteboardState,
+      displayName,
+      isCreator,
+      roomId,
+      whiteboardPdfTabLimit,
+    ],
   );
 
   const removeWhiteboardTab = useCallback(
@@ -2685,6 +3116,8 @@ export function useWebRTC({
       viewportPageNumber,
       viewportPageOffsetRatio,
       viewportLeftRatio,
+      viewportVisibleHeightRatio,
+      viewportBaseWidth,
     }) => {
       if (!isCreator || !socketRef.current) {
         return false;
@@ -2702,6 +3135,8 @@ export function useWebRTC({
           viewportPageNumber,
           viewportPageOffsetRatio,
           viewportLeftRatio,
+          viewportVisibleHeightRatio,
+          viewportBaseWidth,
         }),
       );
       socketRef.current.emit("whiteboard-pdf-viewport", {
@@ -2712,6 +3147,38 @@ export function useWebRTC({
         viewportPageNumber,
         viewportPageOffsetRatio,
         viewportLeftRatio,
+        viewportVisibleHeightRatio,
+        viewportBaseWidth,
+      });
+      return true;
+    },
+    [commitWhiteboardState, isCreator, roomId],
+  );
+
+  const syncWhiteboardBoardZoom = useCallback(
+    ({ tabId, zoom, viewportBaseWidth, viewportBaseHeight }) => {
+      if (!isCreator || !socketRef.current) {
+        return false;
+      }
+
+      const targetTabId = resolveWhiteboardTargetTabId(
+        whiteboardStateRef.current,
+        tabId || WHITEBOARD_BOARD_TAB_ID,
+      );
+      commitWhiteboardState((prev) =>
+        setWhiteboardBoardZoomInState(prev, {
+          tabId: targetTabId,
+          zoom,
+          viewportBaseWidth,
+          viewportBaseHeight,
+        }),
+      );
+      socketRef.current.emit("whiteboard-board-zoom", {
+        roomId,
+        tabId: targetTabId,
+        zoom,
+        viewportBaseWidth,
+        viewportBaseHeight,
       });
       return true;
     },
@@ -2719,19 +3186,47 @@ export function useWebRTC({
   );
 
   const startWhiteboardStroke = useCallback(
-    ({ tabId, pageNumber, strokeId, tool, color, size, point, text }) => {
+    ({
+      tabId,
+      pageNumber,
+      strokeId,
+      tool,
+      color,
+      size,
+      point,
+      points,
+      text,
+      fillColor,
+      fontFamily,
+      textSize,
+      textAlign,
+      fontPixelSize,
+      edgeStyle,
+      rotation,
+    }) => {
       if (!isCreator || !socketRef.current) {
         return false;
       }
 
-      const firstPoint = normalizeWhiteboardPoints([point], 1)[0];
+      const normalizedPoints = normalizeWhiteboardPoints(
+        Array.isArray(points) && points.length > 0 ? points : [point],
+        WHITEBOARD_MAX_POINTS_PER_STROKE,
+      );
+      const firstPoint = normalizedPoints[0];
       const stroke = normalizeWhiteboardStroke({
         id: strokeId,
         tool,
         color,
         size,
-        points: firstPoint ? [firstPoint] : [],
+        points: normalizedPoints,
         text,
+        fillColor,
+        fontFamily,
+        textSize,
+        textAlign,
+        fontPixelSize,
+        edgeStyle,
+        rotation,
       });
 
       if (!stroke || !firstPoint) {
@@ -2762,7 +3257,15 @@ export function useWebRTC({
         color: stroke.color,
         size: stroke.size,
         point: firstPoint,
+        points: stroke.points,
         text: stroke.text,
+        fillColor: stroke.fillColor,
+        fontFamily: stroke.fontFamily,
+        textSize: stroke.textSize,
+        textAlign: stroke.textAlign,
+        fontPixelSize: stroke.fontPixelSize,
+        edgeStyle: stroke.edgeStyle,
+        rotation: stroke.rotation,
       });
       return true;
     },
@@ -2839,6 +3342,114 @@ export function useWebRTC({
     [commitWhiteboardState, isCreator, roomId],
   );
 
+  const updateWhiteboardStroke = useCallback(
+    ({
+      tabId,
+      pageNumber,
+      strokeId,
+      point,
+      points,
+      text,
+      color,
+      size,
+      fillColor,
+      fontFamily,
+      textSize,
+      textAlign,
+      fontPixelSize,
+      edgeStyle,
+      rotation,
+    }) => {
+      if (
+        !isCreator ||
+        !socketRef.current ||
+        typeof strokeId !== "string" ||
+        !strokeId.trim()
+      ) {
+        return false;
+      }
+
+      const normalizedPoint = point ? normalizeWhiteboardPoint(point) : null;
+      const normalizedPoints =
+        Array.isArray(points) && points.length > 0
+          ? normalizeWhiteboardPoints(points, WHITEBOARD_MAX_POINTS_PER_STROKE)
+          : undefined;
+      const normalizedText =
+        typeof text === "string"
+          ? text.slice(0, WHITEBOARD_MAX_TEXT_CHARS)
+          : undefined;
+      const normalizedFillColor =
+        typeof fillColor === "string" ? normalizeWhiteboardFillColor(fillColor) : undefined;
+      const normalizedFontFamily =
+        typeof fontFamily === "string"
+          ? normalizeWhiteboardTextFontFamily(fontFamily)
+          : undefined;
+      const normalizedTextSize =
+        typeof textSize === "string" ? normalizeWhiteboardTextSize(textSize) : undefined;
+      const normalizedTextAlign =
+        typeof textAlign === "string"
+          ? normalizeWhiteboardTextAlign(textAlign)
+          : undefined;
+      const normalizedFontPixelSize =
+        typeof fontPixelSize === "number"
+          ? normalizeWhiteboardFontPixelSize(fontPixelSize)
+          : undefined;
+      const normalizedEdgeStyle =
+        typeof edgeStyle === "string"
+          ? normalizeWhiteboardShapeEdge(edgeStyle)
+          : undefined;
+      const normalizedRotation =
+        typeof rotation === "number"
+          ? normalizeWhiteboardRotation(rotation)
+          : undefined;
+      const targetTabId = resolveWhiteboardTargetTabId(
+        whiteboardStateRef.current,
+        tabId || whiteboardStateRef.current.activeTabId,
+      );
+
+      commitWhiteboardState((prev) =>
+        updateWhiteboardStrokeInState(prev, {
+          tabId: targetTabId,
+          pageNumber,
+          strokeId: strokeId.trim(),
+          point: normalizedPoint,
+          points: normalizedPoints,
+          text: normalizedText,
+          color,
+          size: typeof size === "number" ? size : undefined,
+          fillColor: normalizedFillColor,
+          fontFamily: normalizedFontFamily,
+          textSize: normalizedTextSize,
+          textAlign: normalizedTextAlign,
+          fontPixelSize: normalizedFontPixelSize,
+          edgeStyle: normalizedEdgeStyle,
+          rotation: normalizedRotation,
+        }),
+      );
+
+      socketRef.current.emit("whiteboard-stroke-update", {
+        roomId,
+        tabId: targetTabId,
+        pageNumber,
+        strokeId: strokeId.trim(),
+        point: normalizedPoint || undefined,
+        points: normalizedPoints,
+        text: normalizedText,
+        color,
+        size: typeof size === "number" ? size : undefined,
+        fillColor: normalizedFillColor,
+        fontFamily: normalizedFontFamily,
+        textSize: normalizedTextSize,
+        textAlign: normalizedTextAlign,
+        fontPixelSize: normalizedFontPixelSize,
+        edgeStyle: normalizedEdgeStyle,
+        rotation: normalizedRotation,
+      });
+      return true;
+    },
+    [commitWhiteboardState, isCreator, roomId],
+  );
+
   return {
     localStream,
     remoteStreams,
@@ -2886,9 +3497,11 @@ export function useWebRTC({
     addWhiteboardPdfTab,
     removeWhiteboardTab,
     syncWhiteboardPdfViewport,
+    syncWhiteboardBoardZoom,
     startWhiteboardStroke,
     appendWhiteboardStroke,
     removeWhiteboardStroke,
+    updateWhiteboardStroke,
     cameraFacingMode,
     canSwitchCamera: isLikelyMobileDevice() && videoInputCount > 1,
   };

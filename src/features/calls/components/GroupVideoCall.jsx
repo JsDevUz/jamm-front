@@ -33,12 +33,19 @@ import {
   Minimize2,
   PenSquare,
   RefreshCcw,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { useWebRTC } from "../../../hooks/useWebRTC";
 import useAuthStore from "../../../store/authStore";
 import useMeetCallStore from "../../../store/meetCallStore";
-import { RESOLVED_APP_BASE_URL } from "../../../config/env";
+import { API_BASE_URL, RESOLVED_APP_BASE_URL } from "../../../config/env";
 import { updateMeetPrivacy } from "../../../utils/meetStore";
+import {
+  createRecordingSession,
+  finishRecordingSession,
+  uploadRecordingChunk,
+} from "../../../api/videoRecordingApi";
 import WhiteboardTile from "./WhiteboardTile";
 
 const slideIn = keyframes`
@@ -52,8 +59,179 @@ const pulse = keyframes`
 `;
 
 const WHITEBOARD_DEFAULT_COLOR = "#0f172a";
+const WHITEBOARD_DEFAULT_FILL_COLOR = "";
+const WHITEBOARD_DEFAULT_SHAPE_EDGE = "sharp";
 const WHITEBOARD_DEFAULT_TOOL = "pen";
 const WHITEBOARD_DEFAULT_BRUSH_SIZE = 4;
+const WHITEBOARD_DEFAULT_TEXT_FONT_FAMILY = "sans";
+const WHITEBOARD_DEFAULT_TEXT_SIZE = "m";
+const WHITEBOARD_DEFAULT_TEXT_ALIGN = "left";
+const WHITEBOARD_RECORDING_WEBM_AUDIO_MIME_TYPES = [
+  "video/webm;codecs=vp8,opus",
+  "video/webm;codecs=vp9,opus",
+  "video/webm;codecs=h264,opus",
+  "video/webm",
+];
+const WHITEBOARD_RECORDING_WEBM_VIDEO_ONLY_MIME_TYPES = [
+  "video/webm;codecs=vp8",
+  "video/webm;codecs=vp9",
+  "video/webm;codecs=h264",
+  "video/webm",
+];
+const RECORDING_AUTOSAVE_SEGMENT_MS = 1000;
+
+const formatRecordingElapsed = (elapsedMs) => {
+  const totalSeconds = Math.max(0, Math.floor((Number(elapsedMs) || 0) / 1000));
+  const minutes = Math.floor(totalSeconds / 60)
+    .toString()
+    .padStart(2, "0");
+  const seconds = (totalSeconds % 60).toString().padStart(2, "0");
+  return `${minutes}:${seconds}`;
+};
+
+const resolveSupportedRecorderMimeType = (stream) => {
+  const hasAudioTrack = Boolean(stream?.getAudioTracks?.()?.length);
+  const candidates = hasAudioTrack
+    ? WHITEBOARD_RECORDING_WEBM_AUDIO_MIME_TYPES
+    : WHITEBOARD_RECORDING_WEBM_VIDEO_ONLY_MIME_TYPES;
+
+  return candidates.find((type) => MediaRecorder.isTypeSupported(type)) || "";
+};
+
+const getRecordingFileExtension = (mimeType) => {
+  const normalized = String(mimeType || "").toLowerCase();
+  if (normalized.includes("mp4")) {
+    return "mp4";
+  }
+  return "webm";
+};
+
+const drawBoardRecordingBackground = (ctx, width, height) => {
+  ctx.fillStyle = "#fbfcfe";
+  ctx.fillRect(0, 0, width, height);
+  ctx.fillStyle = "rgba(148, 163, 184, 0.3)";
+  for (let y = 0; y <= height + 20; y += 40) {
+    for (let x = 0; x <= width + 20; x += 40) {
+      ctx.beginPath();
+      ctx.arc(x + 10, y + 10, 1.4, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+};
+
+const drawPdfRecordingBackground = (ctx, width, height) => {
+  const gradient = ctx.createLinearGradient(0, 0, 0, height);
+  gradient.addColorStop(0, "rgba(239, 242, 247, 0.98)");
+  gradient.addColorStop(1, "rgba(228, 232, 238, 0.98)");
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, width, height);
+};
+
+const drawVisibleTextAreas = (ctx, surface, surfaceRect) => {
+  const textAreas = surface.querySelectorAll("textarea");
+  textAreas.forEach((node) => {
+    const value = typeof node.value === "string" ? node.value : "";
+    const placeholder = node.getAttribute("placeholder") || "";
+    const text = value || placeholder;
+    if (!text) {
+      return;
+    }
+
+    const rect = node.getBoundingClientRect();
+    if (!rect.width || !rect.height) {
+      return;
+    }
+
+    const x = rect.left - surfaceRect.left;
+    const y = rect.top - surfaceRect.top;
+    if (x >= surfaceRect.width || y >= surfaceRect.height || x + rect.width <= 0 || y + rect.height <= 0) {
+      return;
+    }
+
+    const style = window.getComputedStyle(node);
+    const fontSize = Number.parseFloat(style.fontSize) || 16;
+    const lineHeight = Number.parseFloat(style.lineHeight) || fontSize * 1.25;
+    const textAlign = style.textAlign === "center" ? "center" : style.textAlign === "right" ? "right" : "left";
+
+    ctx.save();
+    ctx.fillStyle = style.color || "#0f172a";
+    ctx.font = `${style.fontWeight || 500} ${fontSize}px ${style.fontFamily || "sans-serif"}`;
+    ctx.textBaseline = "top";
+    ctx.textAlign = textAlign;
+    const lines = text.split("\n");
+    const baseX =
+      textAlign === "center" ? x + rect.width / 2 : textAlign === "right" ? x + rect.width : x;
+    lines.forEach((line, index) => {
+      ctx.fillText(line || " ", baseX, y + index * lineHeight);
+    });
+    ctx.restore();
+  });
+};
+
+const renderWhiteboardSurfaceToCanvas = (surface, targetCanvas, heartbeatValue = 0) => {
+  if (!surface || !targetCanvas) {
+    return false;
+  }
+
+  const surfaceRect = surface.getBoundingClientRect();
+  const width = Math.max(1, Math.round(surface.clientWidth || surfaceRect.width || 0));
+  const height = Math.max(1, Math.round(surface.clientHeight || surfaceRect.height || 0));
+  if (!width || !height) {
+    return false;
+  }
+
+  const pixelRatio = Math.min(2, window.devicePixelRatio || 1);
+  const targetWidth = Math.round(width * pixelRatio);
+  const targetHeight = Math.round(height * pixelRatio);
+  if (targetCanvas.width !== targetWidth || targetCanvas.height !== targetHeight) {
+    targetCanvas.width = targetWidth;
+    targetCanvas.height = targetHeight;
+  }
+
+  const ctx = targetCanvas.getContext("2d");
+  if (!ctx) {
+    return false;
+  }
+
+  ctx.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+  ctx.clearRect(0, 0, width, height);
+
+  if (surface.dataset.recordSurfaceType === "board") {
+    drawBoardRecordingBackground(ctx, width, height);
+  } else {
+    drawPdfRecordingBackground(ctx, width, height);
+  }
+
+  const canvases = Array.from(surface.querySelectorAll("canvas"));
+  canvases.forEach((canvas) => {
+    const rect = canvas.getBoundingClientRect();
+    if (!rect.width || !rect.height) {
+      return;
+    }
+
+    const x = rect.left - surfaceRect.left;
+    const y = rect.top - surfaceRect.top;
+    if (x >= width || y >= height || x + rect.width <= 0 || y + rect.height <= 0) {
+      return;
+    }
+
+    try {
+      ctx.drawImage(canvas, x, y, rect.width, rect.height);
+    } catch (error) {
+      console.error("Failed to draw whiteboard canvas frame", error);
+    }
+  });
+
+  drawVisibleTextAreas(ctx, surface, surfaceRect);
+
+  // Keep the captured canvas changing even when the board is visually static.
+  ctx.save();
+  ctx.globalAlpha = 0.02;
+  ctx.fillStyle = heartbeatValue % 2 === 0 ? "#010101" : "#020202";
+  ctx.fillRect(width - 2, height - 2, 1, 1);
+  ctx.restore();
+  return true;
+};
 
 // ─── Layout ───────────────────────────────────────────────────────────────────
 
@@ -197,6 +375,13 @@ const Body = styled.div`
   display: flex;
   flex: 1;
   overflow: hidden;
+  box-sizing: border-box;
+  padding-bottom: ${(p) => (p.$immersive ? "0" : "104px")};
+
+  @media (max-width: 768px) {
+    padding-bottom: ${(p) =>
+      p.$immersive ? "0" : "calc(92px + env(safe-area-inset-bottom, 0px))"};
+  }
 `;
 
 const PiPFrame = styled.div`
@@ -384,7 +569,21 @@ const StageLayout = styled.div`
   overflow: hidden;
 
   @media (max-width: 768px) {
-    padding-top: ${(p) => (p.$mobileCompactCount > 0 ? "108px" : "14px")};
+    ${(p) =>
+      p.$whiteboardFullscreen
+        ? css`
+            position: fixed;
+            inset: 0;
+            z-index: 10040;
+            width: 100vw;
+            height: 100dvh;
+            padding: 0;
+            gap: 0;
+            background: var(--call-bg);
+          `
+        : ""}
+    padding-top: ${(p) =>
+      p.$whiteboardFullscreen ? "0" : p.$mobileCompactCount > 0 ? "108px" : "14px"};
   }
 `;
 
@@ -881,15 +1080,14 @@ const DrawerClose = styled.button`
 // ─── Controls ─────────────────────────────────────────────────────────────────
 
 const ControlBar = styled.div`
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 14px;
-  align-self: center;
   width: max-content;
   max-width: calc(100% - 24px);
-  margin: 0 auto calc(14px + env(safe-area-inset-bottom, 0px));
-  padding: 12px 16px;
+  padding: 12px 24px;
   background: rgba(24, 24, 27, 0.92);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 30px;
@@ -897,6 +1095,74 @@ const ControlBar = styled.div`
   flex-shrink: 0;
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
+  pointer-events: auto;
+  transition: transform 0.22s ease, opacity 0.22s ease;
+  transform: translateY(${(p) => (p.$collapsed ? "calc(100% + 24px)" : "0")});
+  opacity: ${(p) => (p.$collapsed ? 0 : 1)};
+  pointer-events: ${(p) => (p.$collapsed ? "none" : "auto")};
+
+  @media (max-width: 768px) {
+    gap: 10px;
+    max-width: calc(100% - 16px);
+    padding: 10px 18px;
+    border-radius: 24px;
+    bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+  }
+
+  @media (max-width: 420px) {
+    gap: 8px;
+    padding: 8px 14px;
+    max-width: calc(100% - 12px);
+    border-radius: 22px;
+  }
+`;
+
+const ControlBarDock = styled.div`
+  position: absolute;
+  left: 50%;
+  bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+  transform: translateX(-50%);
+  z-index: 10060;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: max-content;
+  max-width: calc(100% - 24px);
+  pointer-events: none;
+
+  @media (max-width: 768px) {
+    bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+    max-width: calc(100% - 16px);
+  }
+
+  @media (max-width: 420px) {
+    max-width: calc(100% - 12px);
+  }
+`;
+
+const ControlBarToggle = styled.button`
+  pointer-events: auto;
+  width: 48px;
+  height: 32px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  background: rgba(24, 24, 27, 0.92);
+  color: #f5f5f5;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.24);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  cursor: pointer;
+  transition: transform 0.18s ease, background 0.18s ease;
+  order: 2;
+
+  &:hover {
+    transform: translateY(-1px);
+    background: rgba(32, 32, 35, 0.96);
+  }
 `;
 
 const CtrlBtn = styled.button`
@@ -931,6 +1197,23 @@ const CtrlBtn = styled.button`
   @media (max-width: 480px) {
     width: ${(p) => (p.$danger ? "84px" : "58px")};
     height: 54px;
+    border-radius: ${(p) => (p.$danger ? "20px" : "18px")};
+
+    svg {
+      width: 20px;
+      height: 20px;
+    }
+  }
+
+  @media (max-width: 420px) {
+    width: ${(p) => (p.$danger ? "76px" : "52px")};
+    height: 48px;
+    border-radius: ${(p) => (p.$danger ? "18px" : "16px")};
+
+    svg {
+      width: 18px;
+      height: 18px;
+    }
   }
 `;
 
@@ -940,6 +1223,10 @@ const ControlDivider = styled.div`
   background: rgba(255, 255, 255, 0.12);
   border-radius: 999px;
   flex-shrink: 0;
+
+  @media (max-width: 420px) {
+    height: 28px;
+  }
 `;
 
 const CenterBox = styled.div`
@@ -1148,6 +1435,7 @@ const GroupVideoCall = ({
   const [showDrawer, setShowDrawer] = useState(false);
   const [selectedTileId, setSelectedTileId] = useState(null);
   const [fullscreenTileId, setFullscreenTileId] = useState(null);
+  const [isControlBarCollapsed, setIsControlBarCollapsed] = useState(false);
   const [lastSpeakerPeerId, setLastSpeakerPeerId] = useState(null);
   const [pipWindow, setPipWindow] = useState(null);
   const [pipContainer, setPipContainer] = useState(null);
@@ -1214,9 +1502,11 @@ const GroupVideoCall = ({
     addWhiteboardPdfTab,
     removeWhiteboardTab,
     syncWhiteboardPdfViewport,
+    syncWhiteboardBoardZoom,
     startWhiteboardStroke,
     appendWhiteboardStroke,
     removeWhiteboardStroke,
+    updateWhiteboardStroke,
     canSwitchCamera,
   } = useWebRTC({
     roomId,
@@ -1234,8 +1524,23 @@ const GroupVideoCall = ({
   const [whiteboardColor, setWhiteboardColor] = useState(
     WHITEBOARD_DEFAULT_COLOR,
   );
+  const [whiteboardFillColor, setWhiteboardFillColor] = useState(
+    WHITEBOARD_DEFAULT_FILL_COLOR,
+  );
+  const [whiteboardShapeEdge, setWhiteboardShapeEdge] = useState(
+    WHITEBOARD_DEFAULT_SHAPE_EDGE,
+  );
   const [whiteboardBrushSize, setWhiteboardBrushSize] = useState(
     WHITEBOARD_DEFAULT_BRUSH_SIZE,
+  );
+  const [whiteboardTextFontFamily, setWhiteboardTextFontFamily] = useState(
+    WHITEBOARD_DEFAULT_TEXT_FONT_FAMILY,
+  );
+  const [whiteboardTextSize, setWhiteboardTextSize] = useState(
+    WHITEBOARD_DEFAULT_TEXT_SIZE,
+  );
+  const [whiteboardTextAlign, setWhiteboardTextAlign] = useState(
+    WHITEBOARD_DEFAULT_TEXT_ALIGN,
   );
 
   useEffect(() => {
@@ -1323,27 +1628,815 @@ const GroupVideoCall = ({
   // ─── Recording logic ─────────────────────────────────────────────────────────
   const [isRecording, setIsRecording] = useState(false);
   const mediaRecorderRef = useRef(null);
-  const chunksRef = useRef([]);
   const recordScreenStreamRef = useRef(null);
+  const [isWhiteboardRecording, setIsWhiteboardRecording] = useState(false);
+  const [whiteboardRecordingElapsedMs, setWhiteboardRecordingElapsedMs] = useState(0);
+  const [whiteboardRecordingSurfaceReady, setWhiteboardRecordingSurfaceReady] = useState(false);
+  const whiteboardSurfaceRef = useRef(null);
+  const whiteboardSurfaceTypeRef = useRef("board");
+  const whiteboardRecorderRef = useRef(null);
+  const whiteboardRecordCanvasRef = useRef(null);
+  const whiteboardRecordCanvasHostRef = useRef(null);
+  const whiteboardRecordStreamRef = useRef(null);
+  const whiteboardRecordVideoTrackRef = useRef(null);
+  const whiteboardRecordHeartbeatRef = useRef(0);
+  const whiteboardAudioContextRef = useRef(null);
+  const whiteboardRenderFrameRef = useRef(0);
+  const whiteboardRecordingStartedAtRef = useRef(0);
+  const meetRecordingStartedAtRef = useRef(0);
+  const meetRecordingAudioContextRef = useRef(null);
+  const meetRecordingAudioStreamRef = useRef(null);
+  const whiteboardRecordingSessionRef = useRef(null);
+  const meetRecordingSessionRef = useRef(null);
+  const whiteboardStopPromiseRef = useRef(null);
+  const meetStopPromiseRef = useRef(null);
+
+  const resolveRecordingApiBaseUrl = useCallback(() => {
+    const windowOrigin = typeof window !== "undefined" ? window.location.origin : "";
+    return API_BASE_URL || windowOrigin;
+  }, []);
+
+  const resolveRecordingAppBaseUrl = useCallback(() => {
+    const windowOrigin = typeof window !== "undefined" ? window.location.origin : "";
+    return RESOLVED_APP_BASE_URL || windowOrigin;
+  }, []);
+
+  const wait = useCallback(
+    (ms) =>
+      new Promise((resolve) => {
+        window.setTimeout(resolve, ms);
+      }),
+    [],
+  );
+
+  const waitForRecorderDrain = useCallback(
+    async (sessionRef, idleMs = 350, timeoutMs = 5000) => {
+      const startedAt = Date.now();
+      let lastKnownIndex = sessionRef.current?.nextChunkIndex ?? 0;
+      let stableSince = Date.now();
+
+      while (Date.now() - startedAt < timeoutMs) {
+        await wait(80);
+        const transport = sessionRef.current;
+        const currentIndex = transport?.nextChunkIndex ?? 0;
+
+        if (currentIndex !== lastKnownIndex) {
+          lastKnownIndex = currentIndex;
+          stableSince = Date.now();
+          continue;
+        }
+
+        if (Date.now() - stableSince >= idleMs) {
+          return;
+        }
+      }
+    },
+    [wait],
+  );
+
+  const stopRecorderWithFlush = useCallback(
+    async (recorder, { stopTracks } = {}) => {
+      if (!recorder) {
+        stopTracks?.();
+        return;
+      }
+
+      if (recorder.state === "inactive") {
+        stopTracks?.();
+        return;
+      }
+
+      await new Promise((resolve) => {
+        let settled = false;
+        let quietTimerId = 0;
+        let hardTimeoutId = 0;
+        let stopSeen = false;
+        let capturedStopEvent = null;
+        let capturedErrorEvent = null;
+
+        const previousOnDataAvailable = recorder.ondataavailable;
+        const previousOnStop = recorder.onstop;
+        const previousOnError = recorder.onerror;
+
+        const cleanup = () => {
+          window.clearTimeout(quietTimerId);
+          window.clearTimeout(hardTimeoutId);
+          recorder.ondataavailable = previousOnDataAvailable;
+          recorder.onstop = previousOnStop;
+          recorder.onerror = previousOnError;
+        };
+
+        const finish = () => {
+          if (settled) {
+            return;
+          }
+          settled = true;
+          if (capturedErrorEvent) {
+            previousOnError?.(capturedErrorEvent);
+          }
+          if (capturedStopEvent) {
+            previousOnStop?.(capturedStopEvent);
+          }
+          cleanup();
+          stopTracks?.();
+          resolve();
+        };
+
+        const scheduleFinish = (delay = 450) => {
+          window.clearTimeout(quietTimerId);
+          quietTimerId = window.setTimeout(() => {
+            if (stopSeen || recorder.state === "inactive") {
+              finish();
+            }
+          }, delay);
+        };
+
+        recorder.ondataavailable = (event) => {
+          previousOnDataAvailable?.(event);
+          if (event?.data?.size > 0) {
+            scheduleFinish(2200);
+          }
+        };
+
+        recorder.onstop = (event) => {
+          capturedStopEvent = event;
+          stopSeen = true;
+          scheduleFinish(2200);
+        };
+
+        recorder.onerror = (event) => {
+          capturedErrorEvent = event;
+          stopSeen = true;
+          scheduleFinish(100);
+        };
+
+        hardTimeoutId = window.setTimeout(() => {
+          finish();
+        }, 5000);
+
+        const stopRecorder = () => {
+          try {
+            recorder.stop();
+          } catch (error) {
+            console.error("Failed to stop recorder:", error);
+            stopSeen = true;
+            scheduleFinish(100);
+          }
+        };
+
+        try {
+          recorder.requestData?.();
+          window.setTimeout(() => {
+            try {
+              recorder.requestData?.();
+            } catch (error) {
+              console.error("Failed to request final recorder chunk before stop:", error);
+            }
+          }, 180);
+          window.setTimeout(stopRecorder, 360);
+        } catch (error) {
+          console.error("Failed to flush recorder before stop:", error);
+          stopRecorder();
+        }
+      });
+    },
+    [],
+  );
+
+  const createServerRecordingTransport = useCallback(
+    async (kind, mimeType, filename) => {
+      const session = await createRecordingSession({
+        kind,
+        roomId,
+        mimeType: mimeType || "video/webm",
+        filename,
+        apiBaseUrl: resolveRecordingApiBaseUrl(),
+        appBaseUrl: resolveRecordingAppBaseUrl(),
+      });
+
+      return {
+        sessionId: session.sessionId,
+        kind,
+        nextChunkIndex: 0,
+        uploadQueue: Promise.resolve(),
+        uploadError: null,
+        uploadedChunkCount: 0,
+        capturedChunks: [],
+        failureHandled: false,
+        stopRequested: false,
+        loopPromise: null,
+      };
+    },
+    [resolveRecordingApiBaseUrl, resolveRecordingAppBaseUrl, roomId],
+  );
+
+  const createSafeRecorder = useCallback((stream, options = {}) => {
+    const preferredMimeType = String(options?.preferredMimeType || "").trim();
+    let recorder = null;
+    let selectedMimeType = "";
+
+    try {
+      if (preferredMimeType && MediaRecorder.isTypeSupported(preferredMimeType)) {
+        selectedMimeType = preferredMimeType;
+        recorder = new MediaRecorder(stream, { mimeType: selectedMimeType });
+      }
+    } catch (preferredMimeError) {
+      console.error("Failed to create recorder with preferred mime type:", preferredMimeError);
+      recorder = null;
+      selectedMimeType = "";
+    }
+
+    if (!recorder) {
+      try {
+        recorder = new MediaRecorder(stream);
+      } catch (defaultError) {
+        selectedMimeType = resolveSupportedRecorderMimeType(stream);
+        if (!selectedMimeType) {
+          throw defaultError;
+        }
+        recorder = new MediaRecorder(stream, { mimeType: selectedMimeType });
+      }
+    }
+
+    const actualMimeType = String(
+      recorder?.mimeType || selectedMimeType || "video/webm",
+    ).toLowerCase();
+
+    return {
+      recorder,
+      mimeType: actualMimeType,
+      fileExtension: getRecordingFileExtension(actualMimeType),
+    };
+  }, []);
+
+  const uploadRecordingChunkWithRetry = useCallback(
+    async (sessionId, chunkIndex, blob) => {
+      let attempt = 0;
+      let lastError = null;
+
+      while (attempt < 6) {
+        try {
+          await uploadRecordingChunk({
+            sessionId,
+            chunkIndex,
+            blob,
+            extension: getRecordingFileExtension(blob?.type),
+          });
+          return;
+        } catch (error) {
+          lastError = error;
+          attempt += 1;
+
+          const statusCode = Number(error?.response?.status || 0);
+          const shouldRetry = !statusCode;
+
+          if (attempt >= 6 || !shouldRetry) {
+            break;
+          }
+          await wait(Math.min(6000, attempt * 1000));
+        }
+      }
+
+      throw lastError || new Error("Recording chunk upload failed");
+    },
+    [wait],
+  );
+
+  const enqueueRecordingChunkUpload = useCallback(
+    (sessionRef, blob) => {
+      const transport = sessionRef.current;
+      if (!transport || !blob || blob.size <= 0) {
+        return Promise.resolve();
+      }
+
+      const chunkIndex = transport.nextChunkIndex;
+      transport.nextChunkIndex += 1;
+      const previousQueue = transport.uploadQueue || Promise.resolve();
+
+      transport.uploadQueue = previousQueue
+        .catch(() => undefined)
+        .then(async () => {
+          await uploadRecordingChunkWithRetry(transport.sessionId, chunkIndex, blob);
+          transport.uploadError = null;
+          transport.uploadedChunkCount = (transport.uploadedChunkCount || 0) + 1;
+        })
+        .catch((error) => {
+          transport.uploadError = error;
+          if (!transport.failureHandled) {
+            transport.failureHandled = true;
+            transport.stopRequested = true;
+
+            if (transport.kind === "whiteboard") {
+              setIsWhiteboardRecording(false);
+              setWhiteboardRecordingElapsedMs(0);
+              if (whiteboardRecorderRef.current?.state !== "inactive") {
+                try {
+                  whiteboardRecorderRef.current.stop();
+                } catch (stopError) {
+                  console.error("Failed to stop whiteboard recorder after chunk upload error:", stopError);
+                }
+              }
+              toast.error(t("groupCall.whiteboard.recordFailed"));
+            } else {
+              setIsRecording(false);
+              emitRecording(false);
+              if (mediaRecorderRef.current?.state !== "inactive") {
+                try {
+                  mediaRecorderRef.current.stop();
+                } catch (stopError) {
+                  console.error("Failed to stop meet recorder after chunk upload error:", stopError);
+                }
+              }
+              toast.error(t("groupCall.meetRecordingFinalizeFailed"));
+            }
+          }
+          throw error;
+        });
+
+      return transport.uploadQueue;
+    },
+    [emitRecording, t, uploadRecordingChunkWithRetry],
+  );
+
+  const awaitRecordingUploadQueue = useCallback(
+    async (sessionRef, timeoutMs = 60_000) => {
+      const transport = sessionRef.current;
+      if (!transport?.uploadQueue) {
+        return;
+      }
+
+      let timeoutId;
+      const timeoutPromise = new Promise((_, reject) => {
+        timeoutId = window.setTimeout(() => {
+          reject(new Error("Recording upload queue timed out"));
+        }, timeoutMs);
+      });
+
+      try {
+        await Promise.race([transport.uploadQueue, timeoutPromise]);
+        if (transport.uploadError) {
+          throw transport.uploadError;
+        }
+      } finally {
+        window.clearTimeout(timeoutId);
+      }
+    },
+    [],
+  );
+
+  const finalizeServerRecording = useCallback(
+    async (sessionRef, { durationMs = 0, kind, ignoreUploadError = false, silentSuccess = false } = {}) => {
+      const transport = sessionRef.current;
+      if (!transport?.sessionId) {
+        return { ok: false, skipped: true };
+      }
+
+      try {
+        if (ignoreUploadError) {
+          await Promise.resolve(transport.uploadQueue).catch(() => undefined);
+        } else {
+          await awaitRecordingUploadQueue(sessionRef);
+        }
+
+        if (!transport.uploadedChunkCount || transport.uploadedChunkCount <= 0) {
+          throw new Error("Recording chunklari yaratilmadi");
+        }
+
+        const result = await finishRecordingSession({
+          sessionId: transport.sessionId,
+          durationMs,
+        });
+        if (!result?.ok) {
+          throw new Error(result?.lastError || "Recording finalize failed");
+        }
+        if (!silentSuccess) {
+          toast.success(
+            kind === "meet"
+              ? t("groupCall.meetRecordingSavedToSavedMessages")
+              : t("groupCall.whiteboard.recordingSavedToSavedMessages"),
+          );
+        }
+        return { ok: true };
+      } catch (error) {
+        console.error("Failed to finalize server recording:", error);
+        if (!silentSuccess) {
+          toast.error(
+            kind === "meet"
+              ? t("groupCall.meetRecordingFinalizeFailed")
+              : t("groupCall.whiteboard.recordingFinalizeFailed"),
+          );
+        }
+        return { ok: false, error };
+      } finally {
+        sessionRef.current = null;
+      }
+    },
+    [awaitRecordingUploadQueue, t],
+  );
+
+  const cleanupMeetRecordingTransport = useCallback(() => {
+    if (recordScreenStreamRef.current) {
+      recordScreenStreamRef.current.getTracks().forEach((track) => track.stop());
+      recordScreenStreamRef.current = null;
+    }
+
+    if (meetRecordingAudioStreamRef.current) {
+      meetRecordingAudioStreamRef.current.getTracks().forEach((track) => track.stop());
+      meetRecordingAudioStreamRef.current = null;
+    }
+
+    if (meetRecordingAudioContextRef.current) {
+      meetRecordingAudioContextRef.current.close().catch(() => {});
+      meetRecordingAudioContextRef.current = null;
+    }
+  }, []);
+
+  const startStreamingRecording = useCallback(
+    ({
+      sessionRef,
+      kind,
+      recorderRef,
+      recorder,
+      cleanupTransport,
+      onRecordingStop,
+      getDurationMs,
+    }) => {
+      const transport = sessionRef.current;
+      if (!transport || !recorder) {
+        return Promise.resolve();
+      }
+
+      const loopPromise = new Promise((resolve) => {
+        let finalized = false;
+
+        const finish = async () => {
+          if (finalized) {
+            return;
+          }
+          finalized = true;
+
+          try {
+            const hasAnyChunk =
+              (transport.nextChunkIndex || 0) > 0 ||
+              (transport.uploadedChunkCount || 0) > 0 ||
+              (transport.capturedChunks?.length || 0) > 0;
+
+            if (hasAnyChunk) {
+              await finalizeServerRecording(sessionRef, {
+                durationMs: getDurationMs?.() || 0,
+                kind,
+                ignoreUploadError: Boolean(transport.failureHandled),
+                silentSuccess: Boolean(transport.failureHandled),
+              });
+            } else if (transport.failureHandled) {
+              sessionRef.current = null;
+            } else {
+              throw new Error("Recording chunklari yaratilmadi");
+            }
+          } catch (error) {
+            console.error(`Failed during ${kind} recording finalization:`, error);
+            if (!transport.failureHandled) {
+              transport.failureHandled = true;
+              toast.error(
+                kind === "meet"
+                  ? t("groupCall.meetRecordingFinalizeFailed")
+                  : t("groupCall.whiteboard.recordFailed"),
+              );
+            }
+
+            if ((transport.uploadedChunkCount || 0) > 0) {
+              await finalizeServerRecording(sessionRef, {
+                durationMs: getDurationMs?.() || 0,
+                kind,
+                ignoreUploadError: true,
+                silentSuccess: true,
+              }).catch(() => undefined);
+            } else {
+              sessionRef.current = null;
+            }
+          } finally {
+            cleanupTransport?.();
+            recorderRef.current = null;
+            onRecordingStop?.();
+            resolve();
+          }
+        };
+
+        recorder.ondataavailable = (event) => {
+          if (event?.data?.size > 0 && !transport.failureHandled) {
+            transport.capturedChunks = transport.capturedChunks || [];
+            transport.capturedChunks.push({
+              size: event.data.size,
+              type: event.data.type || recorder.mimeType || "",
+              capturedAt: Date.now(),
+            });
+            void enqueueRecordingChunkUpload(sessionRef, event.data);
+          }
+        };
+
+        recorder.onerror = (event) => {
+          console.error(`Streaming ${kind} recorder failed:`, event);
+          if (!transport.failureHandled) {
+            transport.failureHandled = true;
+            transport.stopRequested = true;
+            toast.error(
+              kind === "meet"
+                ? t("groupCall.meetRecordingFinalizeFailed")
+                : t("groupCall.whiteboard.recordFailed"),
+            );
+          }
+
+          if (recorder.state !== "inactive") {
+            try {
+              recorder.stop();
+            } catch (stopError) {
+              console.error(`Failed to stop ${kind} recorder after error:`, stopError);
+            }
+          } else {
+            void finish();
+          }
+        };
+
+        recorder.onstop = () => {
+          recorderRef.current = null;
+          void finish();
+        };
+
+        recorderRef.current = recorder;
+        recorder.start(RECORDING_AUTOSAVE_SEGMENT_MS);
+      });
+
+      transport.loopPromise = loopPromise;
+      return loopPromise;
+    },
+    [
+      enqueueRecordingChunkUpload,
+      finalizeServerRecording,
+      t,
+    ],
+  );
+
+  const createMixedAudioCapture = useCallback(() => {
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContextClass) {
+      return {
+        stream: new MediaStream(),
+        audioContext: null,
+      };
+    }
+
+    const audioContext = new AudioContextClass();
+    const destination = audioContext.createMediaStreamDestination();
+    const allStreams = [localStream, ...remoteStreams.map((entry) => entry.stream)].filter(Boolean);
+    let connectedSourceCount = 0;
+
+    allStreams.forEach((stream) => {
+      const audioTracks = stream
+        .getAudioTracks()
+        .filter((track) => track.readyState === "live" && track.enabled !== false);
+      if (audioTracks.length === 0) {
+        return;
+      }
+
+      const source = audioContext.createMediaStreamSource(new MediaStream(audioTracks));
+      source.connect(destination);
+      connectedSourceCount += 1;
+    });
+
+    if (!connectedSourceCount) {
+      audioContext.close().catch(() => {});
+      return {
+        stream: new MediaStream(),
+        audioContext: null,
+      };
+    }
+
+    if (audioContext.state === "suspended") {
+      audioContext.resume().catch((error) => {
+        console.error("Failed to resume mixed audio context:", error);
+      });
+    }
+
+    return {
+      stream: destination.stream,
+      audioContext,
+    };
+  }, [localStream, remoteStreams]);
 
   const mixAllAudio = useCallback(() => {
-    const audioCtx = new AudioContext();
-    const dest = audioCtx.createMediaStreamDestination();
-    const allStreams = [
-      localStream,
-      ...remoteStreams.map((r) => r.stream),
-    ].filter(Boolean);
-    allStreams.forEach((s) => {
-      const audioTracks = s.getAudioTracks();
-      if (audioTracks.length > 0) {
-        const source = audioCtx.createMediaStreamSource(
-          new MediaStream(audioTracks),
-        );
-        source.connect(dest);
+    const mixedAudio = createMixedAudioCapture();
+    return mixedAudio.stream;
+  }, [createMixedAudioCapture]);
+
+  const handleWhiteboardRecordSurfaceChange = useCallback((node, type) => {
+    whiteboardSurfaceRef.current = node;
+    whiteboardSurfaceTypeRef.current = type || "board";
+    setWhiteboardRecordingSurfaceReady(Boolean(node));
+  }, []);
+
+  const cleanupWhiteboardRecordingTransport = useCallback(() => {
+    if (whiteboardRenderFrameRef.current) {
+      window.cancelAnimationFrame(whiteboardRenderFrameRef.current);
+      whiteboardRenderFrameRef.current = 0;
+    }
+
+    if (whiteboardRecordStreamRef.current) {
+      whiteboardRecordStreamRef.current.getTracks().forEach((track) => track.stop());
+      whiteboardRecordStreamRef.current = null;
+    }
+
+    whiteboardRecordVideoTrackRef.current = null;
+    whiteboardRecordHeartbeatRef.current = 0;
+
+    if (whiteboardRecordCanvasHostRef.current) {
+      whiteboardRecordCanvasHostRef.current.remove();
+      whiteboardRecordCanvasHostRef.current = null;
+    }
+
+    if (whiteboardAudioContextRef.current) {
+      whiteboardAudioContextRef.current.close().catch(() => {});
+      whiteboardAudioContextRef.current = null;
+    }
+
+    whiteboardRecordCanvasRef.current = null;
+  }, []);
+
+  const renderWhiteboardRecordingFrame = useCallback(() => {
+    if (!whiteboardRecordCanvasRef.current) {
+      return;
+    }
+
+    const surface = whiteboardSurfaceRef.current;
+    if (surface) {
+      whiteboardRecordHeartbeatRef.current += 1;
+      renderWhiteboardSurfaceToCanvas(
+        surface,
+        whiteboardRecordCanvasRef.current,
+        whiteboardRecordHeartbeatRef.current,
+      );
+      try {
+        whiteboardRecordVideoTrackRef.current?.requestFrame?.();
+      } catch (error) {
+        console.error("Failed to request whiteboard recording frame:", error);
       }
-    });
-    return dest.stream;
-  }, [localStream, remoteStreams]);
+    }
+
+    whiteboardRenderFrameRef.current = window.requestAnimationFrame(renderWhiteboardRecordingFrame);
+  }, []);
+
+  const stopWhiteboardRecording = useCallback(
+    async () => {
+      if (whiteboardStopPromiseRef.current) {
+        return whiteboardStopPromiseRef.current;
+      }
+
+      const stopPromise = (async () => {
+        const transport = whiteboardRecordingSessionRef.current;
+        const recorder = whiteboardRecorderRef.current;
+
+        setIsWhiteboardRecording(false);
+        setWhiteboardRecordingElapsedMs(0);
+
+        if (!transport) {
+          cleanupWhiteboardRecordingTransport();
+          return;
+        }
+
+        transport.stopRequested = true;
+
+        if (recorder?.state && recorder.state !== "inactive") {
+          await stopRecorderWithFlush(recorder);
+        }
+
+        await Promise.resolve(transport.loopPromise).catch(() => undefined);
+      })()
+        .finally(() => {
+          whiteboardStopPromiseRef.current = null;
+        });
+
+      whiteboardStopPromiseRef.current = stopPromise;
+      return stopPromise;
+    },
+    [
+      cleanupWhiteboardRecordingTransport,
+      stopRecorderWithFlush,
+    ],
+  );
+
+  const startWhiteboardRecording = useCallback(async () => {
+    if (isWhiteboardRecording) {
+      await stopWhiteboardRecording();
+      return;
+    }
+
+    const surface = whiteboardSurfaceRef.current;
+    if (!surface) {
+      toast.error(t("groupCall.whiteboard.recordUnavailable"));
+      return;
+    }
+
+    if (typeof MediaRecorder === "undefined") {
+      toast.error(t("groupCall.whiteboard.recordUnsupported"));
+      return;
+    }
+
+    const recordCanvas = document.createElement("canvas");
+    if (typeof recordCanvas.captureStream !== "function") {
+      toast.error(t("groupCall.whiteboard.recordUnsupported"));
+      return;
+    }
+
+    whiteboardRecordHeartbeatRef.current = 1;
+    const initialFrameReady = renderWhiteboardSurfaceToCanvas(
+      surface,
+      recordCanvas,
+      whiteboardRecordHeartbeatRef.current,
+    );
+    if (!initialFrameReady) {
+      toast.error(t("groupCall.whiteboard.recordUnavailable"));
+      return;
+    }
+
+    try {
+      const mixedAudio = createMixedAudioCapture();
+      whiteboardAudioContextRef.current = mixedAudio.audioContext;
+      whiteboardRecordCanvasRef.current = recordCanvas;
+      const recordCanvasHost = document.createElement("div");
+      recordCanvasHost.setAttribute("aria-hidden", "true");
+      recordCanvasHost.style.position = "fixed";
+      recordCanvasHost.style.left = "-10000px";
+      recordCanvasHost.style.top = "-10000px";
+      recordCanvasHost.style.width = "1px";
+      recordCanvasHost.style.height = "1px";
+      recordCanvasHost.style.opacity = "0";
+      recordCanvasHost.style.pointerEvents = "none";
+      recordCanvasHost.style.overflow = "hidden";
+      recordCanvasHost.appendChild(recordCanvas);
+      document.body.appendChild(recordCanvasHost);
+      whiteboardRecordCanvasHostRef.current = recordCanvasHost;
+
+      const videoStream = recordCanvas.captureStream(30);
+      whiteboardRecordVideoTrackRef.current = videoStream.getVideoTracks?.()?.[0] || null;
+      if (whiteboardRecordVideoTrackRef.current) {
+        whiteboardRecordVideoTrackRef.current.contentHint = "detail";
+      }
+      try {
+        whiteboardRecordVideoTrackRef.current?.requestFrame?.();
+      } catch (error) {
+        console.error("Failed to request initial whiteboard recording frame:", error);
+      }
+
+      const combinedStream = new MediaStream([
+        ...videoStream.getVideoTracks(),
+        ...(mixedAudio?.stream?.getAudioTracks?.() || []),
+      ]);
+      whiteboardRecordStreamRef.current = combinedStream;
+
+      const preferredMimeType = resolveSupportedRecorderMimeType(combinedStream);
+      const { recorder, mimeType, fileExtension } = createSafeRecorder(combinedStream, {
+        preferredMimeType,
+      });
+      whiteboardRecordingSessionRef.current = await createServerRecordingTransport(
+        "whiteboard",
+        mimeType,
+        `whiteboard-${roomId}-${Date.now()}.${fileExtension}`,
+      );
+      whiteboardRecordingStartedAtRef.current = Date.now();
+      setWhiteboardRecordingElapsedMs(0);
+      setIsWhiteboardRecording(true);
+      whiteboardRenderFrameRef.current = window.requestAnimationFrame(renderWhiteboardRecordingFrame);
+      startStreamingRecording({
+        sessionRef: whiteboardRecordingSessionRef,
+        kind: "whiteboard",
+        recorderRef: whiteboardRecorderRef,
+        recorder,
+        cleanupTransport: cleanupWhiteboardRecordingTransport,
+        onRecordingStop: () => {
+          setIsWhiteboardRecording(false);
+          setWhiteboardRecordingElapsedMs(0);
+        },
+        getDurationMs: () =>
+          Math.max(0, Date.now() - whiteboardRecordingStartedAtRef.current),
+      });
+    } catch (error) {
+      console.error("Whiteboard recording error:", error);
+      cleanupWhiteboardRecordingTransport();
+      whiteboardRecorderRef.current = null;
+      whiteboardRecordingSessionRef.current = null;
+      toast.error(t("groupCall.whiteboard.recordFailed"));
+    }
+  }, [
+    cleanupWhiteboardRecordingTransport,
+    createSafeRecorder,
+    createServerRecordingTransport,
+    createMixedAudioCapture,
+    isWhiteboardRecording,
+    renderWhiteboardRecordingFrame,
+    startStreamingRecording,
+    stopWhiteboardRecording,
+    roomId,
+    t,
+  ]);
 
   const startRecording = useCallback(
     async () => {
@@ -1357,63 +2450,125 @@ const GroupVideoCall = ({
         screen.getVideoTracks()[0].onended = () => stopRecording();
 
         // Mix all audio
-        const mixedAudio = mixAllAudio();
+        const mixedAudio = createMixedAudioCapture();
+        meetRecordingAudioContextRef.current = mixedAudio.audioContext;
+        meetRecordingAudioStreamRef.current = mixedAudio.stream;
 
         // Combine video + audio
         const combined = new MediaStream([
           ...videoStream.getVideoTracks(),
-          ...mixedAudio.getAudioTracks(),
+          ...(mixedAudio?.stream?.getAudioTracks?.() || []),
         ]);
+        const { recorder, mimeType, fileExtension } = createSafeRecorder(combined);
+        meetRecordingSessionRef.current = await createServerRecordingTransport(
+          "meet",
+          mimeType,
+          `meet-${roomId}-${Date.now()}.${fileExtension}`,
+        );
 
-        chunksRef.current = [];
-        const recorder = new MediaRecorder(combined, {
-          mimeType: "video/webm;codecs=vp9,opus",
-        });
-        recorder.ondataavailable = (e) => {
-          if (e.data.size > 0) chunksRef.current.push(e.data);
-        };
-        mediaRecorderRef.current = recorder;
-        recorder.start(1000);
-
+        meetRecordingStartedAtRef.current = Date.now();
         setIsRecording(true);
         emitRecording(true);
+        startStreamingRecording({
+          sessionRef: meetRecordingSessionRef,
+          kind: "meet",
+          recorderRef: mediaRecorderRef,
+          recorder,
+          cleanupTransport: cleanupMeetRecordingTransport,
+          onRecordingStop: () => {
+            setIsRecording(false);
+            emitRecording(false);
+          },
+          getDurationMs: () =>
+            Math.max(0, Date.now() - meetRecordingStartedAtRef.current),
+        });
       } catch (err) {
         console.error("Recording error:", err);
+        cleanupMeetRecordingTransport();
+        meetRecordingSessionRef.current = null;
       }
     },
-    [mixAllAudio, emitRecording],
+    [
+      cleanupMeetRecordingTransport,
+      createSafeRecorder,
+      createMixedAudioCapture,
+      createServerRecordingTransport,
+      emitRecording,
+      roomId,
+      startStreamingRecording,
+    ],
   );
 
-  const stopRecording = useCallback(() => {
-    if (recordScreenStreamRef.current) {
-      recordScreenStreamRef.current.getTracks().forEach((t) => t.stop());
-      recordScreenStreamRef.current = null;
+  const stopRecording = useCallback(async () => {
+    if (meetStopPromiseRef.current) {
+      return meetStopPromiseRef.current;
     }
-    if (
-      mediaRecorderRef.current &&
-      mediaRecorderRef.current.state !== "inactive"
-    ) {
-      mediaRecorderRef.current.onstop = () => {
-        const blob = new Blob(chunksRef.current, { type: "video/webm" });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `meet-${roomId}-${Date.now()}.webm`;
-        a.click();
-        URL.revokeObjectURL(url);
-        chunksRef.current = [];
-      };
-      mediaRecorderRef.current.stop();
-    }
-    setIsRecording(false);
-    emitRecording(false);
-  }, [roomId, emitRecording]);
 
-  const handleLeave = () => {
+    const stopPromise = (async () => {
+      const transport = meetRecordingSessionRef.current;
+      const recorder = mediaRecorderRef.current;
+      setIsRecording(false);
+      emitRecording(false);
+
+      if (!transport) {
+        cleanupMeetRecordingTransport();
+        return;
+      }
+
+      transport.stopRequested = true;
+
+      if (recorder && recorder.state !== "inactive") {
+        await stopRecorderWithFlush(recorder);
+      }
+
+      await Promise.resolve(transport.loopPromise).catch(() => undefined);
+    })().finally(() => {
+      meetStopPromiseRef.current = null;
+    });
+
+    meetStopPromiseRef.current = stopPromise;
+    return stopPromise;
+  }, [
+    cleanupMeetRecordingTransport,
+    emitRecording,
+    stopRecorderWithFlush,
+  ]);
+
+  useEffect(() => {
+    if (!isWhiteboardRecording) {
+      return undefined;
+    }
+
+    setWhiteboardRecordingElapsedMs(Date.now() - whiteboardRecordingStartedAtRef.current);
+    const intervalId = window.setInterval(() => {
+      setWhiteboardRecordingElapsedMs(Date.now() - whiteboardRecordingStartedAtRef.current);
+    }, 1000);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [isWhiteboardRecording]);
+
+  useEffect(
+    () => () => {
+      cleanupWhiteboardRecordingTransport();
+    },
+    [cleanupWhiteboardRecordingTransport],
+  );
+
+  const handleLeave = async () => {
     try {
-      if (isRecording) stopRecording();
+      if (isRecording) await stopRecording();
     } catch (e) {
       console.error("Failed to stop recording:", e);
+    }
+
+    try {
+      if (isWhiteboardRecording) {
+        await stopWhiteboardRecording();
+      }
+    } catch (e) {
+      console.error("Failed to stop whiteboard recording:", e);
     }
 
     try {
@@ -1430,6 +2585,7 @@ const GroupVideoCall = ({
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
+
 
   const closePiPWindow = useCallback(() => {
     if (pipWindow && !pipWindow.closed) {
@@ -1847,6 +3003,12 @@ const GroupVideoCall = ({
   const isWhiteboardFullscreen =
     Boolean(fullscreenTileId) && activeStageTile?.kind === "whiteboard";
 
+  useEffect(() => {
+    if (!isWhiteboardFullscreen) {
+      setIsControlBarCollapsed(false);
+    }
+  }, [isWhiteboardFullscreen]);
+
   const mobileCompactTiles = useMemo(() => {
     if (!isMobileViewport || !hasStageLayout) return [];
 
@@ -1972,10 +3134,20 @@ const GroupVideoCall = ({
       interactive={Boolean(isCreator && activeStageTileId === tile.id && !compact)}
       tool={whiteboardTool}
       color={whiteboardColor}
+      fillColor={whiteboardFillColor}
+      shapeEdge={whiteboardShapeEdge}
       brushSize={whiteboardBrushSize}
+      textFontFamily={whiteboardTextFontFamily}
+      textSize={whiteboardTextSize}
+      textAlign={whiteboardTextAlign}
       onToolChange={setWhiteboardTool}
       onColorChange={setWhiteboardColor}
+      onFillColorChange={setWhiteboardFillColor}
+      onShapeEdgeChange={setWhiteboardShapeEdge}
       onBrushSizeChange={setWhiteboardBrushSize}
+      onTextFontFamilyChange={setWhiteboardTextFontFamily}
+      onTextSizeChange={setWhiteboardTextSize}
+      onTextAlignChange={setWhiteboardTextAlign}
       onClear={() => clearWhiteboard()}
       onClearPage={clearWhiteboardPage}
       onUndo={undoWhiteboard}
@@ -1997,9 +3169,16 @@ const GroupVideoCall = ({
       }}
       onTabRemove={removeWhiteboardTab}
       onPdfViewportChange={syncWhiteboardPdfViewport}
+      onBoardZoomChange={syncWhiteboardBoardZoom}
+      onRecordSurfaceChange={handleWhiteboardRecordSurfaceChange}
+      onToggleRecording={startWhiteboardRecording}
+      isRecording={isWhiteboardRecording}
+      recordingElapsedMs={whiteboardRecordingElapsedMs}
+      recordingReady={whiteboardRecordingSurfaceReady}
       onStrokeStart={startWhiteboardStroke}
       onStrokeAppend={appendWhiteboardStroke}
       onStrokeRemove={removeWhiteboardStroke}
+      onStrokeUpdate={updateWhiteboardStroke}
       showToolbar={Boolean(isCreator && activeStageTileId === tile.id && !compact)}
     />
   );
@@ -2064,7 +3243,7 @@ const GroupVideoCall = ({
         <CallSub>{roomId}</CallSub>
       </CallInfo>
       <TopActions>
-        {(isRecording || remoteIsRecording) && (
+        {(isRecording || isWhiteboardRecording || remoteIsRecording) && (
           <RecBadge>
             <Circle size={8} fill="#f04747" /> {t("groupCall.recording")}
           </RecBadge>
@@ -2189,7 +3368,7 @@ const GroupVideoCall = ({
       ) : (
       <>
       {topBarContent}
-      <Body>
+      <Body $immersive={Boolean(fullscreenTileId)}>
         {error ? (
           <CenterBox>
             <AlertCircle size={38} color="#f04747" />
@@ -2495,7 +3674,23 @@ const GroupVideoCall = ({
       </>
         )}
 
-      {!isMinimized && <ControlBar>
+      {!isMinimized && (
+      <ControlBarDock>
+        {isWhiteboardFullscreen ? (
+          <ControlBarToggle
+            type="button"
+            onClick={() => setIsControlBarCollapsed((current) => !current)}
+            aria-label={
+              isControlBarCollapsed ? "Show bottom controls" : "Hide bottom controls"
+            }
+            title={
+              isControlBarCollapsed ? "Show bottom controls" : "Hide bottom controls"
+            }
+          >
+            {isControlBarCollapsed ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+          </ControlBarToggle>
+        ) : null}
+      <ControlBar $collapsed={isWhiteboardFullscreen && isControlBarCollapsed}>
         <CtrlBtn
           $state={isMicOn ? "on" : "off"}
           onClick={toggleMic}
@@ -2555,7 +3750,9 @@ const GroupVideoCall = ({
         <CtrlBtn $danger onClick={handleLeave}>
           <PhoneOff size={21} />
         </CtrlBtn>
-      </ControlBar>}
+      </ControlBar>
+      </ControlBarDock>
+      )}
     </Overlay>
   );
 };

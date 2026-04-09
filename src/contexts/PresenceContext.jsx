@@ -25,7 +25,7 @@ export const usePresence = () => useContext(PresenceContext);
  *   - Auto-reconnect on connection drop
  */
 export const PresenceProvider = ({ children }) => {
-  const [onlineUsers, setOnlineUsers] = useState(new Map());
+  const [presenceByUserId, setPresenceByUserId] = useState(new Map());
   const [connected, setConnected] = useState(false);
   const socketRef = useRef(null);
   const heartbeatRef = useRef(null);
@@ -39,7 +39,7 @@ export const PresenceProvider = ({ children }) => {
   useEffect(() => {
     if (!currentUserId) {
       setConnected(false);
-      setOnlineUsers(new Map());
+      setPresenceByUserId(new Map());
       return;
     }
 
@@ -76,19 +76,28 @@ export const PresenceProvider = ({ children }) => {
     socket.on("user_online", ({ userId }) => {
       const normalizedUserId = normalizeUserId(userId);
       if (!normalizedUserId) return;
-      setOnlineUsers((prev) => {
+      setPresenceByUserId((prev) => {
         const next = new Map(prev);
-        next.set(normalizedUserId, true);
+        next.set(normalizedUserId, {
+          online: true,
+          lastSeen: null,
+        });
         return next;
       });
     });
 
-    socket.on("user_offline", ({ userId }) => {
+    socket.on("user_offline", ({ userId, lastSeen }) => {
       const normalizedUserId = normalizeUserId(userId);
       if (!normalizedUserId) return;
-      setOnlineUsers((prev) => {
+      setPresenceByUserId((prev) => {
         const next = new Map(prev);
-        next.delete(normalizedUserId);
+        next.set(normalizedUserId, {
+          online: false,
+          lastSeen:
+            typeof lastSeen === "string" && lastSeen.trim().length > 0
+              ? lastSeen
+              : null,
+        });
         return next;
       });
     });
@@ -115,9 +124,18 @@ export const PresenceProvider = ({ children }) => {
     (userId) => {
       const normalizedUserId = normalizeUserId(userId);
       if (!normalizedUserId) return false;
-      return onlineUsers.has(normalizedUserId);
+      return Boolean(presenceByUserId.get(normalizedUserId)?.online);
     },
-    [normalizeUserId, onlineUsers],
+    [normalizeUserId, presenceByUserId],
+  );
+
+  const getUserLastSeen = useCallback(
+    (userId) => {
+      const normalizedUserId = normalizeUserId(userId);
+      if (!normalizedUserId) return null;
+      return presenceByUserId.get(normalizedUserId)?.lastSeen || null;
+    },
+    [normalizeUserId, presenceByUserId],
   );
 
   /**
@@ -128,30 +146,36 @@ export const PresenceProvider = ({ children }) => {
     async (userIds) => {
       if (!currentUserId) return {};
       try {
-      const res = await fetch(`${API_BASE_URL}/presence/status/bulk`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: "include",
-        body: JSON.stringify({ userIds }),
-      });
-      if (!res.ok) return {};
-      const data = await res.json();
+        const res = await fetch(`${API_BASE_URL}/presence/status/bulk`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          credentials: "include",
+          body: JSON.stringify({ userIds }),
+        });
+        if (!res.ok) return {};
+        const data = await res.json();
 
-      // Update local cache using functional updater to avoid dependency loop
-      setOnlineUsers((prev) => {
-        const newMap = new Map(prev);
-        for (const [id, online] of Object.entries(data.statuses || {})) {
-          const normalizedUserId = normalizeUserId(id);
-          if (!normalizedUserId) continue;
-          if (online) newMap.set(normalizedUserId, true);
-          else newMap.delete(normalizedUserId);
-        }
-        return newMap;
-      });
+        // Update local cache using functional updater to avoid dependency loop
+        setPresenceByUserId((prev) => {
+          const newMap = new Map(prev);
+          for (const [id, snapshot] of Object.entries(data.statuses || {})) {
+            const normalizedUserId = normalizeUserId(id);
+            if (!normalizedUserId) continue;
+            newMap.set(normalizedUserId, {
+              online: Boolean(snapshot?.online),
+              lastSeen:
+                typeof snapshot?.lastSeen === "string" &&
+                snapshot.lastSeen.trim().length > 0
+                  ? snapshot.lastSeen
+                  : null,
+            });
+          }
+          return newMap;
+        });
 
-      return data.statuses;
+        return data.statuses;
       } catch (err) {
         console.error("Failed to fetch bulk statuses:", err);
         return {};
@@ -171,16 +195,19 @@ export const PresenceProvider = ({ children }) => {
         const memberId =
           typeof id === "object" ? id?._id || id?.id : id;
         const normalizedUserId = normalizeUserId(memberId);
-        return normalizedUserId ? onlineUsers.has(normalizedUserId) : false;
+        return normalizedUserId
+          ? Boolean(presenceByUserId.get(normalizedUserId)?.online)
+          : false;
       }).length;
     },
-    [normalizeUserId, onlineUsers],
+    [normalizeUserId, presenceByUserId],
   );
 
   const value = {
-    onlineUsers,
+    onlineUsers: presenceByUserId,
     connected,
     isUserOnline,
+    getUserLastSeen,
     getOnlineCount,
     fetchBulkStatuses,
     socket: socketRef.current,

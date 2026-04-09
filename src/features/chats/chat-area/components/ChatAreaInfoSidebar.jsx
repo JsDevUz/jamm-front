@@ -327,6 +327,19 @@ const EmptyMembersText = styled.div`
   color: var(--text-muted-color);
 `;
 
+const formatLastSeenLabel = (value) => {
+  if (!value) return "Offline";
+
+  const parsed = dayjs(value);
+  if (!parsed.isValid()) {
+    return "Offline";
+  }
+
+  return parsed.isSame(dayjs(), "day")
+    ? `Oxirgi marta: ${parsed.format("HH:mm")}`
+    : `Oxirgi marta: ${parsed.format("DD.MM HH:mm")}`;
+};
+
 const MentionsText = ({ text }) => {
   if (!text) return null;
   const parts = text.split(/(@\w+)/g);
@@ -352,6 +365,7 @@ const ChatAreaInfoSidebar = ({
   currentUser,
   onlineCount,
   isUserOnline,
+  getUserLastSeen,
   onMemberClick,
   onCopyLink,
   onClose,
@@ -389,6 +403,12 @@ const ChatAreaInfoSidebar = ({
           return String(memberId) !== String(currentUserId);
         })
       : null;
+  const otherUserId = otherUser?._id || otherUser?.id;
+  const otherUserLastSeen =
+    (otherUserId ? getUserLastSeen?.(otherUserId) : null) ||
+    otherUser?.lastSeen ||
+    otherUser?.lastActive ||
+    null;
 
   return (
     <RightSidebar>
@@ -469,15 +489,11 @@ const ChatAreaInfoSidebar = ({
                   </UserStatusText>
                 ) : (
                   <UserStatusText
-                    $online={isUserOnline(otherUser._id || otherUser.id)}
+                    $online={isUserOnline(otherUserId)}
                   >
-                    {isUserOnline(otherUser._id || otherUser.id)
+                    {isUserOnline(otherUserId)
                       ? "Online"
-                      : otherUser.lastSeen || otherUser.lastActive
-                        ? `Oxirgi marta: ${dayjs(
-                            otherUser.lastSeen || otherUser.lastActive,
-                          ).format("HH:mm")}`
-                        : "Offline"}
+                      : formatLastSeenLabel(otherUserLastSeen)}
                   </UserStatusText>
                 )
               ) : null
@@ -595,6 +611,11 @@ const ChatAreaInfoSidebar = ({
                     (admin) => (admin.userId || admin.id || admin._id) === memberId,
                   );
                   const isOwner = currentChat.createdBy === memberId;
+                  const memberLastSeen =
+                    getUserLastSeen?.(memberId) ||
+                    member.lastSeen ||
+                    member.lastActive ||
+                    null;
 
                   return (
                     <MemberItem
@@ -623,11 +644,7 @@ const ChatAreaInfoSidebar = ({
                             ? member.officialBadgeLabel || "Rasmiy"
                             : isUserOnline(memberId)
                               ? "Online"
-                              : member.lastSeen || member.lastActive
-                                ? `Oxirgi marta: ${dayjs(
-                                    member.lastSeen || member.lastActive,
-                                  ).format("HH:mm")}`
-                                : "Offline"}
+                              : formatLastSeenLabel(memberLastSeen)}
                         </MemberStatus>
                       </MemberMeta>
                       {isOwner ? (

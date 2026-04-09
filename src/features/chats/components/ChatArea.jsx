@@ -44,6 +44,7 @@ const ChatArea = ({
     isEditGroupDialogOpen,
     isOnline,
     isUserOnline,
+    getUserLastSeen,
     lastSeenText,
     onlineCount,
     startPrivateVideoCall,
@@ -100,6 +101,7 @@ const ChatArea = ({
           currentUser={currentUser}
           onlineCount={onlineCount}
           isUserOnline={isUserOnline}
+          getUserLastSeen={getUserLastSeen}
           onMemberClick={handleMemberClick}
           onCopyLink={handleCopyChatLink}
           onClose={handleInfoSidebarClose}

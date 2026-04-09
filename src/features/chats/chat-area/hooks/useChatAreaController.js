@@ -113,6 +113,31 @@ const getDayStartTimestamp = (value) => {
   return date.getTime();
 };
 
+const formatLastSeenLabel = (value) => {
+  if (!value) return "Offline";
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "Offline";
+  }
+
+  const now = new Date();
+  const timeLabel = date.toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
+  if (date.toDateString() === now.toDateString()) {
+    return `Oxirgi marta: ${timeLabel}`;
+  }
+
+  const dateLabel = date.toLocaleDateString([], {
+    month: "short",
+    day: "numeric",
+  });
+  return `Oxirgi marta: ${dateLabel} ${timeLabel}`;
+};
+
 const getOldestLoadedDayStart = (messages) => {
   for (const message of messages || []) {
     const timestamp = getMessageTimestamp(message);
@@ -211,7 +236,8 @@ export default function useChatAreaController({
     previewChat,
     setPreviewChat,
   } = useChats();
-  const { isUserOnline, getOnlineCount } = usePresence();
+  const { isUserOnline, getOnlineCount, getUserLastSeen, fetchBulkStatuses } =
+    usePresence();
   const { startPrivateCall } = useCall();
   const currentUser = useAuthStore((state) => state.user);
   const location = useLocation();
@@ -346,23 +372,21 @@ export default function useChatAreaController({
   const isOnline = otherMemberId ? isUserOnline(otherMemberId) : false;
   const onlineCount =
     displayChat?.type === "group" ? getOnlineCount(displayChat.members) : 0;
+  const otherMemberLastSeen =
+    (otherMemberId ? getUserLastSeen(otherMemberId) : null) ||
+    otherMember?.lastSeen ||
+    otherMember?.lastActive ||
+    null;
+
+  useEffect(() => {
+    if (!otherMemberId) return;
+    void fetchBulkStatuses([String(otherMemberId)]);
+  }, [fetchBulkStatuses, otherMemberId]);
 
   const lastSeenText = useMemo(() => {
     if (!otherMember || isOnline) return "Online";
-    if (!otherMember.lastSeen) return "Offline";
-
-    const date = new Date(otherMember.lastSeen);
-    const now = new Date();
-    const diffMinutes = Math.floor((now - date) / 60000);
-    const diffHours = Math.floor(diffMinutes / 60);
-
-    if (diffMinutes < 60) return `Last seen ${diffMinutes}m ago`;
-    if (diffHours < 24) return `Last seen ${diffHours}h ago`;
-    return `Last seen ${date.toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-    })}`;
-  }, [otherMember, isOnline]);
+    return formatLastSeenLabel(otherMemberLastSeen);
+  }, [otherMember, isOnline, otherMemberLastSeen]);
 
   useEffect(() => {
     if (
@@ -1730,6 +1754,7 @@ export default function useChatAreaController({
     isEditGroupDialogOpen,
     isOnline,
     isUserOnline,
+    getUserLastSeen,
     lastSeenText,
     onlineCount,
     otherMember,
