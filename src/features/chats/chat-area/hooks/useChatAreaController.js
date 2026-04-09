@@ -65,6 +65,17 @@ const writeStorageEnvelope = (storageKey, data) => {
   );
 };
 
+const normalizeComparableOrigin = (value) => {
+  try {
+    const parsed = new URL(String(value || ""));
+    return `${parsed.protocol}//${parsed.host}`.replace(/^https?:\/\/www\./, (match) =>
+      match.replace("www.", ""),
+    );
+  } catch {
+    return String(value || "").trim().replace(/\/+$/, "");
+  }
+};
+
 const loadCachedChatMessages = (userId, chatId) => {
   const storageKey = getScopedCacheKey(CHAT_MESSAGES_CACHE_PREFIX, userId, chatId);
   const envelope = readStorageEnvelope(storageKey);
@@ -1384,13 +1395,19 @@ export default function useChatAreaController({
         url,
         typeof window !== "undefined" ? window.location.origin : RESOLVED_APP_BASE_URL,
       );
-      const hostname = parsedUrl.hostname.replace(/^www\./, "");
-      const currentHostname =
+      const normalizedOrigin = `${parsedUrl.protocol}//${parsedUrl.host}`.replace(
+        /^https?:\/\/www\./,
+        (match) => match.replace("www.", ""),
+      );
+      const currentOrigin =
         typeof window !== "undefined"
-          ? window.location.hostname.replace(/^www\./, "")
-          : "";
+          ? `${window.location.protocol}//${window.location.host}`.replace(
+              /^https?:\/\/www\./,
+              (match) => match.replace("www.", ""),
+            )
+          : normalizeComparableOrigin(RESOLVED_APP_BASE_URL);
 
-      return hostname === "jamm.uz" || hostname === currentHostname;
+      return normalizedOrigin === currentOrigin;
     } catch {
       return false;
     }
