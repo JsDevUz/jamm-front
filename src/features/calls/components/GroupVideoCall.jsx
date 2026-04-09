@@ -1639,6 +1639,7 @@ const GroupVideoCall = ({
   const whiteboardRecordCanvasHostRef = useRef(null);
   const whiteboardRecordStreamRef = useRef(null);
   const whiteboardRecordVideoTrackRef = useRef(null);
+  const whiteboardLocalRecordingAudioTracksRef = useRef([]);
   const whiteboardRecordHeartbeatRef = useRef(0);
   const whiteboardAudioContextRef = useRef(null);
   const whiteboardRenderFrameRef = useRef(0);
@@ -2176,7 +2177,7 @@ const GroupVideoCall = ({
     ],
   );
 
-  const createMixedAudioCapture = useCallback(() => {
+  const createMixedAudioCapture = useCallback(async ({ includeLocal = true, includeRemote = true } = {}) => {
     const AudioContextClass = window.AudioContext || window.webkitAudioContext;
     if (!AudioContextClass) {
       return {
@@ -2187,13 +2188,16 @@ const GroupVideoCall = ({
 
     const audioContext = new AudioContextClass();
     const destination = audioContext.createMediaStreamDestination();
-    const allStreams = [localStream, ...remoteStreams.map((entry) => entry.stream)].filter(Boolean);
+    const allStreams = [
+      ...(includeLocal ? [localStream] : []),
+      ...(includeRemote ? remoteStreams.map((entry) => entry.stream) : []),
+    ].filter(Boolean);
     let connectedSourceCount = 0;
 
     allStreams.forEach((stream) => {
       const audioTracks = stream
         .getAudioTracks()
-        .filter((track) => track.readyState === "live" && track.enabled !== false);
+        .filter((track) => track.readyState === "live");
       if (audioTracks.length === 0) {
         return;
       }
@@ -2212,9 +2216,11 @@ const GroupVideoCall = ({
     }
 
     if (audioContext.state === "suspended") {
-      audioContext.resume().catch((error) => {
+      try {
+        await audioContext.resume();
+      } catch (error) {
         console.error("Failed to resume mixed audio context:", error);
-      });
+      }
     }
 
     return {
@@ -2223,8 +2229,8 @@ const GroupVideoCall = ({
     };
   }, [localStream, remoteStreams]);
 
-  const mixAllAudio = useCallback(() => {
-    const mixedAudio = createMixedAudioCapture();
+  const mixAllAudio = useCallback(async () => {
+    const mixedAudio = await createMixedAudioCapture();
     return mixedAudio.stream;
   }, [createMixedAudioCapture]);
 
@@ -2245,6 +2251,7 @@ const GroupVideoCall = ({
       whiteboardRecordStreamRef.current = null;
     }
 
+    whiteboardLocalRecordingAudioTracksRef.current = [];
     whiteboardRecordVideoTrackRef.current = null;
     whiteboardRecordHeartbeatRef.current = 0;
 
@@ -2284,6 +2291,15 @@ const GroupVideoCall = ({
     whiteboardRenderFrameRef.current = window.requestAnimationFrame(renderWhiteboardRecordingFrame);
   }, []);
 
+  useEffect(() => {
+    const localRecordingTracks = whiteboardLocalRecordingAudioTracksRef.current || [];
+    localRecordingTracks.forEach((track) => {
+      if (track?.readyState === "live") {
+        track.enabled = Boolean(isMicOn);
+      }
+    });
+  }, [isMicOn]);
+
   const stopWhiteboardRecording = useCallback(
     async () => {
       if (whiteboardStopPromiseRef.current) {
@@ -2297,12 +2313,16 @@ const GroupVideoCall = ({
         setIsWhiteboardRecording(false);
         setWhiteboardRecordingElapsedMs(0);
 
-        if (!transport) {
-          cleanupWhiteboardRecordingTransport();
-          return;
-        }
+      if (!transport) {
+        cleanupWhiteboardRecordingTransport();
+        return;
+      }
 
-        transport.stopRequested = true;
+      if (!transport.failureHandled) {
+        toast.success(t("groupCall.whiteboard.recordingQueuedToSavedMessages"));
+      }
+
+      transport.stopRequested = true;
 
         if (recorder?.state && recorder.state !== "inactive") {
           await stopRecorderWithFlush(recorder);
@@ -2358,8 +2378,11 @@ const GroupVideoCall = ({
     }
 
     try {
-      const mixedAudio = createMixedAudioCapture();
-      whiteboardAudioContextRef.current = mixedAudio.audioContext;
+      const remoteMixedAudio = await createMixedAudioCapture({
+        includeLocal: false,
+        includeRemote: true,
+      });
+      whiteboardAudioContextRef.current = remoteMixedAudio.audioContext;
       whiteboardRecordCanvasRef.current = recordCanvas;
       const recordCanvasHost = document.createElement("div");
       recordCanvasHost.setAttribute("aria-hidden", "true");
@@ -2386,9 +2409,49 @@ const GroupVideoCall = ({
         console.error("Failed to request initial whiteboard recording frame:", error);
       }
 
+      let localRecordingAudioStream = null;
+      if (navigator.mediaDevices?.getUserMedia) {
+        try {
+          localRecordingAudioStream = await navigator.mediaDevices.getUserMedia({
+            audio: {
+              echoCancellation: true,
+              noiseSuppression: true,
+              autoGainControl: true,
+              channelCount: 1,
+            },
+            video: false,
+          });
+        } catch (error) {
+          console.error("Failed to capture dedicated whiteboard recording microphone:", error);
+        }
+      }
+
+      const dedicatedLocalAudioTracks = (localRecordingAudioStream?.getAudioTracks?.() || []).map(
+        (track) => {
+          track.enabled = Boolean(isMicOn);
+          return track;
+        },
+      );
+      const fallbackLocalAudioTracks =
+        localRecordingAudioStream?.getAudioTracks?.()?.length
+          ? []
+          : (localStream?.getAudioTracks?.() || [])
+              .filter((track) => track.readyState === "live" && track.enabled !== false)
+              .map((track) => {
+                const clonedTrack = track.clone();
+                clonedTrack.enabled = Boolean(isMicOn);
+                return clonedTrack;
+              });
+      whiteboardLocalRecordingAudioTracksRef.current = [
+        ...dedicatedLocalAudioTracks,
+        ...fallbackLocalAudioTracks,
+      ];
+
       const combinedStream = new MediaStream([
         ...videoStream.getVideoTracks(),
-        ...(mixedAudio?.stream?.getAudioTracks?.() || []),
+        ...dedicatedLocalAudioTracks,
+        ...fallbackLocalAudioTracks,
+        ...(remoteMixedAudio?.stream?.getAudioTracks?.() || []),
       ]);
       whiteboardRecordStreamRef.current = combinedStream;
 
@@ -2431,6 +2494,9 @@ const GroupVideoCall = ({
     createServerRecordingTransport,
     createMixedAudioCapture,
     isWhiteboardRecording,
+    isMicOn,
+    localStream,
+    remoteStreams,
     renderWhiteboardRecordingFrame,
     startStreamingRecording,
     stopWhiteboardRecording,
@@ -2450,7 +2516,7 @@ const GroupVideoCall = ({
         screen.getVideoTracks()[0].onended = () => stopRecording();
 
         // Mix all audio
-        const mixedAudio = createMixedAudioCapture();
+        const mixedAudio = await createMixedAudioCapture();
         meetRecordingAudioContextRef.current = mixedAudio.audioContext;
         meetRecordingAudioStreamRef.current = mixedAudio.stream;
 
@@ -2513,6 +2579,10 @@ const GroupVideoCall = ({
       if (!transport) {
         cleanupMeetRecordingTransport();
         return;
+      }
+
+      if (!transport.failureHandled) {
+        toast.success(t("groupCall.recordingQueuedToSavedMessages"));
       }
 
       transport.stopRequested = true;
