@@ -112,6 +112,32 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
   import.meta.url,
 ).toString();
 
+const PDF_DEBUG_ENABLED = true;
+
+const serializePdfError = (error) => {
+  if (!error) {
+    return null;
+  }
+
+  return {
+    name: error.name,
+    message: error.message,
+    stack: error.stack,
+  };
+};
+
+const logPdfDebug = (step, payload = {}) => {
+  if (!PDF_DEBUG_ENABLED || typeof console === "undefined") {
+    return;
+  }
+
+  console.info(`[WhiteboardPDF] ${step}`, {
+    ...payload,
+    workerSrc: pdfjsLib.GlobalWorkerOptions.workerSrc,
+    pageHref: typeof window !== "undefined" ? window.location.href : "",
+  });
+};
+
 const clampUnit = (value) => Math.min(1, Math.max(0, value));
 const clampStoredCoordinate = (value, surfaceMode = "page") => {
   const nextValue = Number(value);
@@ -823,10 +849,16 @@ const isPublicCdnPdfUrl = (fileUrl) => /^https?:\/\/files\./i.test(String(fileUr
 
 const buildPdfProxyUrl = (fileUrl) => {
   const normalizedUrl = String(fileUrl || "").trim();
+  logPdfDebug("build-url", {
+    fileUrl,
+    normalizedUrl,
+    isPublicCdn: isPublicCdnPdfUrl(normalizedUrl),
+  });
   return normalizedUrl;
 };
 
 const fetchPdfDocumentBuffer = async (targetUrl) => {
+  logPdfDebug("buffer-fetch:start", { targetUrl });
   const response = await fetch(targetUrl, {
     credentials: "omit",
     cache: "no-store",
@@ -835,13 +867,38 @@ const fetchPdfDocumentBuffer = async (targetUrl) => {
     },
   });
   if (!response.ok) {
+    logPdfDebug("buffer-fetch:http-error", {
+      targetUrl,
+      status: response.status,
+      statusText: response.statusText,
+    });
     throw new Error(`PDF fetch failed with ${response.status}`);
   }
+
+  logPdfDebug("buffer-fetch:response", {
+    targetUrl,
+    status: response.status,
+    statusText: response.statusText,
+    contentType: response.headers.get("content-type"),
+    contentLength: response.headers.get("content-length"),
+    acceptRanges: response.headers.get("accept-ranges"),
+    contentRange: response.headers.get("content-range"),
+    cacheControl: response.headers.get("cache-control"),
+  });
 
   const pdfBuffer = await response.arrayBuffer();
   const pdfBytes = new Uint8Array(pdfBuffer);
   const pdfSignature = String.fromCharCode(...pdfBytes.slice(0, 5));
+  logPdfDebug("buffer-fetch:bytes", {
+    targetUrl,
+    byteLength: pdfBytes.byteLength,
+    signature: pdfSignature,
+  });
   if (pdfSignature !== "%PDF-") {
+    logPdfDebug("buffer-fetch:invalid-signature", {
+      targetUrl,
+      signature: pdfSignature,
+    });
     throw new Error("PDF response did not return a valid PDF file");
   }
   const loadingTask = pdfjsLib.getDocument({
@@ -850,45 +907,100 @@ const fetchPdfDocumentBuffer = async (targetUrl) => {
     disableStream: true,
     disableAutoFetch: true,
   });
-  return loadingTask.promise;
+  loadingTask.onProgress = (progress) => {
+    logPdfDebug("buffer-fetch:progress", {
+      targetUrl,
+      loaded: progress?.loaded,
+      total: progress?.total,
+    });
+  };
+  try {
+    const pdfDocument = await loadingTask.promise;
+    logPdfDebug("buffer-fetch:pdf-ready", {
+      targetUrl,
+      numPages: pdfDocument?.numPages,
+    });
+    return pdfDocument;
+  } catch (error) {
+    logPdfDebug("buffer-fetch:pdf-error", {
+      targetUrl,
+      error: serializePdfError(error),
+    });
+    throw error;
+  }
 };
 
 const loadPdfDocument = async (fileUrl, options = {}) => {
   const targetUrl = buildPdfProxyUrl(fileUrl);
   const preferBuffer = Boolean(options.preferBuffer);
+  logPdfDebug("load:start", {
+    fileUrl,
+    targetUrl,
+    preferBuffer,
+    isPublicCdn: isPublicCdnPdfUrl(targetUrl),
+  });
 
-  if (isPublicCdnPdfUrl(targetUrl)) {
-    const loadingTask = pdfjsLib.getDocument({
-      url: targetUrl,
-      withCredentials: false,
-      disableRange: true,
-      disableStream: true,
-      disableAutoFetch: true,
-    });
-    return loadingTask.promise;
-  }
-
-  if (preferBuffer) {
+  if (preferBuffer || isPublicCdnPdfUrl(targetUrl)) {
+    logPdfDebug("load:prefer-buffer", { targetUrl });
     return fetchPdfDocumentBuffer(targetUrl);
   }
 
   try {
+    logPdfDebug("load:url-anon:start", { targetUrl });
     const loadingTask = pdfjsLib.getDocument({
       url: targetUrl,
       withCredentials: false,
     });
-    return await loadingTask.promise;
+    loadingTask.onProgress = (progress) => {
+      logPdfDebug("load:url-anon:progress", {
+        targetUrl,
+        loaded: progress?.loaded,
+        total: progress?.total,
+      });
+    };
+    const pdfDocument = await loadingTask.promise;
+    logPdfDebug("load:url-anon:ready", {
+      targetUrl,
+      numPages: pdfDocument?.numPages,
+    });
+    return pdfDocument;
   } catch (publicUrlError) {
+    logPdfDebug("load:url-anon:error", {
+      targetUrl,
+      error: serializePdfError(publicUrlError),
+    });
     try {
+      logPdfDebug("load:url-auth:start", { targetUrl });
       const authenticatedLoadingTask = pdfjsLib.getDocument({
         url: targetUrl,
         withCredentials: true,
       });
-      return await authenticatedLoadingTask.promise;
+      authenticatedLoadingTask.onProgress = (progress) => {
+        logPdfDebug("load:url-auth:progress", {
+          targetUrl,
+          loaded: progress?.loaded,
+          total: progress?.total,
+        });
+      };
+      const pdfDocument = await authenticatedLoadingTask.promise;
+      logPdfDebug("load:url-auth:ready", {
+        targetUrl,
+        numPages: pdfDocument?.numPages,
+      });
+      return pdfDocument;
     } catch (credentialedUrlError) {
+      logPdfDebug("load:url-auth:error", {
+        targetUrl,
+        error: serializePdfError(credentialedUrlError),
+      });
       try {
+        logPdfDebug("load:fallback-buffer", { targetUrl });
         return await fetchPdfDocumentBuffer(targetUrl);
       } catch (fetchIncludeError) {
+        logPdfDebug("load:fallback-buffer:error", {
+          targetUrl,
+          error: serializePdfError(fetchIncludeError),
+        });
         throw fetchIncludeError || credentialedUrlError || publicUrlError;
       }
     }
@@ -2308,6 +2420,11 @@ const PdfPickerPageCard = ({ pdfDocument, pageNumber, active = false, onClick })
     let disposed = false;
 
     const renderPreview = async ({ targetWidth, pixelRatio }) => {
+      logPdfDebug("picker-preview:start", {
+        pageNumber,
+        targetWidth,
+        pixelRatio,
+      });
       const page = await pdfDocument.getPage(pageNumber);
       if (disposed) {
         return false;
@@ -2342,6 +2459,13 @@ const PdfPickerPageCard = ({ pdfDocument, pageNumber, active = false, onClick })
       });
       await renderTask.promise;
       page.cleanup?.();
+      logPdfDebug("picker-preview:ready", {
+        pageNumber,
+        targetWidth,
+        pixelRatio,
+        viewportWidth: viewport.width,
+        viewportHeight: viewport.height,
+      });
       return true;
     };
 
@@ -2366,6 +2490,10 @@ const PdfPickerPageCard = ({ pdfDocument, pageNumber, active = false, onClick })
           setRenderState("ready");
         }
       } catch (error) {
+        logPdfDebug("picker-preview:primary-error", {
+          pageNumber,
+          error: serializePdfError(error),
+        });
         try {
           const fallbackRendered = await renderPreview({
             targetWidth: 128,
@@ -2375,7 +2503,12 @@ const PdfPickerPageCard = ({ pdfDocument, pageNumber, active = false, onClick })
             setRenderState("ready");
             return;
           }
-        } catch {}
+        } catch (fallbackError) {
+          logPdfDebug("picker-preview:fallback-error", {
+            pageNumber,
+            error: serializePdfError(fallbackError),
+          });
+        }
 
         if (!disposed) {
           setRenderState("error");
@@ -4584,6 +4717,12 @@ const WhiteboardTile = ({
 
     const loadPdf = async () => {
       try {
+        logPdfDebug("viewer-load:start", {
+          tabId: activeTab.id,
+          fileUrl: activeTab.fileUrl,
+          selectedPagesMode: activeTab.selectedPagesMode,
+          selectedPages: activeTab.selectedPages,
+        });
         const pdfDocument = await loadPdfDocument(activeTab.fileUrl);
         const firstPage = await pdfDocument.getPage(1);
         const firstViewport = firstPage.getViewport({
@@ -4608,6 +4747,14 @@ const WhiteboardTile = ({
         }
 
         pdfDocumentRef.current = pdfDocument;
+        logPdfDebug("viewer-load:ready", {
+          tabId: activeTab.id,
+          fileUrl: activeTab.fileUrl,
+          numPages: pdfDocument?.numPages,
+          selectedPagesCount: pageDescriptors.length,
+          firstViewportWidth: firstViewport.width,
+          firstViewportHeight: firstViewport.height,
+        });
         setPdfMeta({
           status: "ready",
           fileUrl: activeTab.fileUrl,
@@ -4616,6 +4763,11 @@ const WhiteboardTile = ({
           error: "",
         });
       } catch (error) {
+        logPdfDebug("viewer-load:error", {
+          tabId: activeTab.id,
+          fileUrl: activeTab.fileUrl,
+          error: serializePdfError(error),
+        });
         if (!disposed) {
           setPdfMeta({
             status: "error",
@@ -5466,12 +5618,22 @@ const WhiteboardTile = ({
       });
 
       try {
+        logPdfDebug("picker-load:start", {
+          itemId: item.id,
+          fileUrl: item.fileUrl,
+          title: item.title,
+        });
         const pdfDocument = await loadPdfDocument(item.fileUrl);
         const pageCount = pdfDocument.numPages || 0;
         pdfPageCountCacheRef.current[item.id] = pageCount;
         pdfPickerDocumentRef.current = pdfDocument;
         pdfPickerDocumentKeyRef.current = item.id;
 
+        logPdfDebug("picker-load:ready", {
+          itemId: item.id,
+          fileUrl: item.fileUrl,
+          pageCount,
+        });
         setPdfPickerState({
           status: "ready",
           item,
@@ -5480,6 +5642,11 @@ const WhiteboardTile = ({
           error: "",
         });
       } catch (error) {
+        logPdfDebug("picker-load:error", {
+          itemId: item.id,
+          fileUrl: item.fileUrl,
+          error: serializePdfError(error),
+        });
         setPdfPickerState({
           status: "error",
           item,
