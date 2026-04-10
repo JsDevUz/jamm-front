@@ -1293,6 +1293,7 @@ const VideoEl = ({
   isLocal = false,
   label,
   isCamOn = true,
+  hasAudio = false,
   isScreenShare = false,
   canFullscreen = false,
   isFullscreen = false,
@@ -1305,6 +1306,7 @@ const VideoEl = ({
 }) => {
   const { t } = useTranslation();
   const ref = useRef(null);
+  const audioRef = useRef(null);
 
   useEffect(() => {
     const node = ref.current;
@@ -1351,6 +1353,47 @@ const VideoEl = ({
     };
   }, [isCamOn, stream]);
 
+  useEffect(() => {
+    const node = audioRef.current;
+    if (!node || !stream || muted || !hasAudio) return undefined;
+
+    if (node.srcObject !== stream) {
+      node.srcObject = stream;
+    }
+
+    let cancelled = false;
+    let retryTimeoutId = null;
+
+    const ensurePlayback = () => {
+      if (cancelled || !audioRef.current) return;
+
+      const playPromise = audioRef.current.play?.();
+      if (playPromise?.catch) {
+        playPromise.catch(() => {
+          if (cancelled) return;
+          retryTimeoutId = window.setTimeout(() => {
+            ensurePlayback();
+          }, 180);
+        });
+      }
+    };
+
+    node.onloadedmetadata = ensurePlayback;
+    node.oncanplay = ensurePlayback;
+    ensurePlayback();
+
+    return () => {
+      cancelled = true;
+      if (retryTimeoutId) {
+        window.clearTimeout(retryTimeoutId);
+      }
+      if (node) {
+        node.onloadedmetadata = null;
+        node.oncanplay = null;
+      }
+    };
+  }, [hasAudio, muted, stream]);
+
   const handleTileClick = useCallback(() => {
     onSelect?.();
   }, [onSelect]);
@@ -1374,6 +1417,7 @@ const VideoEl = ({
       $clickable={Boolean(onSelect)}
       onClick={handleTileClick}
     >
+      {stream && hasAudio && !muted ? <audio ref={audioRef} autoPlay playsInline /> : null}
       {canFullscreen ? (
         <FullscreenBtn
           type="button"
@@ -2822,6 +2866,7 @@ const GroupVideoCall = ({
         isLocal: true,
         isScreenShare: false,
         hasVideo: Boolean(localStream) && isCamOn,
+        hasAudio: Boolean(localStream?.getAudioTracks?.().length),
         canFullscreen: Boolean(localStream) && isCamOn,
         handRaised: false,
         isCamOn,
@@ -2839,6 +2884,7 @@ const GroupVideoCall = ({
         isLocal: true,
         isScreenShare: true,
         hasVideo: true,
+        hasAudio: Boolean(screenStream?.getAudioTracks?.().length),
         canFullscreen: true,
         handRaised: false,
         isCamOn: true,
@@ -2852,6 +2898,8 @@ const GroupVideoCall = ({
       const peerState = remotePeerStates[peerId];
       const isRemoteCamOn =
         peerState?.hasVideo !== false && peerState?.videoMuted !== true;
+      const isRemoteAudioOn =
+        peerState?.hasAudio !== false && peerState?.audioMuted !== true;
 
       renderedRemotePeerIds.add(peerId);
 
@@ -2864,6 +2912,7 @@ const GroupVideoCall = ({
         isLocal: false,
         isScreenShare: false,
         hasVideo: Boolean(stream) && isRemoteCamOn,
+        hasAudio: Boolean(stream) && isRemoteAudioOn,
         canFullscreen: Boolean(stream) && isRemoteCamOn,
         handRaised: raisedHands.has(peerId),
         isCamOn: isRemoteCamOn,
@@ -2879,6 +2928,8 @@ const GroupVideoCall = ({
       const remoteName = peerState?.displayName || peerId;
       const isRemoteCamOn =
         peerState?.hasVideo !== false && peerState?.videoMuted !== true;
+      const isRemoteAudioOn =
+        peerState?.hasAudio !== false && peerState?.audioMuted !== true;
 
       tiles.push({
         id: peerId,
@@ -2889,6 +2940,7 @@ const GroupVideoCall = ({
         isLocal: false,
         isScreenShare: false,
         hasVideo: false,
+        hasAudio: isRemoteAudioOn,
         canFullscreen: false,
         handRaised: raisedHands.has(peerId),
         isCamOn: isRemoteCamOn,
@@ -2906,6 +2958,7 @@ const GroupVideoCall = ({
         isLocal: false,
         isScreenShare: true,
         hasVideo: Boolean(stream),
+        hasAudio: Boolean(stream?.getAudioTracks?.().length),
         canFullscreen: Boolean(stream),
         handRaised: false,
         isCamOn: true,
@@ -3215,6 +3268,7 @@ const GroupVideoCall = ({
       isLocal={tile.isLocal}
       label={tile.label}
       isCamOn={tile.isCamOn}
+      hasAudio={tile.hasAudio}
       isScreenShare={tile.isScreenShare}
       canFullscreen={showFullscreenControl && tile.hasVideo}
       isFullscreen={fullscreenTileId === tile.id}

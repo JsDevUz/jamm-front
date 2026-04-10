@@ -1333,24 +1333,7 @@ export function useWebRTC({
       return directSender;
     }
 
-    if (typeof pc.getTransceivers !== "function") {
-      return null;
-    }
-
-    const transceiver = pc.getTransceivers().find((item) => {
-      const sender = item?.sender;
-      if (!sender) {
-        return false;
-      }
-
-      if (sender.track?.kind === kind) {
-        return true;
-      }
-
-      return sender.track == null && item.receiver?.track?.kind === kind;
-    });
-
-    return transceiver?.sender || null;
+    return null;
   }, []);
 
   const renegotiatePeerConnection = useCallback(
@@ -1612,8 +1595,8 @@ export function useWebRTC({
           if (matchingSender) {
             try {
               await matchingSender.replaceTrack(nextTrack);
+              return;
             } catch {}
-            return;
           }
 
           try {
@@ -1679,8 +1662,8 @@ export function useWebRTC({
         if (existingSender) {
           try {
             await existingSender.replaceTrack(nextTrack);
+            return;
           } catch {}
-          return;
         }
 
         try {
@@ -1882,9 +1865,11 @@ export function useWebRTC({
                       track.readyState !== "live" || track.muted === true,
                   )
                 : true,
-          });
+            });
         };
 
+        s.onaddtrack = syncTrackState;
+        s.onremovetrack = syncTrackState;
         [...s.getVideoTracks(), ...s.getAudioTracks()].forEach((track) => {
           track.onmute = syncTrackState;
           track.onunmute = syncTrackState;
