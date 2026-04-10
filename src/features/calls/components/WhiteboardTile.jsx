@@ -41,7 +41,6 @@ import {
   ModalTitle,
   ModalTitleBlock,
 } from "../../../shared/ui/dialogs/ModalShell";
-import { API_BASE_URL } from "../../../config/env";
 
 const WHITEBOARD_APPEND_BATCH_LIMIT = 24;
 const WHITEBOARD_SWATCHES = [
@@ -822,54 +821,34 @@ const waitForAnimationFrame = () =>
 
 const buildPdfProxyUrl = (fileUrl) => {
   const normalizedUrl = String(fileUrl || "").trim();
-  if (!normalizedUrl || !API_BASE_URL) {
-    return normalizedUrl;
-  }
-
-  if (!/^https?:\/\//i.test(normalizedUrl)) {
-    return normalizedUrl;
-  }
-
-  return `${API_BASE_URL}/courses/file-proxy?url=${encodeURIComponent(normalizedUrl)}`;
+  return normalizedUrl;
 };
 
 const fetchPdfDocumentBuffer = async (targetUrl) => {
-  const tryFetch = async (credentials) => {
-    const response = await fetch(targetUrl, {
-      credentials,
-      cache: "no-store",
-      headers: {
-        Accept: "application/pdf",
-      },
-    });
-    if (!response.ok) {
-      throw new Error(`PDF fetch failed with ${response.status}`);
-    }
-
-    const pdfBuffer = await response.arrayBuffer();
-    const pdfBytes = new Uint8Array(pdfBuffer);
-    const pdfSignature = String.fromCharCode(...pdfBytes.slice(0, 5));
-    if (pdfSignature !== "%PDF-") {
-      throw new Error("Proxy did not return a valid PDF file");
-    }
-    const loadingTask = pdfjsLib.getDocument({
-      data: pdfBytes,
-      disableRange: true,
-      disableStream: true,
-      disableAutoFetch: true,
-    });
-    return loadingTask.promise;
-  };
-
-  try {
-    return await tryFetch("include");
-  } catch (includeError) {
-    try {
-      return await tryFetch("omit");
-    } catch (omitError) {
-      throw omitError || includeError;
-    }
+  const response = await fetch(targetUrl, {
+    credentials: "omit",
+    cache: "no-store",
+    headers: {
+      Accept: "application/pdf",
+    },
+  });
+  if (!response.ok) {
+    throw new Error(`PDF fetch failed with ${response.status}`);
   }
+
+  const pdfBuffer = await response.arrayBuffer();
+  const pdfBytes = new Uint8Array(pdfBuffer);
+  const pdfSignature = String.fromCharCode(...pdfBytes.slice(0, 5));
+  if (pdfSignature !== "%PDF-") {
+    throw new Error("PDF response did not return a valid PDF file");
+  }
+  const loadingTask = pdfjsLib.getDocument({
+    data: pdfBytes,
+    disableRange: true,
+    disableStream: true,
+    disableAutoFetch: true,
+  });
+  return loadingTask.promise;
 };
 
 const loadPdfDocument = async (fileUrl, options = {}) => {

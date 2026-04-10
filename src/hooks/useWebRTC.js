@@ -1255,6 +1255,7 @@ export function useWebRTC({
   const candidateQueuesRef = useRef({}); // Store candidates until remote sdp is set
   const screenPeerConnectionsRef = useRef({});
   const screenCandidateQueuesRef = useRef({});
+  const negotiationTasksRef = useRef({});
   const statsIntervalRef = useRef(null);
   const qualityProfileRef = useRef(CALL_QUALITY_PROFILES.balanced);
   const cameraFacingModeRef = useRef("user");
@@ -1307,6 +1308,87 @@ export function useWebRTC({
       return nextState;
     });
   }, []);
+
+  const getPeerConnectionSender = useCallback((pc, kind, preferredTrackId = "") => {
+    if (!pc || typeof pc.getSenders !== "function") {
+      return null;
+    }
+
+    const preferredSender =
+      preferredTrackId &&
+      pc
+        .getSenders()
+        .find(
+          (sender) =>
+            sender.track?.kind === kind && sender.track?.id === preferredTrackId,
+        );
+    if (preferredSender) {
+      return preferredSender;
+    }
+
+    const directSender = pc
+      .getSenders()
+      .find((sender) => sender.track?.kind === kind);
+    if (directSender) {
+      return directSender;
+    }
+
+    if (typeof pc.getTransceivers !== "function") {
+      return null;
+    }
+
+    const transceiver = pc.getTransceivers().find((item) => {
+      const sender = item?.sender;
+      if (!sender) {
+        return false;
+      }
+
+      if (sender.track?.kind === kind) {
+        return true;
+      }
+
+      return sender.track == null && item.receiver?.track?.kind === kind;
+    });
+
+    return transceiver?.sender || null;
+  }, []);
+
+  const renegotiatePeerConnection = useCallback(
+    async (peerId, pc) => {
+      if (!peerId || !pc || !socketRef.current || pc.signalingState !== "stable") {
+        return false;
+      }
+
+      if (negotiationTasksRef.current[peerId]) {
+        return negotiationTasksRef.current[peerId];
+      }
+
+      const task = (async () => {
+        try {
+          if (pc.signalingState !== "stable") {
+            return false;
+          }
+
+          const offer = await pc.createOffer();
+          if (pc.signalingState !== "stable") {
+            return false;
+          }
+
+          await pc.setLocalDescription(offer);
+          socketRef.current?.emit("offer", { targetId: peerId, sdp: offer });
+          return true;
+        } catch {
+          return false;
+        } finally {
+          delete negotiationTasksRef.current[peerId];
+        }
+      })();
+
+      negotiationTasksRef.current[peerId] = task;
+      return task;
+    },
+    [],
+  );
 
   const resetWhiteboardState = useCallback(() => {
     const nextState = createInitialWhiteboardState();
@@ -1518,35 +1600,46 @@ export function useWebRTC({
         stream.removeTrack(previousTrack);
       }
 
+      const peersToRenegotiate = [];
       const replaceTasks = Object.entries(peerConnectionsRef.current).map(
-        async ([, pc]) => {
-          const matchingSender =
-            pc
-              .getSenders()
-              .find(
-                (sender) =>
-                  sender.track?.kind === "video" &&
-                  (!previousTrack || sender.track?.id === previousTrack.id),
-              ) ||
-            pc
-              .getSenders()
-              .find((sender) => sender.track?.kind === "video");
+        async ([peerId, pc]) => {
+          const matchingSender = getPeerConnectionSender(
+            pc,
+            "video",
+            previousTrack?.id || "",
+          );
 
           if (matchingSender) {
             try {
               await matchingSender.replaceTrack(nextTrack);
             } catch {}
+            return;
           }
+
+          try {
+            pc.addTrack(nextTrack, stream);
+            peersToRenegotiate.push([peerId, pc]);
+          } catch {}
         },
       );
 
       await Promise.all(replaceTasks);
+      await Promise.all(
+        peersToRenegotiate.map(([peerId, pc]) =>
+          renegotiatePeerConnection(peerId, pc),
+        ),
+      );
       previousTrack?.stop();
       syncLocalStreamState(stream);
       await applyMediaOptimization(qualityProfileRef.current);
       return true;
     },
-    [applyMediaOptimization, syncLocalStreamState],
+    [
+      applyMediaOptimization,
+      getPeerConnectionSender,
+      renegotiatePeerConnection,
+      syncLocalStreamState,
+    ],
   );
 
   const ensureLocalAudioTrack = useCallback(async () => {
@@ -1579,10 +1672,9 @@ export function useWebRTC({
       nextTrack.enabled = true;
       stream.addTrack(nextTrack);
 
-      const senderTasks = Object.values(peerConnectionsRef.current).map(async (pc) => {
-        const existingSender = pc
-          .getSenders()
-          .find((sender) => sender.track?.kind === "audio");
+      const peersToRenegotiate = [];
+      const senderTasks = Object.entries(peerConnectionsRef.current).map(async ([peerId, pc]) => {
+        const existingSender = getPeerConnectionSender(pc, "audio");
 
         if (existingSender) {
           try {
@@ -1593,10 +1685,16 @@ export function useWebRTC({
 
         try {
           pc.addTrack(nextTrack, stream);
+          peersToRenegotiate.push([peerId, pc]);
         } catch {}
       });
 
       await Promise.all(senderTasks);
+      await Promise.all(
+        peersToRenegotiate.map(([peerId, pc]) =>
+          renegotiatePeerConnection(peerId, pc),
+        ),
+      );
       syncLocalStreamState(stream);
       setIsMicOn(true);
       await applyMediaOptimization(qualityProfileRef.current);
@@ -1605,7 +1703,12 @@ export function useWebRTC({
       console.error("Enable microphone error:", err);
       return false;
     }
-  }, [applyMediaOptimization, syncLocalStreamState]);
+  }, [
+    applyMediaOptimization,
+    getPeerConnectionSender,
+    renegotiatePeerConnection,
+    syncLocalStreamState,
+  ]);
 
   const disableLocalVideoTrack = useCallback(async () => {
     const stream = localStreamRef.current;
@@ -1616,9 +1719,11 @@ export function useWebRTC({
     }
 
     const replaceTasks = Object.values(peerConnectionsRef.current).map(async (pc) => {
-      const videoSender = pc
-        .getSenders()
-        .find((sender) => sender.track?.kind === "video" && sender.track.id === currentTrack.id);
+      const videoSender = getPeerConnectionSender(
+        pc,
+        "video",
+        currentTrack.id,
+      );
 
       if (!videoSender) {
         return;
@@ -1635,7 +1740,7 @@ export function useWebRTC({
     syncLocalStreamState(stream);
     setIsCamOn(false);
     return true;
-  }, [syncLocalStreamState]);
+  }, [getPeerConnectionSender, syncLocalStreamState]);
 
   const ensureLocalVideoTrack = useCallback(async () => {
     if (!navigator.mediaDevices?.getUserMedia) return false;
@@ -2492,6 +2597,7 @@ export function useWebRTC({
       Object.values(screenPeerConnectionsRef.current).forEach((pc) => pc.close());
       screenPeerConnectionsRef.current = {};
       screenCandidateQueuesRef.current = {};
+      negotiationTasksRef.current = {};
       if (localStreamRef.current) {
         localStreamRef.current.getTracks().forEach((t) => t.stop());
         localStreamRef.current = null;
