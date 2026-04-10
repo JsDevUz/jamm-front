@@ -847,8 +847,16 @@ const fetchPdfDocumentBuffer = async (targetUrl) => {
     }
 
     const pdfBuffer = await response.arrayBuffer();
+    const pdfBytes = new Uint8Array(pdfBuffer);
+    const pdfSignature = String.fromCharCode(...pdfBytes.slice(0, 5));
+    if (pdfSignature !== "%PDF-") {
+      throw new Error("Proxy did not return a valid PDF file");
+    }
     const loadingTask = pdfjsLib.getDocument({
-      data: pdfBuffer,
+      data: pdfBytes,
+      disableRange: true,
+      disableStream: true,
+      disableAutoFetch: true,
     });
     return loadingTask.promise;
   };
