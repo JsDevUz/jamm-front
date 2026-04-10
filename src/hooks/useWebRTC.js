@@ -287,6 +287,15 @@ const normalizeWhiteboardViewportLeftRatio = (leftRatio) => {
   return Math.min(1, Math.max(0, nextLeftRatio));
 };
 
+const normalizeWhiteboardViewportVisibleWidthRatio = (widthRatio) => {
+  const nextWidthRatio = Number(widthRatio);
+  if (!Number.isFinite(nextWidthRatio)) {
+    return 0;
+  }
+
+  return Math.min(1, Math.max(0, nextWidthRatio));
+};
+
 const normalizeWhiteboardZoom = (zoom) => {
   const nextZoom = Number(zoom);
   if (!Number.isFinite(nextZoom)) {
@@ -477,6 +486,9 @@ const normalizeWhiteboardTab = (tab) => {
       viewportPageOffsetRatio: normalizeWhiteboardScrollRatio(tab.viewportPageOffsetRatio),
       viewportLeftRatio: normalizeWhiteboardViewportLeftRatio(tab.viewportLeftRatio),
       viewportVisibleHeightRatio: normalizeWhiteboardScrollRatio(tab.viewportVisibleHeightRatio),
+      viewportVisibleWidthRatio: normalizeWhiteboardViewportVisibleWidthRatio(
+        tab.viewportVisibleWidthRatio,
+      ),
       viewportBaseWidth: normalizeWhiteboardViewportBaseWidth(tab.viewportBaseWidth),
       selectedPagesMode: normalizeWhiteboardSelectedPagesMode(
         tab.selectedPagesMode,
@@ -961,6 +973,7 @@ const addWhiteboardPdfTabToState = (state, nextTab) => {
     viewportPageOffsetRatio: 0,
     viewportLeftRatio: 0,
     viewportVisibleHeightRatio: 0,
+    viewportVisibleWidthRatio: 0,
     viewportBaseWidth: WHITEBOARD_MIN_VIEWPORT_BASE_WIDTH,
     selectedPagesMode:
       nextTab.selectedPagesMode ||
@@ -1038,6 +1051,7 @@ const setWhiteboardPdfViewportInState = (
     viewportPageOffsetRatio,
     viewportLeftRatio,
     viewportVisibleHeightRatio,
+    viewportVisibleWidthRatio,
     viewportBaseWidth,
   },
 ) => {
@@ -1073,6 +1087,10 @@ const setWhiteboardPdfViewportInState = (
               typeof viewportVisibleHeightRatio === "undefined"
                 ? normalizeWhiteboardScrollRatio(tab.viewportVisibleHeightRatio)
                 : normalizeWhiteboardScrollRatio(viewportVisibleHeightRatio),
+            viewportVisibleWidthRatio:
+              typeof viewportVisibleWidthRatio === "undefined"
+                ? normalizeWhiteboardViewportVisibleWidthRatio(tab.viewportVisibleWidthRatio)
+                : normalizeWhiteboardViewportVisibleWidthRatio(viewportVisibleWidthRatio),
             viewportBaseWidth:
               typeof viewportBaseWidth === "undefined"
                 ? normalizeWhiteboardViewportBaseWidth(tab.viewportBaseWidth)
@@ -3117,6 +3135,7 @@ export function useWebRTC({
       viewportPageOffsetRatio,
       viewportLeftRatio,
       viewportVisibleHeightRatio,
+      viewportVisibleWidthRatio,
       viewportBaseWidth,
     }) => {
       if (!isCreator || !socketRef.current) {
@@ -3136,6 +3155,7 @@ export function useWebRTC({
           viewportPageOffsetRatio,
           viewportLeftRatio,
           viewportVisibleHeightRatio,
+          viewportVisibleWidthRatio,
           viewportBaseWidth,
         }),
       );
@@ -3148,6 +3168,7 @@ export function useWebRTC({
         viewportPageOffsetRatio,
         viewportLeftRatio,
         viewportVisibleHeightRatio,
+        viewportVisibleWidthRatio,
         viewportBaseWidth,
       });
       return true;

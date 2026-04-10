@@ -1486,7 +1486,7 @@ const CoursePlayer = ({ courseId, initialLessonSlug, onClose }) => {
       class SegmentCacheFriendlyLoader extends DefaultLoader {
         load(context, config, callbacks) {
           const requestUrl = String(context?.url || "");
-          const isCdnAsset = /^https?:\/\/files\.tayn\.uz\//i.test(requestUrl);
+          const isCdnAsset = /^https?:\/\/files\.jamm\.uz\//i.test(requestUrl);
           if (isCdnAsset) {
             delete context.rangeStart;
             delete context.rangeEnd;
@@ -1501,12 +1501,12 @@ const CoursePlayer = ({ courseId, initialLessonSlug, onClose }) => {
         loader: SegmentCacheFriendlyLoader,
         xhrSetup: (xhr, url) => {
           const requestUrl = String(url || "");
-          const isCdnAsset = /^https?:\/\/files\.tayn\.uz\//i.test(requestUrl);
+          const isCdnAsset = /^https?:\/\/files\.jamm\.uz\//i.test(requestUrl);
           xhr.withCredentials = !isCdnAsset;
         },
         fetchSetup: (context, initParams) => {
           const requestUrl = String(context?.url || "");
-          const isCdnAsset = /^https?:\/\/files\.tayn\.uz\//i.test(requestUrl);
+          const isCdnAsset = /^https?:\/\/files\.jamm\.uz\//i.test(requestUrl);
           const headers = new Headers(initParams?.headers || {});
           if (isCdnAsset) {
             headers.delete("Range");

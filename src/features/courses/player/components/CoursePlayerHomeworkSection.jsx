@@ -176,13 +176,13 @@ const HomeworkHlsVideoPreview = ({
         lowLatencyMode: false,
         xhrSetup: (xhr, url) => {
           const requestUrl = String(url || "");
-          const isCdnAsset = /^https?:\/\/files\.tayn\.uz\//i.test(requestUrl);
+          const isCdnAsset = /^https?:\/\/files\.jamm\.uz\//i.test(requestUrl);
           xhr.withCredentials = false;
           void isCdnAsset;
         },
         fetchSetup: (context, initParams) => {
           const requestUrl = String(context?.url || "");
-          const isCdnAsset = /^https?:\/\/files\.tayn\.uz\//i.test(requestUrl);
+          const isCdnAsset = /^https?:\/\/files\.jamm\.uz\//i.test(requestUrl);
           return new Request(requestUrl, {
             ...initParams,
             credentials: isCdnAsset ? "omit" : "include",

@@ -41,6 +41,7 @@ import {
   ModalTitle,
   ModalTitleBlock,
 } from "../../../shared/ui/dialogs/ModalShell";
+import { API_BASE_URL } from "../../../config/env";
 
 const WHITEBOARD_APPEND_BATCH_LIMIT = 24;
 const WHITEBOARD_SWATCHES = [
@@ -819,23 +820,38 @@ const waitForAnimationFrame = () =>
     });
   });
 
+const buildPdfProxyUrl = (fileUrl) => {
+  const normalizedUrl = String(fileUrl || "").trim();
+  if (!normalizedUrl || !API_BASE_URL) {
+    return normalizedUrl;
+  }
+
+  if (!/^https?:\/\//i.test(normalizedUrl)) {
+    return normalizedUrl;
+  }
+
+  return `${API_BASE_URL}/courses/file-proxy?url=${encodeURIComponent(normalizedUrl)}`;
+};
+
 const loadPdfDocument = async (fileUrl) => {
+  const targetUrl = buildPdfProxyUrl(fileUrl);
+
   try {
     const loadingTask = pdfjsLib.getDocument({
-      url: fileUrl,
+      url: targetUrl,
       withCredentials: false,
     });
     return await loadingTask.promise;
   } catch (publicUrlError) {
     try {
       const authenticatedLoadingTask = pdfjsLib.getDocument({
-        url: fileUrl,
+        url: targetUrl,
         withCredentials: true,
       });
       return await authenticatedLoadingTask.promise;
     } catch (credentialedUrlError) {
       try {
-        const response = await fetch(fileUrl, {
+        const response = await fetch(targetUrl, {
           credentials: "include",
         });
         if (!response.ok) {
@@ -848,7 +864,7 @@ const loadPdfDocument = async (fileUrl) => {
         });
         return await loadingTask.promise;
       } catch (fetchIncludeError) {
-        const response = await fetch(fileUrl, {
+        const response = await fetch(targetUrl, {
           credentials: "omit",
         });
         if (!response.ok) {
@@ -1274,7 +1290,7 @@ const AddTabButton = styled.button`
 `;
 
 const Toolbar = styled.div`
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: flex-start;
   gap: 12px;
@@ -1286,7 +1302,15 @@ const Toolbar = styled.div`
   box-shadow: 0 12px 24px rgba(15, 23, 42, 0.1);
   width: fit-content;
   max-width: calc(100% - 24px);
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
   pointer-events: auto;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
 
   @media (max-width: 768px) {
     max-width: calc(100% - 16px);
@@ -1297,12 +1321,18 @@ const ToolbarMain = styled.div`
   display: flex;
   align-items: center;
   gap: 12px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  flex: 0 0 auto;
 `;
 
 const ToolbarSpacer = styled.div`
   flex: 1 1 auto;
   min-width: 8px;
+
+  @media (max-width: 768px) {
+    flex: 0 0 0;
+    min-width: 0;
+  }
 `;
 
 const ToolbarRight = styled.div`
@@ -1332,7 +1362,8 @@ const ToolbarGroup = styled.div`
   display: flex;
   align-items: center;
   gap: 8px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  flex: 0 0 auto;
 `;
 
 const ToolbarDivider = styled.div`
@@ -4062,7 +4093,29 @@ const WhiteboardTile = ({
     activeTab?.type === "pdf"
       ? clampViewportRatio(activeTab.viewportVisibleHeightRatio)
       : 0;
-  const syncedGuestPdfWidth =
+  const syncedViewportVisibleWidthRatio =
+    activeTab?.type === "pdf"
+      ? clampViewportRatio(activeTab.viewportVisibleWidthRatio)
+      : 0;
+  const localBoardBaseWidth = Math.max(
+    WHITEBOARD_MIN_BOARD_BASE_WIDTH,
+    Math.round(boardViewportSize.width || 0) || activeBoardBaseWidth,
+  );
+  const localBoardBaseHeight = Math.max(
+    WHITEBOARD_MIN_BOARD_BASE_HEIGHT,
+    Math.round(boardViewportSize.height || 0) || activeBoardBaseHeight,
+  );
+  const activeBoardContainScale = Math.min(
+    1,
+    localBoardBaseWidth / Math.max(1, activeBoardBaseWidth),
+    localBoardBaseHeight / Math.max(1, activeBoardBaseHeight),
+  );
+  const getBoardRenderScale = useCallback(
+    (logicalZoom) => Math.max(0.05, (Number(logicalZoom) || 1) * activeBoardContainScale),
+    [activeBoardContainScale],
+  );
+  const activeBoardRenderScale = getBoardRenderScale(activeBoardZoom);
+  const syncedGuestPdfWidthFromHeight =
     !interactive &&
     activeTab?.type === "pdf" &&
     pdfViewportHeight > 0 &&
@@ -4073,6 +4126,20 @@ const WhiteboardTile = ({
           Math.round((pdfViewportHeight / syncedViewportVisibleHeightRatio) * basePdfAspectRatio),
         )
       : 0;
+  const syncedGuestPdfWidthFromWidth =
+    !interactive &&
+    activeTab?.type === "pdf" &&
+    pdfRenderWidth > 0 &&
+    syncedViewportVisibleWidthRatio > 0
+      ? Math.max(
+          WHITEBOARD_MIN_PDF_RENDER_WIDTH,
+          Math.round(pdfRenderWidth / syncedViewportVisibleWidthRatio),
+        )
+      : 0;
+  const syncedGuestPdfWidth =
+    syncedGuestPdfWidthFromWidth > 0 && syncedGuestPdfWidthFromHeight > 0
+      ? Math.min(syncedGuestPdfWidthFromWidth, syncedGuestPdfWidthFromHeight)
+      : syncedGuestPdfWidthFromWidth || syncedGuestPdfWidthFromHeight;
   const activePdfViewportBaseWidth =
     activeTab?.type === "pdf" && Number.isFinite(Number(activeTab.viewportBaseWidth))
       ? Math.max(
@@ -4111,6 +4178,7 @@ const WhiteboardTile = ({
       viewportPageOffsetRatio,
       viewportLeftRatio,
       viewportVisibleHeightRatio,
+      viewportVisibleWidthRatio,
       viewportBaseWidth,
     }) => {
       if (!activeTab || activeTab.type !== "pdf") {
@@ -4123,6 +4191,9 @@ const WhiteboardTile = ({
       const visibleViewportHeight = viewport
         ? Math.max(1, viewport.clientHeight - topInset - bottomInset)
         : 1;
+      const visibleViewportWidth = viewport
+        ? Math.max(1, viewport.clientWidth - 40)
+        : Math.max(1, pdfRenderWidth);
       const effectiveScrollRatio =
         typeof scrollRatio === "number"
           ? scrollRatio
@@ -4204,6 +4275,26 @@ const WhiteboardTile = ({
                 return clampViewportRatio(visibleViewportHeight / pageHeight);
               })()
             : 0;
+      const computedVisibleWidthRatio =
+        typeof viewportVisibleWidthRatio === "number"
+          ? clampViewportRatio(viewportVisibleWidthRatio)
+          : viewport && activeTab
+            ? (() => {
+                const targetPageNumber =
+                  typeof viewportPageNumber === "number"
+                    ? viewportPageNumber
+                    : computedAnchor.pageNumber;
+                const targetFrame = document.getElementById(
+                  `pdf-page-frame-${activeTab.id}-${targetPageNumber}`,
+                );
+                if (!(targetFrame instanceof HTMLElement)) {
+                  return 0;
+                }
+
+                const pageWidth = Math.max(1, targetFrame.offsetWidth);
+                return clampViewportRatio(visibleViewportWidth / pageWidth);
+              })()
+            : 0;
 
       onPdfViewportChange?.({
         tabId: activeTab.id,
@@ -4218,6 +4309,7 @@ const WhiteboardTile = ({
             : computedAnchor.offsetRatio,
         viewportLeftRatio: effectiveLeftRatio,
         viewportVisibleHeightRatio: computedVisibleHeightRatio,
+        viewportVisibleWidthRatio: computedVisibleWidthRatio,
         viewportBaseWidth:
           typeof viewportBaseWidth === "number"
             ? Math.max(
@@ -4348,7 +4440,7 @@ const WhiteboardTile = ({
   ]);
 
   const getBoardViewportAnchor = useCallback(
-    (anchorX, anchorY, zoomValue = activeBoardZoom) => {
+    (anchorX, anchorY, zoomValue = activeBoardRenderScale) => {
       const viewport = boardViewportRef.current;
       const frame = boardFrameRef.current;
       if (!viewport) {
@@ -4373,7 +4465,7 @@ const WhiteboardTile = ({
         frameOffsetTop,
       };
     },
-    [activeBoardZoom],
+    [activeBoardRenderScale],
   );
 
   const updateCurrentPdfPage = useCallback(() => {
@@ -4777,6 +4869,7 @@ const WhiteboardTile = ({
         WHITEBOARD_MAX_ZOOM,
         Math.max(WHITEBOARD_MIN_ZOOM, nextZoom),
       );
+      const nextRenderZoom = getBoardRenderScale(clampedZoom);
       const viewport = boardViewportRef.current;
       const frame = boardFrameRef.current;
 
@@ -4794,14 +4887,14 @@ const WhiteboardTile = ({
             : fallbackAnchorY;
         const frameOffsetLeft = frame ? frame.offsetLeft : 0;
         const frameOffsetTop = frame ? frame.offsetTop : 0;
-        const boardAnchor = getBoardViewportAnchor(anchorX, anchorY, activeBoardZoom);
+        const boardAnchor = getBoardViewportAnchor(anchorX, anchorY, activeBoardRenderScale);
         const boardX =
           anchor && Number.isFinite(anchor.boardX) ? anchor.boardX : boardAnchor.boardX;
         const boardY =
           anchor && Number.isFinite(anchor.boardY) ? anchor.boardY : boardAnchor.boardY;
 
         boardZoomAnchorRef.current = {
-          zoom: clampedZoom,
+          renderZoom: nextRenderZoom,
           boardX,
           boardY,
           anchorX,
@@ -4826,10 +4919,11 @@ const WhiteboardTile = ({
       });
     },
     [
-      activeBoardZoom,
+      activeBoardRenderScale,
       activeTab?.type,
       boardViewportSize.height,
       boardViewportSize.width,
+      getBoardRenderScale,
       getBoardViewportAnchor,
       interactive,
       onBoardZoomChange,
@@ -4863,7 +4957,11 @@ const WhiteboardTile = ({
 
     const viewport = boardViewportRef.current;
     const pendingAnchor = boardZoomAnchorRef.current;
-    if (!viewport || !pendingAnchor || Math.abs(pendingAnchor.zoom - activeBoardZoom) > 0.001) {
+    if (
+      !viewport ||
+      !pendingAnchor ||
+      Math.abs(pendingAnchor.renderZoom - activeBoardRenderScale) > 0.001
+    ) {
       return undefined;
     }
 
@@ -4876,14 +4974,18 @@ const WhiteboardTile = ({
         maxScrollLeft,
         Math.max(
           0,
-          frameOffsetLeft + pendingAnchor.boardX * activeBoardZoom - pendingAnchor.anchorX,
+          frameOffsetLeft +
+            pendingAnchor.boardX * activeBoardRenderScale -
+            pendingAnchor.anchorX,
         ),
       );
       viewport.scrollTop = Math.min(
         maxScrollTop,
         Math.max(
           0,
-          frameOffsetTop + pendingAnchor.boardY * activeBoardZoom - pendingAnchor.anchorY,
+          frameOffsetTop +
+            pendingAnchor.boardY * activeBoardRenderScale -
+            pendingAnchor.anchorY,
         ),
       );
       boardZoomAnchorRef.current = null;
@@ -4892,7 +4994,7 @@ const WhiteboardTile = ({
     return () => {
       window.cancelAnimationFrame(frameId);
     };
-  }, [activeBoardZoom, activeTab?.type]);
+  }, [activeBoardRenderScale, activeTab?.type]);
 
   useEffect(() => {
     const viewport = pdfViewportRef.current;
@@ -5050,7 +5152,7 @@ const WhiteboardTile = ({
         active: true,
         distance: getTouchDistance(event.touches),
         zoom: activeBoardZoom,
-        ...getBoardViewportAnchor(anchorX, anchorY, activeBoardZoom),
+        ...getBoardViewportAnchor(anchorX, anchorY, activeBoardRenderScale),
       };
     };
 
@@ -5093,14 +5195,18 @@ const WhiteboardTile = ({
         maxScrollLeft,
         Math.max(
           0,
-          frameOffsetLeft + boardPinchStateRef.current.boardX * activeBoardZoom - anchorX,
+          frameOffsetLeft +
+            boardPinchStateRef.current.boardX * activeBoardRenderScale -
+            anchorX,
         ),
       );
       viewport.scrollTop = Math.min(
         maxScrollTop,
         Math.max(
           0,
-          frameOffsetTop + boardPinchStateRef.current.boardY * activeBoardZoom - anchorY,
+          frameOffsetTop +
+            boardPinchStateRef.current.boardY * activeBoardRenderScale -
+            anchorY,
         ),
       );
     };
@@ -5126,7 +5232,14 @@ const WhiteboardTile = ({
       viewport.removeEventListener("touchend", handleTouchEnd);
       viewport.removeEventListener("touchcancel", handleTouchEnd);
     };
-  }, [activeBoardZoom, activeTab?.type, getBoardViewportAnchor, handleBoardZoomChange, interactive]);
+  }, [
+    activeBoardRenderScale,
+    activeBoardZoom,
+    activeTab?.type,
+    getBoardViewportAnchor,
+    handleBoardZoomChange,
+    interactive,
+  ]);
 
   useEffect(() => {
     const viewport = pdfViewportRef.current;
@@ -5180,6 +5293,7 @@ const WhiteboardTile = ({
     activeTab?.scrollRatio,
     activeTab?.type,
     activeTab?.viewportLeftRatio,
+    activeTab?.viewportVisibleWidthRatio,
     activeTab?.viewportPageNumber,
     activeTab?.viewportPageOffsetRatio,
     interactive,
@@ -6604,13 +6718,13 @@ const WhiteboardTile = ({
                   style={{
                     width: `${Math.max(
                       1,
-                      Math.round(activeBoardBaseWidth),
-                      Math.round(activeBoardBaseWidth * activeBoardZoom),
+                      Math.round(localBoardBaseWidth),
+                      Math.round(localBoardBaseWidth * activeBoardRenderScale),
                     )}px`,
                     height: `${Math.max(
                       1,
-                      Math.round(activeBoardBaseHeight),
-                      Math.round(activeBoardBaseHeight * activeBoardZoom),
+                      Math.round(localBoardBaseHeight),
+                      Math.round(localBoardBaseHeight * activeBoardRenderScale),
                     )}px`,
                   }}
                 >
@@ -6620,13 +6734,13 @@ const WhiteboardTile = ({
                       interactive={interactive}
                       tool={tool}
                       color={color}
-                      fillColor={fillColor}
-                      shapeEdge={shapeEdge}
-                      brushSize={brushSize}
-                      zoomScale={activeBoardZoom}
-                      textFontFamily={textFontFamily}
-                      textSize={textSize}
-                      textAlign={textAlign}
+                        fillColor={fillColor}
+                        shapeEdge={shapeEdge}
+                        brushSize={brushSize}
+                        zoomScale={activeBoardRenderScale}
+                        textFontFamily={textFontFamily}
+                        textSize={textSize}
+                        textAlign={textAlign}
                       tabId={WHITEBOARD_BOARD_TAB_ID}
                       onStrokeStart={onStrokeStart}
                       onStrokeAppend={onStrokeAppend}
