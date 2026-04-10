@@ -833,8 +833,44 @@ const buildPdfProxyUrl = (fileUrl) => {
   return `${API_BASE_URL}/courses/file-proxy?url=${encodeURIComponent(normalizedUrl)}`;
 };
 
-const loadPdfDocument = async (fileUrl) => {
+const fetchPdfDocumentBuffer = async (targetUrl) => {
+  const tryFetch = async (credentials) => {
+    const response = await fetch(targetUrl, {
+      credentials,
+      cache: "no-store",
+      headers: {
+        Accept: "application/pdf",
+      },
+    });
+    if (!response.ok) {
+      throw new Error(`PDF fetch failed with ${response.status}`);
+    }
+
+    const pdfBuffer = await response.arrayBuffer();
+    const loadingTask = pdfjsLib.getDocument({
+      data: pdfBuffer,
+    });
+    return loadingTask.promise;
+  };
+
+  try {
+    return await tryFetch("include");
+  } catch (includeError) {
+    try {
+      return await tryFetch("omit");
+    } catch (omitError) {
+      throw omitError || includeError;
+    }
+  }
+};
+
+const loadPdfDocument = async (fileUrl, options = {}) => {
   const targetUrl = buildPdfProxyUrl(fileUrl);
+  const preferBuffer = Boolean(options.preferBuffer);
+
+  if (preferBuffer) {
+    return fetchPdfDocumentBuffer(targetUrl);
+  }
 
   try {
     const loadingTask = pdfjsLib.getDocument({
@@ -851,31 +887,9 @@ const loadPdfDocument = async (fileUrl) => {
       return await authenticatedLoadingTask.promise;
     } catch (credentialedUrlError) {
       try {
-        const response = await fetch(targetUrl, {
-          credentials: "include",
-        });
-        if (!response.ok) {
-          throw credentialedUrlError;
-        }
-
-        const pdfBuffer = await response.arrayBuffer();
-        const loadingTask = pdfjsLib.getDocument({
-          data: pdfBuffer,
-        });
-        return await loadingTask.promise;
+        return await fetchPdfDocumentBuffer(targetUrl);
       } catch (fetchIncludeError) {
-        const response = await fetch(targetUrl, {
-          credentials: "omit",
-        });
-        if (!response.ok) {
-          throw fetchIncludeError || credentialedUrlError || publicUrlError;
-        }
-
-        const pdfBuffer = await response.arrayBuffer();
-        const loadingTask = pdfjsLib.getDocument({
-          data: pdfBuffer,
-        });
-        return await loadingTask.promise;
+        throw fetchIncludeError || credentialedUrlError || publicUrlError;
       }
     }
   }
@@ -2265,6 +2279,8 @@ const PdfPickerPageCard = ({ pdfDocument, pageNumber, active = false, onClick })
       return undefined;
     }
 
+    const scrollRoot = element.closest("[data-pdf-picker-scroll-root]");
+
     const observer = new IntersectionObserver(
       (entries) => {
         const nextEntry = entries[0];
@@ -2276,6 +2292,7 @@ const PdfPickerPageCard = ({ pdfDocument, pageNumber, active = false, onClick })
         observer.disconnect();
       },
       {
+        root: scrollRoot instanceof HTMLElement ? scrollRoot : null,
         rootMargin: "240px",
       },
     );
@@ -2290,6 +2307,44 @@ const PdfPickerPageCard = ({ pdfDocument, pageNumber, active = false, onClick })
   useEffect(() => {
     let disposed = false;
 
+    const renderPreview = async ({ targetWidth, pixelRatio }) => {
+      const page = await pdfDocument.getPage(pageNumber);
+      if (disposed) {
+        return false;
+      }
+
+      const baseViewport = page.getViewport({
+        scale: 1,
+        rotation: resolvePdfPageRotation(page),
+      });
+      const scale = targetWidth / Math.max(1, baseViewport.width);
+      const viewport = page.getViewport({
+        scale,
+        rotation: resolvePdfPageRotation(page),
+      });
+      const canvas = canvasRef.current;
+      const context = canvas?.getContext("2d", { alpha: false });
+      if (!canvas || !context) {
+        return false;
+      }
+
+      const safePixelRatio = Math.max(1, Math.min(2, pixelRatio));
+      canvas.width = Math.round(viewport.width * safePixelRatio);
+      canvas.height = Math.round(viewport.height * safePixelRatio);
+      canvas.style.width = `${Math.round(viewport.width)}px`;
+      canvas.style.height = `${Math.round(viewport.height)}px`;
+      context.setTransform(safePixelRatio, 0, 0, safePixelRatio, 0, 0);
+      context.clearRect(0, 0, viewport.width, viewport.height);
+
+      const renderTask = page.render({
+        canvasContext: context,
+        viewport,
+      });
+      await renderTask.promise;
+      page.cleanup?.();
+      return true;
+    };
+
     const renderPage = async () => {
       if (!pdfDocument || !isVisible) {
         return;
@@ -2298,45 +2353,30 @@ const PdfPickerPageCard = ({ pdfDocument, pageNumber, active = false, onClick })
       setRenderState("loading");
 
       try {
-        const page = await pdfDocument.getPage(pageNumber);
-        if (disposed) {
-          return;
+        const isSmallScreen = window.matchMedia("(max-width: 768px)").matches;
+        const primaryRendered = await renderPreview({
+          targetWidth: isSmallScreen ? 156 : 180,
+          pixelRatio: isSmallScreen ? 1 : window.devicePixelRatio || 1,
+        });
+        if (!primaryRendered) {
+          throw new Error("Preview canvas unavailable");
         }
-
-        const baseViewport = page.getViewport({
-          scale: 1,
-          rotation: resolvePdfPageRotation(page),
-        });
-        const targetWidth = 180;
-        const scale = targetWidth / Math.max(1, baseViewport.width);
-        const viewport = page.getViewport({
-          scale,
-          rotation: resolvePdfPageRotation(page),
-        });
-        const canvas = canvasRef.current;
-        const context = canvas?.getContext("2d");
-        if (!canvas || !context) {
-          return;
-        }
-
-        const pixelRatio = window.devicePixelRatio || 1;
-        canvas.width = Math.round(viewport.width * pixelRatio);
-        canvas.height = Math.round(viewport.height * pixelRatio);
-        canvas.style.width = `${Math.round(viewport.width)}px`;
-        canvas.style.height = `${Math.round(viewport.height)}px`;
-        context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
-        context.clearRect(0, 0, viewport.width, viewport.height);
-
-        const renderTask = page.render({
-          canvasContext: context,
-          viewport,
-        });
-        await renderTask.promise;
 
         if (!disposed) {
           setRenderState("ready");
         }
       } catch (error) {
+        try {
+          const fallbackRendered = await renderPreview({
+            targetWidth: 128,
+            pixelRatio: 1,
+          });
+          if (!disposed && fallbackRendered) {
+            setRenderState("ready");
+            return;
+          }
+        } catch {}
+
         if (!disposed) {
           setRenderState("error");
         }
@@ -5426,7 +5466,9 @@ const WhiteboardTile = ({
       });
 
       try {
-        const pdfDocument = await loadPdfDocument(item.fileUrl);
+        const pdfDocument = await loadPdfDocument(item.fileUrl, {
+          preferBuffer: true,
+        });
         const pageCount = pdfDocument.numPages || 0;
         pdfPageCountCacheRef.current[item.id] = pageCount;
         pdfPickerDocumentRef.current = pdfDocument;
