@@ -1255,6 +1255,7 @@ export function useWebRTC({
   const candidateQueuesRef = useRef({}); // Store candidates until remote sdp is set
   const screenPeerConnectionsRef = useRef({});
   const screenCandidateQueuesRef = useRef({});
+  const offerFallbackTimeoutsRef = useRef({});
   const statsIntervalRef = useRef(null);
   const qualityProfileRef = useRef(CALL_QUALITY_PROFILES.balanced);
   const cameraFacingModeRef = useRef("user");
@@ -1337,6 +1338,11 @@ export function useWebRTC({
   }, [currentUserId, whiteboardState.pdfLibrary]);
 
   const removeRemoteStream = useCallback((peerId) => {
+    const offerFallbackTimeout = offerFallbackTimeoutsRef.current[peerId];
+    if (offerFallbackTimeout) {
+      window.clearTimeout(offerFallbackTimeout);
+      delete offerFallbackTimeoutsRef.current[peerId];
+    }
     setRemoteStreams((prev) => prev.filter((r) => r.peerId !== peerId));
     setRemoteScreenStreams((prev) => prev.filter((r) => r.peerId !== peerId));
     setRemotePeerStates((prev) => {
@@ -1976,6 +1982,14 @@ export function useWebRTC({
         if (peerName) {
           knownPeerNamesRef.current[peerId] = peerName;
         }
+        updateRemotePeerState(peerId, {
+          displayName: peerName || knownPeerNamesRef.current[peerId] || peerId,
+          connectionState: "connecting",
+          hasVideo: false,
+          hasAudio: false,
+          videoMuted: true,
+          audioMuted: true,
+        });
         const pc = createPeerConnection(peerId, peerName);
         const offer = await pc.createOffer();
         await pc.setLocalDescription(offer);
@@ -1995,6 +2009,46 @@ export function useWebRTC({
         (peers || []).forEach((peer) => {
           if (peer?.peerId && peer?.displayName) {
             knownPeerNamesRef.current[peer.peerId] = peer.displayName;
+            updateRemotePeerState(peer.peerId, {
+              displayName: peer.displayName,
+              connectionState: "connecting",
+              hasVideo: false,
+              hasAudio: false,
+              videoMuted: true,
+              audioMuted: true,
+            });
+
+            if (offerFallbackTimeoutsRef.current[peer.peerId]) {
+              window.clearTimeout(offerFallbackTimeoutsRef.current[peer.peerId]);
+            }
+
+            offerFallbackTimeoutsRef.current[peer.peerId] = window.setTimeout(
+              async () => {
+                const currentPc = peerConnectionsRef.current[peer.peerId];
+                if (
+                  currentPc?.remoteDescription?.type ||
+                  currentPc?.localDescription?.type
+                ) {
+                  delete offerFallbackTimeoutsRef.current[peer.peerId];
+                  return;
+                }
+
+                try {
+                  const fallbackPc =
+                    currentPc ||
+                    createPeerConnection(peer.peerId, peer.displayName);
+                  const fallbackOffer = await fallbackPc.createOffer();
+                  await fallbackPc.setLocalDescription(fallbackOffer);
+                  socket.emit("offer", {
+                    targetId: peer.peerId,
+                    sdp: fallbackOffer,
+                  });
+                } catch {}
+
+                delete offerFallbackTimeoutsRef.current[peer.peerId];
+              },
+              1200,
+            );
           }
         });
         // Server confirmed we're in the room
@@ -2475,6 +2529,10 @@ export function useWebRTC({
       peerConnectionsRef.current = {};
       Object.values(screenPeerConnectionsRef.current).forEach((pc) => pc.close());
       screenPeerConnectionsRef.current = {};
+      Object.values(offerFallbackTimeoutsRef.current).forEach((timeoutId) => {
+        window.clearTimeout(timeoutId);
+      });
+      offerFallbackTimeoutsRef.current = {};
       screenCandidateQueuesRef.current = {};
       if (localStreamRef.current) {
         localStreamRef.current.getTracks().forEach((t) => t.stop());
