@@ -438,6 +438,49 @@ const MiniPreviewVideo = styled.video`
   transform: ${(props) => (props.$mirror ? "scaleX(-1)" : "none")};
 `;
 
+const MiniPreviewFallback = styled.div`
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  color: white;
+  background: ${(props) => props.$bg || "#315f14"};
+`;
+
+const MiniPreviewAvatar = styled.div`
+  width: 108px;
+  height: 108px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.16);
+  font-size: 56px;
+  font-weight: 700;
+  line-height: 1;
+`;
+
+const MiniPreviewName = styled.div`
+  padding: 0 20px;
+  text-align: center;
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.1;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.28);
+`;
+
+const AudioLayer = styled.div`
+  position: fixed;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+  pointer-events: none;
+  opacity: 0;
+`;
+
 const MiniOverlay = styled.div`
   position: relative;
   z-index: 1;
@@ -583,7 +626,7 @@ const StageLayout = styled.div`
           `
         : ""}
     padding-top: ${(p) =>
-      p.$whiteboardFullscreen ? "0" : p.$mobileCompactCount > 0 ? "108px" : "14px"};
+      p.$whiteboardFullscreen ? "0" : p.$mobileCompactCount > 0 ? "132px" : "14px"};
   }
 `;
 
@@ -658,18 +701,28 @@ const MobileImmersiveRail = styled.div`
 const MobileTopRail = styled.div`
   position: absolute;
   top: 16px;
+  left: 16px;
   right: 16px;
   z-index: 8;
   display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
   gap: 8px;
-  width: min(30vw, 126px);
-  max-width: 126px;
-  justify-items: stretch;
+  align-items: stretch;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 2px;
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
 `;
 
 const MobileTopRailTile = styled.div`
-  width: 100%;
-  height: min(20vw, 96px);
+  width: min(42vw, 164px);
+  min-width: min(42vw, 164px);
+  height: min(24vw, 112px);
   min-height: 76px;
 `;
 
@@ -732,7 +785,8 @@ const VideoTile = styled.div`
     width: 100%;
     height: 100%;
     object-fit: ${(p) => {
-      if (p.$screenShare) return p.$compact ? "cover" : "contain";
+      if (p.$screenShare) return "contain";
+      if (p.$compact) return "contain";
       return p.$mobile ? "contain" : "cover";
     }};
     display: block;
@@ -1306,7 +1360,6 @@ const VideoEl = ({
 }) => {
   const { t } = useTranslation();
   const ref = useRef(null);
-  const audioRef = useRef(null);
 
   useEffect(() => {
     const node = ref.current;
@@ -1353,47 +1406,6 @@ const VideoEl = ({
     };
   }, [isCamOn, stream]);
 
-  useEffect(() => {
-    const node = audioRef.current;
-    if (!node || !stream || muted || !hasAudio) return undefined;
-
-    if (node.srcObject !== stream) {
-      node.srcObject = stream;
-    }
-
-    let cancelled = false;
-    let retryTimeoutId = null;
-
-    const ensurePlayback = () => {
-      if (cancelled || !audioRef.current) return;
-
-      const playPromise = audioRef.current.play?.();
-      if (playPromise?.catch) {
-        playPromise.catch(() => {
-          if (cancelled) return;
-          retryTimeoutId = window.setTimeout(() => {
-            ensurePlayback();
-          }, 180);
-        });
-      }
-    };
-
-    node.onloadedmetadata = ensurePlayback;
-    node.oncanplay = ensurePlayback;
-    ensurePlayback();
-
-    return () => {
-      cancelled = true;
-      if (retryTimeoutId) {
-        window.clearTimeout(retryTimeoutId);
-      }
-      if (node) {
-        node.onloadedmetadata = null;
-        node.oncanplay = null;
-      }
-    };
-  }, [hasAudio, muted, stream]);
-
   const handleTileClick = useCallback(() => {
     onSelect?.();
   }, [onSelect]);
@@ -1417,7 +1429,6 @@ const VideoEl = ({
       $clickable={Boolean(onSelect)}
       onClick={handleTileClick}
     >
-      {stream && hasAudio && !muted ? <audio ref={audioRef} autoPlay playsInline /> : null}
       {canFullscreen ? (
         <FullscreenBtn
           type="button"
@@ -1443,7 +1454,7 @@ const VideoEl = ({
         </span>
       ) : null}
       {isCamOn && stream ? (
-        <video ref={ref} autoPlay playsInline muted={muted} />
+        <video ref={ref} autoPlay playsInline muted />
       ) : (
         <NoCamera $compact={compact}>
           <Avatar $compact={compact}>{label?.charAt(0)?.toUpperCase() || "?"}</Avatar>
@@ -1456,6 +1467,54 @@ const VideoEl = ({
       </TileLabel>
     </VideoTile>
   );
+};
+
+const HiddenAudioEl = ({ stream }) => {
+  const ref = useRef(null);
+
+  useEffect(() => {
+    const node = ref.current;
+    if (!node || !stream) return undefined;
+
+    if (node.srcObject !== stream) {
+      node.srcObject = stream;
+    }
+
+    let cancelled = false;
+    let retryTimeoutId = null;
+
+    const ensurePlayback = () => {
+      if (cancelled || !ref.current) return;
+
+      const playPromise = ref.current.play?.();
+      if (playPromise?.catch) {
+        playPromise.catch(() => {
+          if (cancelled) return;
+          retryTimeoutId = window.setTimeout(() => {
+            ensurePlayback();
+          }, 220);
+        });
+      }
+    };
+
+    node.onloadedmetadata = ensurePlayback;
+    node.oncanplay = ensurePlayback;
+    ensurePlayback();
+
+    return () => {
+      cancelled = true;
+      if (retryTimeoutId) {
+        window.clearTimeout(retryTimeoutId);
+      }
+      if (node) {
+        node.onloadedmetadata = null;
+        node.oncanplay = null;
+        node.srcObject = null;
+      }
+    };
+  }, [stream]);
+
+  return <audio ref={ref} autoPlay playsInline />;
 };
 
 // ─── Main Component ───────────────────────────────────────────────────────────
@@ -2819,39 +2878,46 @@ const GroupVideoCall = ({
 
   const participantsCount = 1 + remoteParticipantIds.length;
   const primaryRemote = remoteStreams[0] || null;
-  const primaryRemoteState = primaryRemote
-    ? remotePeerStates[primaryRemote.peerId]
-    : null;
-  const primaryRemoteCameraVisible =
-    Boolean(primaryRemote?.stream) &&
-    primaryRemoteState?.hasVideo !== false &&
-    primaryRemoteState?.videoMuted !== true;
-  const minimizedPreviewStream =
-    remoteScreenStreams[0]?.stream ||
-    (primaryRemoteCameraVisible ? primaryRemote?.stream : null) ||
-    screenStream ||
-    (isCamOn ? localStream : null) ||
-    localStream ||
-    null;
-  const minimizedPreviewMirror =
-    !remoteScreenStreams[0]?.stream &&
-    !primaryRemoteCameraVisible &&
-    !screenStream &&
-    Boolean(localStream);
-  const minimizedPreviewRef = useCallback(
-    (node) => {
-      if (node && minimizedPreviewStream) {
-        if (node.srcObject !== minimizedPreviewStream) {
-          node.srcObject = minimizedPreviewStream;
-        }
-        const playPromise = node.play?.();
-        if (playPromise?.catch) {
-          playPromise.catch(() => {});
-        }
-      }
-    },
-    [minimizedPreviewStream],
-  );
+
+  const remoteAudioEntries = useMemo(() => {
+    const entries = [];
+    const seenAudioKeys = new Set();
+
+    const pushStream = (stream, enabled = true) => {
+      if (!enabled || !stream) return;
+      const liveAudioTracks =
+        stream
+          .getAudioTracks?.()
+          ?.filter((track) => track.readyState === "live" && track.enabled !== false) || [];
+
+      if (!liveAudioTracks.length) return;
+
+      const audioKey = liveAudioTracks
+        .map((track) => track.id || track.label || "audio")
+        .sort()
+        .join("|");
+
+      if (seenAudioKeys.has(audioKey)) return;
+      seenAudioKeys.add(audioKey);
+      entries.push({
+        id: audioKey,
+        stream: new MediaStream(liveAudioTracks),
+      });
+    };
+
+    remoteStreams.forEach(({ peerId, stream }) => {
+      const peerState = remotePeerStates?.[peerId];
+      const isAudioOn = peerState?.hasAudio !== false && peerState?.audioMuted !== true;
+      pushStream(stream, isAudioOn);
+    });
+
+    remoteScreenStreams.forEach(({ stream }) => {
+      pushStream(stream, true);
+    });
+
+    return entries;
+  }, [remotePeerStates, remoteScreenStreams, remoteStreams]);
+
   const isMobileViewport = viewport.width <= 768;
   const isLandscapeViewport = viewport.width > viewport.height;
 
@@ -3002,11 +3068,81 @@ const GroupVideoCall = ({
     whiteboardState.ownerPeerId,
   ]);
 
+  const minimizedPreviewTile = useMemo(() => {
+    const tileByPeer = (peerId) =>
+      allTiles.find(
+        (tile) => tile.kind === "video" && tile.peerId === peerId && !tile.isScreenShare,
+      ) || null;
+
+    return (
+      (lastSpeakerPeerId ? tileByPeer(lastSpeakerPeerId) : null) ||
+      allTiles.find(
+        (tile) =>
+          tile.kind === "video" &&
+          !tile.isLocal &&
+          !tile.isScreenShare &&
+          tile.hasVideo,
+      ) ||
+      allTiles.find((tile) => tile.kind === "video" && tile.isScreenShare && tile.hasVideo) ||
+      allTiles.find((tile) => tile.kind === "video" && tile.id === "local") ||
+      allTiles.find((tile) => tile.kind === "whiteboard") ||
+      allTiles[0] ||
+      null
+    );
+  }, [allTiles, lastSpeakerPeerId]);
+
+  const minimizedPreviewStream =
+    minimizedPreviewTile?.kind === "video" && minimizedPreviewTile?.hasVideo
+      ? minimizedPreviewTile.stream || null
+      : null;
+  const minimizedPreviewMirror =
+    Boolean(minimizedPreviewStream) &&
+    minimizedPreviewTile?.kind === "video" &&
+    minimizedPreviewTile?.isLocal &&
+    !minimizedPreviewTile?.isScreenShare;
+  const minimizedPreviewLabel =
+    minimizedPreviewTile?.label || roomTitle || chatTitle || t("groupCall.roomDefault");
+  const minimizedPreviewBg = useMemo(() => {
+    const seedSource = minimizedPreviewLabel || "meet";
+    let hash = 0;
+    for (let index = 0; index < seedSource.length; index += 1) {
+      hash = (hash * 31 + seedSource.charCodeAt(index)) % 360;
+    }
+    return `hsl(${hash} 54% 30%)`;
+  }, [minimizedPreviewLabel]);
+  const minimizedPreviewRef = useCallback(
+    (node) => {
+      if (node && minimizedPreviewStream) {
+        if (node.srcObject !== minimizedPreviewStream) {
+          node.srcObject = minimizedPreviewStream;
+        }
+        const playPromise = node.play?.();
+        if (playPromise?.catch) {
+          playPromise.catch(() => {});
+        }
+      }
+    },
+    [minimizedPreviewStream],
+  );
+
   const tileCount = allTiles.length;
-  const defaultStageTileId =
-    allTiles.find((tile) => tile.kind === "whiteboard")?.id ||
-    allTiles.find((tile) => tile.kind === "video" && tile.isScreenShare && tile.hasVideo)?.id ||
-    null;
+  const defaultStageTileId = useMemo(() => {
+    if (isWhiteboardActive) {
+      return allTiles.find((tile) => tile.kind === "whiteboard")?.id || null;
+    }
+
+    if (isMobileViewport) {
+      return (
+        allTiles.find((tile) => tile.kind === "video" && tile.isScreenShare && tile.hasVideo)?.id ||
+        allTiles.find((tile) => tile.kind === "video" && !tile.isLocal && tile.hasVideo)?.id ||
+        allTiles.find((tile) => tile.kind === "video" && tile.id === "local")?.id ||
+        allTiles[0]?.id ||
+        null
+      );
+    }
+
+    return null;
+  }, [allTiles, isMobileViewport, isWhiteboardActive]);
 
   useEffect(() => {
     setSelectedTileId((current) =>
@@ -3367,6 +3503,14 @@ const GroupVideoCall = ({
           showFullscreenControl,
         });
 
+  const remoteAudioLayer = (
+    <AudioLayer aria-hidden="true">
+      {remoteAudioEntries.map((entry) => (
+        <HiddenAudioEl key={entry.id} stream={entry.stream} />
+      ))}
+    </AudioLayer>
+  );
+
   const handleScreenShareToggle = useCallback(async () => {
     const isIOS =
       typeof navigator !== "undefined" &&
@@ -3462,6 +3606,27 @@ const GroupVideoCall = ({
     </TopBar>
   );
 
+  const minimizedPreviewNode = (
+    <MiniPreview>
+      {minimizedPreviewStream ? (
+        <MiniPreviewVideo
+          ref={minimizedPreviewRef}
+          autoPlay
+          muted
+          playsInline
+          $mirror={minimizedPreviewMirror}
+        />
+      ) : (
+        <MiniPreviewFallback $bg={minimizedPreviewBg}>
+          <MiniPreviewAvatar>
+            {minimizedPreviewLabel?.charAt(0)?.toUpperCase() || "?"}
+          </MiniPreviewAvatar>
+          <MiniPreviewName>{minimizedPreviewLabel}</MiniPreviewName>
+        </MiniPreviewFallback>
+      )}
+    </MiniPreview>
+  );
+
   const minimizedContent = (
     <>
       {topBarContent}
@@ -3470,20 +3635,10 @@ const GroupVideoCall = ({
         type="button"
         onClick={pipContainer ? handleMaximizeFromPiP : onMaximize}
       >
-        <MiniPreview>
-          {minimizedPreviewStream ? (
-            <MiniPreviewVideo
-              ref={minimizedPreviewRef}
-              autoPlay
-              muted={minimizedPreviewMirror}
-              playsInline
-              $mirror={minimizedPreviewMirror}
-            />
-          ) : null}
-        </MiniPreview>
+        {minimizedPreviewNode}
         <MiniOverlay>
           <div>
-            <MiniTitle>{roomTitle || chatTitle || t("groupCall.roomDefault")}</MiniTitle>
+            <MiniTitle>{minimizedPreviewLabel}</MiniTitle>
             <MiniMeta>
               {t("groupCall.participants", { count: participantsCount })} •{" "}
               {roomIsPrivate ? t("groupCall.privateRoom") : t("groupCall.publicRoom")}
@@ -3500,27 +3655,23 @@ const GroupVideoCall = ({
   );
 
   if (isMinimized && pipContainer) {
-    return createPortal(<PiPFrame>{minimizedContent}</PiPFrame>, pipContainer);
+    return (
+      <>
+        {remoteAudioLayer}
+        {createPortal(<PiPFrame>{minimizedContent}</PiPFrame>, pipContainer)}
+      </>
+    );
   }
 
   return (
     <Overlay $minimized={isMinimized}>
+      {remoteAudioLayer}
       {isMinimized ? (
         <MinimizedBody type="button" onClick={onMaximize}>
-          <MiniPreview>
-            {minimizedPreviewStream ? (
-              <MiniPreviewVideo
-                ref={minimizedPreviewRef}
-                autoPlay
-                muted={minimizedPreviewMirror}
-                playsInline
-                $mirror={minimizedPreviewMirror}
-              />
-            ) : null}
-          </MiniPreview>
+          {minimizedPreviewNode}
           <MiniOverlay>
             <div>
-            <MiniTitle>{roomTitle || chatTitle || t("groupCall.roomDefault")}</MiniTitle>
+            <MiniTitle>{minimizedPreviewLabel}</MiniTitle>
             <MiniMeta>
                 {t("groupCall.participants", { count: participantsCount })} •{" "}
                 {roomIsPrivate ? t("groupCall.privateRoom") : t("groupCall.publicRoom")}
