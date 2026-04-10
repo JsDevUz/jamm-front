@@ -2761,7 +2761,19 @@ const GroupVideoCall = ({
 
   if (!isOpen || !roomId) return null;
 
-  const participantsCount = 1 + remoteStreams.length;
+  const remoteParticipantIds = useMemo(
+    () =>
+      Array.from(
+        new Set([
+          ...Object.keys(remotePeerStates || {}),
+          ...remoteStreams.map((item) => item.peerId),
+          ...remoteScreenStreams.map((item) => item.peerId),
+        ]),
+      ),
+    [remotePeerStates, remoteScreenStreams, remoteStreams],
+  );
+
+  const participantsCount = 1 + remoteParticipantIds.length;
   const primaryRemote = remoteStreams[0] || null;
   const primaryRemoteState = primaryRemote
     ? remotePeerStates[primaryRemote.peerId]
@@ -2834,10 +2846,14 @@ const GroupVideoCall = ({
       });
     }
 
+    const renderedRemotePeerIds = new Set();
+
     remoteStreams.forEach(({ peerId, stream, displayName: remoteName }) => {
       const peerState = remotePeerStates[peerId];
       const isRemoteCamOn =
         peerState?.hasVideo !== false && peerState?.videoMuted !== true;
+
+      renderedRemotePeerIds.add(peerId);
 
       tiles.push({
         id: peerId,
@@ -2849,6 +2865,31 @@ const GroupVideoCall = ({
         isScreenShare: false,
         hasVideo: Boolean(stream) && isRemoteCamOn,
         canFullscreen: Boolean(stream) && isRemoteCamOn,
+        handRaised: raisedHands.has(peerId),
+        isCamOn: isRemoteCamOn,
+        muted: false,
+      });
+    });
+
+    Object.entries(remotePeerStates || {}).forEach(([peerId, peerState]) => {
+      if (renderedRemotePeerIds.has(peerId)) {
+        return;
+      }
+
+      const remoteName = peerState?.displayName || peerId;
+      const isRemoteCamOn =
+        peerState?.hasVideo !== false && peerState?.videoMuted !== true;
+
+      tiles.push({
+        id: peerId,
+        kind: "video",
+        peerId,
+        stream: null,
+        label: remoteName,
+        isLocal: false,
+        isScreenShare: false,
+        hasVideo: false,
+        canFullscreen: false,
         handRaised: raisedHands.has(peerId),
         isCamOn: isRemoteCamOn,
         muted: false,
