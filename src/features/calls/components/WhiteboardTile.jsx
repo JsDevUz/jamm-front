@@ -819,6 +819,8 @@ const waitForAnimationFrame = () =>
     });
   });
 
+const isPublicCdnPdfUrl = (fileUrl) => /^https?:\/\/files\./i.test(String(fileUrl || "").trim());
+
 const buildPdfProxyUrl = (fileUrl) => {
   const normalizedUrl = String(fileUrl || "").trim();
   return normalizedUrl;
@@ -854,6 +856,17 @@ const fetchPdfDocumentBuffer = async (targetUrl) => {
 const loadPdfDocument = async (fileUrl, options = {}) => {
   const targetUrl = buildPdfProxyUrl(fileUrl);
   const preferBuffer = Boolean(options.preferBuffer);
+
+  if (isPublicCdnPdfUrl(targetUrl)) {
+    const loadingTask = pdfjsLib.getDocument({
+      url: targetUrl,
+      withCredentials: false,
+      disableRange: true,
+      disableStream: true,
+      disableAutoFetch: true,
+    });
+    return loadingTask.promise;
+  }
 
   if (preferBuffer) {
     return fetchPdfDocumentBuffer(targetUrl);
@@ -5453,9 +5466,7 @@ const WhiteboardTile = ({
       });
 
       try {
-        const pdfDocument = await loadPdfDocument(item.fileUrl, {
-          preferBuffer: true,
-        });
+        const pdfDocument = await loadPdfDocument(item.fileUrl);
         const pageCount = pdfDocument.numPages || 0;
         pdfPageCountCacheRef.current[item.id] = pageCount;
         pdfPickerDocumentRef.current = pdfDocument;
