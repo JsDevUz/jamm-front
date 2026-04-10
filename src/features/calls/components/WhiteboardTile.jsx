@@ -833,7 +833,8 @@ const buildPdfProxyUrl = (fileUrl) => {
   return `${API_BASE_URL}/courses/file-proxy?url=${encodeURIComponent(normalizedUrl)}`;
 };
 
-const fetchPdfDocumentBuffer = async (targetUrl) => {
+const fetchPdfDocumentBuffer = async (targetUrl, options = {}) => {
+  const disableWorker = Boolean(options.disableWorker);
   const tryFetch = async (credentials) => {
     const response = await fetch(targetUrl, {
       credentials,
@@ -857,6 +858,7 @@ const fetchPdfDocumentBuffer = async (targetUrl) => {
       disableRange: true,
       disableStream: true,
       disableAutoFetch: true,
+      disableWorker,
     });
     return loadingTask.promise;
   };
@@ -875,15 +877,17 @@ const fetchPdfDocumentBuffer = async (targetUrl) => {
 const loadPdfDocument = async (fileUrl, options = {}) => {
   const targetUrl = buildPdfProxyUrl(fileUrl);
   const preferBuffer = Boolean(options.preferBuffer);
+  const disableWorker = Boolean(options.disableWorker);
 
   if (preferBuffer) {
-    return fetchPdfDocumentBuffer(targetUrl);
+    return fetchPdfDocumentBuffer(targetUrl, { disableWorker });
   }
 
   try {
     const loadingTask = pdfjsLib.getDocument({
       url: targetUrl,
       withCredentials: false,
+      disableWorker,
     });
     return await loadingTask.promise;
   } catch (publicUrlError) {
@@ -891,11 +895,12 @@ const loadPdfDocument = async (fileUrl, options = {}) => {
       const authenticatedLoadingTask = pdfjsLib.getDocument({
         url: targetUrl,
         withCredentials: true,
+        disableWorker,
       });
       return await authenticatedLoadingTask.promise;
     } catch (credentialedUrlError) {
       try {
-        return await fetchPdfDocumentBuffer(targetUrl);
+        return await fetchPdfDocumentBuffer(targetUrl, { disableWorker });
       } catch (fetchIncludeError) {
         throw fetchIncludeError || credentialedUrlError || publicUrlError;
       }
@@ -5476,6 +5481,7 @@ const WhiteboardTile = ({
       try {
         const pdfDocument = await loadPdfDocument(item.fileUrl, {
           preferBuffer: true,
+          disableWorker: true,
         });
         const pageCount = pdfDocument.numPages || 0;
         pdfPageCountCacheRef.current[item.id] = pageCount;
