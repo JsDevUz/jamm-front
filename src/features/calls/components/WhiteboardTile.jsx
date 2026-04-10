@@ -109,7 +109,7 @@ const getPdfViewportBottomInset = (interactive) =>
   interactive ? WHITEBOARD_VIEWPORT_BOTTOM_SAFE_SPACE : 0;
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-  "pdfjs-dist/build/pdf.worker.mjs",
+  "../../../workers/pdf.worker.js",
   import.meta.url,
 ).toString();
 
