@@ -1936,29 +1936,10 @@ export function useWebRTC({
         });
         syncTrackState();
 
-        const known = knownStreamsRef.current[peerId];
-
-        if (!known) {
-          // First stream from this peer = camera
-          knownStreamsRef.current[peerId] = s.id;
-          addRemoteStream(peerId, s, peerDisplayName);
-        } else if (known === s.id) {
-          // Same camera stream (renegotiation update)
-          addRemoteStream(peerId, s, peerDisplayName);
-        } else {
-          // New different stream = screen share
-          setRemoteScreenStreams((prev) => {
-            if (prev.find((r) => r.peerId === peerId)) {
-              return prev.map((r) =>
-                r.peerId === peerId ? { ...r, stream: s } : r,
-              );
-            }
-            return [
-              ...prev,
-              { peerId, stream: s, displayName: peerDisplayName },
-            ];
-          });
-        }
+        // Main peer connection always carries the participant camera/mic stream.
+        // Screen share uses the dedicated screen peer connection below.
+        knownStreamsRef.current[peerId] = s.id;
+        addRemoteStream(peerId, s, peerDisplayName);
       };
 
       pc.onicecandidate = (e) => {

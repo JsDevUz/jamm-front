@@ -169,6 +169,33 @@ const getSelectedPagesKey = (selectedPages) =>
   Array.isArray(selectedPages) && selectedPages.length > 0
     ? selectedPages.join(",")
     : "__all__";
+const getInitialVisiblePdfPages = (tab, pageDescriptors = []) => {
+  const descriptorPages = Array.isArray(pageDescriptors)
+    ? pageDescriptors
+        .map((page) => Number(page?.pageNumber))
+        .filter((pageNumber) => Number.isFinite(pageNumber) && pageNumber > 0)
+    : [];
+
+  if (descriptorPages.length > 0) {
+    return descriptorPages.slice(0, 2);
+  }
+
+  if (
+    tab?.type === "pdf" &&
+    tab?.selectedPagesMode === "custom" &&
+    Array.isArray(tab.selectedPages)
+  ) {
+    const selectedPages = tab.selectedPages
+      .map((pageNumber) => Number(pageNumber))
+      .filter((pageNumber) => Number.isFinite(pageNumber) && pageNumber > 0);
+
+    if (selectedPages.length > 0) {
+      return selectedPages.slice(0, 2);
+    }
+  }
+
+  return [1, 2];
+};
 
 const createWhiteboardStrokeId = () => {
   if (typeof crypto !== "undefined" && crypto.randomUUID) {
@@ -4340,6 +4367,10 @@ const WhiteboardTile = ({
         ? `custom:${getSelectedPagesKey(activeTab.selectedPages)}`
         : "__all__"
       : "__all__";
+  const initialVisiblePdfPages = useMemo(
+    () => getInitialVisiblePdfPages(activeTab, pdfMeta.pages),
+    [activeTab, pdfMeta.pages],
+  );
 
   const emitPdfViewport = useCallback(
     ({
@@ -4509,10 +4540,21 @@ const WhiteboardTile = ({
   }, []);
 
   useEffect(() => {
-    setCurrentPdfPage(1);
-    setVisiblePdfPages([1, 2]);
+    const nextVisiblePages =
+      initialVisiblePdfPages.length > 0 ? initialVisiblePdfPages : [1, 2];
+    setCurrentPdfPage(nextVisiblePages[0] || 1);
+    setVisiblePdfPages((prev) => {
+      if (
+        prev.length === nextVisiblePages.length &&
+        prev.every((pageNumber, index) => pageNumber === nextVisiblePages[index])
+      ) {
+        return prev;
+      }
+
+      return nextVisiblePages;
+    });
     setPdfPageMetrics({});
-  }, [activeTab?.id]);
+  }, [activeTab?.id, activeTabSelectedPagesKey, initialVisiblePdfPages]);
 
   const handleTileClick = useCallback(() => {
     onSelect?.();
@@ -4809,7 +4851,11 @@ const WhiteboardTile = ({
       return undefined;
     }
 
-    const visiblePageSet = new Set(visiblePdfPages);
+    const visiblePageSet = new Set(
+      (visiblePdfPages.length > 0 ? visiblePdfPages : initialVisiblePdfPages).filter(
+        (pageNumber) => Number.isFinite(pageNumber) && pageNumber > 0,
+      ),
+    );
     if (visiblePageSet.size === 0) {
       return undefined;
     }
@@ -4938,6 +4984,7 @@ const WhiteboardTile = ({
     pdfRenderWidth,
     activePdfZoom,
     activePdfWidth,
+    initialVisiblePdfPages,
     visiblePdfPages,
   ]);
 
@@ -6855,7 +6902,8 @@ const WhiteboardTile = ({
                         )
                       : 720);
                   const shouldRenderPage =
-                    visiblePdfPages.includes(pageMeta.pageNumber) || pageMeta.pageNumber <= 2;
+                    visiblePdfPages.includes(pageMeta.pageNumber) ||
+                    initialVisiblePdfPages.includes(pageMeta.pageNumber);
                   const pageStrokes = getPdfTabPageStrokes(activeTab, pageMeta.pageNumber);
 
                   return (

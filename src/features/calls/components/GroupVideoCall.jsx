@@ -442,10 +442,8 @@ const MiniPreviewFallback = styled.div`
   position: absolute;
   inset: 0;
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 18px;
   color: white;
   background: ${(props) => props.$bg || "#315f14"};
 `;
@@ -461,15 +459,6 @@ const MiniPreviewAvatar = styled.div`
   font-size: 56px;
   font-weight: 700;
   line-height: 1;
-`;
-
-const MiniPreviewName = styled.div`
-  padding: 0 20px;
-  text-align: center;
-  font-size: 22px;
-  font-weight: 700;
-  line-height: 1.1;
-  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.28);
 `;
 
 const AudioLayer = styled.div`
@@ -495,6 +484,71 @@ const MiniOverlay = styled.div`
     rgba(0, 0, 0, 0.08) 36%,
     rgba(0, 0, 0, 0.58) 100%
   );
+`;
+
+const PiPStage = styled.button`
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  border: none;
+  background: transparent;
+  padding: 14px 14px 0;
+  cursor: pointer;
+`;
+
+const PiPStageInner = styled.div`
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  border-radius: 24px;
+  overflow: hidden;
+  background: #234f10;
+`;
+
+const PiPBottomControls = styled.div`
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 20px;
+  background: rgba(22, 22, 24, 0.96);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.3);
+  margin: 16px auto 16px;
+  width: max-content;
+  z-index: 3;
+`;
+
+const PiPControlBtn = styled.button`
+  width: 56px;
+  height: 56px;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: ${(props) =>
+    props.$danger
+      ? "#d64a3a"
+      : props.$off
+        ? "rgba(247, 200, 204, 0.96)"
+        : "rgba(54, 54, 56, 0.98)"};
+  color: ${(props) => (props.$danger ? "white" : props.$off ? "#7b241f" : "#f5f5f5")};
+  cursor: pointer;
+`;
+
+const PiPNameLabel = styled.div`
+  position: absolute;
+  left: 18px;
+  bottom: 16px;
+  z-index: 2;
+  color: #fff;
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.1;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
 `;
 
 // ─── Video Grid ───────────────────────────────────────────────────────────────
@@ -2750,13 +2804,29 @@ const GroupVideoCall = ({
       console.error("Failed to leave call:", e);
     }
 
+    try {
+      if (pipWindow && !pipWindow.closed) {
+        pipCloseIntentRef.current = true;
+        pipWindow.close();
+      }
+      setPipWindow(null);
+      setPipContainer(null);
+    } catch (e) {
+      console.error("Failed to close PiP window:", e);
+    }
+
     onClose();
   };
 
-  const handleCopy = () => {
-    navigator.clipboard.writeText(`${RESOLVED_APP_BASE_URL}/join/${roomId}`);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(`${RESOLVED_APP_BASE_URL}/join/${roomId}`);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (error) {
+      console.error("Failed to copy meet link:", error);
+      toast.error(t("groupCall.copyFailed", "Linkni nusxalab bo'lmadi"));
+    }
   };
 
 
@@ -3621,10 +3691,38 @@ const GroupVideoCall = ({
           <MiniPreviewAvatar>
             {minimizedPreviewLabel?.charAt(0)?.toUpperCase() || "?"}
           </MiniPreviewAvatar>
-          <MiniPreviewName>{minimizedPreviewLabel}</MiniPreviewName>
         </MiniPreviewFallback>
       )}
     </MiniPreview>
+  );
+
+  const stopPiPControlClick = useCallback((event) => {
+    event.stopPropagation();
+  }, []);
+
+  const pipMinimizedContent = (
+    <PiPFrame>
+      <PiPStage type="button" onClick={handleMaximizeFromPiP}>
+        <PiPStageInner>
+          {minimizedPreviewNode}
+          <PiPNameLabel>{minimizedPreviewLabel}</PiPNameLabel>
+        </PiPStageInner>
+      </PiPStage>
+      <PiPBottomControls onClick={stopPiPControlClick}>
+        <PiPControlBtn type="button" $off={!isMicOn} onClick={toggleMic}>
+          {isMicOn ? <Mic size={22} /> : <MicOff size={22} />}
+        </PiPControlBtn>
+        <PiPControlBtn type="button" $off={!isCamOn} onClick={toggleCam}>
+          {isCamOn ? <Video size={22} /> : <VideoOff size={22} />}
+        </PiPControlBtn>
+        <PiPControlBtn type="button" onClick={handleMaximizeFromPiP}>
+          <Maximize size={22} />
+        </PiPControlBtn>
+        <PiPControlBtn type="button" $danger onClick={handleLeave}>
+          <PhoneOff size={22} />
+        </PiPControlBtn>
+      </PiPBottomControls>
+    </PiPFrame>
   );
 
   const minimizedContent = (
@@ -3658,7 +3756,7 @@ const GroupVideoCall = ({
     return (
       <>
         {remoteAudioLayer}
-        {createPortal(<PiPFrame>{minimizedContent}</PiPFrame>, pipContainer)}
+        {createPortal(pipMinimizedContent, pipContainer)}
       </>
     );
   }
