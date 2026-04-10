@@ -7,11 +7,11 @@ import {
   User,
   Calendar,
   History,
-  Loader2,
 } from "lucide-react";
 import dayjs from "dayjs";
 import { useArena } from "../../../contexts/ArenaContext";
 import { SidebarIconButton as ButtonWrapper } from "../../../shared/ui/buttons/IconButton";
+import Spinner from "../../../shared/ui/feedback/Spinner";
 
 const Overlay = styled.div`
   position: fixed;
@@ -310,7 +310,7 @@ const BattleHistoryDialog = ({ isOpen, onClose }) => {
 
           {isLoading && (
             <LoadingContainer>
-              <Loader2 size={24} className="animate-spin" />
+              <Spinner size={24} />
             </LoadingContainer>
           )}
         </ListBody>

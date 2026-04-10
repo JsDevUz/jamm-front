@@ -4,7 +4,6 @@ import styled from "styled-components";
 import {
   FileVideo,
   Link as LinkIcon,
-  Loader2,
   Upload,
   X,
 } from "lucide-react";
@@ -14,6 +13,7 @@ import { useCourses } from "../../../contexts/CoursesContext";
 import useAuthStore from "../../../store/authStore";
 import axiosInstance from "../../../api/axiosInstance";
 import { APP_LIMITS, isPremiumUser } from "../../../constants/appLimits";
+import Spinner from "../../../shared/ui/feedback/Spinner";
 
 const Overlay = styled.div`
   position: fixed;
@@ -1065,7 +1065,7 @@ const AddLessonDialog = ({
           >
             {isSubmitting && uploadPhase !== "idle" ? (
               <LoadingLabel>
-                <Loader2 size={15} className="spin" />
+                <Spinner size={15} />
                 {uploadPhase === "processing"
                   ? t("addLesson.processingShort")
                   : uploadPhase === "saving"

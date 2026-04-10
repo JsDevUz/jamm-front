@@ -1256,6 +1256,9 @@ export function useWebRTC({
   const screenPeerConnectionsRef = useRef({});
   const screenCandidateQueuesRef = useRef({});
   const negotiationTasksRef = useRef({});
+  const makingOfferRef = useRef({});
+  const ignoreOfferRef = useRef({});
+  const settingRemoteAnswerPendingRef = useRef({});
   const statsIntervalRef = useRef(null);
   const qualityProfileRef = useRef(CALL_QUALITY_PROFILES.balanced);
   const cameraFacingModeRef = useRef("user");
@@ -1270,12 +1273,49 @@ export function useWebRTC({
 
   // ─── Helpers ─────────────────────────────────────────────────────────────────
 
+  const syncRemotePeerDisplayName = useCallback((peerId, name) => {
+    const nextName =
+      typeof name === "string" && name.trim()
+        ? name.trim()
+        : knownPeerNamesRef.current[peerId] || "";
+    if (!peerId || !nextName) {
+      return;
+    }
+
+    knownPeerNamesRef.current[peerId] = nextName;
+    setRemoteStreams((prev) =>
+      prev.map((item) =>
+        item.peerId === peerId ? { ...item, displayName: nextName } : item,
+      ),
+    );
+    setRemoteScreenStreams((prev) =>
+      prev.map((item) =>
+        item.peerId === peerId ? { ...item, displayName: nextName } : item,
+      ),
+    );
+    setRemotePeerStates((prev) => ({
+      ...prev,
+      [peerId]: {
+        ...(prev[peerId] || {}),
+        displayName: nextName,
+      },
+    }));
+  }, []);
+
   const addRemoteStream = useCallback((peerId, stream, name) => {
+    const resolvedName =
+      (typeof name === "string" && name.trim()) ||
+      knownPeerNamesRef.current[peerId] ||
+      peerId;
     setRemoteStreams((prev) => {
       if (prev.find((r) => r.peerId === peerId)) {
-        return prev.map((r) => (r.peerId === peerId ? { ...r, stream } : r));
+        return prev.map((r) =>
+          r.peerId === peerId
+            ? { ...r, stream, displayName: resolvedName }
+            : r,
+        );
       }
-      return [...prev, { peerId, stream, displayName: name || peerId }];
+      return [...prev, { peerId, stream, displayName: resolvedName }];
     });
     setRemotePeerStates((prev) => ({
       ...prev,
@@ -1285,7 +1325,7 @@ export function useWebRTC({
         videoMuted: false,
         audioMuted: false,
         connectionState: prev[peerId]?.connectionState || "connecting",
-        displayName: name || prev[peerId]?.displayName || peerId,
+        displayName: resolvedName || prev[peerId]?.displayName || peerId,
       },
     }));
   }, []);
@@ -1338,7 +1378,13 @@ export function useWebRTC({
 
   const renegotiatePeerConnection = useCallback(
     async (peerId, pc) => {
-      if (!peerId || !pc || !socketRef.current || pc.signalingState !== "stable") {
+      if (
+        !peerId ||
+        !pc ||
+        !socketRef.current ||
+        pc.signalingState !== "stable" ||
+        makingOfferRef.current[peerId]
+      ) {
         return false;
       }
 
@@ -1352,6 +1398,7 @@ export function useWebRTC({
             return false;
           }
 
+          makingOfferRef.current[peerId] = true;
           const offer = await pc.createOffer();
           if (pc.signalingState !== "stable") {
             return false;
@@ -1363,6 +1410,7 @@ export function useWebRTC({
         } catch {
           return false;
         } finally {
+          makingOfferRef.current[peerId] = false;
           delete negotiationTasksRef.current[peerId];
         }
       })();
@@ -1420,6 +1468,10 @@ export function useWebRTC({
     }
     delete candidateQueuesRef.current[peerId];
     delete screenCandidateQueuesRef.current[peerId];
+    delete negotiationTasksRef.current[peerId];
+    delete makingOfferRef.current[peerId];
+    delete ignoreOfferRef.current[peerId];
+    delete settingRemoteAnswerPendingRef.current[peerId];
   }, []);
 
   const removeRemoteScreenStream = useCallback((peerId) => {
@@ -1701,7 +1753,8 @@ export function useWebRTC({
       return true;
     }
 
-    const replaceTasks = Object.values(peerConnectionsRef.current).map(async (pc) => {
+    const peersToRenegotiate = [];
+    const replaceTasks = Object.entries(peerConnectionsRef.current).map(async ([peerId, pc]) => {
       const videoSender = getPeerConnectionSender(
         pc,
         "video",
@@ -1714,16 +1767,22 @@ export function useWebRTC({
 
       try {
         await videoSender.replaceTrack(null);
+        peersToRenegotiate.push([peerId, pc]);
       } catch {}
     });
 
     await Promise.all(replaceTasks);
+    await Promise.all(
+      peersToRenegotiate.map(([peerId, pc]) =>
+        renegotiatePeerConnection(peerId, pc),
+      ),
+    );
     stream.removeTrack(currentTrack);
     currentTrack.stop();
     syncLocalStreamState(stream);
     setIsCamOn(false);
     return true;
-  }, [getPeerConnectionSender, syncLocalStreamState]);
+  }, [getPeerConnectionSender, renegotiatePeerConnection, syncLocalStreamState]);
 
   const ensureLocalVideoTrack = useCallback(async () => {
     if (!navigator.mediaDevices?.getUserMedia) return false;
@@ -2020,6 +2079,27 @@ export function useWebRTC({
             knownPeerNamesRef.current[senderId] || senderId,
           );
         }
+        const politePeer =
+          String(socket.id || "").localeCompare(String(senderId || "")) > 0;
+        const readyForOffer =
+          !makingOfferRef.current[senderId] &&
+          (pc.signalingState === "stable" ||
+            settingRemoteAnswerPendingRef.current[senderId]);
+        const offerCollision = !readyForOffer;
+
+        ignoreOfferRef.current[senderId] = !politePeer && offerCollision;
+        if (ignoreOfferRef.current[senderId]) {
+          return;
+        }
+
+        if (offerCollision && pc.signalingState !== "stable") {
+          try {
+            await pc.setLocalDescription({ type: "rollback" });
+          } catch {
+            return;
+          }
+        }
+
         await pc.setRemoteDescription(new RTCSessionDescription(sdp));
 
         // Process queued ice candidates
@@ -2037,7 +2117,15 @@ export function useWebRTC({
       socket.on("answer", async ({ senderId, sdp }) => {
         const pc = peerConnectionsRef.current[senderId];
         if (pc) {
-          await pc.setRemoteDescription(new RTCSessionDescription(sdp));
+          if (pc.signalingState !== "have-local-offer") {
+            return;
+          }
+          settingRemoteAnswerPendingRef.current[senderId] = true;
+          try {
+            await pc.setRemoteDescription(new RTCSessionDescription(sdp));
+          } finally {
+            settingRemoteAnswerPendingRef.current[senderId] = false;
+          }
           // Process queued ice candidates
           const queue = candidateQueuesRef.current[senderId] || [];
           while (queue.length > 0) {
@@ -2064,7 +2152,7 @@ export function useWebRTC({
 
       socket.on("peer-joined", async ({ peerId, displayName: peerName }) => {
         if (peerName) {
-          knownPeerNamesRef.current[peerId] = peerName;
+          syncRemotePeerDisplayName(peerId, peerName);
         }
         updateRemotePeerState(peerId, {
           displayName: peerName || knownPeerNamesRef.current[peerId] || peerId,
@@ -2075,9 +2163,7 @@ export function useWebRTC({
           audioMuted: true,
         });
         const pc = createPeerConnection(peerId, peerName);
-        const offer = await pc.createOffer();
-        await pc.setLocalDescription(offer);
-        socket.emit("offer", { targetId: peerId, sdp: offer });
+        await renegotiatePeerConnection(peerId, pc);
 
         if (screenStreamRef.current) {
           const screenPc = createScreenPeerConnection(peerId, peerName, {
@@ -2092,7 +2178,7 @@ export function useWebRTC({
       socket.on("existing-peers", ({ peers }) => {
         (peers || []).forEach((peer) => {
           if (peer?.peerId && peer?.displayName) {
-            knownPeerNamesRef.current[peer.peerId] = peer.displayName;
+            syncRemotePeerDisplayName(peer.peerId, peer.displayName);
             updateRemotePeerState(peer.peerId, {
               displayName: peer.displayName,
               connectionState: "connecting",
@@ -2151,7 +2237,9 @@ export function useWebRTC({
       createPeerConnection,
       createScreenPeerConnection,
       flushScreenCandidateQueue,
+      renegotiatePeerConnection,
       removeRemoteStream,
+      syncRemotePeerDisplayName,
     ],
   );
 
@@ -2583,6 +2671,9 @@ export function useWebRTC({
       screenPeerConnectionsRef.current = {};
       screenCandidateQueuesRef.current = {};
       negotiationTasksRef.current = {};
+      makingOfferRef.current = {};
+      ignoreOfferRef.current = {};
+      settingRemoteAnswerPendingRef.current = {};
       if (localStreamRef.current) {
         localStreamRef.current.getTracks().forEach((t) => t.stop());
         localStreamRef.current = null;
@@ -2724,6 +2815,10 @@ export function useWebRTC({
       localStreamRef.current = null;
       screenStreamRef.current?.getTracks().forEach((t) => t.stop());
       screenStreamRef.current = null;
+      negotiationTasksRef.current = {};
+      makingOfferRef.current = {};
+      ignoreOfferRef.current = {};
+      settingRemoteAnswerPendingRef.current = {};
     } catch (e) {
       console.error("Error in leaveCall:", e);
     } finally {

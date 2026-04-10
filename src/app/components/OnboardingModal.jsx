@@ -17,11 +17,11 @@ import {
   Hash,
   User,
   AlertCircle,
-  Loader2,
 } from "lucide-react";
 import useAuthStore from "../../store/authStore";
 import toast from "react-hot-toast";
 import { API_BASE_URL } from "../../config/env";
+import Spinner from "../../shared/ui/feedback/Spinner";
 
 const fadeIn = keyframes`
   from { opacity: 0; transform: scale(0.95); }
@@ -546,7 +546,7 @@ const OnboardingModal = () => {
                   }}
                 />
                 {isCheckingUsername && (
-                  <Loader2
+                  <Spinner
                     size={16}
                     style={{
                       position: "absolute",
@@ -554,7 +554,6 @@ const OnboardingModal = () => {
                       top: "50%",
                       transform: "translateY(-50%)",
                       color: "#b9bbbe",
-                      animation: "spin 1s linear infinite",
                     }}
                   />
                 )}

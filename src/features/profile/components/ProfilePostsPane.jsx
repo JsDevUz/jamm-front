@@ -6,7 +6,6 @@ import {
   Edit2,
   Eye,
   Heart,
-  Loader2,
   MessageCircle,
   MessageSquare,
   Plus,
@@ -14,6 +13,7 @@ import {
 } from "lucide-react";
 import OfficalBadge from "../../../shared/ui/badges/OfficalBadge";
 import ImageLightbox from "../../../shared/ui/media/ImageLightbox";
+import Spinner from "../../../shared/ui/feedback/Spinner";
 import {
   ProfileMobileBackButton,
   ProfilePaneBody,
@@ -214,7 +214,7 @@ const ProfilePostImages = ({ post, onOpenImage }) => {
                 />
                 {isLoading ? (
                   <PostImageOverlay $loading>
-                    <Loader2 size={18} />
+                    <Spinner size={18} />
                   </PostImageOverlay>
                 ) : null}
                 {isLoaded ? (

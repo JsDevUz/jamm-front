@@ -1,9 +1,10 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Bold, Hash, ImagePlus, Italic, Loader2, Send, X } from "lucide-react";
+import { Bold, Hash, ImagePlus, Italic, Send, X } from "lucide-react";
 import toast from "react-hot-toast";
 import { SidebarIconButton as ButtonWrapper } from "../../../shared/ui/buttons/IconButton";
 import { APP_LIMITS, countWords, isPremiumUser } from "../../../constants/appLimits";
 import { deletePostImage, uploadPostImage } from "../../../api/postsApi";
+import Spinner from "../../../shared/ui/feedback/Spinner";
 import { generatePostImagePlaceholder } from "../utils/postImagePlaceholder";
 import {
   AttachmentCard,
@@ -378,7 +379,7 @@ const CreatePostDialog = ({
                     {attachment.uploading || attachment.error ? (
                       <AttachmentStatus>
                         {attachment.uploading ? (
-                          <Loader2 size={18} />
+                          <Spinner size={18} />
                         ) : (
                           attachment.error
                         )}

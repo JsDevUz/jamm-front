@@ -7,7 +7,6 @@ import {
   X,
   Trash2,
   Image as ImageIcon,
-  Loader2,
   Search,
 } from "lucide-react";
 import toast from "react-hot-toast";
@@ -15,6 +14,7 @@ import { CloseBtnWrapper } from "./CreateSentenceBuilderDialog";
 import { SidebarIconButton as ButtonWrapper } from "../../../shared/ui/buttons/IconButton";
 import useAuthStore from "../../../store/authStore";
 import { APP_LIMITS, getTierLimit } from "../../../constants/appLimits";
+import Spinner from "../../../shared/ui/feedback/Spinner";
 
 const fadeIn = keyframes`
   from {
@@ -819,7 +819,7 @@ const CreateFlashcardDialog = ({ onClose, initialDeck = null, folders = [] }) =>
                 disabled={isSearching || !searchQuery.trim()}
               >
                 {isSearching ? (
-                  <Loader2 size={18} className="spin" />
+                  <Spinner size={18} />
                 ) : (
                   <Search size={18} />
                 )}

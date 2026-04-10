@@ -5,7 +5,6 @@ import {
   Eye,
   Flame,
   Heart,
-  Loader2,
   MessageCircle,
   MoreHorizontal,
   Pencil,
@@ -20,6 +19,7 @@ import {
   Skeleton,
   SkeletonCircle,
 } from "../../../shared/ui/feedback/Skeleton";
+import Spinner from "../../../shared/ui/feedback/Spinner";
 import ConfirmDialog from "../../../shared/ui/dialogs/ConfirmDialog";
 import SectionHeader from "../../../shared/ui/navigation/SectionHeader";
 import { renderInlineMarkup } from "../../../shared/utils/renderInlineMarkup";
@@ -172,7 +172,7 @@ const FeedPostImages = ({ post, onOpenImage }) => {
                     />
                     {slideLoading ? (
                       <PostImageOverlay $loading>
-                        <Loader2 size={18} />
+                        <Spinner size={18} />
                       </PostImageOverlay>
                     ) : null}
                     {loadedImages[key] ? (

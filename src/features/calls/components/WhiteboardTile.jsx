@@ -4,6 +4,7 @@ import styled from "styled-components";
 import { useTranslation } from "react-i18next";
 import { useHotkeys } from "react-hotkeys-hook";
 import * as pdfjsLib from "pdfjs-dist/build/pdf.mjs";
+import pdfWorkerSrc from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import {
   AlignCenter,
   AlignLeft,
@@ -13,7 +14,6 @@ import {
   Circle,
   Diamond,
   Eraser,
-  Loader2,
   Maximize,
   Minimize2,
   Minus,
@@ -41,6 +41,7 @@ import {
   ModalTitle,
   ModalTitleBlock,
 } from "../../../shared/ui/dialogs/ModalShell";
+import Spinner from "../../../shared/ui/feedback/Spinner";
 
 const WHITEBOARD_APPEND_BATCH_LIMIT = 24;
 const WHITEBOARD_SWATCHES = [
@@ -107,10 +108,7 @@ const getPdfViewportTopInset = (interactive) =>
 const getPdfViewportBottomInset = (interactive) =>
   interactive ? WHITEBOARD_VIEWPORT_BOTTOM_SAFE_SPACE : 0;
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-  "../../../workers/pdf.worker.js",
-  import.meta.url,
-).toString();
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerSrc;
 
 const PDF_DEBUG_ENABLED = true;
 
@@ -2529,7 +2527,7 @@ const PdfPickerPageCard = ({ pdfDocument, pageNumber, active = false, onClick })
         <PagePreviewCanvas ref={canvasRef} />
         {renderState !== "ready" ? (
           <PagePreviewPlaceholder>
-            {renderState === "loading" ? <Loader2 size={18} className="spin" /> : pageNumber}
+            {renderState === "loading" ? <Spinner size={18} /> : pageNumber}
           </PagePreviewPlaceholder>
         ) : null}
       </PagePreviewViewport>
@@ -5921,7 +5919,7 @@ const WhiteboardTile = ({
                   ))}
 
                   <PdfUploadCard type="button" onClick={() => fileInputRef.current?.click()}>
-                    {pdfUploadPending ? <Loader2 size={22} className="spin" /> : <Plus size={22} />}
+                    {pdfUploadPending ? <Spinner size={22} /> : <Plus size={22} />}
                     <PdfLibraryTitle>{t("groupCall.whiteboard.uploadPdfCard")}</PdfLibraryTitle>
                     <PdfLibraryMeta>
                       <span>{t("groupCall.whiteboard.uploadPdfCardHint")}</span>
@@ -5957,7 +5955,7 @@ const WhiteboardTile = ({
 
                 {pdfPickerState.status === "loading" ? (
                   <PdfStatus>
-                    <Loader2 size={18} className="spin" />
+                    <Spinner size={18} />
                     <span>{t("groupCall.whiteboard.loadingPdfPages")}</span>
                   </PdfStatus>
                 ) : null}
@@ -6311,7 +6309,7 @@ const WhiteboardTile = ({
                     aria-label={t("groupCall.whiteboard.addPdf")}
                     title={t("groupCall.whiteboard.addPdf")}
                   >
-                    {pdfUploadPending ? <Loader2 size={16} className="spin" /> : <Plus size={16} />}
+                    {pdfUploadPending ? <Spinner size={16} /> : <Plus size={16} />}
                   </AddTabButton>
                   </>
                 ) : null}
@@ -6834,7 +6832,7 @@ const WhiteboardTile = ({
             >
               {pdfMeta.status === "loading" ? (
                 <PdfStatus>
-                  <Loader2 size={18} className="spin" />
+                  <Spinner size={18} />
                   <span>{t("groupCall.whiteboard.loadingPdf")}</span>
                 </PdfStatus>
               ) : null}

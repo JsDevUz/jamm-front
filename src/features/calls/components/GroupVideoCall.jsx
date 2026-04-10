@@ -2896,6 +2896,7 @@ const GroupVideoCall = ({
 
     remoteStreams.forEach(({ peerId, stream, displayName: remoteName }) => {
       const peerState = remotePeerStates[peerId];
+      const resolvedRemoteName = peerState?.displayName || remoteName || peerId;
       const isRemoteCamOn =
         peerState?.hasVideo !== false && peerState?.videoMuted !== true;
       const isRemoteAudioOn =
@@ -2908,7 +2909,7 @@ const GroupVideoCall = ({
         kind: "video",
         peerId,
         stream,
-        label: remoteName,
+        label: resolvedRemoteName,
         isLocal: false,
         isScreenShare: false,
         hasVideo: Boolean(stream) && isRemoteCamOn,
@@ -2949,12 +2950,14 @@ const GroupVideoCall = ({
     });
 
     remoteScreenStreams.forEach(({ peerId, stream, displayName: remoteName }) => {
+      const peerState = remotePeerStates[peerId];
+      const resolvedRemoteName = peerState?.displayName || remoteName || peerId;
       tiles.unshift({
         id: `screen-${peerId}`,
         kind: "video",
         peerId,
         stream,
-        label: `${remoteName} · Ekran`,
+        label: `${resolvedRemoteName} · Ekran`,
         isLocal: false,
         isScreenShare: true,
         hasVideo: Boolean(stream),
@@ -3760,6 +3763,8 @@ const GroupVideoCall = ({
               {/* Remote peers */}
               {remoteStreams.map(({ peerId, displayName: n }) => {
                 const peerState = remotePeerStates[peerId] || {};
+                const resolvedDisplayName =
+                  peerState.displayName || n || peerId;
                 const isPeerMicOn =
                   peerState.hasAudio !== false && peerState.audioMuted !== true;
                 const isPeerCamOn =
@@ -3768,14 +3773,14 @@ const GroupVideoCall = ({
                 return (
                   <MemberRow key={peerId}>
                     <MemberAvatar>
-                      {n?.charAt(0)?.toUpperCase() || "?"}
+                      {resolvedDisplayName?.charAt(0)?.toUpperCase() || "?"}
                     </MemberAvatar>
                     <MemberInfo>
                       <MemberName>
                         {raisedHands.has(peerId) && (
                           <Hand size={14} color="#faa61a" fill="#faa61a" />
                         )}
-                        {n}
+                        {resolvedDisplayName}
                       </MemberName>
                     </MemberInfo>
                     <MemberIcons>
