@@ -387,9 +387,12 @@ const Body = styled.div`
 const PiPFrame = styled.div`
   width: 100%;
   height: 100%;
+  min-width: 300px;
+  min-height: 500px;
   background: var(--call-bg);
   display: flex;
   flex-direction: column;
+  justify-content: space-between;
 `;
 
 const MinimizedBody = styled.button`
@@ -492,7 +495,7 @@ const PiPStage = styled.button`
   min-height: 0;
   border: none;
   background: transparent;
-  padding: 14px 14px 0;
+  padding: 14px 18px 0;
   cursor: pointer;
 `;
 
@@ -510,21 +513,22 @@ const PiPBottomControls = styled.div`
   position: relative;
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 12px 14px;
+  gap: 8px;
+  padding: 10px 12px;
   border-radius: 20px;
   background: rgba(22, 22, 24, 0.96);
   border: 1px solid rgba(255, 255, 255, 0.08);
   box-shadow: 0 16px 36px rgba(0, 0, 0, 0.3);
-  margin: 16px auto 16px;
-  width: max-content;
+  margin: 12px 18px 18px;
+  width: calc(100% - 36px);
+  justify-content: center;
   z-index: 3;
 `;
 
 const PiPControlBtn = styled.button`
-  width: 56px;
-  height: 56px;
-  border-radius: 18px;
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   display: inline-flex;
   align-items: center;
@@ -562,90 +566,28 @@ const VideoGrid = styled.div`
   min-width: 0;
   min-height: 0;
 
-  ${(p) => {
-    const n = p.$count;
+  grid-template-columns: ${(p) =>
+    p.$count <= 1 ? "minmax(0, 1fr)" : "repeat(2, minmax(0, 1fr))"};
+  grid-template-rows: ${(p) =>
+    p.$count <= 1
+      ? "minmax(0, 1fr)"
+      : `repeat(${Math.max(1, Math.ceil(p.$count / 2))}, minmax(0, 1fr))`};
 
-    if (n === 1) {
-      return css`
-        grid-template-columns: minmax(0, 1fr);
-        grid-template-rows: minmax(0, 1fr);
-      `;
-    }
+  & > * {
+    min-width: 0;
+    min-height: 0;
+  }
 
-    if (n === 2) {
-      return css`
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        grid-template-rows: minmax(0, 1fr);
-
-        @media (max-width: 768px) {
-          grid-template-columns: minmax(0, 1fr);
-          grid-template-rows: repeat(2, minmax(0, 1fr));
-        }
-      `;
-    }
-
-    if (n === 3) {
-      return css`
-        grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr);
-        grid-template-rows: repeat(2, minmax(0, 1fr));
-
-        & > *:nth-child(1) {
-          grid-column: 2;
-          grid-row: 1 / span 2;
-        }
-
-        & > *:nth-child(2) {
-          grid-column: 1;
-          grid-row: 1;
-        }
-
-        & > *:nth-child(3) {
-          grid-column: 1;
-          grid-row: 2;
-        }
-
-        @media (max-width: 768px) {
-          grid-template-columns: minmax(0, 1fr);
-          grid-template-rows: repeat(3, minmax(0, 1fr));
-
-          & > *:nth-child(1),
-          & > *:nth-child(2),
-          & > *:nth-child(3) {
-            grid-column: auto;
-            grid-row: auto;
+  ${(p) =>
+    p.$count === 3 || p.$count === 5
+      ? css`
+          & > *:last-child {
+            grid-column: 1 / span 2;
+            width: min(100%, calc((100% - 10px) / 2));
+            justify-self: center;
           }
-        }
-      `;
-    }
-
-    if (n === 4) {
-      return css`
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        grid-template-rows: repeat(2, minmax(0, 1fr));
-      `;
-    }
-
-    if (n <= 6) {
-      return css`
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-        grid-template-rows: repeat(2, minmax(0, 1fr));
-
-        @media (max-width: 768px) {
-          grid-template-columns: repeat(2, minmax(0, 1fr));
-          grid-template-rows: repeat(${Math.ceil(n / 2)}, minmax(0, 1fr));
-        }
-      `;
-    }
-
-    return css`
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      grid-auto-rows: minmax(0, 1fr);
-
-      @media (max-width: 768px) {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-      }
-    `;
-  }}
+        `
+      : ""}
 `;
 
 const StageLayout = styled.div`
@@ -840,7 +782,7 @@ const VideoTile = styled.div`
     height: 100%;
     object-fit: ${(p) => {
       if (p.$screenShare) return "contain";
-      if (p.$compact) return "contain";
+      if (p.$compact) return "cover";
       return p.$mobile ? "contain" : "cover";
     }};
     display: block;
@@ -879,22 +821,36 @@ const NoCamera = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
-  flex-direction: column;
-  gap: ${(p) => (p.$compact ? "6px" : "10px")};
-  color: var(--call-muted);
+  color: white;
+  background: ${(p) => p.$bg || "#315f14"};
 `;
 
 const Avatar = styled.div`
   width: ${(p) => (p.$compact ? "44px" : "60px")};
   height: ${(p) => (p.$compact ? "44px" : "60px")};
   border-radius: 50%;
-  background: var(--call-panel);
+  background: rgba(255, 255, 255, 0.16);
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: ${(p) => (p.$compact ? "20px" : "26px")};
   font-weight: 700;
-  color: var(--call-text);
+  color: #fff;
+`;
+
+const TileMuteBadge = styled.div`
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 38px;
+  height: 38px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(32, 72, 10, 0.76);
+  color: #d6f0a0;
+  z-index: 3;
 `;
 
 // ─── Waiting Room Panel ───────────────────────────────────────────────────────
@@ -1401,6 +1357,7 @@ const VideoEl = ({
   isLocal = false,
   label,
   isCamOn = true,
+  hasVideo = false,
   hasAudio = false,
   isScreenShare = false,
   canFullscreen = false,
@@ -1471,6 +1428,8 @@ const VideoEl = ({
     },
     [onToggleFullscreen],
   );
+  const hasRenderableVideo = Boolean(stream) && Boolean(hasVideo) && Boolean(isCamOn);
+  const fallbackBg = "#315f14";
 
   return (
     <VideoTile
@@ -1507,10 +1466,15 @@ const VideoEl = ({
           <Hand size={20} color="#faa61a" fill="#faa61a" />
         </span>
       ) : null}
-      {isCamOn && stream ? (
+      {hasRenderableVideo ? (
         <video ref={ref} autoPlay playsInline muted />
       ) : (
-        <NoCamera $compact={compact}>
+        <NoCamera $compact={compact} $bg={fallbackBg}>
+          {!hasAudio ? (
+            <TileMuteBadge>
+              <MicOff size={18} />
+            </TileMuteBadge>
+          ) : null}
           <Avatar $compact={compact}>{label?.charAt(0)?.toUpperCase() || "?"}</Avatar>
         </NoCamera>
       )}
@@ -2884,12 +2848,18 @@ const GroupVideoCall = ({
 
     try {
       const nextPipWindow = await documentPiP.requestWindow({
-        width: 360,
-        height: 220,
+        width: 300,
+        height: 500,
       });
 
+      nextPipWindow.document.documentElement.style.margin = "0";
+      nextPipWindow.document.documentElement.style.width = "100%";
+      nextPipWindow.document.documentElement.style.height = "100%";
       nextPipWindow.document.body.innerHTML = "";
       nextPipWindow.document.body.style.margin = "0";
+      nextPipWindow.document.body.style.width = "100%";
+      nextPipWindow.document.body.style.height = "100%";
+      nextPipWindow.document.body.style.display = "flex";
       nextPipWindow.document.body.style.background = "#0b0d0f";
       nextPipWindow.document.body.style.overflow = "hidden";
 
@@ -2916,6 +2886,10 @@ const GroupVideoCall = ({
       const mountNode = nextPipWindow.document.createElement("div");
       mountNode.style.width = "100%";
       mountNode.style.height = "100%";
+      mountNode.style.minWidth = "300px";
+      mountNode.style.minHeight = "500px";
+      mountNode.style.display = "flex";
+      mountNode.style.flex = "1 1 auto";
       nextPipWindow.document.body.appendChild(mountNode);
 
       pipCloseIntentRef.current = false;
@@ -3196,23 +3170,6 @@ const GroupVideoCall = ({
   );
 
   const tileCount = allTiles.length;
-  const defaultStageTileId = useMemo(() => {
-    if (isWhiteboardActive) {
-      return allTiles.find((tile) => tile.kind === "whiteboard")?.id || null;
-    }
-
-    if (isMobileViewport) {
-      return (
-        allTiles.find((tile) => tile.kind === "video" && tile.isScreenShare && tile.hasVideo)?.id ||
-        allTiles.find((tile) => tile.kind === "video" && !tile.isLocal && tile.hasVideo)?.id ||
-        allTiles.find((tile) => tile.kind === "video" && tile.id === "local")?.id ||
-        allTiles[0]?.id ||
-        null
-      );
-    }
-
-    return null;
-  }, [allTiles, isMobileViewport, isWhiteboardActive]);
 
   useEffect(() => {
     setSelectedTileId((current) =>
@@ -3232,11 +3189,6 @@ const GroupVideoCall = ({
   }, [allTiles]);
 
   useEffect(() => {
-    if (isWhiteboardActive && !whiteboardWasActiveRef.current) {
-      setSelectedTileId("whiteboard");
-      setFullscreenTileId(null);
-    }
-
     if (!isWhiteboardActive && whiteboardWasActiveRef.current) {
       setSelectedTileId((current) => (current === "whiteboard" ? null : current));
       setFullscreenTileId((current) => (current === "whiteboard" ? null : current));
@@ -3263,7 +3215,7 @@ const GroupVideoCall = ({
     if (
       typeof window === "undefined" ||
       typeof (window.AudioContext || window.webkitAudioContext) !== "function" ||
-      remoteStreams.length === 0
+      (remoteStreams.length === 0 && !localStream?.getAudioTracks?.().length)
     ) {
       return undefined;
     }
@@ -3275,15 +3227,32 @@ const GroupVideoCall = ({
     let lastCommittedPeerId = null;
     let lastCommitAt = 0;
 
-    const analysers = remoteStreams
-      .map(({ peerId, stream }) => {
+    const analysers = [
+      ...(localStream?.getAudioTracks?.().length
+        ? [
+            {
+              peerId: "local",
+              stream: localStream,
+              forceEnabled: isMicOn,
+            },
+          ]
+        : []),
+      ...remoteStreams.map(({ peerId, stream }) => ({
+        peerId,
+        stream,
+        forceEnabled: remotePeerStates[peerId]?.audioMuted !== true,
+      })),
+    ]
+      .map(({ peerId, stream, forceEnabled }) => {
         const peerState = remotePeerStates[peerId];
         const audioTracks =
           stream
             ?.getAudioTracks?.()
-            ?.filter(
-              (track) => track.readyState === "live" && peerState?.audioMuted !== true,
-            ) || [];
+            ?.filter((track) => {
+              if (track.readyState !== "live") return false;
+              if (peerId === "local") return forceEnabled !== false;
+              return peerState?.audioMuted !== true && forceEnabled !== false;
+            }) || [];
 
         if (audioTracks.length === 0) return null;
 
@@ -3367,9 +3336,9 @@ const GroupVideoCall = ({
       });
       audioContext.close().catch(() => {});
     };
-  }, [remotePeerStates, remoteStreams]);
+  }, [isMicOn, localStream, remotePeerStates, remoteStreams]);
 
-  const activeStageTileId = fullscreenTileId || selectedTileId || defaultStageTileId;
+  const activeStageTileId = fullscreenTileId || null;
   const activeStageTile = allTiles.find((tile) => tile.id === activeStageTileId) || null;
   const sideTiles = allTiles.filter((tile) => tile.id !== activeStageTileId);
   const hasStageLayout = Boolean(activeStageTile);
@@ -3477,6 +3446,7 @@ const GroupVideoCall = ({
       isLocal={tile.isLocal}
       label={tile.label}
       isCamOn={tile.isCamOn}
+      hasVideo={tile.hasVideo}
       hasAudio={tile.hasAudio}
       isScreenShare={tile.isScreenShare}
       canFullscreen={showFullscreenControl && tile.hasVideo}
@@ -3710,16 +3680,16 @@ const GroupVideoCall = ({
       </PiPStage>
       <PiPBottomControls onClick={stopPiPControlClick}>
         <PiPControlBtn type="button" $off={!isMicOn} onClick={toggleMic}>
-          {isMicOn ? <Mic size={22} /> : <MicOff size={22} />}
+          {isMicOn ? <Mic size={20} /> : <MicOff size={20} />}
         </PiPControlBtn>
         <PiPControlBtn type="button" $off={!isCamOn} onClick={toggleCam}>
-          {isCamOn ? <Video size={22} /> : <VideoOff size={22} />}
+          {isCamOn ? <Video size={20} /> : <VideoOff size={20} />}
         </PiPControlBtn>
         <PiPControlBtn type="button" onClick={handleMaximizeFromPiP}>
-          <Maximize size={22} />
+          <Maximize size={20} />
         </PiPControlBtn>
         <PiPControlBtn type="button" $danger onClick={handleLeave}>
-          <PhoneOff size={22} />
+          <PhoneOff size={20} />
         </PiPControlBtn>
       </PiPBottomControls>
     </PiPFrame>
@@ -3887,7 +3857,12 @@ const GroupVideoCall = ({
           </StageLayout>
         ) : (
           <VideoGrid $count={tileCount}>
-            {allTiles.map((tile) => renderTile(tile))}
+            {allTiles.map((tile) =>
+              renderTile(tile, {
+                selectable: false,
+                showFullscreenControl: true,
+              }),
+            )}
           </VideoGrid>
         )}
 

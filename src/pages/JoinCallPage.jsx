@@ -253,7 +253,8 @@ const JoinCallPage = () => {
     if (stage !== "call" || !roomId) return;
 
     const fallbackPath =
-      sessionStorage.getItem("meet_return_path") || "/chats";
+      sessionStorage.getItem("meet_return_path") ||
+      (user ? "/chats" : `/join/${roomId}`);
 
     startCall({
       roomId,
@@ -275,6 +276,7 @@ const JoinCallPage = () => {
     initialMic,
     initialCam,
     startCall,
+    user,
   ]);
 
   if (stage === "checking") {
