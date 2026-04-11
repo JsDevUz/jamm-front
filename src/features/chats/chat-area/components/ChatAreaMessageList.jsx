@@ -45,7 +45,7 @@ const MessagesContainer = styled.div`
   display: flex;
   flex-direction: column;
   min-height: 0;
-  background-image: url("/chat-area-bg.jpg");
+  background-image: url("/chat-area-bg.JPG");
   background-size: 420px auto;
   background-repeat: repeat;
   background-position: center;
@@ -94,8 +94,10 @@ const DateSeparator = styled.div`
     color: var(--text-secondary-color);
     font-size: 12px;
     font-weight: 600;
+    background-color: var(--background-color);
     padding: 0 16px;
     text-transform: uppercase;
+    border-radius: 10px;
     letter-spacing: 0.5px;
   }
 `;
@@ -405,7 +407,7 @@ const InitialLayoutSkeleton = styled.div`
   justify-content: flex-start;
   gap: 12px;
   padding: 16px 8px calc(10px + env(safe-area-inset-bottom, 0px));
-  background-image: url("/chat-area-bg.jpg");
+  background-image: url("/chat-area-bg.JPG");
   background-size: 420px auto;
   background-repeat: repeat;
   background-position: center;

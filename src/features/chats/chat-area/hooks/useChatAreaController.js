@@ -24,7 +24,6 @@ import {
 const CHAT_MESSAGES_CACHE_VERSION = 1;
 const CHAT_MESSAGES_CACHE_PREFIX = "jamm.chat-area.messages";
 const CHAT_SCROLL_CACHE_PREFIX = "jamm.chat-area.scroll";
-const INITIAL_HISTORY_DAY_WINDOW = 5;
 const OLDER_HISTORY_FETCH_SAFETY_LIMIT = 20;
 
 const getScopedCacheKey = (prefix, userId, chatId) =>
@@ -158,26 +157,6 @@ const getOldestLoadedDayStart = (messages) => {
   }
 
   return null;
-};
-
-const getInitialHistoryThreshold = () => {
-  const threshold = new Date();
-  threshold.setHours(0, 0, 0, 0);
-  threshold.setDate(threshold.getDate() - (INITIAL_HISTORY_DAY_WINDOW - 1));
-  return threshold.getTime();
-};
-
-const hasCoveredInitialHistoryWindow = (messages) => {
-  if (!Array.isArray(messages) || messages.length === 0) {
-    return true;
-  }
-
-  const oldestDayStart = getOldestLoadedDayStart(messages);
-  if (oldestDayStart === null) {
-    return true;
-  }
-
-  return oldestDayStart <= getInitialHistoryThreshold();
 };
 
 const mergeChronologicalMessages = (existingMessages, incomingMessages) => {
@@ -539,28 +518,6 @@ export default function useChatAreaController({
         let loadedMessages = result.data || [];
         let nextCursor = result.nextCursor || null;
         let nextHasMore = Boolean(result.hasMore);
-
-        for (
-          let attempt = 0;
-          attempt < OLDER_HISTORY_FETCH_SAFETY_LIMIT &&
-          loadedMessages.length > 0 &&
-          !hasCoveredInitialHistoryWindow(loadedMessages) &&
-          nextHasMore &&
-          nextCursor;
-          attempt += 1
-        ) {
-          const olderResult = await fetchMessages(currentChat.id, nextCursor);
-          const olderMessages = olderResult.data || [];
-          if (!olderMessages.length) {
-            nextCursor = olderResult.nextCursor || null;
-            nextHasMore = Boolean(olderResult.hasMore);
-            break;
-          }
-
-          loadedMessages = [...olderMessages, ...loadedMessages];
-          nextCursor = olderResult.nextCursor || null;
-          nextHasMore = Boolean(olderResult.hasMore);
-        }
 
         if (cancelled) {
           return;

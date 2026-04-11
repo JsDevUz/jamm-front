@@ -62,6 +62,7 @@ const WHITEBOARD_MIN_PDF_RENDER_WIDTH = 120;
 const WHITEBOARD_MIN_BOARD_BASE_WIDTH = 120;
 const WHITEBOARD_MIN_BOARD_BASE_HEIGHT = 120;
 const WHITEBOARD_PDF_RENDER_VERSION = "v3";
+const WHITEBOARD_PDF_BUFFER_CACHE_MAX_ITEMS = 12;
 const WHITEBOARD_MAX_TEXT_CHARS = 240;
 const WHITEBOARD_VIEWPORT_TOP_SAFE_SPACE = 92;
 const WHITEBOARD_VIEWPORT_BOTTOM_SAFE_SPACE = 176;
@@ -122,6 +123,8 @@ const isMobileSafariBrowser = () => {
 };
 
 const PDF_DEBUG_ENABLED = true;
+const pdfBufferCache = new Map();
+const pdfBufferPromiseCache = new Map();
 
 const serializePdfError = (error) => {
   if (!error) {
@@ -145,6 +148,24 @@ const logPdfDebug = (step, payload = {}) => {
     workerSrc: pdfjsLib.GlobalWorkerOptions.workerSrc,
     pageHref: typeof window !== "undefined" ? window.location.href : "",
   });
+};
+
+const touchPdfBufferCacheEntry = (targetUrl, pdfBytes) => {
+  if (!targetUrl || !pdfBytes) {
+    return;
+  }
+
+  if (pdfBufferCache.has(targetUrl)) {
+    pdfBufferCache.delete(targetUrl);
+  }
+  pdfBufferCache.set(targetUrl, pdfBytes);
+
+  if (pdfBufferCache.size > WHITEBOARD_PDF_BUFFER_CACHE_MAX_ITEMS) {
+    const oldestKey = pdfBufferCache.keys().next().value;
+    if (oldestKey) {
+      pdfBufferCache.delete(oldestKey);
+    }
+  }
 };
 
 const clampUnit = (value) => Math.min(1, Math.max(0, value));
@@ -931,67 +952,115 @@ const buildPdfProxyUrl = (fileUrl) => {
 };
 
 const fetchPdfDocumentBuffer = async (targetUrl) => {
-  logPdfDebug("buffer-fetch:start", { targetUrl });
-  const response = await fetch(targetUrl, {
-    credentials: "omit",
-    cache: "no-store",
-    headers: {
-      Accept: "application/pdf",
-    },
-  });
-  if (!response.ok) {
-    logPdfDebug("buffer-fetch:http-error", {
+  const cachedBytes = pdfBufferCache.get(targetUrl);
+  if (cachedBytes instanceof Uint8Array && cachedBytes.byteLength > 0) {
+    logPdfDebug("buffer-fetch:cache-hit", {
       targetUrl,
-      status: response.status,
-      statusText: response.statusText,
+      byteLength: cachedBytes.byteLength,
     });
-    throw new Error(`PDF fetch failed with ${response.status}`);
-  }
-
-  logPdfDebug("buffer-fetch:response", {
-    targetUrl,
-    status: response.status,
-    statusText: response.statusText,
-    contentType: response.headers.get("content-type"),
-    contentLength: response.headers.get("content-length"),
-    acceptRanges: response.headers.get("accept-ranges"),
-    contentRange: response.headers.get("content-range"),
-    cacheControl: response.headers.get("cache-control"),
-  });
-
-  const pdfBuffer = await response.arrayBuffer();
-  const pdfBytes = new Uint8Array(pdfBuffer);
-  const pdfSignature = String.fromCharCode(...pdfBytes.slice(0, 5));
-  logPdfDebug("buffer-fetch:bytes", {
-    targetUrl,
-    byteLength: pdfBytes.byteLength,
-    signature: pdfSignature,
-  });
-  if (pdfSignature !== "%PDF-") {
-    logPdfDebug("buffer-fetch:invalid-signature", {
-      targetUrl,
-      signature: pdfSignature,
+    const loadingTask = pdfjsLib.getDocument({
+      data: cachedBytes.slice(),
+      disableRange: true,
+      disableStream: true,
+      disableAutoFetch: true,
     });
-    throw new Error("PDF response did not return a valid PDF file");
-  }
-  const loadingTask = pdfjsLib.getDocument({
-    data: pdfBytes,
-    disableRange: true,
-    disableStream: true,
-    disableAutoFetch: true,
-  });
-  loadingTask.onProgress = (progress) => {
-    logPdfDebug("buffer-fetch:progress", {
-      targetUrl,
-      loaded: progress?.loaded,
-      total: progress?.total,
-    });
-  };
-  try {
     const pdfDocument = await loadingTask.promise;
     logPdfDebug("buffer-fetch:pdf-ready", {
       targetUrl,
       numPages: pdfDocument?.numPages,
+      fromCache: true,
+    });
+    return pdfDocument;
+  }
+
+  if (pdfBufferPromiseCache.has(targetUrl)) {
+    logPdfDebug("buffer-fetch:await-pending", { targetUrl });
+    const pendingBytes = await pdfBufferPromiseCache.get(targetUrl);
+    const loadingTask = pdfjsLib.getDocument({
+      data: pendingBytes.slice(),
+      disableRange: true,
+      disableStream: true,
+      disableAutoFetch: true,
+    });
+    const pdfDocument = await loadingTask.promise;
+    logPdfDebug("buffer-fetch:pdf-ready", {
+      targetUrl,
+      numPages: pdfDocument?.numPages,
+      fromPendingCache: true,
+    });
+    return pdfDocument;
+  }
+
+  logPdfDebug("buffer-fetch:start", { targetUrl });
+  const pdfBytesPromise = (async () => {
+    const response = await fetch(targetUrl, {
+      credentials: "omit",
+      cache: "default",
+      headers: {
+        Accept: "application/pdf",
+      },
+    });
+    if (!response.ok) {
+      logPdfDebug("buffer-fetch:http-error", {
+        targetUrl,
+        status: response.status,
+        statusText: response.statusText,
+      });
+      throw new Error(`PDF fetch failed with ${response.status}`);
+    }
+
+    logPdfDebug("buffer-fetch:response", {
+      targetUrl,
+      status: response.status,
+      statusText: response.statusText,
+      contentType: response.headers.get("content-type"),
+      contentLength: response.headers.get("content-length"),
+      acceptRanges: response.headers.get("accept-ranges"),
+      contentRange: response.headers.get("content-range"),
+      cacheControl: response.headers.get("cache-control"),
+    });
+
+    const pdfBuffer = await response.arrayBuffer();
+    const pdfBytes = new Uint8Array(pdfBuffer);
+    const pdfSignature = String.fromCharCode(...pdfBytes.slice(0, 5));
+    logPdfDebug("buffer-fetch:bytes", {
+      targetUrl,
+      byteLength: pdfBytes.byteLength,
+      signature: pdfSignature,
+    });
+    if (pdfSignature !== "%PDF-") {
+      logPdfDebug("buffer-fetch:invalid-signature", {
+        targetUrl,
+        signature: pdfSignature,
+      });
+      throw new Error("PDF response did not return a valid PDF file");
+    }
+    touchPdfBufferCacheEntry(targetUrl, pdfBytes);
+    return pdfBytes;
+  })();
+
+  pdfBufferPromiseCache.set(targetUrl, pdfBytesPromise);
+
+  try {
+    const pdfBytes = await pdfBytesPromise;
+    const loadingTask = pdfjsLib.getDocument({
+      data: pdfBytes.slice(),
+      disableRange: true,
+      disableStream: true,
+      disableAutoFetch: true,
+    });
+    loadingTask.onProgress = (progress) => {
+      logPdfDebug("buffer-fetch:progress", {
+        targetUrl,
+        loaded: progress?.loaded,
+        total: progress?.total,
+      });
+    };
+    const pdfDocument = await loadingTask.promise;
+    logPdfDebug("buffer-fetch:pdf-ready", {
+      targetUrl,
+      numPages: pdfDocument?.numPages,
+      fromCache: false,
     });
     return pdfDocument;
   } catch (error) {
@@ -1000,6 +1069,8 @@ const fetchPdfDocumentBuffer = async (targetUrl) => {
       error: serializePdfError(error),
     });
     throw error;
+  } finally {
+    pdfBufferPromiseCache.delete(targetUrl);
   }
 };
 
@@ -2330,12 +2401,21 @@ const PageSelectionToolbar = styled.div`
 
 const PageSelectionGrid = styled.div`
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(182px, 1fr));
+  grid-auto-flow: column;
+  grid-auto-columns: 168px;
   gap: 14px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 6px;
+  align-items: start;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
 `;
 
 const PagePreviewCard = styled.button`
   position: relative;
+  width: 168px;
   border-radius: 18px;
   border: 1px solid
     ${(p) =>
@@ -2367,7 +2447,7 @@ const PagePreviewCard = styled.button`
 const PagePreviewViewport = styled.div`
   position: relative;
   width: 100%;
-  min-height: 224px;
+  min-height: 188px;
   border-radius: 14px;
   overflow: hidden;
   background:
@@ -2419,7 +2499,7 @@ const PdfPickerPageCard = ({ pdfDocument, pageNumber, active = false, onClick })
   const { t, i18n } = useTranslation();
   const cardRef = useRef(null);
   const canvasRef = useRef(null);
-  const [isVisible, setIsVisible] = useState(pageNumber <= 6);
+  const [isVisible, setIsVisible] = useState(pageNumber <= 2);
   const [renderState, setRenderState] = useState("idle");
   const locale = (i18n.resolvedLanguage || i18n.language || "en").split("-")[0];
   const fallbackCopy =
@@ -2478,7 +2558,7 @@ const PdfPickerPageCard = ({ pdfDocument, pageNumber, active = false, onClick })
       },
       {
         root: scrollRoot instanceof HTMLElement ? scrollRoot : null,
-        rootMargin: "240px",
+        rootMargin: "120px 240px",
       },
     );
 
@@ -2553,7 +2633,7 @@ const PdfPickerPageCard = ({ pdfDocument, pageNumber, active = false, onClick })
         const isSmallScreen = window.matchMedia("(max-width: 768px)").matches;
         const isMobileSafari = isMobileSafariBrowser();
         const primaryRendered = await renderPreview({
-          targetWidth: isMobileSafari ? 132 : isSmallScreen ? 156 : 180,
+          targetWidth: isMobileSafari ? 122 : isSmallScreen ? 138 : 156,
           pixelRatio: isMobileSafari ? 1 : isSmallScreen ? 1 : window.devicePixelRatio || 1,
         });
         if (!primaryRendered) {
@@ -6123,7 +6203,7 @@ const WhiteboardTile = ({
                       </PdfPickerMeta>
                     </PageSelectionToolbar>
 
-                    <PageSelectionGrid>
+                    <PageSelectionGrid data-pdf-picker-scroll-root>
                       {Array.from({ length: pdfPickerState.pageCount }, (_, index) => {
                         const pageNumber = index + 1;
                         return (

@@ -514,21 +514,33 @@ const PrivateVideoCall = ({
       nextPipWindow.document.body.style.background = "var(--background-color)";
       nextPipWindow.document.body.style.overflow = "hidden";
 
-      [...document.styleSheets].forEach((styleSheet) => {
+      const stylesheetLoadTasks = [...document.styleSheets].map((styleSheet) => {
         try {
           const cssRules = [...styleSheet.cssRules].map((rule) => rule.cssText).join("");
           const style = document.createElement("style");
           style.textContent = cssRules;
           nextPipWindow.document.head.appendChild(style);
+          return Promise.resolve();
         } catch {
-          if (styleSheet.href) {
-            const link = document.createElement("link");
-            link.rel = "stylesheet";
-            link.href = styleSheet.href;
-            nextPipWindow.document.head.appendChild(link);
+          if (!styleSheet.href) {
+            return Promise.resolve();
           }
+
+          const link = document.createElement("link");
+          link.rel = "stylesheet";
+          link.href = styleSheet.href;
+
+          const loadTask = new Promise((resolve) => {
+            link.onload = () => resolve();
+            link.onerror = () => resolve();
+          });
+
+          nextPipWindow.document.head.appendChild(link);
+          return loadTask;
         }
       });
+
+      await Promise.all(stylesheetLoadTasks);
 
       const mountNode = nextPipWindow.document.createElement("div");
       mountNode.style.width = "100%";

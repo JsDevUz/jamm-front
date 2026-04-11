@@ -80,6 +80,71 @@ const WHITEBOARD_RECORDING_WEBM_VIDEO_ONLY_MIME_TYPES = [
 ];
 const RECORDING_AUTOSAVE_SEGMENT_MS = 1000;
 
+const resolvePeerMediaState = (peerState) => {
+  const actualHasVideo = peerState?.actualHasVideo === true;
+  const actualHasAudio = peerState?.actualHasAudio === true;
+  const actualVideoMuted = peerState?.actualVideoMuted === true;
+  const actualAudioMuted = peerState?.actualAudioMuted === true;
+  const resolvedHasVideo =
+    typeof peerState?.signaledHasVideo === "boolean"
+      ? peerState.signaledHasVideo
+      : typeof peerState?.actualHasVideo === "boolean"
+        ? peerState.actualHasVideo
+        : peerState?.hasVideo;
+  const resolvedHasAudio =
+    typeof peerState?.signaledHasAudio === "boolean"
+      ? peerState.signaledHasAudio
+      : typeof peerState?.actualHasAudio === "boolean"
+        ? peerState.actualHasAudio
+        : peerState?.hasAudio;
+  const resolvedVideoMuted =
+    typeof peerState?.signaledVideoMuted === "boolean"
+      ? peerState.signaledVideoMuted
+      : typeof peerState?.actualVideoMuted === "boolean"
+        ? peerState.actualVideoMuted
+        : peerState?.videoMuted;
+  const resolvedAudioMuted =
+    typeof peerState?.signaledAudioMuted === "boolean"
+      ? peerState.signaledAudioMuted
+      : typeof peerState?.actualAudioMuted === "boolean"
+        ? peerState.actualAudioMuted
+        : peerState?.audioMuted;
+
+  return {
+    hasVideo: resolvedHasVideo === true,
+    hasAudio: resolvedHasAudio === true,
+    videoMuted: resolvedVideoMuted === true,
+    audioMuted: resolvedAudioMuted === true,
+    actualHasVideo,
+    actualHasAudio,
+    actualVideoMuted,
+    actualAudioMuted,
+  };
+};
+
+const scoreRemoteTileCandidate = (tile) => {
+  let score = 0;
+
+  if (tile?.stream) score += 8;
+  if (tile?.hasVideo) score += 6;
+  if (tile?.isCamOn) score += 4;
+  if (tile?.hasAudio) score += 3;
+  if (tile?.connectionState === "connected" || tile?.connectionState === "completed") {
+    score += 5;
+  }
+  if (tile?.connectionState === "connecting") {
+    score += 1;
+  }
+  if (tile?.connectionState === "disconnected") {
+    score -= 3;
+  }
+  if (tile?.connectionState === "failed" || tile?.connectionState === "closed") {
+    score -= 8;
+  }
+
+  return score;
+};
+
 const formatRecordingElapsed = (elapsedMs) => {
   const totalSeconds = Math.max(0, Math.floor((Number(elapsedMs) || 0) / 1000));
   const minutes = Math.floor(totalSeconds / 60)
@@ -304,9 +369,10 @@ const TopBar = styled.div`
   flex-shrink: 0;
 
   @media (max-width: 768px) {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 10px;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
     padding: calc(12px + env(safe-area-inset-top, 0px)) 14px 12px;
   }
 `;
@@ -314,9 +380,13 @@ const TopBar = styled.div`
 const CallInfo = styled.div`
   display: flex;
   flex-direction: column;
+  min-width: 0;
 
   @media (max-width: 768px) {
-    gap: 4px;
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
   }
 `;
 const CallTitle = styled.span`
@@ -325,19 +395,33 @@ const CallTitle = styled.span`
   font-weight: 700;
   display: flex;
   align-items: center;
+  min-width: 0;
+
+  @media (max-width: 768px) {
+    font-size: 14px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
 `;
 const CallSub = styled.span`
   color: var(--call-muted);
   font-size: 11px;
   font-family: monospace;
+
+  @media (max-width: 768px) {
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
 `;
 
 const TopActions = styled.div`
   display: flex;
   gap: 8px;
+  flex-shrink: 0;
 
   @media (max-width: 768px) {
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     justify-content: flex-end;
   }
 `;
@@ -346,7 +430,10 @@ const TinyBtn = styled.button`
   display: flex;
   align-items: center;
   gap: 5px;
-  padding: 7px 13px;
+  justify-content: center;
+  min-width: 40px;
+  height: 40px;
+  padding: 0 10px;
   border-radius: 8px;
   border: 1px solid
     ${(p) =>
@@ -376,11 +463,14 @@ const Body = styled.div`
   flex: 1;
   overflow: hidden;
   box-sizing: border-box;
-  padding-bottom: ${(p) => (p.$immersive ? "0" : "104px")};
+  padding-bottom: ${(p) =>
+    p.$whiteboardFullscreen ? "0" : p.$immersive ? "104px" : "104px"};
 
   @media (max-width: 768px) {
     padding-bottom: ${(p) =>
-      p.$immersive ? "0" : "calc(92px + env(safe-area-inset-bottom, 0px))"};
+      p.$whiteboardFullscreen
+        ? "0"
+        : "calc(92px + env(safe-area-inset-bottom, 0px))"};
   }
 `;
 
@@ -686,7 +776,8 @@ const VideoGrid = styled.div`
 
 const StageLayout = styled.div`
   flex: 1;
-  display: grid;
+  height: 100%;
+  display: ${(p) => (p.$immersive && !p.$whiteboardFullscreen ? "block" : "grid")};
   gap: ${(p) => (p.$whiteboardFullscreen ? "0" : "12px")};
   padding: ${(p) => (p.$whiteboardFullscreen ? "0" : "14px")};
   min-width: 0;
@@ -698,7 +789,7 @@ const StageLayout = styled.div`
     return "minmax(0, 1fr) minmax(220px, 0.3fr)";
   }};
   grid-template-rows: ${(p) =>
-    p.$immersive && !p.$mobile ? "minmax(0, 1fr) auto" : "minmax(0, 1fr)"};
+    "minmax(0, 1fr)"};
   overflow: hidden;
 
   @media (max-width: 768px) {
@@ -715,13 +806,23 @@ const StageLayout = styled.div`
             background: var(--call-bg);
           `
         : ""}
+    grid-template-rows: ${(p) =>
+      !p.$whiteboardFullscreen && p.$immersive ? "auto minmax(0, 1fr)" : "minmax(0, 1fr)"};
     padding-top: ${(p) =>
-      p.$whiteboardFullscreen ? "0" : p.$mobileCompactCount > 0 ? "132px" : "14px"};
+      p.$whiteboardFullscreen
+        ? "0"
+        : p.$immersive
+          ? "14px"
+          : p.$mobileCompactCount > 0
+            ? "132px"
+            : "14px"};
   }
 `;
 
 const StageMain = styled.div`
   position: relative;
+  height: 100%;
+  width: 100%;
   min-width: 0;
   min-height: 0;
   overflow: hidden;
@@ -741,29 +842,47 @@ const StageRail = styled.div`
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  grid-column: ${(p) => (p.$immersive ? "1 / -1" : "auto")};
+  grid-row: ${(p) => (p.$immersive ? "1" : "auto")};
+  ${(p) =>
+    p.$immersive
+      ? css`
+          position: absolute;
+          top: 16px;
+          left: 16px;
+          right: 84px;
+          z-index: 7;
+        `
+      : ""}
 `;
 
 const StageRailGrid = styled.div`
-  flex: ${(p) => (p.$immersive && !p.$mobile ? "0" : "1")};
+  flex: ${(p) => (p.$immersive ? "0" : "1")};
   min-height: 0;
-  overflow-x: ${(p) => (p.$immersive && !p.$mobile ? "auto" : "hidden")};
-  overflow-y: ${(p) => (p.$immersive && !p.$mobile ? "hidden" : "auto")};
+  overflow-x: ${(p) => (p.$immersive ? "auto" : "hidden")};
+  overflow-y: ${(p) => (p.$immersive ? "hidden" : "auto")};
   display: grid;
   gap: 10px;
   align-content: start;
   grid-template-columns: ${(p) => {
-    if (p.$mobile && p.$immersive) return "1fr";
+    if (p.$immersive) return "unset";
     if (p.$mobile) return "repeat(2, minmax(0, 1fr))";
     return p.$immersive ? "unset" : "1fr";
   }};
-  grid-template-rows: ${(p) =>
-    p.$immersive && !p.$mobile ? "minmax(0, 1fr)" : "unset"};
-  grid-auto-flow: ${(p) => (p.$immersive && !p.$mobile ? "column" : "row")};
+  grid-template-rows: ${(p) => (p.$immersive ? "minmax(0, 1fr)" : "unset")};
+  grid-auto-flow: ${(p) => (p.$immersive ? "column" : "row")};
   grid-auto-columns: ${(p) =>
-    p.$immersive && !p.$mobile ? "minmax(180px, 220px)" : "auto"};
+    p.$immersive ? "minmax(132px, 220px)" : "auto"};
   grid-auto-rows: ${(p) => (p.$immersive ? "minmax(120px, 1fr)" : "minmax(132px, 1fr)")};
-  padding-right: ${(p) => (p.$mobile && !p.$immersive ? "0" : "4px")};
-  padding-bottom: ${(p) => (p.$immersive && !p.$mobile ? "4px" : "0")};
+  padding-left: ${(p) => (p.$immersive ? "4px" : "0")};
+  padding-right: ${(p) => (p.$immersive ? "4px" : p.$mobile ? "0" : "4px")};
+  padding-bottom: ${(p) => (p.$immersive ? "4px" : "0")};
+  padding-top: ${(p) => (p.$immersive ? "0" : "0")};
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
 `;
 
 const StageRailLabel = styled.div`
@@ -876,6 +995,7 @@ const VideoTile = styled.div`
     height: 100%;
     object-fit: ${(p) => {
       if (p.$screenShare) return "contain";
+      if (p.$immersive) return "contain";
       if (p.$compact) return "cover";
       return p.$mobile ? "contain" : "cover";
     }};
@@ -933,9 +1053,6 @@ const Avatar = styled.div`
 `;
 
 const TileMuteBadge = styled.div`
-  position: absolute;
-  top: 12px;
-  right: 12px;
   width: 38px;
   height: 38px;
   border-radius: 999px;
@@ -944,7 +1061,16 @@ const TileMuteBadge = styled.div`
   justify-content: center;
   background: rgba(32, 72, 10, 0.76);
   color: #d6f0a0;
+`;
+
+const TileStatusStack = styled.div`
+  position: absolute;
+  top: 12px;
+  right: 12px;
   z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 `;
 
 const getParticipantFallbackColor = (label = "") => {
@@ -1460,6 +1586,7 @@ const VideoEl = ({
   isLocal = false,
   label,
   isCamOn = true,
+  isMicOn = true,
   hasVideo = false,
   hasAudio = false,
   isScreenShare = false,
@@ -1471,15 +1598,30 @@ const VideoEl = ({
   compact = false,
   handRaised = false,
   isMobile = false,
+  immersive = false,
 }) => {
   const { t } = useTranslation();
   const ref = useRef(null);
   const hasRenderableVideo = Boolean(stream) && Boolean(hasVideo) && Boolean(isCamOn);
   const fallbackBg = getParticipantFallbackColor(label);
+  const showMicBadge = !isMicOn;
+  const showCamBadge = !isCamOn && !isScreenShare;
 
   useEffect(() => {
     const node = ref.current;
-    if (!node || !stream || !hasRenderableVideo) return undefined;
+    if (!node) return undefined;
+
+    if (!stream || !hasRenderableVideo) {
+      node.pause?.();
+      if (node.srcObject) {
+        node.srcObject = null;
+      }
+      node.removeAttribute?.("src");
+      node.load?.();
+      node.onloadedmetadata = null;
+      node.oncanplay = null;
+      return undefined;
+    }
 
     if (node.srcObject !== stream) {
       node.srcObject = stream;
@@ -1518,6 +1660,12 @@ const VideoEl = ({
       if (node) {
         node.onloadedmetadata = null;
         node.oncanplay = null;
+        if (!hasRenderableVideo) {
+          node.pause?.();
+          node.srcObject = null;
+          node.removeAttribute?.("src");
+          node.load?.();
+        }
       }
     };
   }, [hasRenderableVideo, stream]);
@@ -1539,8 +1687,9 @@ const VideoEl = ({
       $isLocal={isLocal}
       $compact={compact}
       $mobile={isMobile}
-      $mirror={isLocal && !isScreenShare}
+      $mirror={true}
       $screenShare={isScreenShare}
+      $immersive={immersive}
       $active={isActive}
       $clickable={Boolean(onSelect)}
       onClick={handleTileClick}
@@ -1569,20 +1718,34 @@ const VideoEl = ({
           <Hand size={20} color="#faa61a" fill="#faa61a" />
         </span>
       ) : null}
-      {hasRenderableVideo ? (
-        <video ref={ref} autoPlay playsInline muted />
-      ) : (
-        <NoCamera $compact={compact} $bg={fallbackBg}>
-          {!hasAudio ? (
+      {(showMicBadge || showCamBadge) ? (
+        <TileStatusStack>
+          {showMicBadge ? (
             <TileMuteBadge>
               <MicOff size={18} />
             </TileMuteBadge>
           ) : null}
+          {showCamBadge ? (
+            <TileMuteBadge>
+              <VideoOff size={18} />
+            </TileMuteBadge>
+          ) : null}
+        </TileStatusStack>
+      ) : null}
+      {hasRenderableVideo ? (
+        <video
+          key={`${label || "participant"}-video`}
+          ref={ref}
+          autoPlay
+          playsInline
+          muted
+        />
+      ) : (
+        <NoCamera key={`${label || "participant"}-fallback`} $compact={compact} $bg={fallbackBg}>
           <Avatar $compact={compact}>{label?.charAt(0)?.toUpperCase() || "?"}</Avatar>
         </NoCamera>
       )}
       <TileLabel $compact={compact}>
-        {!isCamOn && !isScreenShare && <VideoOff size={11} />}
         {label}
         {isLocal && t("groupCall.localSuffix")}
       </TileLabel>
@@ -2966,7 +3129,7 @@ const GroupVideoCall = ({
       nextPipWindow.document.body.style.background = "#0b0d0f";
       nextPipWindow.document.body.style.overflow = "hidden";
 
-      [...document.styleSheets].forEach((styleSheet) => {
+      const stylesheetLoadTasks = [...document.styleSheets].map((styleSheet) => {
         try {
           const cssRules = [...styleSheet.cssRules]
             .map((rule) => rule.cssText)
@@ -2974,17 +3137,29 @@ const GroupVideoCall = ({
           const style = document.createElement("style");
           style.textContent = cssRules;
           nextPipWindow.document.head.appendChild(style);
+          return Promise.resolve();
         } catch {
-          if (styleSheet.href) {
-            const link = document.createElement("link");
-            link.rel = "stylesheet";
-            link.type = styleSheet.type;
-            link.media = styleSheet.media;
-            link.href = styleSheet.href;
-            nextPipWindow.document.head.appendChild(link);
+          if (!styleSheet.href) {
+            return Promise.resolve();
           }
+
+          const link = document.createElement("link");
+          link.rel = "stylesheet";
+          link.type = styleSheet.type;
+          link.media = styleSheet.media;
+          link.href = styleSheet.href;
+
+          const loadTask = new Promise((resolve) => {
+            link.onload = () => resolve();
+            link.onerror = () => resolve();
+          });
+
+          nextPipWindow.document.head.appendChild(link);
+          return loadTask;
         }
       });
+
+      await Promise.all(stylesheetLoadTasks);
 
       const mountNode = nextPipWindow.document.createElement("div");
       mountNode.style.width = "100%";
@@ -3035,7 +3210,7 @@ const GroupVideoCall = ({
       const liveAudioTracks =
         stream
           .getAudioTracks?.()
-          ?.filter((track) => track.readyState === "live" && track.enabled !== false) || [];
+          ?.filter((track) => track.readyState === "live") || [];
 
       if (!liveAudioTracks.length) return;
 
@@ -3054,7 +3229,9 @@ const GroupVideoCall = ({
 
     remoteStreams.forEach(({ peerId, stream }) => {
       const peerState = remotePeerStates?.[peerId];
-      const isAudioOn = peerState?.hasAudio !== false && peerState?.audioMuted !== true;
+      const resolvedMediaState = resolvePeerMediaState(peerState);
+      const isAudioOn =
+        resolvedMediaState.hasAudio && resolvedMediaState.audioMuted !== true;
       pushStream(stream, isAudioOn);
     });
 
@@ -3080,6 +3257,7 @@ const GroupVideoCall = ({
         isScreenShare: false,
         hasVideo: Boolean(localStream) && isCamOn,
         hasAudio: Boolean(localStream?.getAudioTracks?.().length),
+        isMicOn,
         canFullscreen: Boolean(localStream) && isCamOn,
         handRaised: false,
         isCamOn,
@@ -3098,6 +3276,7 @@ const GroupVideoCall = ({
         isScreenShare: true,
         hasVideo: true,
         hasAudio: Boolean(screenStream?.getAudioTracks?.().length),
+        isMicOn,
         canFullscreen: true,
         handRaised: false,
         isCamOn: true,
@@ -3105,31 +3284,41 @@ const GroupVideoCall = ({
       });
     }
 
+    const remoteVideoCandidates = [];
     const renderedRemotePeerIds = new Set();
 
     remoteStreams.forEach(({ peerId, stream, displayName: remoteName }) => {
       const peerState = remotePeerStates[peerId];
+      const connectionState = peerState?.connectionState || "connecting";
       const resolvedRemoteName = peerState?.displayName || remoteName || peerId;
-      const isRemoteCamOn =
-        peerState?.hasVideo !== false && peerState?.videoMuted !== true;
+      const resolvedMediaState = resolvePeerMediaState(peerState);
+      const shouldShowRemoteCamState =
+        resolvedMediaState.hasVideo && resolvedMediaState.videoMuted !== true;
+      const hasRenderableRemoteVideo =
+        Boolean(stream) &&
+        resolvedMediaState.actualHasVideo &&
+        resolvedMediaState.actualVideoMuted !== true &&
+        shouldShowRemoteCamState;
       const isRemoteAudioOn =
-        peerState?.hasAudio !== false && peerState?.audioMuted !== true;
+        resolvedMediaState.hasAudio && resolvedMediaState.audioMuted !== true;
 
       renderedRemotePeerIds.add(peerId);
 
-      tiles.push({
+      remoteVideoCandidates.push({
         id: peerId,
         kind: "video",
         peerId,
-        stream,
+        stream: hasRenderableRemoteVideo ? stream : null,
         label: resolvedRemoteName,
         isLocal: false,
         isScreenShare: false,
-        hasVideo: Boolean(stream) && isRemoteCamOn,
+        hasVideo: hasRenderableRemoteVideo,
         hasAudio: Boolean(stream) && isRemoteAudioOn,
-        canFullscreen: Boolean(stream) && isRemoteCamOn,
+        isMicOn: isRemoteAudioOn,
+        canFullscreen: hasRenderableRemoteVideo,
         handRaised: raisedHands.has(peerId),
-        isCamOn: isRemoteCamOn,
+        isCamOn: shouldShowRemoteCamState,
+        connectionState,
         muted: false,
       });
     });
@@ -3139,13 +3328,32 @@ const GroupVideoCall = ({
         return;
       }
 
-      const remoteName = peerState?.displayName || peerId;
-      const isRemoteCamOn =
-        peerState?.hasVideo !== false && peerState?.videoMuted !== true;
-      const isRemoteAudioOn =
-        peerState?.hasAudio !== false && peerState?.audioMuted !== true;
+      const remoteName = peerState?.displayName || "";
+      const hasResolvedIdentity =
+        typeof remoteName === "string" &&
+        remoteName.trim() &&
+        remoteName.trim() !== peerId;
+      const connectionState = peerState?.connectionState;
+      if (
+        !remoteScreenStreams.some((item) => item.peerId === peerId) &&
+        (connectionState === "disconnected" ||
+          connectionState === "failed" ||
+          connectionState === "closed")
+      ) {
+        return;
+      }
 
-      tiles.push({
+      if (!hasResolvedIdentity) {
+        return;
+      }
+
+      const resolvedMediaState = resolvePeerMediaState(peerState);
+      const shouldShowRemoteCamState =
+        resolvedMediaState.hasVideo && resolvedMediaState.videoMuted !== true;
+      const isRemoteAudioOn =
+        resolvedMediaState.hasAudio && resolvedMediaState.audioMuted !== true;
+
+      remoteVideoCandidates.push({
         id: peerId,
         kind: "video",
         peerId,
@@ -3155,12 +3363,40 @@ const GroupVideoCall = ({
         isScreenShare: false,
         hasVideo: false,
         hasAudio: isRemoteAudioOn,
+        isMicOn: isRemoteAudioOn,
         canFullscreen: false,
         handRaised: raisedHands.has(peerId),
-        isCamOn: isRemoteCamOn,
+        isCamOn: shouldShowRemoteCamState,
+        connectionState,
         muted: false,
       });
     });
+
+    const bestRemoteTileByIdentity = new Map();
+    remoteVideoCandidates.forEach((tile) => {
+      const normalizedLabel =
+        typeof tile.label === "string" ? tile.label.trim().toLowerCase() : "";
+      const dedupeKey = normalizedLabel || tile.peerId;
+      const existing = bestRemoteTileByIdentity.get(dedupeKey);
+
+      if (!existing) {
+        bestRemoteTileByIdentity.set(dedupeKey, tile);
+        return;
+      }
+
+      const existingScore = scoreRemoteTileCandidate(existing);
+      const nextScore = scoreRemoteTileCandidate(tile);
+      const shouldReplace =
+        nextScore > existingScore ||
+        (nextScore === existingScore &&
+          String(tile.peerId || "").localeCompare(String(existing.peerId || "")) > 0);
+
+      if (shouldReplace) {
+        bestRemoteTileByIdentity.set(dedupeKey, tile);
+      }
+    });
+
+    tiles.push(...bestRemoteTileByIdentity.values());
 
     remoteScreenStreams.forEach(({ peerId, stream, displayName: remoteName }) => {
       const peerState = remotePeerStates[peerId];
@@ -3175,6 +3411,7 @@ const GroupVideoCall = ({
         isScreenShare: true,
         hasVideo: Boolean(stream),
         hasAudio: Boolean(stream?.getAudioTracks?.().length),
+        isMicOn: true,
         canFullscreen: Boolean(stream),
         handRaised: false,
         isCamOn: true,
@@ -3242,11 +3479,7 @@ const GroupVideoCall = ({
     minimizedPreviewTile?.kind === "video" && minimizedPreviewTile?.hasVideo
       ? minimizedPreviewTile.stream || null
       : null;
-  const minimizedPreviewMirror =
-    Boolean(minimizedPreviewStream) &&
-    minimizedPreviewTile?.kind === "video" &&
-    minimizedPreviewTile?.isLocal &&
-    !minimizedPreviewTile?.isScreenShare;
+  const minimizedPreviewMirror = true;
   const minimizedPreviewLabel =
     minimizedPreviewTile?.label || roomTitle || chatTitle || t("groupCall.roomDefault");
   const minimizedPreviewBg = useMemo(
@@ -3538,6 +3771,14 @@ const GroupVideoCall = ({
       : networkQuality === "limited"
         ? "var(--call-primary)"
         : "var(--call-success)";
+  const qualityIcon =
+    qualityProfile?.key === "poor"
+      ? AlertCircle
+      : qualityProfile?.key === "crowded"
+        ? Users
+        : qualityProfile?.key?.startsWith("screen")
+          ? Monitor
+          : CheckCircle;
 
   const handleStageSelect = useCallback((tileId) => {
     setSelectedTileId((current) => (current === tileId ? null : tileId));
@@ -3582,6 +3823,7 @@ const GroupVideoCall = ({
       compact={compact}
       handRaised={tile.handRaised}
       isMobile={isMobileViewport}
+      immersive={Boolean(fullscreenTileId && activeStageTileId === tile.id && !tile.isScreenShare)}
     />
   );
 
@@ -3732,36 +3974,56 @@ const GroupVideoCall = ({
             color: qualityTone,
             borderColor: qualityTone,
           }}
+          title={qualityProfile.label}
+          aria-label={qualityProfile.label}
         >
-          {qualityProfile.label}
+          {React.createElement(qualityIcon, { size: 16 })}
         </TinyBtn>
         {(onMinimize || isMinimized) && (
-          <TinyBtn onClick={handleMinimizeToggle}>
-            {isMinimized ? <Maximize size={13} /> : <Minimize2 size={13} />}
-            {isMinimized ? t("groupCall.open") : t("groupCall.minimize")}
+          <TinyBtn
+            onClick={handleMinimizeToggle}
+            aria-label={isMinimized ? t("groupCall.open") : t("groupCall.minimize")}
+            title={isMinimized ? t("groupCall.open") : t("groupCall.minimize")}
+          >
+            {isMinimized ? <Maximize size={16} /> : <Minimize2 size={16} />}
           </TinyBtn>
         )}
-        <TinyBtn onClick={handleCopy}>
-          {copied ? <Check size={13} /> : <Copy size={13} />}
-          {copied ? t("groupCall.copied") : t("groupCall.copyLink")}
+        <TinyBtn
+          onClick={handleCopy}
+          aria-label={copied ? t("groupCall.copied") : t("groupCall.copyLink")}
+          title={copied ? t("groupCall.copied") : t("groupCall.copyLink")}
+        >
+          {copied ? <Check size={16} /> : <Copy size={16} />}
         </TinyBtn>
         {(isCreator || isWhiteboardActive) && !isMinimized ? (
-          <TinyBtn onClick={handleWhiteboardTopAction}>
-            <PenSquare size={13} />
-            {isCreator
-              ? isWhiteboardActive
-                ? t("groupCall.whiteboard.hide")
-                : t("groupCall.whiteboard.show")
-              : t("groupCall.whiteboard.open")}
+          <TinyBtn
+            onClick={handleWhiteboardTopAction}
+            aria-label={
+              isCreator
+                ? isWhiteboardActive
+                  ? t("groupCall.whiteboard.hide")
+                  : t("groupCall.whiteboard.show")
+                : t("groupCall.whiteboard.open")
+            }
+            title={
+              isCreator
+                ? isWhiteboardActive
+                  ? t("groupCall.whiteboard.hide")
+                  : t("groupCall.whiteboard.show")
+                : t("groupCall.whiteboard.open")
+            }
+          >
+            <PenSquare size={16} />
           </TinyBtn>
         ) : null}
         {!isMinimized && (
           <TinyBtn
             onClick={() => setShowDrawer((p) => !p)}
             style={{ position: "relative" }}
+            aria-label={t("groupCall.participants", { count: participantsCount })}
+            title={t("groupCall.participants", { count: participantsCount })}
           >
-            <Users size={13} />
-            {participantsCount}
+            <Users size={16} />
             {isCreator && knockRequests.length > 0 && (
               <NotifBadge>{knockRequests.length}</NotifBadge>
             )}
@@ -3824,7 +4086,7 @@ const GroupVideoCall = ({
                 playPromise.catch(() => {});
               }
             }}
-            $mirror={Boolean(tile.isLocal && !tile.isScreenShare)}
+            $mirror={true}
           />
         ) : (
           <PiPMobileFallback $bg={fallbackBg}>
@@ -3939,7 +4201,10 @@ const GroupVideoCall = ({
       ) : (
       <>
       {topBarContent}
-      <Body $immersive={Boolean(fullscreenTileId)}>
+      <Body
+        $immersive={Boolean(fullscreenTileId)}
+        $whiteboardFullscreen={isWhiteboardFullscreen}
+      >
         {error ? (
           <CenterBox>
             <AlertCircle size={38} color="#f04747" />
@@ -3977,7 +4242,10 @@ const GroupVideoCall = ({
             $landscape={isLandscapeViewport}
             $mobileCompactCount={mobileCompactTiles.length}
           >
-            {isMobileViewport && mobileCompactTiles.length > 0 && !isWhiteboardFullscreen ? (
+            {isMobileViewport &&
+            !isWhiteboardFullscreen &&
+            !(activeStageTile?.kind !== "whiteboard" && fullscreenTileId) &&
+            mobileCompactTiles.length > 0 ? (
               <MobileTopRail>
                 {mobileCompactTiles.map((tile) => (
                   <MobileTopRailTile key={`compact-${tile.id}`}>
@@ -4023,12 +4291,20 @@ const GroupVideoCall = ({
               ) : null}
             </StageMain>
 
-            {!isMobileViewport && !isWhiteboardFullscreen ? (
-              <StageRail>
-                {sideTiles.length > 0 ? <StageRailLabel>Qolganlar</StageRailLabel> : null}
+            {!isWhiteboardFullscreen &&
+            sideTiles.length > 0 &&
+            (!isMobileViewport || (activeStageTile?.kind !== "whiteboard" && fullscreenTileId)) ? (
+              <StageRail
+                $immersive={Boolean(activeStageTile?.kind !== "whiteboard" && fullscreenTileId)}
+                $mobile={isMobileViewport}
+              >
+                {sideTiles.length > 0 &&
+                !(activeStageTile?.kind !== "whiteboard" && fullscreenTileId) ? (
+                  <StageRailLabel>Qolganlar</StageRailLabel>
+                ) : null}
                 <StageRailGrid
                   $mobile={isMobileViewport}
-                  $immersive={Boolean(fullscreenTileId)}
+                  $immersive={Boolean(activeStageTile?.kind !== "whiteboard" && fullscreenTileId)}
                 >
                   {sideTiles.map((tile) =>
                     renderTile(tile, {

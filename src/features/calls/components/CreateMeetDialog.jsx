@@ -266,9 +266,7 @@ const CreateMeetDialog = ({ isOpen, onClose, onStart }) => {
         <ModalBody $padding="18px">
           {isLoading ? (
             <SkeletonStack>
-              <SkeletonBlock $height="16px" $width="38%" />
               <SkeletonBlock $height="64px" $radius="16px" />
-              {/* <SkeletonBlock $height="14px" $width="74%" /> */}
             </SkeletonStack>
           ) : error ? (
             <ErrorCard>{error}</ErrorCard>
