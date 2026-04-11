@@ -772,6 +772,28 @@ const VideoGrid = styled.div`
           }
         `
       : ""}
+
+  @media (max-width: 768px) {
+    grid-template-columns: ${(p) =>
+      p.$count === 2 ? "minmax(0, 1fr)" : p.$count <= 1 ? "minmax(0, 1fr)" : "repeat(2, minmax(0, 1fr))"};
+    grid-template-rows: ${(p) =>
+      p.$count === 2
+        ? "repeat(2, minmax(0, 1fr))"
+        : p.$count <= 1
+          ? "minmax(0, 1fr)"
+          : `repeat(${Math.max(1, Math.ceil(p.$count / 2))}, minmax(0, 1fr))`};
+
+    ${(p) =>
+      p.$count === 3 || p.$count === 5
+        ? css`
+            & > *:last-child {
+              grid-column: 1 / span 2;
+              width: min(100%, calc((100% - 10px) / 2));
+              justify-self: center;
+            }
+          `
+        : ""}
+  }
 `;
 
 const StageLayout = styled.div`
