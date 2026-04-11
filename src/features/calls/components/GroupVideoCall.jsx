@@ -1474,6 +1474,8 @@ const VideoEl = ({
 }) => {
   const { t } = useTranslation();
   const ref = useRef(null);
+  const hasRenderableVideo = Boolean(stream) && Boolean(hasVideo) && Boolean(isCamOn);
+  const fallbackBg = getParticipantFallbackColor(label);
 
   useEffect(() => {
     const node = ref.current;
@@ -1531,8 +1533,6 @@ const VideoEl = ({
     },
     [onToggleFullscreen],
   );
-  const hasRenderableVideo = Boolean(stream) && Boolean(hasVideo) && Boolean(isCamOn);
-  const fallbackBg = getParticipantFallbackColor(label);
 
   return (
     <VideoTile

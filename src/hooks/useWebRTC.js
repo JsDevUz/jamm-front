@@ -1385,15 +1385,15 @@ export function useWebRTC({
       return null;
     }
 
+    const activeSenders = pc.getSenders();
     const trackedSender = mediaSendersRef.current?.[pc.__jammPeerId || ""]?.[kind];
-    if (trackedSender) {
+    if (trackedSender && activeSenders.includes(trackedSender)) {
       return trackedSender;
     }
 
     const preferredSender =
       preferredTrackId &&
-      pc
-        .getSenders()
+      activeSenders
         .find(
           (sender) =>
             sender.track?.kind === kind && sender.track?.id === preferredTrackId,
@@ -1402,9 +1402,7 @@ export function useWebRTC({
       return preferredSender;
     }
 
-    const directSender = pc
-      .getSenders()
-      .find((sender) => sender.track?.kind === kind);
+    const directSender = activeSenders.find((sender) => sender.track?.kind === kind);
     if (directSender) {
       return directSender;
     }
@@ -1700,18 +1698,26 @@ export function useWebRTC({
             previousTrack?.id || "",
           );
 
-          if (matchingSender) {
-            try {
-              await matchingSender.replaceTrack(nextTrack);
-              return;
-            } catch {}
-          }
-
+        if (matchingSender) {
           try {
-            pc.addTrack(nextTrack, stream);
-            peersToRenegotiate.push([peerId, pc]);
+            await matchingSender.replaceTrack(nextTrack);
+            mediaSendersRef.current[peerId] = {
+              ...(mediaSendersRef.current[peerId] || {}),
+              video: matchingSender,
+            };
+            return;
           } catch {}
-        },
+        }
+
+        try {
+          const sender = pc.addTrack(nextTrack, stream);
+          mediaSendersRef.current[peerId] = {
+            ...(mediaSendersRef.current[peerId] || {}),
+            video: sender,
+          };
+          peersToRenegotiate.push([peerId, pc]);
+        } catch {}
+      },
       );
 
       await Promise.all(replaceTasks);
@@ -1771,12 +1777,20 @@ export function useWebRTC({
         if (existingSender) {
           try {
             await existingSender.replaceTrack(nextTrack);
+            mediaSendersRef.current[peerId] = {
+              ...(mediaSendersRef.current[peerId] || {}),
+              audio: existingSender,
+            };
             return;
           } catch {}
         }
 
         try {
-          pc.addTrack(nextTrack, stream);
+          const sender = pc.addTrack(nextTrack, stream);
+          mediaSendersRef.current[peerId] = {
+            ...(mediaSendersRef.current[peerId] || {}),
+            audio: sender,
+          };
           peersToRenegotiate.push([peerId, pc]);
         } catch {}
       });
@@ -1827,6 +1841,10 @@ export function useWebRTC({
 
       try {
         await videoSender.replaceTrack(null);
+        mediaSendersRef.current[peerId] = {
+          ...(mediaSendersRef.current[peerId] || {}),
+          video: videoSender,
+        };
         peersToRenegotiate.push([peerId, pc]);
       } catch {}
     });
@@ -1962,23 +1980,23 @@ export function useWebRTC({
         connectionState: "connecting",
       });
 
-      const audioTransceiver = pc.addTransceiver("audio", {
-        direction: "sendrecv",
-      });
-      const videoTransceiver = pc.addTransceiver("video", {
-        direction: "sendrecv",
-      });
       mediaSendersRef.current[peerId] = {
-        audio: audioTransceiver.sender,
-        video: videoTransceiver.sender,
+        audio: null,
+        video: null,
       };
 
       if (localStreamRef.current) {
         localStreamRef.current.getAudioTracks().forEach((track) => {
-          audioTransceiver.sender.replaceTrack(track).catch(() => {});
+          try {
+            const sender = pc.addTrack(track, localStreamRef.current);
+            mediaSendersRef.current[peerId].audio = sender;
+          } catch {}
         });
         localStreamRef.current.getVideoTracks().forEach((track) => {
-          videoTransceiver.sender.replaceTrack(track).catch(() => {});
+          try {
+            const sender = pc.addTrack(track, localStreamRef.current);
+            mediaSendersRef.current[peerId].video = sender;
+          } catch {}
         });
       }
 
