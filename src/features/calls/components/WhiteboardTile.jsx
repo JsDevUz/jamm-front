@@ -110,6 +110,17 @@ const getPdfViewportBottomInset = (interactive) =>
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerSrc;
 
+const isMobileSafariBrowser = () => {
+  if (typeof navigator === "undefined") {
+    return false;
+  }
+
+  const userAgent = navigator.userAgent || "";
+  const isIOSDevice = /iPad|iPhone|iPod/.test(userAgent);
+  const isSafariEngine = /Safari/.test(userAgent) && !/CriOS|FxiOS|EdgiOS/.test(userAgent);
+  return isIOSDevice && isSafariEngine;
+};
+
 const PDF_DEBUG_ENABLED = true;
 
 const serializePdfError = (error) => {
@@ -820,13 +831,50 @@ const drawStroke = (ctx, stroke, width, height, zoomScale = 1, surfaceMode = "pa
   const projectedPoints = points.map((point) =>
     projectStoredPoint(point, width, height, zoomScale, surfaceMode),
   );
+  const drawSmoothPolyline = (polylinePoints) => {
+    if (polylinePoints.length < 2) {
+      return;
+    }
+
+    if (polylinePoints.length === 2) {
+      ctx.moveTo(polylinePoints[0].x, polylinePoints[0].y);
+      ctx.lineTo(polylinePoints[1].x, polylinePoints[1].y);
+      return;
+    }
+
+    ctx.moveTo(polylinePoints[0].x, polylinePoints[0].y);
+    for (let index = 1; index < polylinePoints.length - 1; index += 1) {
+      const current = polylinePoints[index];
+      const next = polylinePoints[index + 1];
+      const midPoint = {
+        x: (current.x + next.x) / 2,
+        y: (current.y + next.y) / 2,
+      };
+      ctx.quadraticCurveTo(current.x, current.y, midPoint.x, midPoint.y);
+    }
+    const penultimate = polylinePoints[polylinePoints.length - 2];
+    const last = polylinePoints[polylinePoints.length - 1];
+    ctx.quadraticCurveTo(penultimate.x, penultimate.y, last.x, last.y);
+  };
+
   ctx.beginPath();
-  ctx.moveTo(projectedPoints[0].x, projectedPoints[0].y);
-  projectedPoints.slice(1).forEach((point) => {
-    ctx.lineTo(point.x, point.y);
-  });
+  drawSmoothPolyline(projectedPoints);
   ctx.stroke();
   ctx.restore();
+};
+
+const appendDistinctPoint = (points, point) => {
+  if (!point) {
+    return false;
+  }
+
+  const lastPoint = points[points.length - 1];
+  if (lastPoint && lastPoint.x === point.x && lastPoint.y === point.y) {
+    return false;
+  }
+
+  points.push(point);
+  return true;
 };
 
 const getPdfTabPageStrokes = (tab, pageNumber) =>
@@ -1249,7 +1297,7 @@ const FullscreenBtn = styled.button`
   color: #fff;
   padding: 5px;
   cursor: pointer;
-  opacity: ${(p) => (p.$visible ? 1 : 0)};
+  opacity: ${(p) => (p.$visible ? 1 : 0.92)};
   transition: opacity 0.15s;
   z-index: 7;
 
@@ -2503,9 +2551,10 @@ const PdfPickerPageCard = ({ pdfDocument, pageNumber, active = false, onClick })
 
       try {
         const isSmallScreen = window.matchMedia("(max-width: 768px)").matches;
+        const isMobileSafari = isMobileSafariBrowser();
         const primaryRendered = await renderPreview({
-          targetWidth: isSmallScreen ? 156 : 180,
-          pixelRatio: isSmallScreen ? 1 : window.devicePixelRatio || 1,
+          targetWidth: isMobileSafari ? 132 : isSmallScreen ? 156 : 180,
+          pixelRatio: isMobileSafari ? 1 : isSmallScreen ? 1 : window.devicePixelRatio || 1,
         });
         if (!primaryRendered) {
           throw new Error("Preview canvas unavailable");
@@ -2653,10 +2702,12 @@ const StrokeCanvas = ({
     ctx.clearRect(0, 0, width, height);
     const editingStrokeId = textEditor?.strokeId || "";
     const previewShapeStrokeId = shapePreviewStroke?.id || "";
+    const draftStrokeId = draftStrokeRef.current?.id || "";
     (Array.isArray(strokes) ? strokes : []).forEach((stroke) => {
       if (
         (editingStrokeId && stroke?.id === editingStrokeId) ||
-        (previewShapeStrokeId && stroke?.id === previewShapeStrokeId)
+        (previewShapeStrokeId && stroke?.id === previewShapeStrokeId) ||
+        (draftStrokeId && stroke?.id === draftStrokeId)
       ) {
         return;
       }
@@ -3270,6 +3321,8 @@ const StrokeCanvas = ({
         redrawCanvas();
       } else {
         flushPendingPoints();
+        draftStrokeRef.current = null;
+        redrawCanvas();
       }
 
       const canvas = canvasRef.current;
@@ -3445,8 +3498,16 @@ const StrokeCanvas = ({
         pointerId: event.pointerId,
         strokeId,
         removedStrokeIds: null,
+        draftPoints: [point],
       };
       pendingPointsRef.current = [];
+      draftStrokeRef.current = {
+        id: strokeId,
+        tool,
+        color,
+        size: brushSize,
+        points: [point],
+      };
 
       canvasRef.current?.setPointerCapture?.(event.pointerId);
       onStrokeStart?.({
@@ -3458,6 +3519,7 @@ const StrokeCanvas = ({
         size: brushSize,
         point,
       });
+      redrawCanvas();
     },
     [
       brushSize,
@@ -3499,17 +3561,25 @@ const StrokeCanvas = ({
       event.preventDefault();
       event.stopPropagation();
 
-      const point = resolvePoint(event);
-      if (!point) {
+      const rawEvents =
+        typeof event.getCoalescedEvents === "function" ? event.getCoalescedEvents() : [];
+      const resolvedPoints =
+        (rawEvents.length > 0 ? rawEvents : [event])
+          .map((pointerEvent) => resolvePoint(pointerEvent))
+          .filter(Boolean);
+      if (resolvedPoints.length === 0) {
         return;
       }
 
       if (tool === "stroke-eraser") {
-        eraseWholeStrokeAtPoint(point);
+        resolvedPoints.forEach((point) => {
+          eraseWholeStrokeAtPoint(point);
+        });
         return;
       }
 
       if (pointerStateRef.current?.isVector) {
+        const point = resolvedPoints[resolvedPoints.length - 1];
         pointerStateRef.current.lastPoint = point;
         draftStrokeRef.current = draftStrokeRef.current
           ? {
@@ -3525,12 +3595,36 @@ const StrokeCanvas = ({
         return;
       }
 
-      const lastPoint = pendingPointsRef.current[pendingPointsRef.current.length - 1] || null;
-      if (lastPoint && lastPoint.x === point.x && lastPoint.y === point.y) {
+      const activePointer = pointerStateRef.current;
+      if (!activePointer) {
         return;
       }
 
-      pendingPointsRef.current.push(point);
+      const nextPendingPoints = pendingPointsRef.current;
+      const nextDraftPoints = Array.isArray(activePointer.draftPoints)
+        ? activePointer.draftPoints
+        : [];
+      let hasNewPoint = false;
+      resolvedPoints.forEach((point) => {
+        hasNewPoint = appendDistinctPoint(nextPendingPoints, point) || hasNewPoint;
+        appendDistinctPoint(nextDraftPoints, point);
+      });
+
+      if (!hasNewPoint) {
+        return;
+      }
+
+      activePointer.draftPoints = nextDraftPoints;
+      draftStrokeRef.current = draftStrokeRef.current
+        ? {
+            ...draftStrokeRef.current,
+            color,
+            size: brushSize,
+            points: [...nextDraftPoints],
+          }
+        : draftStrokeRef.current;
+      redrawCanvas();
+
       if (pendingPointsRef.current.length >= WHITEBOARD_APPEND_BATCH_LIMIT) {
         flushPendingPoints();
         return;
@@ -4894,7 +4988,9 @@ const WhiteboardTile = ({
           const baseViewport = page.getViewport({ scale: 1, rotation });
           const scale = activePdfWidth / baseViewport.width;
           const viewport = page.getViewport({ scale, rotation });
-          const ratio = Math.min(2, window.devicePixelRatio || 1);
+          const ratio = isMobileSafariBrowser()
+            ? 1
+            : Math.min(2, window.devicePixelRatio || 1);
           const context = canvas.getContext("2d");
           if (!context) {
             continue;

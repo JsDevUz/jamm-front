@@ -388,7 +388,7 @@ const PiPFrame = styled.div`
   width: 100%;
   height: 100%;
   min-width: 300px;
-  min-height: 500px;
+  min-height: 300px;
   background: var(--call-bg);
   display: flex;
   flex-direction: column;
@@ -507,6 +507,100 @@ const PiPStageInner = styled.div`
   border-radius: 24px;
   overflow: hidden;
   background: #234f10;
+`;
+
+const PiPMobileGrid = styled.div`
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  display: grid;
+  grid-template-columns: ${(props) => (props.$single ? "minmax(0, 1fr) minmax(0, 1fr)" : "repeat(2, minmax(0, 1fr))")};
+  gap: 14px;
+  padding: 18px;
+  box-sizing: border-box;
+  align-items: stretch;
+`;
+
+const PiPMobileCard = styled.div`
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  border-radius: 24px;
+  overflow: hidden;
+  background: ${(props) => props.$bg || "#234f10"};
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+`;
+
+const PiPMobileVideo = styled.video`
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background: black;
+  transform: ${(props) => (props.$mirror ? "scaleX(-1)" : "none")};
+`;
+
+const PiPMobileFallback = styled.div`
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: ${(props) => props.$bg || "#234f10"};
+  color: white;
+`;
+
+const PiPMobileAvatar = styled.div`
+  width: 84px;
+  height: 84px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.16);
+  font-size: 42px;
+  font-weight: 700;
+  line-height: 1;
+`;
+
+const PiPMobileName = styled.div`
+  position: absolute;
+  left: 16px;
+  bottom: 14px;
+  z-index: 2;
+  color: #fff;
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.1;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
+`;
+
+const PiPMobileMuteBadge = styled.div`
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 2;
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(30, 58, 10, 0.72);
+  color: #d7f5b0;
+`;
+
+const PiPMobileAloneCard = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 1.35;
+  text-align: left;
+  background: rgba(255, 255, 255, 0.04);
 `;
 
 const PiPBottomControls = styled.div`
@@ -852,6 +946,15 @@ const TileMuteBadge = styled.div`
   color: #d6f0a0;
   z-index: 3;
 `;
+
+const getParticipantFallbackColor = (label = "") => {
+  const seed = String(label || "guest");
+  let hash = 0;
+  for (let index = 0; index < seed.length; index += 1) {
+    hash = (hash * 31 + seed.charCodeAt(index)) % 360;
+  }
+  return `hsl(${hash} 52% 34%)`;
+};
 
 // ─── Waiting Room Panel ───────────────────────────────────────────────────────
 
@@ -1339,7 +1442,7 @@ const FullscreenBtn = styled.button`
   color: #fff;
   padding: 5px;
   cursor: pointer;
-  opacity: ${(p) => (p.$visible ? 1 : 0)};
+  opacity: ${(p) => (p.$visible ? 1 : 0.92)};
   transition: opacity 0.15s;
   z-index: 5;
   &:hover {
@@ -1374,7 +1477,7 @@ const VideoEl = ({
 
   useEffect(() => {
     const node = ref.current;
-    if (!node || !stream || !isCamOn) return undefined;
+    if (!node || !stream || !hasRenderableVideo) return undefined;
 
     if (node.srcObject !== stream) {
       node.srcObject = stream;
@@ -1415,7 +1518,7 @@ const VideoEl = ({
         node.oncanplay = null;
       }
     };
-  }, [isCamOn, stream]);
+  }, [hasRenderableVideo, stream]);
 
   const handleTileClick = useCallback(() => {
     onSelect?.();
@@ -1429,7 +1532,7 @@ const VideoEl = ({
     [onToggleFullscreen],
   );
   const hasRenderableVideo = Boolean(stream) && Boolean(hasVideo) && Boolean(isCamOn);
-  const fallbackBg = "#315f14";
+  const fallbackBg = getParticipantFallbackColor(label);
 
   return (
     <VideoTile
@@ -1445,7 +1548,7 @@ const VideoEl = ({
       {canFullscreen ? (
         <FullscreenBtn
           type="button"
-          $visible={isActive || compact}
+          $visible={isActive || compact || isMobile || isFullscreen}
           onClick={handleToggleFullscreen}
           aria-label={isFullscreen ? "Exit fullscreen tile" : "Fullscreen tile"}
         >
@@ -2849,7 +2952,7 @@ const GroupVideoCall = ({
     try {
       const nextPipWindow = await documentPiP.requestWindow({
         width: 300,
-        height: 500,
+        height: 300,
       });
 
       nextPipWindow.document.documentElement.style.margin = "0";
@@ -2887,7 +2990,7 @@ const GroupVideoCall = ({
       mountNode.style.width = "100%";
       mountNode.style.height = "100%";
       mountNode.style.minWidth = "300px";
-      mountNode.style.minHeight = "500px";
+      mountNode.style.minHeight = "300px";
       mountNode.style.display = "flex";
       mountNode.style.flex = "1 1 auto";
       nextPipWindow.document.body.appendChild(mountNode);
@@ -3146,14 +3249,10 @@ const GroupVideoCall = ({
     !minimizedPreviewTile?.isScreenShare;
   const minimizedPreviewLabel =
     minimizedPreviewTile?.label || roomTitle || chatTitle || t("groupCall.roomDefault");
-  const minimizedPreviewBg = useMemo(() => {
-    const seedSource = minimizedPreviewLabel || "meet";
-    let hash = 0;
-    for (let index = 0; index < seedSource.length; index += 1) {
-      hash = (hash * 31 + seedSource.charCodeAt(index)) % 360;
-    }
-    return `hsl(${hash} 54% 30%)`;
-  }, [minimizedPreviewLabel]);
+  const minimizedPreviewBg = useMemo(
+    () => getParticipantFallbackColor(minimizedPreviewLabel),
+    [minimizedPreviewLabel],
+  );
   const minimizedPreviewRef = useCallback(
     (node) => {
       if (node && minimizedPreviewStream) {
@@ -3168,6 +3267,32 @@ const GroupVideoCall = ({
     },
     [minimizedPreviewStream],
   );
+  const minimizedLocalTile = useMemo(
+    () =>
+      allTiles.find(
+        (tile) => tile.kind === "video" && tile.isLocal && !tile.isScreenShare,
+      ) || null,
+    [allTiles],
+  );
+  const minimizedRemoteTile = useMemo(() => {
+    const remoteVideoTiles = allTiles.filter(
+      (tile) => tile.kind === "video" && !tile.isLocal && !tile.isScreenShare,
+    );
+    if (remoteVideoTiles.length === 0) {
+      return null;
+    }
+
+    if (participantsCount <= 2) {
+      return remoteVideoTiles[0] || null;
+    }
+
+    return (
+      remoteVideoTiles.find((tile) => tile.peerId === lastSpeakerPeerId) ||
+      remoteVideoTiles.find((tile) => tile.hasVideo) ||
+      remoteVideoTiles[0] ||
+      null
+    );
+  }, [allTiles, lastSpeakerPeerId, participantsCount]);
 
   const tileCount = allTiles.length;
 
@@ -3670,12 +3795,71 @@ const GroupVideoCall = ({
     event.stopPropagation();
   }, []);
 
+  const renderPiPMobileParticipant = useCallback((tile) => {
+    if (!tile) {
+      return null;
+    }
+
+    const hasRenderableVideo = tile.kind === "video" && tile.hasVideo && tile.stream;
+    const participantLabel = tile.label || t("groupCall.roomDefault");
+    const fallbackBg = getParticipantFallbackColor(participantLabel);
+    const avatarLetter = participantLabel?.charAt(0)?.toUpperCase() || "?";
+    const isMuted =
+      tile.kind === "video" && (tile.isCamOn === false || tile.muted === true || !tile.hasVideo);
+
+    return (
+      <PiPMobileCard key={tile.id} $bg={fallbackBg}>
+        {hasRenderableVideo ? (
+          <PiPMobileVideo
+            autoPlay
+            playsInline
+            muted
+            ref={(node) => {
+              if (!node || node.srcObject === tile.stream) {
+                return;
+              }
+              node.srcObject = tile.stream;
+              const playPromise = node.play?.();
+              if (playPromise?.catch) {
+                playPromise.catch(() => {});
+              }
+            }}
+            $mirror={Boolean(tile.isLocal && !tile.isScreenShare)}
+          />
+        ) : (
+          <PiPMobileFallback $bg={fallbackBg}>
+            <PiPMobileAvatar>{avatarLetter}</PiPMobileAvatar>
+          </PiPMobileFallback>
+        )}
+        <PiPMobileName>{participantLabel}</PiPMobileName>
+        {isMuted ? (
+          <PiPMobileMuteBadge>
+            <MicOff size={18} />
+          </PiPMobileMuteBadge>
+        ) : null}
+      </PiPMobileCard>
+    );
+  }, [t]);
+
   const pipMinimizedContent = (
     <PiPFrame>
       <PiPStage type="button" onClick={handleMaximizeFromPiP}>
         <PiPStageInner>
-          {minimizedPreviewNode}
-          <PiPNameLabel>{minimizedPreviewLabel}</PiPNameLabel>
+          {isMobileViewport ? (
+            <PiPMobileGrid $single={!minimizedRemoteTile}>
+              {renderPiPMobileParticipant(minimizedLocalTile || minimizedPreviewTile)}
+              {minimizedRemoteTile ? (
+                renderPiPMobileParticipant(minimizedRemoteTile)
+              ) : (
+                <PiPMobileAloneCard>{`You're alone on the call`}</PiPMobileAloneCard>
+              )}
+            </PiPMobileGrid>
+          ) : (
+            <>
+              {minimizedPreviewNode}
+              <PiPNameLabel>{minimizedPreviewLabel}</PiPNameLabel>
+            </>
+          )}
         </PiPStageInner>
       </PiPStage>
       <PiPBottomControls onClick={stopPiPControlClick}>

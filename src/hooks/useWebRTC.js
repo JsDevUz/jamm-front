@@ -1857,6 +1857,7 @@ export function useWebRTC({
     if (existingTrack) {
       existingTrack.enabled = true;
       setIsCamOn(true);
+      emitLocalMediaState();
       return true;
     }
 
