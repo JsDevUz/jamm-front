@@ -4421,6 +4421,7 @@ const WhiteboardTile = ({
   const pdfPageCountCacheRef = useRef({});
   const pdfPageBitmapCacheRef = useRef(new Map());
   const pdfPinchScrollRef = useRef({ left: 0, top: 0 });
+  const pdfUserGestureRef = useRef(false);
   const pinchStateRef = useRef({
     active: false,
     distance: 0,
@@ -5734,10 +5735,12 @@ const WhiteboardTile = ({
 
     const handleTouchStart = (event) => {
       if (event.touches.length < 2) {
+        pdfUserGestureRef.current = event.touches.length === 1;
         pinchStateRef.current.active = false;
         return;
       }
 
+      pdfUserGestureRef.current = true;
       pdfPinchScrollRef.current = {
         left: viewport.scrollLeft,
         top: viewport.scrollTop,
@@ -5763,11 +5766,20 @@ const WhiteboardTile = ({
       viewport.scrollLeft = pdfPinchScrollRef.current.left;
       viewport.scrollTop = pdfPinchScrollRef.current.top;
       const zoomRatio = nextDistance / pinchStateRef.current.distance;
-      scheduleZoom(pinchStateRef.current.zoom * zoomRatio);
+      const nextZoom = Math.min(
+        WHITEBOARD_MAX_ZOOM,
+        Math.max(WHITEBOARD_MIN_ZOOM, pinchStateRef.current.zoom * zoomRatio),
+      );
+      pinchStateRef.current.distance = nextDistance;
+      pinchStateRef.current.zoom = nextZoom;
+      scheduleZoom(nextZoom);
     };
 
     const handleTouchEnd = () => {
       pinchStateRef.current.active = false;
+      window.setTimeout(() => {
+        pdfUserGestureRef.current = false;
+      }, 120);
     };
 
     viewport.addEventListener("wheel", handleWheelZoom, { passive: false });
@@ -6043,7 +6055,7 @@ const WhiteboardTile = ({
       return;
     }
 
-    if (!interactive && !guestPdfOverride) {
+    if (!interactive && !guestPdfOverride && pdfUserGestureRef.current) {
       setGuestPdfOverride(true);
       setGuestPdfZoom(syncedPdfZoom);
     }
