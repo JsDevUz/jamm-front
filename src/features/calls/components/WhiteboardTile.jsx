@@ -4641,19 +4641,11 @@ const WhiteboardTile = ({
           Math.round(
             (syncedGuestPdfWidth > 0
               ? Math.min(syncedGuestPdfWidth, pdfRenderWidth || syncedGuestPdfWidth)
-              : pdfRenderWidth || WHITEBOARD_MIN_PDF_RENDER_WIDTH) *
-              (!interactive && guestPdfOverride
-                ? activePdfZoom / Math.max(WHITEBOARD_MIN_ZOOM, syncedPdfZoom)
-                : 1),
+              : pdfRenderWidth || WHITEBOARD_MIN_PDF_RENDER_WIDTH) * activePdfZoom,
           ),
         )
       : !interactive && syncedGuestPdfWidth > 0
-      ? Math.round(
-          syncedGuestPdfWidth *
-            (!interactive && guestPdfOverride
-              ? activePdfZoom / Math.max(WHITEBOARD_MIN_ZOOM, syncedPdfZoom)
-              : 1),
-        )
+      ? Math.round(syncedGuestPdfWidth * activePdfZoom)
       : activeTab?.type === "pdf" && pdfRenderWidth > 0
       ? Math.max(
           WHITEBOARD_MIN_PDF_RENDER_WIDTH,
