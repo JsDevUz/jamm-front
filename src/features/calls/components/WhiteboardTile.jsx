@@ -2040,6 +2040,31 @@ const FloatingZoomValue = styled.div`
   color: rgba(15, 23, 42, 0.92);
 `;
 
+const GuestSyncButton = styled.button`
+  position: absolute;
+  right: 18px;
+  bottom: 86px;
+  z-index: 7;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 14px;
+  border: 1px solid rgba(99, 102, 241, 0.28);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.96);
+  color: #4f46e5;
+  font-size: 13px;
+  font-weight: 800;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.14);
+  backdrop-filter: blur(12px);
+  pointer-events: auto;
+
+  @media (max-width: 768px) {
+    right: 14px;
+    bottom: 78px;
+  }
+`;
+
 const WorkspaceBody = styled.div`
   position: relative;
   flex: 1;
@@ -4395,6 +4420,7 @@ const WhiteboardTile = ({
   const pdfObserverRef = useRef(null);
   const pdfPageCountCacheRef = useRef({});
   const pdfPageBitmapCacheRef = useRef(new Map());
+  const pdfPinchScrollRef = useRef({ left: 0, top: 0 });
   const pinchStateRef = useRef({
     active: false,
     distance: 0,
@@ -5712,6 +5738,10 @@ const WhiteboardTile = ({
         return;
       }
 
+      pdfPinchScrollRef.current = {
+        left: viewport.scrollLeft,
+        top: viewport.scrollTop,
+      };
       pinchStateRef.current = {
         active: true,
         distance: getTouchDistance(event.touches),
@@ -5730,6 +5760,8 @@ const WhiteboardTile = ({
       }
 
       event.preventDefault();
+      viewport.scrollLeft = pdfPinchScrollRef.current.left;
+      viewport.scrollTop = pdfPinchScrollRef.current.top;
       const zoomRatio = nextDistance / pinchStateRef.current.distance;
       scheduleZoom(pinchStateRef.current.zoom * zoomRatio);
     };
@@ -7496,6 +7528,17 @@ const WhiteboardTile = ({
             </BoardViewport>
           )}
 
+          {!interactive && activeTab?.type === "pdf" && guestPdfOverride ? (
+            <GuestSyncButton
+              type="button"
+              onClick={handleResetGuestPdfSync}
+              aria-label="Asl"
+              title="Asl"
+            >
+              Asl
+            </GuestSyncButton>
+          ) : null}
+
           {interactive || (!interactive && activeTab?.type === "pdf") ? (
             <FloatingControls>
               <FloatingGroup>
@@ -7516,16 +7559,6 @@ const WhiteboardTile = ({
                 >
                   <Plus size={16} />
                 </ToolButton>
-                {!interactive && guestPdfOverride ? (
-                  <ToolButton
-                    type="button"
-                    onClick={handleResetGuestPdfSync}
-                    aria-label="Asl"
-                    title="Asl"
-                  >
-                    Asl
-                  </ToolButton>
-                ) : null}
               </FloatingGroup>
 
               {interactive ? (
