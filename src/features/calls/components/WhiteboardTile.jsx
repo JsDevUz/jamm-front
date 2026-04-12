@@ -2102,6 +2102,24 @@ const PdfPageCanvas = styled.canvas`
   display: block;
   width: 100%;
   height: auto;
+  ${(p) =>
+    p.$hidden
+      ? `
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    pointer-events: none;
+  `
+      : ""}
+`;
+
+const PdfRasterImage = styled.img`
+  display: block;
+  width: 100%;
+  height: auto;
+  user-select: none;
+  -webkit-user-drag: none;
+  pointer-events: none;
 `;
 
 const PdfPagePlaceholder = styled.div`
@@ -4372,6 +4390,7 @@ const WhiteboardTile = ({
   const [isPdfLibraryOpen, setIsPdfLibraryOpen] = useState(false);
   const [visiblePdfPages, setVisiblePdfPages] = useState([]);
   const [pdfPageMetrics, setPdfPageMetrics] = useState({});
+  const [pdfPageImages, setPdfPageImages] = useState({});
   const [boardZoom, setBoardZoom] = useState(1);
   const [isColorPickerOpen, setIsColorPickerOpen] = useState(false);
   const [isFillPickerOpen, setIsFillPickerOpen] = useState(false);
@@ -4763,6 +4782,7 @@ const WhiteboardTile = ({
       return nextVisiblePages;
     });
     setPdfPageMetrics({});
+    setPdfPageImages({});
   }, [activeTab?.id, activeTabSelectedPagesKey, initialVisiblePdfPages]);
 
   const handleTileClick = useCallback(() => {
@@ -4964,6 +4984,7 @@ const WhiteboardTile = ({
       pages: [],
       error: "",
     });
+    setPdfPageImages({});
 
     const loadPdf = async () => {
       try {
@@ -5205,6 +5226,17 @@ const WhiteboardTile = ({
 
             canvas.dataset.renderKey = renderSignature;
             delete canvas.dataset.pendingRenderKey;
+            try {
+              const nextImageSrc = canvas.toDataURL("image/png");
+              setPdfPageImages((prev) =>
+                prev[pageMeta.pageNumber] === nextImageSrc
+                  ? prev
+                  : {
+                      ...prev,
+                      [pageMeta.pageNumber]: nextImageSrc,
+                    },
+              );
+            } catch {}
             setPdfPageMetrics((prev) => {
               const nextWidth = viewport.width;
               const nextHeight = viewport.height;
@@ -7264,6 +7296,10 @@ const WhiteboardTile = ({
                     pageMeta.pageNumber === currentPdfPage ||
                     pageMeta.pageNumber === Number(activeTab.viewportPageNumber);
                   const pageStrokes = getPdfTabPageStrokes(activeTab, pageMeta.pageNumber);
+                  const mobileGuestPdfImage =
+                    shouldUseContainedGuestPdfViewport && pdfPageImages[pageMeta.pageNumber]
+                      ? pdfPageImages[pageMeta.pageNumber]
+                      : "";
 
                   return (
                     <PdfPageFrame
@@ -7282,9 +7318,15 @@ const WhiteboardTile = ({
                         })}
                       </PageBadge>
                       {shouldRenderPage ? (
-                        <PdfPageCanvas
-                          id={`pdf-page-${activeTab.id}-${pageMeta.pageNumber}`}
-                        />
+                        <>
+                          {mobileGuestPdfImage ? (
+                            <PdfRasterImage src={mobileGuestPdfImage} alt="" draggable={false} />
+                          ) : null}
+                          <PdfPageCanvas
+                            id={`pdf-page-${activeTab.id}-${pageMeta.pageNumber}`}
+                            $hidden={Boolean(mobileGuestPdfImage)}
+                          />
+                        </>
                       ) : (
                         <PdfPagePlaceholder />
                       )}
