@@ -1,1 +1,1 @@
-import "pdfjs-dist/build/pdf.worker.mjs";
+import "pdfjs-dist/legacy/build/pdf.worker.min.mjs";

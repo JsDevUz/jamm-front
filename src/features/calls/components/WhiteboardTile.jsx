@@ -3,8 +3,8 @@ import { createPortal } from "react-dom";
 import styled from "styled-components";
 import { useTranslation } from "react-i18next";
 import { useHotkeys } from "react-hotkeys-hook";
-import * as pdfjsLib from "pdfjs-dist/build/pdf.mjs";
-import pdfWorkerSrc from "pdfjs-dist/build/pdf.worker.min.mjs?url";
+import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf.mjs";
+import pdfWorkerSrc from "pdfjs-dist/legacy/build/pdf.worker.min.mjs?url";
 import {
   AlignCenter,
   AlignLeft,
@@ -4425,6 +4425,8 @@ const WhiteboardTile = ({
     height: 0,
   });
   const [currentPdfPage, setCurrentPdfPage] = useState(1);
+  const [guestPdfOverride, setGuestPdfOverride] = useState(false);
+  const [guestPdfZoom, setGuestPdfZoom] = useState(1);
   const [isPdfLibraryOpen, setIsPdfLibraryOpen] = useState(false);
   const [visiblePdfPages, setVisiblePdfPages] = useState([]);
   const [pdfPageMetrics, setPdfPageMetrics] = useState({});
@@ -4503,6 +4505,10 @@ const WhiteboardTile = ({
     WHITEBOARD_MAX_ZOOM,
     Math.max(WHITEBOARD_MIN_ZOOM, Number(boardZoom) || syncedBoardZoom || 1),
   );
+  const syncedPdfZoom =
+    activeTab?.type === "pdf"
+      ? Math.min(WHITEBOARD_MAX_ZOOM, Math.max(WHITEBOARD_MIN_ZOOM, Number(activeTab.zoom) || 1))
+      : 1;
   const activeBoardBaseWidth = Math.max(
     WHITEBOARD_MIN_BOARD_BASE_WIDTH,
     syncedBoardBaseWidth,
@@ -4513,7 +4519,12 @@ const WhiteboardTile = ({
   );
   const activePdfZoom =
     activeTab?.type === "pdf"
-      ? Math.min(WHITEBOARD_MAX_ZOOM, Math.max(WHITEBOARD_MIN_ZOOM, Number(activeTab.zoom) || 1))
+      ? !interactive && guestPdfOverride
+        ? Math.min(
+            WHITEBOARD_MAX_ZOOM,
+            Math.max(WHITEBOARD_MIN_ZOOM, Number(guestPdfZoom) || syncedPdfZoom || 1),
+          )
+        : syncedPdfZoom
       : 1;
   const basePdfPage = pdfMeta.pages[0] || null;
   const basePdfAspectRatio =
@@ -4601,13 +4612,21 @@ const WhiteboardTile = ({
       ? Math.max(
           WHITEBOARD_MIN_PDF_RENDER_WIDTH,
           Math.round(
-            syncedGuestPdfWidth > 0
+            (syncedGuestPdfWidth > 0
               ? Math.min(syncedGuestPdfWidth, pdfRenderWidth || syncedGuestPdfWidth)
-              : pdfRenderWidth || WHITEBOARD_MIN_PDF_RENDER_WIDTH,
+              : pdfRenderWidth || WHITEBOARD_MIN_PDF_RENDER_WIDTH) *
+              (!interactive && guestPdfOverride
+                ? activePdfZoom / Math.max(WHITEBOARD_MIN_ZOOM, syncedPdfZoom)
+                : 1),
           ),
         )
       : !interactive && syncedGuestPdfWidth > 0
-      ? syncedGuestPdfWidth
+      ? Math.round(
+          syncedGuestPdfWidth *
+            (!interactive && guestPdfOverride
+              ? activePdfZoom / Math.max(WHITEBOARD_MIN_ZOOM, syncedPdfZoom)
+              : 1),
+        )
       : activeTab?.type === "pdf" && pdfRenderWidth > 0
       ? Math.max(
           WHITEBOARD_MIN_PDF_RENDER_WIDTH,
@@ -4628,6 +4647,18 @@ const WhiteboardTile = ({
     () => getInitialVisiblePdfPages(activeTab, pdfMeta.pages),
     [activeTab, pdfMeta.pages],
   );
+
+  useEffect(() => {
+    if (activeTab?.type !== "pdf") {
+      setGuestPdfOverride(false);
+      setGuestPdfZoom(1);
+      return;
+    }
+
+    if (!interactive && !guestPdfOverride) {
+      setGuestPdfZoom(syncedPdfZoom);
+    }
+  }, [activeTab?.id, activeTab?.type, guestPdfOverride, interactive, syncedPdfZoom]);
 
   const emitPdfViewport = useCallback(
     ({
@@ -5450,25 +5481,6 @@ const WhiteboardTile = ({
   }, [activeTab?.id, activeTab?.type, compact, pdfMeta.pages, pdfMeta.status]);
 
   useEffect(() => {
-    const viewport = pdfViewportRef.current;
-    if (!viewport || interactive || !activeTab || activeTab.type !== "pdf") {
-      return undefined;
-    }
-
-    const blockScroll = (event) => {
-      event.preventDefault();
-    };
-
-    viewport.addEventListener("wheel", blockScroll, { passive: false });
-    viewport.addEventListener("touchmove", blockScroll, { passive: false });
-
-    return () => {
-      viewport.removeEventListener("wheel", blockScroll);
-      viewport.removeEventListener("touchmove", blockScroll);
-    };
-  }, [activeTab?.id, activeTab?.type, interactive]);
-
-  useEffect(() => {
     if (!interactive || !activeTab || activeTab.type !== "pdf" || pdfRenderWidth <= 0) {
       return;
     }
@@ -5496,12 +5508,22 @@ const WhiteboardTile = ({
 
   const handlePdfZoomChange = useCallback(
     (nextZoom) => {
-      if (!interactive || !activeTab || activeTab.type !== "pdf") {
+      if (!activeTab || activeTab.type !== "pdf") {
+        return;
+      }
+
+      const clampedZoom = Math.min(
+        WHITEBOARD_MAX_ZOOM,
+        Math.max(WHITEBOARD_MIN_ZOOM, nextZoom),
+      );
+      if (!interactive) {
+        setGuestPdfOverride(true);
+        setGuestPdfZoom(clampedZoom);
         return;
       }
 
       emitPdfViewport({
-        zoom: nextZoom,
+        zoom: clampedZoom,
       });
     },
     [activeTab, emitPdfViewport, interactive],
@@ -5646,7 +5668,7 @@ const WhiteboardTile = ({
 
   useEffect(() => {
     const viewport = pdfViewportRef.current;
-    if (!viewport || !interactive || !activeTab || activeTab.type !== "pdf") {
+    if (!viewport || !activeTab || activeTab.type !== "pdf") {
       return undefined;
     }
 
@@ -5733,7 +5755,7 @@ const WhiteboardTile = ({
       viewport.removeEventListener("touchend", handleTouchEnd);
       viewport.removeEventListener("touchcancel", handleTouchEnd);
     };
-  }, [activePdfZoom, activeTab?.id, activeTab?.type, handlePdfZoomChange, interactive]);
+  }, [activePdfZoom, activeTab?.id, activeTab?.type, handlePdfZoomChange]);
 
   useEffect(() => {
     const viewport = boardViewportRef.current;
@@ -5891,7 +5913,7 @@ const WhiteboardTile = ({
 
   useEffect(() => {
     const viewport = pdfViewportRef.current;
-    if (!viewport || !activeTab || activeTab.type !== "pdf") {
+    if (!viewport || !activeTab || activeTab.type !== "pdf" || (!interactive && guestPdfOverride)) {
       return;
     }
 
@@ -5958,6 +5980,7 @@ const WhiteboardTile = ({
     activeTab?.viewportPageOffsetRatio,
     activePdfViewportTopInset,
     activePdfWidth,
+    guestPdfOverride,
     interactive,
     pdfMeta.pages.length,
     pdfMeta.status,
@@ -5980,7 +6003,6 @@ const WhiteboardTile = ({
   const handlePdfScroll = useCallback(() => {
     const viewport = pdfViewportRef.current;
     if (
-      !interactive ||
       !activeTab ||
       activeTab.type !== "pdf" ||
       !viewport ||
@@ -5989,8 +6011,13 @@ const WhiteboardTile = ({
       return;
     }
 
+    if (!interactive && !guestPdfOverride) {
+      setGuestPdfOverride(true);
+      setGuestPdfZoom(syncedPdfZoom);
+    }
+
     const scrollHeight = viewport.scrollHeight - viewport.clientHeight;
-    const topInset = getPdfViewportTopInset(interactive);
+    const topInset = activePdfViewportTopInset;
     const anchoredScrollTop = Math.min(
       scrollHeight,
       Math.max(0, viewport.scrollTop + topInset),
@@ -6002,12 +6029,29 @@ const WhiteboardTile = ({
       window.clearTimeout(scrollSyncRef.current.timeoutId);
     }
 
+    if (!interactive) {
+      return;
+    }
+
     scrollSyncRef.current.timeoutId = window.setTimeout(() => {
       emitPdfViewport({
         scrollRatio,
       });
     }, 72);
-  }, [activeTab, emitPdfViewport, interactive, updateCurrentPdfPage]);
+  }, [
+    activePdfViewportTopInset,
+    activeTab,
+    emitPdfViewport,
+    guestPdfOverride,
+    interactive,
+    syncedPdfZoom,
+    updateCurrentPdfPage,
+  ]);
+
+  const handleResetGuestPdfSync = useCallback(() => {
+    setGuestPdfOverride(false);
+    setGuestPdfZoom(syncedPdfZoom);
+  }, [syncedPdfZoom]);
 
   const handleTabSelect = useCallback(
     (event, tabId) => {
@@ -7302,7 +7346,7 @@ const WhiteboardTile = ({
               data-record-surface-type="pdf"
               onScroll={handlePdfScroll}
               $interactive={interactive}
-              $allowHorizontal={interactive && activePdfZoom > 1.001}
+              $allowHorizontal={activePdfZoom > 1.001}
             >
               {pdfMeta.status === "loading" ? (
                 <PdfStatus>
@@ -7452,7 +7496,7 @@ const WhiteboardTile = ({
             </BoardViewport>
           )}
 
-          {interactive ? (
+          {interactive || (!interactive && activeTab?.type === "pdf") ? (
             <FloatingControls>
               <FloatingGroup>
                 <ToolButton
@@ -7472,34 +7516,46 @@ const WhiteboardTile = ({
                 >
                   <Plus size={16} />
                 </ToolButton>
+                {!interactive && guestPdfOverride ? (
+                  <ToolButton
+                    type="button"
+                    onClick={handleResetGuestPdfSync}
+                    aria-label="Asl"
+                    title="Asl"
+                  >
+                    Asl
+                  </ToolButton>
+                ) : null}
               </FloatingGroup>
 
-              <FloatingGroup>
-                <ToolButton
-                  type="button"
-                  onClick={handleUndo}
-                  aria-label={t("groupCall.whiteboard.undo")}
-                  title={undoTitle}
-                >
-                  <Undo2 size={16} />
-                </ToolButton>
-                <ToolButton
-                  type="button"
-                  onClick={handleRedo}
-                  aria-label={t("groupCall.whiteboard.redo")}
-                  title={redoTitle}
-                >
-                  <Redo2 size={16} />
-                </ToolButton>
-                <ToolButton
-                  type="button"
-                  onClick={requestClearConfirmation}
-                  aria-label={t("groupCall.whiteboard.clear")}
-                  title={clearTitle}
-                >
-                  <Trash2 size={16} />
-                </ToolButton>
-              </FloatingGroup>
+              {interactive ? (
+                <FloatingGroup>
+                  <ToolButton
+                    type="button"
+                    onClick={handleUndo}
+                    aria-label={t("groupCall.whiteboard.undo")}
+                    title={undoTitle}
+                  >
+                    <Undo2 size={16} />
+                  </ToolButton>
+                  <ToolButton
+                    type="button"
+                    onClick={handleRedo}
+                    aria-label={t("groupCall.whiteboard.redo")}
+                    title={redoTitle}
+                  >
+                    <Redo2 size={16} />
+                  </ToolButton>
+                  <ToolButton
+                    type="button"
+                    onClick={requestClearConfirmation}
+                    aria-label={t("groupCall.whiteboard.clear")}
+                    title={clearTitle}
+                  >
+                    <Trash2 size={16} />
+                  </ToolButton>
+                </FloatingGroup>
+              ) : null}
             </FloatingControls>
           ) : null}
         </WorkspaceBody>

@@ -1269,6 +1269,9 @@ export function useWebRTC({
   const cameraFacingModeRef = useRef("user");
   const whiteboardStateRef = useRef(createInitialWhiteboardState());
   const storedPdfLibraryRef = useRef([]);
+  const lastWhiteboardUpdatedAtRef = useRef(
+    Number(createInitialWhiteboardState()?.updatedAt) || 0,
+  );
   const remotePeerStatesRef = useRef({});
   const removedPeerIdsRef = useRef(new Set());
   const currentUserId = String(currentUser?._id || currentUser?.id || "");
@@ -1418,6 +1421,10 @@ export function useWebRTC({
     setWhiteboardState((prev) => {
       const nextState =
         typeof updater === "function" ? updater(prev) : updater;
+      lastWhiteboardUpdatedAtRef.current = Math.max(
+        lastWhiteboardUpdatedAtRef.current || 0,
+        Number(nextState?.updatedAt || 0),
+      );
       whiteboardStateRef.current = nextState;
       return nextState;
     });
@@ -2711,6 +2718,10 @@ export function useWebRTC({
         // 5c. Whiteboard sync
         socket.on("whiteboard-state", (payload) => {
           const nextState = normalizeWhiteboardState(payload);
+          const nextUpdatedAt = Number(nextState?.updatedAt || 0);
+          if (nextUpdatedAt > 0 && nextUpdatedAt < (lastWhiteboardUpdatedAtRef.current || 0)) {
+            return;
+          }
           const mergedState = {
             ...mergeWhiteboardTabsWithPreservedSelections(
               nextState,
@@ -2722,6 +2733,10 @@ export function useWebRTC({
             ),
           };
           storedPdfLibraryRef.current = mergedState.pdfLibrary;
+          lastWhiteboardUpdatedAtRef.current = Math.max(
+            lastWhiteboardUpdatedAtRef.current || 0,
+            Number(mergedState?.updatedAt || 0),
+          );
           whiteboardStateRef.current = mergedState;
           setWhiteboardState(mergedState);
         });
@@ -3814,6 +3829,7 @@ export function useWebRTC({
         }),
         ownerPeerId,
         ownerDisplayName: displayName || prev.ownerDisplayName || "Host",
+        updatedAt: Date.now(),
       }));
 
       socketRef.current.emit("whiteboard-stroke-start", {
@@ -3856,11 +3872,14 @@ export function useWebRTC({
         tabId || whiteboardStateRef.current.activeTabId,
       );
       commitWhiteboardState((prev) =>
-        appendWhiteboardStrokePointsInState(prev, {
-          tabId: targetTabId,
-          pageNumber,
-          strokeId,
-          points: normalizedPoints,
+        ({
+          ...appendWhiteboardStrokePointsInState(prev, {
+            tabId: targetTabId,
+            pageNumber,
+            strokeId,
+            points: normalizedPoints,
+          }),
+          updatedAt: Date.now(),
         }),
       );
 
@@ -3975,8 +3994,8 @@ export function useWebRTC({
         tabId || whiteboardStateRef.current.activeTabId,
       );
 
-      commitWhiteboardState((prev) =>
-        updateWhiteboardStrokeInState(prev, {
+      commitWhiteboardState((prev) => ({
+        ...updateWhiteboardStrokeInState(prev, {
           tabId: targetTabId,
           pageNumber,
           strokeId: strokeId.trim(),
@@ -3993,7 +4012,8 @@ export function useWebRTC({
           edgeStyle: normalizedEdgeStyle,
           rotation: normalizedRotation,
         }),
-      );
+        updatedAt: Date.now(),
+      }));
 
       socketRef.current.emit("whiteboard-stroke-update", {
         roomId,
