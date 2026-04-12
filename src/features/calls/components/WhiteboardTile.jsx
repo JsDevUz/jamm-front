@@ -59,6 +59,7 @@ const WHITEBOARD_BOARD_TAB_ID = "board";
 const WHITEBOARD_MIN_ZOOM = 0.5;
 const WHITEBOARD_MAX_ZOOM = 3;
 const WHITEBOARD_MIN_PDF_RENDER_WIDTH = 120;
+const WHITEBOARD_MOBILE_PDF_MAX_RENDER_EDGE = 2048;
 const WHITEBOARD_MIN_BOARD_BASE_WIDTH = 120;
 const WHITEBOARD_MIN_BOARD_BASE_HEIGHT = 120;
 const WHITEBOARD_PDF_RENDER_VERSION = "v3";
@@ -4522,8 +4523,15 @@ const WhiteboardTile = ({
           WHITEBOARD_MIN_PDF_RENDER_WIDTH,
           pdfRenderWidth || WHITEBOARD_MIN_PDF_RENDER_WIDTH,
         );
+  const shouldUseContainedGuestPdfViewport =
+    !interactive && isMobile && activeTab?.type === "pdf";
   const activePdfWidth =
-    !interactive && syncedGuestPdfWidth > 0
+    shouldUseContainedGuestPdfViewport
+      ? Math.max(
+          WHITEBOARD_MIN_PDF_RENDER_WIDTH,
+          Math.round(activePdfViewportBaseWidth * activePdfZoom),
+        )
+      : !interactive && syncedGuestPdfWidth > 0
       ? syncedGuestPdfWidth
       : activeTab?.type === "pdf" && pdfRenderWidth > 0
       ? Math.max(
@@ -5071,6 +5079,18 @@ const WhiteboardTile = ({
           const ratio = isMobileSafariBrowser()
             ? 1
             : Math.min(2, window.devicePixelRatio || 1);
+          const renderScaleCap =
+            shouldUseContainedGuestPdfViewport || isMobileSafariBrowser()
+              ? Math.min(
+                  1,
+                  WHITEBOARD_MOBILE_PDF_MAX_RENDER_EDGE /
+                    Math.max(1, viewport.width, viewport.height),
+                )
+              : 1;
+          const rasterViewport =
+            renderScaleCap < 0.999
+              ? page.getViewport({ scale: scale * renderScaleCap, rotation })
+              : viewport;
           const context = canvas.getContext("2d");
           if (!context) {
             continue;
@@ -5083,15 +5103,15 @@ const WhiteboardTile = ({
             continue;
           }
 
-          renderCanvas.width = Math.floor(viewport.width * ratio);
-          renderCanvas.height = Math.floor(viewport.height * ratio);
+          renderCanvas.width = Math.max(1, Math.floor(rasterViewport.width * ratio));
+          renderCanvas.height = Math.max(1, Math.floor(rasterViewport.height * ratio));
           renderContext.setTransform(ratio, 0, 0, ratio, 0, 0);
 
           const renderIntoCanvas = async () => {
             renderContext.clearRect(0, 0, viewport.width, viewport.height);
             const renderTask = page.render({
               canvasContext: renderContext,
-              viewport,
+              viewport: rasterViewport,
             });
             await renderTask.promise;
           };
@@ -5161,6 +5181,7 @@ const WhiteboardTile = ({
     activePdfZoom,
     activePdfWidth,
     initialVisiblePdfPages,
+    isMobile,
     visiblePdfPages,
   ]);
 
@@ -5663,7 +5684,10 @@ const WhiteboardTile = ({
     const targetFrame = document.getElementById(
       `pdf-page-frame-${activeTab.id}-${activeTab.viewportPageNumber || 1}`,
     );
-    const topInset = getPdfViewportTopInset(interactive);
+    const topInset =
+      shouldUseContainedGuestPdfViewport
+        ? WHITEBOARD_VIEWPORT_TOP_SAFE_SPACE
+        : getPdfViewportTopInset(interactive);
     const pageAnchorTop =
       targetFrame instanceof HTMLElement
         ? targetFrame.offsetTop +
@@ -5677,7 +5701,11 @@ const WhiteboardTile = ({
         : scrollHeight > 0
           ? scrollHeight * (activeTab.scrollRatio || 0)
           : 0;
-    const scrollWidth = viewport.scrollWidth - viewport.clientWidth;
+    const authoritativeVisibleWidth =
+      shouldUseContainedGuestPdfViewport && syncedViewportVisibleWidthRatio > 0
+        ? activePdfWidth * syncedViewportVisibleWidthRatio
+        : viewport.clientWidth;
+    const scrollWidth = Math.max(0, viewport.scrollWidth - authoritativeVisibleWidth);
     const nextLeft =
       scrollWidth > 0
         ? scrollWidth * (Number(activeTab.viewportLeftRatio) || 0)
@@ -5709,9 +5737,12 @@ const WhiteboardTile = ({
     activeTab?.viewportVisibleWidthRatio,
     activeTab?.viewportPageNumber,
     activeTab?.viewportPageOffsetRatio,
+    activePdfWidth,
     interactive,
     pdfMeta.pages.length,
     pdfMeta.status,
+    shouldUseContainedGuestPdfViewport,
+    syncedViewportVisibleWidthRatio,
     updateCurrentPdfPage,
   ]);
 

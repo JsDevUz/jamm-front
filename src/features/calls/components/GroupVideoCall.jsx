@@ -881,6 +881,7 @@ const StageRail = styled.div`
 const StageRailGrid = styled.div`
   flex: ${(p) => (p.$immersive ? "0" : "1")};
   min-height: 0;
+  align-items: start;
   overflow-x: ${(p) => (p.$immersive ? "auto" : "hidden")};
   overflow-y: ${(p) => (p.$immersive ? "hidden" : "auto")};
   display: grid;
@@ -895,12 +896,26 @@ const StageRailGrid = styled.div`
   grid-auto-flow: ${(p) => (p.$immersive ? "column" : "row")};
   grid-auto-columns: ${(p) =>
     p.$immersive ? "minmax(132px, 220px)" : "auto"};
-  grid-auto-rows: ${(p) => (p.$immersive ? "minmax(120px, 1fr)" : "minmax(132px, 1fr)")};
+  grid-auto-rows: ${(p) =>
+    p.$immersive ? "clamp(120px, 22vh, 168px)" : "minmax(132px, 1fr)"};
   padding-left: ${(p) => (p.$immersive ? "4px" : "0")};
   padding-right: ${(p) => (p.$immersive ? "4px" : p.$mobile ? "0" : "4px")};
   padding-bottom: ${(p) => (p.$immersive ? "4px" : "0")};
-  padding-top: ${(p) => (p.$immersive ? "0" : "0")};
+  padding-top: ${(p) => (p.$immersive ? "4px" : "0")};
   scrollbar-width: none;
+
+  & > * {
+    min-height: 0;
+  }
+
+  ${(p) =>
+    p.$immersive
+      ? css`
+          & > * {
+            height: clamp(120px, 22vh, 168px);
+          }
+        `
+      : ""}
 
   &::-webkit-scrollbar {
     display: none;
