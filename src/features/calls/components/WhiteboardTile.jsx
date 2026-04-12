@@ -4605,7 +4605,7 @@ const WhiteboardTile = ({
   );
   const activeBoardRenderScale = getBoardRenderScale(activeBoardZoom);
   const shouldUseContainedMobilePdfViewport =
-    isMobile && activeTab?.type === "pdf";
+    interactive && isMobile && activeTab?.type === "pdf";
   const activePdfViewportTopInset = shouldUseContainedMobilePdfViewport
     ? WHITEBOARD_VIEWPORT_TOP_SAFE_SPACE
     : getPdfViewportTopInset(interactive);
