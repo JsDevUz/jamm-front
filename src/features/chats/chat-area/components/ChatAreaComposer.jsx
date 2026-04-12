@@ -9,20 +9,14 @@ const MessageInputContainer = styled.div`
   padding: 12px 16px
     ${(props) =>
       props.$keyboardOpen
-        ? "10px"
+        ? "8px"
         : "calc(8px + env(safe-area-inset-bottom, 0px))"};
   background-color: var(--secondary-color);
   border-top: 1px solid var(--border-color);
   position: relative;
-  will-change: transform;
   transition:
     padding-bottom 0.25s ease,
-    transform 0.22s ease,
     border-color 0.25s ease;
-
-  @media (max-width: 768px) {
-    transform: ${(props) => (props.$keyboardOpen ? "translateY(-10px)" : "translateY(0)")};
-  }
 `;
 
 const ComposerStack = styled.div`

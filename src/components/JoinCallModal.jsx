@@ -185,6 +185,12 @@ const JoinCallModal = ({ chatId, onCallReady, onClose }) => {
   // Read logged-in user from Zustand store
   const currentUser = useAuthStore((state) => state.user);
 
+  useEffect(() => {
+    if (!currentUser) {
+      setMode((prev) => (prev === "choose" ? "ghost" : prev));
+    }
+  }, [currentUser]);
+
   const sendJoinRequest = async (name, userId) => {
     setLoading(true);
     setError("");
@@ -245,10 +251,6 @@ const JoinCallModal = ({ chatId, onCallReady, onClose }) => {
       return;
     }
     sendJoinRequest(guestName.trim(), null);
-  };
-
-  const handleLoginRedirect = () => {
-    window.location.href = `/auth?redirect=/join-call/${chatId}`;
   };
 
   // ─── Render ────────────────────────────────────────────────────────────────
@@ -368,17 +370,7 @@ const JoinCallModal = ({ chatId, onCallReady, onClose }) => {
                 ? "Yuborilmoqda…"
                 : `${currentUser.nickname || currentUser.username} sifatida qo'shilish`}
             </Btn>
-          ) : (
-            <>
-              <Btn $primary onClick={() => setMode("ghost")}>
-                <User size={16} /> Mehmon sifatida (ism bilan)
-              </Btn>
-              <Divider>yoki</Divider>
-              <Btn onClick={handleLoginRedirect}>
-                <LogIn size={16} /> Login qilib qo'shilish
-              </Btn>
-            </>
-          )}
+          ) : null}
         </ButtonRow>
       </Modal>
     </Overlay>

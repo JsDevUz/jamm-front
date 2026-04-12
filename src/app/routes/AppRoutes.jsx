@@ -16,6 +16,7 @@ export default function AppRoutes() {
 
         <Route path="/login" element={<AuthPage />} />
         <Route path="/join/:roomId" element={<JoinCallPage />} />
+        <Route path="/join-call/:roomId" element={<JoinCallPage />} />
         <Route
           path="/meets"
           element={

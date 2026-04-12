@@ -59,7 +59,7 @@ const WHITEBOARD_BOARD_TAB_ID = "board";
 const WHITEBOARD_MIN_ZOOM = 0.5;
 const WHITEBOARD_MAX_ZOOM = 3;
 const WHITEBOARD_MIN_PDF_RENDER_WIDTH = 120;
-const WHITEBOARD_MOBILE_PDF_MAX_RENDER_EDGE = 2048;
+const WHITEBOARD_MOBILE_PDF_MAX_RENDER_EDGE = 3072;
 const WHITEBOARD_MIN_BOARD_BASE_WIDTH = 120;
 const WHITEBOARD_MIN_BOARD_BASE_HEIGHT = 120;
 const WHITEBOARD_PDF_RENDER_VERSION = "v3";
@@ -2121,7 +2121,7 @@ const PdfViewport = styled.div`
   position: relative;
   width: 100%;
   height: 100%;
-  overflow-y: ${(p) => (p.$interactive ? "auto" : "hidden")};
+  overflow-y: auto;
   overflow-x: ${(p) => (p.$allowHorizontal ? "auto" : "hidden")};
   border-radius: 0 0 18px 18px;
   background:
@@ -5305,11 +5305,20 @@ const WhiteboardTile = ({
           const baseViewport = page.getViewport({ scale: 1, rotation });
           const scale = activePdfRenderWidth / baseViewport.width;
           const viewport = page.getViewport({ scale, rotation });
-          const ratio = isMobileSafariBrowser()
-            ? 1
+          const isMobilePdfClient = isMobilePdfBrowser();
+          const ratio = isMobilePdfClient
+            ? Math.max(
+                1,
+                Math.min(
+                  2,
+                  window.devicePixelRatio || 1,
+                  WHITEBOARD_MOBILE_PDF_MAX_RENDER_EDGE /
+                    Math.max(1, viewport.width, viewport.height),
+                ),
+              )
             : Math.min(2, window.devicePixelRatio || 1);
           const renderScaleCap =
-            shouldUseContainedMobilePdfViewport || isMobileSafariBrowser()
+            shouldUseContainedMobilePdfViewport
               ? Math.min(
                   1,
                   WHITEBOARD_MOBILE_PDF_MAX_RENDER_EDGE /

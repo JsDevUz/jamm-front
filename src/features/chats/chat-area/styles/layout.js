@@ -61,8 +61,7 @@ export const ChatMain = styled.div`
 
   @media (max-width: 768px) {
     padding-top: calc(82px + env(safe-area-inset-top, 0px));
-    padding-bottom: ${(props) => `${props.$keyboardHeight || 0}px`};
-    transition: padding-bottom 0.22s ease;
+    padding-bottom: 0;
   }
 
   @media (max-width: 480px) {

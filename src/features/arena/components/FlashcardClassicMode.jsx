@@ -266,10 +266,18 @@ key={classicExitDirection ? `swipe-card-exiting-${classicIndex}` : `swipe-card-$
     if (classicDragging) handleClassicPointerEnd();
   }}
   >
-                  <ClassicFlipLayer
-                    $flipped={classicExitDirection ? classicExitFlipped : classicShowBack}
-                  >
-                    <ClassicCardFront>
+                  <ClassicFlipLayer $swipeTone={swipeTone} $swipeStrength={swipeProgress}>
+                    <div
+                      style={{
+                        position: "relative",
+                        width: "100%",
+                        height: "100%",
+                        display: "flex",
+                        flexDirection: "column",
+                        padding: 20,
+                        boxSizing: "border-box",
+                      }}
+                    >
                       <ClassicCardToolbar>
                         <ClassicToolbarIcon
                           type="button"
@@ -279,7 +287,13 @@ key={classicExitDirection ? `swipe-card-exiting-${classicIndex}` : `swipe-card-$
                           <Volume2 size={22} />
                         </ClassicToolbarIcon>
                       </ClassicCardToolbar>
-                      <ClassicCardBody>
+                      <ClassicCardBody
+                        style={{
+                          justifyContent: classicShowBack ? "flex-start" : "center",
+                          paddingTop: classicShowBack ? 12 : 18,
+                          overflowY: "auto",
+                        }}
+                      >
                         {promptImage && <ClassicCardImage src={promptImage} />}
                         <ClassicCardWord
                           $blur={swipeProgress * 2}
@@ -287,24 +301,41 @@ key={classicExitDirection ? `swipe-card-exiting-${classicIndex}` : `swipe-card-$
                         >
                           {promptText}
                         </ClassicCardWord>
-                      </ClassicCardBody>
-                    </ClassicCardFront>
 
-                    <ClassicCardBack>
-                      <ClassicCardToolbar>
-                        <ClassicToolbarIcon
-                          type="button"
-                          onPointerDown={(event) => event.stopPropagation()}
-                          onClick={(event) => speakClassicCard("answer", event)}
-                        >
-                          <Volume2 size={22} />
-                        </ClassicToolbarIcon>
-                      </ClassicCardToolbar>
-                      <ClassicCardBody>
-                        {answerImage && <ClassicCardImage src={answerImage} />}
-                        <ClassicCardWord>{answerText}</ClassicCardWord>
+                        {classicShowBack ? (
+                          <div
+                            style={{
+                              width: "min(100%, 540px)",
+                              borderRadius: 22,
+                              border: "1px solid color-mix(in srgb, var(--border-color) 76%, transparent)",
+                              background:
+                                "color-mix(in srgb, var(--secondary-color) 92%, var(--background-color))",
+                              padding: "18px 18px 20px",
+                              display: "flex",
+                              flexDirection: "column",
+                              alignItems: "center",
+                              gap: 14,
+                            }}
+                          >
+                            <ClassicCardToolbar
+                              style={{ width: "100%", justifyContent: "flex-end" }}
+                            >
+                              <ClassicToolbarIcon
+                                type="button"
+                                onPointerDown={(event) => event.stopPropagation()}
+                                onClick={(event) => speakClassicCard("answer", event)}
+                              >
+                                <Volume2 size={22} />
+                              </ClassicToolbarIcon>
+                            </ClassicCardToolbar>
+                            {answerImage && <ClassicCardImage src={answerImage} />}
+                            <ClassicCardWord style={{ fontSize: "clamp(24px, 4vw, 42px)" }}>
+                              {answerText}
+                            </ClassicCardWord>
+                          </div>
+                        ) : null}
                       </ClassicCardBody>
-                    </ClassicCardBack>
+                    </div>
                   </ClassicFlipLayer>
                 </ClassicSwipeCard>
               )}

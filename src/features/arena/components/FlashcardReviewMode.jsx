@@ -177,53 +177,61 @@ export default function FlashcardReviewMode({
         ) : null}
 
         <FlashcardBox>
-          {showingBack ? (
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                gap: "16px",
-              }}
-            >
-              {getAnswerImage(currentCard) && (
-                <img
-                  src={getAnswerImage(currentCard)}
-                  alt="back"
-                  style={{
-                    maxWidth: "100%",
-                    maxHeight: "200px",
-                    borderRadius: "8px",
-                    objectFit: "contain",
-                  }}
-                />
-              )}
-              <div>{getAnswerText(currentCard) || "???"}</div>
-            </div>
-          ) : (
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                gap: "16px",
-              }}
-            >
-              {getPromptImage(currentCard) && (
-                <img
-                  src={getPromptImage(currentCard)}
-                  alt="prompt"
-                  style={{
-                    maxWidth: "100%",
-                    maxHeight: "200px",
-                    borderRadius: "8px",
-                    objectFit: "contain",
-                  }}
-                />
-              )}
-              <div>{getPromptText(currentCard) || "???"}</div>
-            </div>
-          )}
+          <div
+            style={{
+              width: "100%",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: "18px",
+            }}
+          >
+            {getPromptImage(currentCard) && (
+              <img
+                src={getPromptImage(currentCard)}
+                alt="prompt"
+                style={{
+                  maxWidth: "100%",
+                  maxHeight: "200px",
+                  borderRadius: "8px",
+                  objectFit: "contain",
+                }}
+              />
+            )}
+            <div>{getPromptText(currentCard) || "???"}</div>
+
+            {showingBack ? (
+              <div
+                style={{
+                  width: "min(100%, 480px)",
+                  padding: "18px 20px",
+                  borderRadius: "14px",
+                  border: "1px solid var(--border-color)",
+                  background:
+                    "color-mix(in srgb, var(--secondary-color) 90%, var(--background-color))",
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  gap: "14px",
+                  fontSize: "18px",
+                }}
+              >
+                {getAnswerImage(currentCard) && (
+                  <img
+                    src={getAnswerImage(currentCard)}
+                    alt="back"
+                    style={{
+                      maxWidth: "100%",
+                      maxHeight: "140px",
+                      borderRadius: "10px",
+                      objectFit: "contain",
+                    }}
+                  />
+                )}
+                <div>{getAnswerText(currentCard) || "???"}</div>
+              </div>
+            ) : null}
+          </div>
         </FlashcardBox>
 
         {!showingBack ? (
@@ -232,7 +240,7 @@ export default function FlashcardReviewMode({
               {isDesktop ? <span style={hotkeyBadgeStyle}>Space</span> : null}
               <span>
                 <RefreshCw size={16} style={{ marginRight: 8, display: "inline" }} />
-                Javobni ko'rish
+                Javobni ochish
               </span>
             </span>
           </RevealBtn>
