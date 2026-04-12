@@ -2899,9 +2899,16 @@ const StrokeCanvas = ({
     }
 
     const resizeCanvas = () => {
-      const rect = surface.getBoundingClientRect();
-      const width = Math.max(1, Math.round(rect.width));
-      const height = Math.max(1, Math.round(rect.height));
+      const width = Math.max(
+        1,
+        Math.round(surface.clientWidth || surface.offsetWidth || surface.getBoundingClientRect().width),
+      );
+      const height = Math.max(
+        1,
+        Math.round(
+          surface.clientHeight || surface.offsetHeight || surface.getBoundingClientRect().height,
+        ),
+      );
       const ratio = Math.min(2, window.devicePixelRatio || 1);
 
       canvas.width = Math.round(width * ratio);
@@ -5978,7 +5985,13 @@ const WhiteboardTile = ({
 
   useEffect(() => {
     const viewport = pdfViewportRef.current;
-    if (!viewport || !activeTab || activeTab.type !== "pdf" || (!interactive && guestPdfOverride)) {
+    if (
+      !viewport ||
+      !activeTab ||
+      activeTab.type !== "pdf" ||
+      interactive ||
+      guestPdfOverride
+    ) {
       return;
     }
 
@@ -6046,7 +6059,6 @@ const WhiteboardTile = ({
     activePdfViewportTopInset,
     activePdfWidth,
     guestPdfOverride,
-    interactive,
     pdfMeta.pages.length,
     pdfMeta.status,
     shouldUseContainedGuestPdfViewport,
