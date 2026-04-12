@@ -4586,22 +4586,9 @@ const WhiteboardTile = ({
     activeTab?.type === "pdf"
       ? clampViewportRatio(activeTab.viewportVisibleWidthRatio)
       : 0;
-  const localBoardBaseWidth = Math.max(
-    WHITEBOARD_MIN_BOARD_BASE_WIDTH,
-    Math.round(boardViewportSize.width || 0) || activeBoardBaseWidth,
-  );
-  const localBoardBaseHeight = Math.max(
-    WHITEBOARD_MIN_BOARD_BASE_HEIGHT,
-    Math.round(boardViewportSize.height || 0) || activeBoardBaseHeight,
-  );
-  const activeBoardContainScale = Math.min(
-    1,
-    localBoardBaseWidth / Math.max(1, activeBoardBaseWidth),
-    localBoardBaseHeight / Math.max(1, activeBoardBaseHeight),
-  );
   const getBoardRenderScale = useCallback(
-    (logicalZoom) => Math.max(0.05, (Number(logicalZoom) || 1) * activeBoardContainScale),
-    [activeBoardContainScale],
+    (logicalZoom) => Math.max(0.05, Number(logicalZoom) || 1),
+    [],
   );
   const activeBoardRenderScale = getBoardRenderScale(activeBoardZoom);
   const shouldUseContainedMobilePdfViewport =
@@ -7658,13 +7645,13 @@ const WhiteboardTile = ({
                   style={{
                     width: `${Math.max(
                       1,
-                      Math.round(localBoardBaseWidth),
-                      Math.round(localBoardBaseWidth * activeBoardRenderScale),
+                      Math.round(activeBoardBaseWidth),
+                      Math.round(activeBoardBaseWidth * activeBoardRenderScale),
                     )}px`,
                     height: `${Math.max(
                       1,
-                      Math.round(localBoardBaseHeight),
-                      Math.round(localBoardBaseHeight * activeBoardRenderScale),
+                      Math.round(activeBoardBaseHeight),
+                      Math.round(activeBoardBaseHeight * activeBoardRenderScale),
                     )}px`,
                   }}
                 >

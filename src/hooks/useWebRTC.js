@@ -5,6 +5,7 @@ import useAuthStore from "../store/authStore";
 import { API_BASE_URL } from "../config/env";
 import { isValidMeetRoomId } from "../utils/meetStore";
 import { APP_LIMITS, getTierLimit } from "../constants/appLimits";
+import { playJoinRequestTone } from "../features/calls/utils/ringtone";
 
 const SIGNAL_URL = API_BASE_URL;
 const MOBILE_CAMERA_MEDIA_QUERY = "(max-width: 768px)";
@@ -2665,6 +2666,7 @@ export function useWebRTC({
         // 4. Creator: knock-request listener
         if (isCreator) {
           socket.on("knock-request", ({ peerId, displayName: guestName }) => {
+            let didAddNewRequest = false;
             setKnockRequests((prev) => {
               const existingIndex = prev.findIndex((item) => item.peerId === peerId);
 
@@ -2676,8 +2678,13 @@ export function useWebRTC({
                 );
               }
 
+              didAddNewRequest = true;
               return [...prev, { peerId, displayName: guestName }];
             });
+
+            if (didAddNewRequest) {
+              playJoinRequestTone().catch(() => {});
+            }
           });
         }
 

@@ -53,3 +53,23 @@ export const playIncomingRingtone = async () => {
   playTone(audioContext, 600, 0.4, 0.35, 0.8);
   closeContextLater(audioContext, 1500);
 };
+
+export const playMeetStartedTone = async () => {
+  const audioContext = await getAudioContext();
+  if (!audioContext) return;
+
+  playTone(audioContext, 660, 0.22, 0.14, 0);
+  playTone(audioContext, 880, 0.2, 0.18, 0.18);
+  playTone(audioContext, 1040, 0.16, 0.22, 0.38);
+  closeContextLater(audioContext, 900);
+};
+
+export const playJoinRequestTone = async () => {
+  const audioContext = await getAudioContext();
+  if (!audioContext) return;
+
+  playTone(audioContext, 720, 0.2, 0.12, 0);
+  playTone(audioContext, 720, 0.2, 0.12, 0.2);
+  playTone(audioContext, 720, 0.2, 0.12, 0.4);
+  closeContextLater(audioContext, 900);
+};

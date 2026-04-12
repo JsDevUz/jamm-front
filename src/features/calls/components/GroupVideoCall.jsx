@@ -46,6 +46,7 @@ import {
   finishRecordingSession,
   uploadRecordingChunk,
 } from "../../../api/videoRecordingApi";
+import { playMeetStartedTone } from "../utils/ringtone";
 import WhiteboardTile from "./WhiteboardTile";
 
 const slideIn = keyframes`
@@ -1866,6 +1867,7 @@ const GroupVideoCall = ({
   const [pipContainer, setPipContainer] = useState(null);
   const pipCloseIntentRef = useRef(false);
   const whiteboardWasActiveRef = useRef(false);
+  const meetStartToneRoomRef = useRef(null);
   const [viewport, setViewport] = useState(() => ({
     width: typeof window !== "undefined" ? window.innerWidth : 1280,
     height: typeof window !== "undefined" ? window.innerHeight : 720,
@@ -1879,6 +1881,15 @@ const GroupVideoCall = ({
     currentUser?.nickname ||
     currentUser?.username ||
     t("groupCall.guest");
+
+  useEffect(() => {
+    if (!isOpen || !roomId || meetStartToneRoomRef.current === roomId) {
+      return;
+    }
+
+    meetStartToneRoomRef.current = roomId;
+    playMeetStartedTone().catch(() => {});
+  }, [isOpen, roomId]);
 
   const {
     localStream,
