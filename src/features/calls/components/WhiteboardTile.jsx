@@ -4338,6 +4338,7 @@ const WhiteboardTile = ({
   const pdfPickerDocumentKeyRef = useRef("");
   const pdfObserverRef = useRef(null);
   const pdfPageCountCacheRef = useRef({});
+  const pdfPageBitmapCacheRef = useRef(new Map());
   const pinchStateRef = useRef({
     active: false,
     distance: 0,
@@ -4715,6 +4716,7 @@ const WhiteboardTile = ({
 
   useEffect(() => {
     return () => {
+      pdfPageBitmapCacheRef.current.clear();
       pdfPickerDocumentRef.current?.destroy?.();
       pdfPickerDocumentRef.current = null;
       pdfPickerDocumentKeyRef.current = "";
@@ -4919,6 +4921,7 @@ const WhiteboardTile = ({
 
     pdfDocumentRef.current?.destroy?.();
     pdfDocumentRef.current = null;
+    pdfPageBitmapCacheRef.current.clear();
     const staleCanvases = document.querySelectorAll(
       `[id^="pdf-page-${activeTab.id}-"]`,
     );
@@ -5033,10 +5036,15 @@ const WhiteboardTile = ({
       return undefined;
     }
 
+    const priorityPageNumber =
+      Number(activeTab.viewportPageNumber) || Number(currentPdfPage) || 1;
     const visiblePageSet = new Set(
-      (visiblePdfPages.length > 0 ? visiblePdfPages : initialVisiblePdfPages).filter(
-        (pageNumber) => Number.isFinite(pageNumber) && pageNumber > 0,
-      ),
+      [
+        ...(visiblePdfPages.length > 0 ? visiblePdfPages : initialVisiblePdfPages),
+        priorityPageNumber,
+        priorityPageNumber - 1,
+        priorityPageNumber + 1,
+      ].filter((pageNumber) => Number.isFinite(pageNumber) && pageNumber > 0),
     );
     if (visiblePageSet.size === 0) {
       return undefined;
@@ -5045,12 +5053,17 @@ const WhiteboardTile = ({
     const renderPages = async () => {
       try {
         const pdfDocument = pdfDocumentRef.current;
-        for (const pageMeta of pdfMeta.pages) {
+        const pagesToRender = pdfMeta.pages
+          .filter((pageMeta) => visiblePageSet.has(pageMeta.pageNumber))
+          .sort(
+            (left, right) =>
+              Math.abs(left.pageNumber - priorityPageNumber) -
+              Math.abs(right.pageNumber - priorityPageNumber),
+          );
+
+        for (const pageMeta of pagesToRender) {
           if (disposed) {
             break;
-          }
-          if (!visiblePageSet.has(pageMeta.pageNumber)) {
-            continue;
           }
 
           const canvas = document.getElementById(
@@ -5063,6 +5076,39 @@ const WhiteboardTile = ({
           const renderSignature = `${WHITEBOARD_PDF_RENDER_VERSION}:${activeTab.fileUrl}:${pageMeta.pageNumber}:${Math.round(
             activePdfWidth,
           )}:${Math.round(activePdfZoom * 1000)}`;
+          const cachedBitmap = pdfPageBitmapCacheRef.current.get(renderSignature);
+          if (cachedBitmap) {
+            const context = canvas.getContext("2d");
+            if (context) {
+              canvas.width = cachedBitmap.width;
+              canvas.height = cachedBitmap.height;
+              canvas.style.width = `${cachedBitmap.viewportWidth}px`;
+              canvas.style.height = `${cachedBitmap.viewportHeight}px`;
+              context.setTransform(1, 0, 0, 1, 0, 0);
+              context.clearRect(0, 0, canvas.width, canvas.height);
+              context.drawImage(cachedBitmap.canvas, 0, 0);
+              canvas.dataset.renderKey = renderSignature;
+              delete canvas.dataset.pendingRenderKey;
+              setPdfPageMetrics((prev) => {
+                const current = prev[pageMeta.pageNumber];
+                if (
+                  current &&
+                  Math.abs(current.width - cachedBitmap.viewportWidth) < 1 &&
+                  Math.abs(current.height - cachedBitmap.viewportHeight) < 1
+                ) {
+                  return prev;
+                }
+
+                return {
+                  ...prev,
+                  [pageMeta.pageNumber]: {
+                    width: cachedBitmap.viewportWidth,
+                    height: cachedBitmap.viewportHeight,
+                  },
+                };
+              });
+            }
+          }
           if (canvas.dataset.renderKey === renderSignature) {
             continue;
           }
@@ -5140,6 +5186,18 @@ const WhiteboardTile = ({
           context.setTransform(1, 0, 0, 1, 0, 0);
           context.clearRect(0, 0, canvas.width, canvas.height);
           context.drawImage(renderCanvas, 0, 0);
+          const cacheCanvas = document.createElement("canvas");
+          cacheCanvas.width = renderCanvas.width;
+          cacheCanvas.height = renderCanvas.height;
+          const cacheContext = cacheCanvas.getContext("2d");
+          cacheContext?.drawImage(renderCanvas, 0, 0);
+          pdfPageBitmapCacheRef.current.set(renderSignature, {
+            canvas: cacheCanvas,
+            width: cacheCanvas.width,
+            height: cacheCanvas.height,
+            viewportWidth: viewport.width,
+            viewportHeight: viewport.height,
+          });
           canvas.dataset.renderKey = renderSignature;
           delete canvas.dataset.pendingRenderKey;
           setPdfPageMetrics((prev) => {
@@ -5176,6 +5234,7 @@ const WhiteboardTile = ({
     activeTab?.id,
     activeTab?.type,
     compact,
+    currentPdfPage,
     pdfMeta,
     pdfRenderWidth,
     activePdfZoom,
@@ -5683,6 +5742,14 @@ const WhiteboardTile = ({
 
     const targetFrame = document.getElementById(
       `pdf-page-frame-${activeTab.id}-${activeTab.viewportPageNumber || 1}`,
+    );
+    const targetPageNumber = Number(activeTab.viewportPageNumber) || 1;
+    setVisiblePdfPages((prev) =>
+      Array.from(
+        new Set([...prev, targetPageNumber - 1, targetPageNumber, targetPageNumber + 1]),
+      )
+        .filter((pageNumber) => Number.isFinite(pageNumber) && pageNumber > 0)
+        .sort((left, right) => left - right),
     );
     const topInset =
       shouldUseContainedGuestPdfViewport
@@ -7110,7 +7177,9 @@ const WhiteboardTile = ({
                       : 720);
                   const shouldRenderPage =
                     visiblePdfPages.includes(pageMeta.pageNumber) ||
-                    initialVisiblePdfPages.includes(pageMeta.pageNumber);
+                    initialVisiblePdfPages.includes(pageMeta.pageNumber) ||
+                    pageMeta.pageNumber === currentPdfPage ||
+                    pageMeta.pageNumber === Number(activeTab.viewportPageNumber);
                   const pageStrokes = getPdfTabPageStrokes(activeTab, pageMeta.pageNumber);
 
                   return (
