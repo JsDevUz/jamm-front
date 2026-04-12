@@ -4543,7 +4543,11 @@ const WhiteboardTile = ({
     shouldUseContainedGuestPdfViewport
       ? Math.max(
           WHITEBOARD_MIN_PDF_RENDER_WIDTH,
-          Math.round(activePdfViewportBaseWidth * activePdfZoom),
+          Math.round(
+            syncedGuestPdfWidth > 0
+              ? Math.min(syncedGuestPdfWidth, pdfRenderWidth || syncedGuestPdfWidth)
+              : pdfRenderWidth || WHITEBOARD_MIN_PDF_RENDER_WIDTH,
+          ),
         )
       : !interactive && syncedGuestPdfWidth > 0
       ? syncedGuestPdfWidth
