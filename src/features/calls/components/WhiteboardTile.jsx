@@ -4492,12 +4492,15 @@ const WhiteboardTile = ({
   const syncedGuestPdfWidthFromHeight =
     !interactive &&
     activeTab?.type === "pdf" &&
-    pdfViewportHeight > 0 &&
+    effectivePdfViewportHeight > 0 &&
     basePdfAspectRatio > 0 &&
     syncedViewportVisibleHeightRatio > 0
       ? Math.max(
           WHITEBOARD_MIN_PDF_RENDER_WIDTH,
-          Math.round((pdfViewportHeight / syncedViewportVisibleHeightRatio) * basePdfAspectRatio),
+          Math.round(
+            (effectivePdfViewportHeight / syncedViewportVisibleHeightRatio) *
+              basePdfAspectRatio,
+          ),
         )
       : 0;
   const syncedGuestPdfWidthFromWidth =
@@ -4526,6 +4529,16 @@ const WhiteboardTile = ({
         );
   const shouldUseContainedGuestPdfViewport =
     !interactive && isMobile && activeTab?.type === "pdf";
+  const activePdfViewportTopInset = shouldUseContainedGuestPdfViewport
+    ? WHITEBOARD_VIEWPORT_TOP_SAFE_SPACE
+    : getPdfViewportTopInset(interactive);
+  const activePdfViewportBottomInset = shouldUseContainedGuestPdfViewport
+    ? WHITEBOARD_VIEWPORT_BOTTOM_SAFE_SPACE
+    : getPdfViewportBottomInset(interactive);
+  const effectivePdfViewportHeight = Math.max(
+    1,
+    pdfViewportHeight - activePdfViewportTopInset - activePdfViewportBottomInset,
+  );
   const activePdfWidth =
     shouldUseContainedGuestPdfViewport
       ? Math.max(
@@ -4571,8 +4584,8 @@ const WhiteboardTile = ({
       }
 
       const viewport = pdfViewportRef.current;
-      const topInset = getPdfViewportTopInset(interactive);
-      const bottomInset = getPdfViewportBottomInset(interactive);
+      const topInset = activePdfViewportTopInset;
+      const bottomInset = activePdfViewportBottomInset;
       const visibleViewportHeight = viewport
         ? Math.max(1, viewport.clientHeight - topInset - bottomInset)
         : 1;
@@ -4711,7 +4724,15 @@ const WhiteboardTile = ({
             : undefined,
       });
     },
-    [activeTab, interactive, onPdfViewportChange, pdfMeta.pages, pdfRenderWidth],
+    [
+      activeTab,
+      activePdfViewportBottomInset,
+      activePdfViewportTopInset,
+      interactive,
+      onPdfViewportChange,
+      pdfMeta.pages,
+      pdfRenderWidth,
+    ],
   );
 
   useEffect(() => {
@@ -5751,10 +5772,7 @@ const WhiteboardTile = ({
         .filter((pageNumber) => Number.isFinite(pageNumber) && pageNumber > 0)
         .sort((left, right) => left - right),
     );
-    const topInset =
-      shouldUseContainedGuestPdfViewport
-        ? WHITEBOARD_VIEWPORT_TOP_SAFE_SPACE
-        : getPdfViewportTopInset(interactive);
+    const topInset = activePdfViewportTopInset;
     const pageAnchorTop =
       targetFrame instanceof HTMLElement
         ? targetFrame.offsetTop +
@@ -5804,6 +5822,7 @@ const WhiteboardTile = ({
     activeTab?.viewportVisibleWidthRatio,
     activeTab?.viewportPageNumber,
     activeTab?.viewportPageOffsetRatio,
+    activePdfViewportTopInset,
     activePdfWidth,
     interactive,
     pdfMeta.pages.length,
@@ -7162,8 +7181,8 @@ const WhiteboardTile = ({
               ) : null}
 
               <PdfStack>
-                {interactive ? (
-                  <PdfViewportSpacer $size={WHITEBOARD_VIEWPORT_TOP_SAFE_SPACE} />
+                {interactive || shouldUseContainedGuestPdfViewport ? (
+                  <PdfViewportSpacer $size={activePdfViewportTopInset} />
                 ) : null}
                 {pdfMeta.pages.map((pageMeta) => {
                   const pageMetric = pdfPageMetrics[pageMeta.pageNumber];
@@ -7231,8 +7250,8 @@ const WhiteboardTile = ({
                     </PdfPageFrame>
                   );
                 })}
-                {interactive ? (
-                  <PdfViewportSpacer $size={WHITEBOARD_VIEWPORT_BOTTOM_SAFE_SPACE} />
+                {interactive || shouldUseContainedGuestPdfViewport ? (
+                  <PdfViewportSpacer $size={activePdfViewportBottomInset} />
                 ) : null}
               </PdfStack>
               {!pdfMeta.pages.length && pdfMeta.status === "ready" ? (
