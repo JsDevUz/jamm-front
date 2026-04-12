@@ -2131,7 +2131,7 @@ const PdfViewport = styled.div`
   scroll-padding-top: ${WHITEBOARD_VIEWPORT_TOP_SAFE_SPACE}px;
   scroll-padding-bottom: ${WHITEBOARD_VIEWPORT_BOTTOM_SAFE_SPACE}px;
   overscroll-behavior: contain;
-  touch-action: ${(p) => (p.$interactive ? "pan-x pan-y" : "none")};
+  touch-action: pan-x pan-y;
 `;
 
 const PdfStack = styled.div`
@@ -4436,11 +4436,16 @@ const WhiteboardTile = ({
   const pdfPageCountCacheRef = useRef({});
   const pdfPageBitmapCacheRef = useRef(new Map());
   const pdfPinchScrollRef = useRef({ left: 0, top: 0 });
+  const pdfZoomAnchorRef = useRef(null);
   const pdfUserGestureRef = useRef(false);
   const pinchStateRef = useRef({
     active: false,
     distance: 0,
     zoom: 1,
+    anchorX: 0,
+    anchorY: 0,
+    contentX: 0,
+    contentY: 0,
   });
   const boardPinchStateRef = useRef({
     active: false,
@@ -5231,10 +5236,15 @@ const WhiteboardTile = ({
             continue;
           }
 
+          const containedSharpnessZoom = shouldUseContainedGuestPdfViewport
+            ? Math.round(Math.min(2, Math.max(1, activePdfZoom)) * 100)
+            : 100;
           const renderSignature = `${WHITEBOARD_PDF_RENDER_VERSION}:${activeTab.fileUrl}:${pageMeta.pageNumber}:${Math.round(
             activePdfRenderWidth,
           )}:${
-            shouldUseContainedGuestPdfViewport ? "contained" : Math.round(activePdfZoom * 1000)
+            shouldUseContainedGuestPdfViewport
+              ? `contained:${containedSharpnessZoom}`
+              : Math.round(activePdfZoom * 1000)
           }`;
           const cachedBitmap = pdfPageBitmapCacheRef.current.get(renderSignature);
           if (cachedBitmap) {
@@ -5308,8 +5318,8 @@ const WhiteboardTile = ({
             const mobileRasterRatio = Math.max(
               1,
               Math.min(
-                2,
-                window.devicePixelRatio || 1,
+                3,
+                (window.devicePixelRatio || 1) * Math.min(2, Math.max(1, activePdfZoom)),
                 WHITEBOARD_MOBILE_PDF_MAX_RENDER_EDGE /
                   Math.max(1, viewport.width, viewport.height),
               ),
@@ -5740,6 +5750,14 @@ const WhiteboardTile = ({
       );
     };
 
+    const getTouchCenter = (touches) => {
+      const [firstTouch, secondTouch] = touches;
+      return {
+        clientX: (firstTouch.clientX + secondTouch.clientX) / 2,
+        clientY: (firstTouch.clientY + secondTouch.clientY) / 2,
+      };
+    };
+
     const scheduleZoom = (nextZoom) => {
       if (zoomFrameRef.current) {
         window.cancelAnimationFrame(zoomFrameRef.current);
@@ -5769,14 +5787,18 @@ const WhiteboardTile = ({
       }
 
       pdfUserGestureRef.current = true;
-      pdfPinchScrollRef.current = {
-        left: viewport.scrollLeft,
-        top: viewport.scrollTop,
-      };
+      const center = getTouchCenter(event.touches);
+      const viewportRect = viewport.getBoundingClientRect();
+      const anchorX = center.clientX - viewportRect.left;
+      const anchorY = center.clientY - viewportRect.top;
       pinchStateRef.current = {
         active: true,
         distance: getTouchDistance(event.touches),
         zoom: activePdfZoom,
+        anchorX,
+        anchorY,
+        contentX: (viewport.scrollLeft + anchorX) / Math.max(WHITEBOARD_MIN_ZOOM, activePdfZoom),
+        contentY: (viewport.scrollTop + anchorY) / Math.max(WHITEBOARD_MIN_ZOOM, activePdfZoom),
       };
     };
 
@@ -5791,15 +5813,20 @@ const WhiteboardTile = ({
       }
 
       event.preventDefault();
-      viewport.scrollLeft = pdfPinchScrollRef.current.left;
-      viewport.scrollTop = pdfPinchScrollRef.current.top;
       const zoomRatio = nextDistance / pinchStateRef.current.distance;
       const nextZoom = Math.min(
         WHITEBOARD_MAX_ZOOM,
         Math.max(WHITEBOARD_MIN_ZOOM, pinchStateRef.current.zoom * zoomRatio),
       );
-      pinchStateRef.current.distance = nextDistance;
-      pinchStateRef.current.zoom = nextZoom;
+      if (Math.abs(nextZoom - activePdfZoom) < 0.015) {
+        return;
+      }
+      pdfZoomAnchorRef.current = {
+        anchorX: pinchStateRef.current.anchorX,
+        anchorY: pinchStateRef.current.anchorY,
+        contentX: pinchStateRef.current.contentX,
+        contentY: pinchStateRef.current.contentY,
+      };
       scheduleZoom(nextZoom);
     };
 
@@ -5828,6 +5855,32 @@ const WhiteboardTile = ({
       viewport.removeEventListener("touchcancel", handleTouchEnd);
     };
   }, [activePdfZoom, activeTab?.id, activeTab?.type, handlePdfZoomChange]);
+
+  useEffect(() => {
+    const viewport = pdfViewportRef.current;
+    const pendingAnchor = pdfZoomAnchorRef.current;
+    if (!viewport || !activeTab || activeTab.type !== "pdf" || !pendingAnchor) {
+      return undefined;
+    }
+
+    const frameId = window.requestAnimationFrame(() => {
+      const maxScrollLeft = Math.max(0, viewport.scrollWidth - viewport.clientWidth);
+      const maxScrollTop = Math.max(0, viewport.scrollHeight - viewport.clientHeight);
+      viewport.scrollLeft = Math.min(
+        maxScrollLeft,
+        Math.max(0, pendingAnchor.contentX * activePdfZoom - pendingAnchor.anchorX),
+      );
+      viewport.scrollTop = Math.min(
+        maxScrollTop,
+        Math.max(0, pendingAnchor.contentY * activePdfZoom - pendingAnchor.anchorY),
+      );
+      pdfZoomAnchorRef.current = null;
+    });
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+    };
+  }, [activePdfZoom, activeTab?.id, activeTab?.type]);
 
   useEffect(() => {
     const viewport = boardViewportRef.current;
