@@ -5168,6 +5168,66 @@ const WhiteboardTile = ({
           }
           const needsStabilizationPass =
             rotation !== 0 && canvas.dataset.stableRenderKey !== renderSignature;
+
+          if (shouldUseContainedGuestPdfViewport) {
+            canvas.width = Math.max(1, Math.floor(viewport.width));
+            canvas.height = Math.max(1, Math.floor(viewport.height));
+            canvas.style.width = `${viewport.width}px`;
+            canvas.style.height = `${viewport.height}px`;
+            context.setTransform(1, 0, 0, 1, 0, 0);
+            context.clearRect(0, 0, canvas.width, canvas.height);
+
+            const renderDirectly = async () => {
+              context.clearRect(0, 0, canvas.width, canvas.height);
+              const renderTask = page.render({
+                canvasContext: context,
+                viewport,
+              });
+              await renderTask.promise;
+            };
+
+            await renderDirectly();
+            if (disposed || canvas.dataset.pendingRenderKey !== renderSignature) {
+              continue;
+            }
+
+            if (needsStabilizationPass) {
+              await waitForAnimationFrame();
+              if (disposed || canvas.dataset.pendingRenderKey !== renderSignature) {
+                continue;
+              }
+              await renderDirectly();
+              if (disposed || canvas.dataset.pendingRenderKey !== renderSignature) {
+                continue;
+              }
+              canvas.dataset.stableRenderKey = renderSignature;
+            }
+
+            canvas.dataset.renderKey = renderSignature;
+            delete canvas.dataset.pendingRenderKey;
+            setPdfPageMetrics((prev) => {
+              const nextWidth = viewport.width;
+              const nextHeight = viewport.height;
+              const current = prev[pageMeta.pageNumber];
+              if (
+                current &&
+                Math.abs(current.width - nextWidth) < 1 &&
+                Math.abs(current.height - nextHeight) < 1
+              ) {
+                return prev;
+              }
+
+              return {
+                ...prev,
+                [pageMeta.pageNumber]: {
+                  width: nextWidth,
+                  height: nextHeight,
+                },
+              };
+            });
+            continue;
+          }
+
           const renderCanvas = document.createElement("canvas");
           const renderContext = renderCanvas.getContext("2d");
           if (!renderContext) {
