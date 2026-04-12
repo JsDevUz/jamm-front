@@ -4489,6 +4489,18 @@ const WhiteboardTile = ({
     [activeBoardContainScale],
   );
   const activeBoardRenderScale = getBoardRenderScale(activeBoardZoom);
+  const shouldUseContainedGuestPdfViewport =
+    !interactive && isMobile && activeTab?.type === "pdf";
+  const activePdfViewportTopInset = shouldUseContainedGuestPdfViewport
+    ? WHITEBOARD_VIEWPORT_TOP_SAFE_SPACE
+    : getPdfViewportTopInset(interactive);
+  const activePdfViewportBottomInset = shouldUseContainedGuestPdfViewport
+    ? WHITEBOARD_VIEWPORT_BOTTOM_SAFE_SPACE
+    : getPdfViewportBottomInset(interactive);
+  const effectivePdfViewportHeight = Math.max(
+    1,
+    pdfViewportHeight - activePdfViewportTopInset - activePdfViewportBottomInset,
+  );
   const syncedGuestPdfWidthFromHeight =
     !interactive &&
     activeTab?.type === "pdf" &&
@@ -4527,18 +4539,6 @@ const WhiteboardTile = ({
           WHITEBOARD_MIN_PDF_RENDER_WIDTH,
           pdfRenderWidth || WHITEBOARD_MIN_PDF_RENDER_WIDTH,
         );
-  const shouldUseContainedGuestPdfViewport =
-    !interactive && isMobile && activeTab?.type === "pdf";
-  const activePdfViewportTopInset = shouldUseContainedGuestPdfViewport
-    ? WHITEBOARD_VIEWPORT_TOP_SAFE_SPACE
-    : getPdfViewportTopInset(interactive);
-  const activePdfViewportBottomInset = shouldUseContainedGuestPdfViewport
-    ? WHITEBOARD_VIEWPORT_BOTTOM_SAFE_SPACE
-    : getPdfViewportBottomInset(interactive);
-  const effectivePdfViewportHeight = Math.max(
-    1,
-    pdfViewportHeight - activePdfViewportTopInset - activePdfViewportBottomInset,
-  );
   const activePdfWidth =
     shouldUseContainedGuestPdfViewport
       ? Math.max(
