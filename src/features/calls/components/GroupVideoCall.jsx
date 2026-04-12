@@ -881,6 +881,7 @@ const StageRail = styled.div`
 const StageRailGrid = styled.div`
   flex: ${(p) => (p.$immersive ? "0" : "1")};
   min-height: 0;
+  max-height: 120px;
   align-items: start;
   overflow-x: ${(p) => (p.$immersive ? "auto" : "hidden")};
   overflow-y: ${(p) => (p.$immersive ? "hidden" : "auto")};
@@ -1724,7 +1725,7 @@ const VideoEl = ({
       $isLocal={isLocal}
       $compact={compact}
       $mobile={isMobile}
-      $mirror={true}
+      $mirror={!isScreenShare}
       $screenShare={isScreenShare}
       $immersive={immersive}
       $active={isActive}
@@ -3516,7 +3517,7 @@ const GroupVideoCall = ({
     minimizedPreviewTile?.kind === "video" && minimizedPreviewTile?.hasVideo
       ? minimizedPreviewTile.stream || null
       : null;
-  const minimizedPreviewMirror = true;
+  const minimizedPreviewMirror = !minimizedPreviewTile?.isScreenShare;
   const minimizedPreviewLabel =
     minimizedPreviewTile?.label || roomTitle || chatTitle || t("groupCall.roomDefault");
   const minimizedPreviewBg = useMemo(
@@ -4123,7 +4124,7 @@ const GroupVideoCall = ({
                 playPromise.catch(() => {});
               }
             }}
-            $mirror={true}
+            $mirror={!tile.isScreenShare}
           />
         ) : (
           <PiPMobileFallback $bg={fallbackBg}>
