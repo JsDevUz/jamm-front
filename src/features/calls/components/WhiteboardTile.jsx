@@ -5307,12 +5307,8 @@ const WhiteboardTile = ({
                   Math.max(1, viewport.width, viewport.height),
               ),
             );
-            const mobileRasterViewport =
-              mobileRasterRatio > 1.001
-                ? page.getViewport({ scale: scale * mobileRasterRatio, rotation })
-                : viewport;
-            canvas.width = Math.max(1, Math.floor(mobileRasterViewport.width));
-            canvas.height = Math.max(1, Math.floor(mobileRasterViewport.height));
+            canvas.width = Math.max(1, Math.floor(viewport.width * mobileRasterRatio));
+            canvas.height = Math.max(1, Math.floor(viewport.height * mobileRasterRatio));
             canvas.style.width = `${viewport.width}px`;
             canvas.style.height = `${viewport.height}px`;
             context.setTransform(mobileRasterRatio, 0, 0, mobileRasterRatio, 0, 0);
@@ -5322,7 +5318,7 @@ const WhiteboardTile = ({
               context.clearRect(0, 0, canvas.width, canvas.height);
               const renderTask = page.render({
                 canvasContext: context,
-                viewport: mobileRasterViewport,
+                viewport,
               });
               await renderTask.promise;
             };
