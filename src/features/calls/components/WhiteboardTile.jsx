@@ -7515,6 +7515,7 @@ const WhiteboardTile = ({
                     ? Math.max(1, Math.round(pageHeight * activePdfZoom))
                     : pageHeight;
                   const shouldRenderPage =
+                    !interactive ||
                     visiblePdfPages.includes(pageMeta.pageNumber) ||
                     initialVisiblePdfPages.includes(pageMeta.pageNumber) ||
                     pageMeta.pageNumber === currentPdfPage ||

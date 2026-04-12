@@ -9,6 +9,8 @@ export const APP_BASE_URL = normalizeUrl(
 
 export const RESOLVED_APP_BASE_URL = APP_BASE_URL || window.location.origin;
 
+export const LIVEKIT_URL = normalizeUrl(import.meta.env.VITE_LIVEKIT_URL);
+
 export const buildSocketNamespaceUrl = (namespace = "") => {
   const normalizedNamespace = namespace
     ? `/${String(namespace).replace(/^\/+/, "")}`
