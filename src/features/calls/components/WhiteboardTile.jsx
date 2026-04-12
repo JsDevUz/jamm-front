@@ -4604,12 +4604,12 @@ const WhiteboardTile = ({
     [activeBoardContainScale],
   );
   const activeBoardRenderScale = getBoardRenderScale(activeBoardZoom);
-  const shouldUseContainedGuestPdfViewport =
-    !interactive && isMobile && activeTab?.type === "pdf";
-  const activePdfViewportTopInset = shouldUseContainedGuestPdfViewport
+  const shouldUseContainedMobilePdfViewport =
+    isMobile && activeTab?.type === "pdf";
+  const activePdfViewportTopInset = shouldUseContainedMobilePdfViewport
     ? WHITEBOARD_VIEWPORT_TOP_SAFE_SPACE
     : getPdfViewportTopInset(interactive);
-  const activePdfViewportBottomInset = shouldUseContainedGuestPdfViewport
+  const activePdfViewportBottomInset = shouldUseContainedMobilePdfViewport
     ? WHITEBOARD_VIEWPORT_BOTTOM_SAFE_SPACE
     : getPdfViewportBottomInset(interactive);
   const effectivePdfViewportHeight = Math.max(
@@ -4652,18 +4652,31 @@ const WhiteboardTile = ({
         )
       : Math.max(
           WHITEBOARD_MIN_PDF_RENDER_WIDTH,
-          pdfRenderWidth || WHITEBOARD_MIN_PDF_RENDER_WIDTH,
-        );
-  const activePdfRenderWidth =
-    shouldUseContainedGuestPdfViewport
+        pdfRenderWidth || WHITEBOARD_MIN_PDF_RENDER_WIDTH,
+      );
+  const containedPdfWidthByHeight =
+    activeTab?.type === "pdf" && effectivePdfViewportHeight > 0 && basePdfAspectRatio > 0
       ? Math.max(
           WHITEBOARD_MIN_PDF_RENDER_WIDTH,
-          Math.round(
-            syncedGuestPdfWidth > 0
+          Math.round(effectivePdfViewportHeight * basePdfAspectRatio),
+        )
+      : 0;
+  const containedPdfBaseWidth = shouldUseContainedMobilePdfViewport
+    ? Math.max(
+        WHITEBOARD_MIN_PDF_RENDER_WIDTH,
+        Math.round(
+          Math.min(
+            containedPdfWidthByHeight || Number.POSITIVE_INFINITY,
+            !interactive && syncedGuestPdfWidth > 0
               ? Math.min(syncedGuestPdfWidth, pdfRenderWidth || syncedGuestPdfWidth)
               : pdfRenderWidth || WHITEBOARD_MIN_PDF_RENDER_WIDTH,
           ),
-        )
+        ),
+      )
+    : 0;
+  const activePdfRenderWidth =
+    shouldUseContainedMobilePdfViewport
+      ? containedPdfBaseWidth
       : !interactive && syncedGuestPdfWidth > 0
       ? Math.round(syncedGuestPdfWidth * activePdfZoom)
       : activeTab?.type === "pdf" && pdfRenderWidth > 0
@@ -4675,7 +4688,7 @@ const WhiteboardTile = ({
           WHITEBOARD_MIN_PDF_RENDER_WIDTH,
           pdfRenderWidth || WHITEBOARD_MIN_PDF_RENDER_WIDTH,
         );
-  const activePdfWidth = shouldUseContainedGuestPdfViewport
+  const activePdfWidth = shouldUseContainedMobilePdfViewport
     ? Math.max(
         WHITEBOARD_MIN_PDF_RENDER_WIDTH,
         Math.round(activePdfRenderWidth * activePdfZoom),
@@ -5236,13 +5249,13 @@ const WhiteboardTile = ({
             continue;
           }
 
-          const containedSharpnessZoom = shouldUseContainedGuestPdfViewport
+          const containedSharpnessZoom = shouldUseContainedMobilePdfViewport
             ? Math.round(Math.min(2, Math.max(1, activePdfZoom)) * 100)
             : 100;
           const renderSignature = `${WHITEBOARD_PDF_RENDER_VERSION}:${activeTab.fileUrl}:${pageMeta.pageNumber}:${Math.round(
             activePdfRenderWidth,
           )}:${
-            shouldUseContainedGuestPdfViewport
+            shouldUseContainedMobilePdfViewport
               ? `contained:${containedSharpnessZoom}`
               : Math.round(activePdfZoom * 1000)
           }`;
@@ -5296,7 +5309,7 @@ const WhiteboardTile = ({
             ? 1
             : Math.min(2, window.devicePixelRatio || 1);
           const renderScaleCap =
-            shouldUseContainedGuestPdfViewport || isMobileSafariBrowser()
+            shouldUseContainedMobilePdfViewport || isMobileSafariBrowser()
               ? Math.min(
                   1,
                   WHITEBOARD_MOBILE_PDF_MAX_RENDER_EDGE /
@@ -5314,7 +5327,7 @@ const WhiteboardTile = ({
           const needsStabilizationPass =
             rotation !== 0 && canvas.dataset.stableRenderKey !== renderSignature;
 
-          if (shouldUseContainedGuestPdfViewport) {
+          if (shouldUseContainedMobilePdfViewport) {
             const mobileRasterRatio = Math.max(
               1,
               Math.min(
@@ -5491,7 +5504,7 @@ const WhiteboardTile = ({
     activePdfRenderWidth,
     initialVisiblePdfPages,
     isMobile,
-    shouldUseContainedGuestPdfViewport,
+    shouldUseContainedMobilePdfViewport,
     visiblePdfPages,
   ]);
 
@@ -6074,7 +6087,7 @@ const WhiteboardTile = ({
           ? scrollHeight * (activeTab.scrollRatio || 0)
           : 0;
     const authoritativeVisibleWidth =
-      shouldUseContainedGuestPdfViewport && syncedViewportVisibleWidthRatio > 0
+      shouldUseContainedMobilePdfViewport && syncedViewportVisibleWidthRatio > 0
         ? activePdfWidth * syncedViewportVisibleWidthRatio
         : viewport.clientWidth;
     const scrollWidth = Math.max(0, viewport.scrollWidth - authoritativeVisibleWidth);
@@ -6114,7 +6127,7 @@ const WhiteboardTile = ({
     guestPdfOverride,
     pdfMeta.pages.length,
     pdfMeta.status,
-    shouldUseContainedGuestPdfViewport,
+    shouldUseContainedMobilePdfViewport,
     syncedViewportVisibleWidthRatio,
     updateCurrentPdfPage,
   ]);
@@ -7489,7 +7502,7 @@ const WhiteboardTile = ({
               ) : null}
 
               <PdfStack>
-                {interactive || shouldUseContainedGuestPdfViewport ? (
+                {interactive || shouldUseContainedMobilePdfViewport ? (
                   <PdfViewportSpacer $size={activePdfViewportTopInset} />
                 ) : null}
                 {pdfMeta.pages.map((pageMeta) => {
@@ -7502,7 +7515,7 @@ const WhiteboardTile = ({
                             pageMeta.baseWidth,
                         )
                       : 720);
-                  const displayedPageHeight = shouldUseContainedGuestPdfViewport
+                  const displayedPageHeight = shouldUseContainedMobilePdfViewport
                     ? Math.max(1, Math.round(pageHeight * activePdfZoom))
                     : pageHeight;
                   const shouldRenderPage =
@@ -7511,8 +7524,8 @@ const WhiteboardTile = ({
                     pageMeta.pageNumber === currentPdfPage ||
                     pageMeta.pageNumber === Number(activeTab.viewportPageNumber);
                   const pageStrokes = getPdfTabPageStrokes(activeTab, pageMeta.pageNumber);
-                  const mobileGuestPdfImage =
-                    shouldUseContainedGuestPdfViewport && pdfPageImages[pageMeta.pageNumber]
+                  const mobilePdfImage =
+                    shouldUseContainedMobilePdfViewport && pdfPageImages[pageMeta.pageNumber]
                       ? pdfPageImages[pageMeta.pageNumber]
                       : "";
 
@@ -7532,7 +7545,7 @@ const WhiteboardTile = ({
                           current: pageMeta.pageNumber,
                         })}
                       </PageBadge>
-                      {shouldUseContainedGuestPdfViewport ? (
+                      {shouldUseContainedMobilePdfViewport ? (
                         <PdfPageScaleLayer
                           style={{
                             width: `${activePdfRenderWidth}px`,
@@ -7542,12 +7555,12 @@ const WhiteboardTile = ({
                         >
                           {shouldRenderPage ? (
                             <>
-                              {mobileGuestPdfImage ? (
-                                <PdfRasterImage src={mobileGuestPdfImage} alt="" draggable={false} />
+                              {mobilePdfImage ? (
+                                <PdfRasterImage src={mobilePdfImage} alt="" draggable={false} />
                               ) : null}
                               <PdfPageCanvas
                                 id={`pdf-page-${activeTab.id}-${pageMeta.pageNumber}`}
-                                $hidden={Boolean(mobileGuestPdfImage)}
+                                $hidden={Boolean(mobilePdfImage)}
                               />
                             </>
                           ) : (
@@ -7581,12 +7594,12 @@ const WhiteboardTile = ({
                         <>
                           {shouldRenderPage ? (
                             <>
-                              {mobileGuestPdfImage ? (
-                                <PdfRasterImage src={mobileGuestPdfImage} alt="" draggable={false} />
+                              {mobilePdfImage ? (
+                                <PdfRasterImage src={mobilePdfImage} alt="" draggable={false} />
                               ) : null}
                               <PdfPageCanvas
                                 id={`pdf-page-${activeTab.id}-${pageMeta.pageNumber}`}
-                                $hidden={Boolean(mobileGuestPdfImage)}
+                                $hidden={Boolean(mobilePdfImage)}
                               />
                             </>
                           ) : (
@@ -7620,7 +7633,7 @@ const WhiteboardTile = ({
                     </PdfPageFrame>
                   );
                 })}
-                {interactive || shouldUseContainedGuestPdfViewport ? (
+                {interactive || shouldUseContainedMobilePdfViewport ? (
                   <PdfViewportSpacer $size={activePdfViewportBottomInset} />
                 ) : null}
               </PdfStack>
