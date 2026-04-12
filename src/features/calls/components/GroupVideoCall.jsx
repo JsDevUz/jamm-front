@@ -1914,6 +1914,8 @@ const GroupVideoCall = ({
     error,
     roomTitle,
     roomIsPrivate,
+    roomCreatorId,
+    getRecordingMetadata,
     remoteIsRecording,
     emitRecording,
     forceMuteMic,
@@ -2242,6 +2244,10 @@ const GroupVideoCall = ({
 
   const createServerRecordingTransport = useCallback(
     async (kind, mimeType, filename) => {
+      // roomCreatorId aniqlash - xona yaratuvchisining ID si
+      // Agar roomCreatorId mavjud bo'lsa uni ishlatamiz, aks holda current user ID
+      const effectiveRoomCreatorId = roomCreatorId || currentUser?._id;
+
       const session = await createRecordingSession({
         kind,
         roomId,
@@ -2249,6 +2255,7 @@ const GroupVideoCall = ({
         filename,
         apiBaseUrl: resolveRecordingApiBaseUrl(),
         appBaseUrl: resolveRecordingAppBaseUrl(),
+        roomCreatorId: effectiveRoomCreatorId,
       });
 
       return {
@@ -2264,7 +2271,7 @@ const GroupVideoCall = ({
         loopPromise: null,
       };
     },
-    [resolveRecordingApiBaseUrl, resolveRecordingAppBaseUrl, roomId],
+    [resolveRecordingApiBaseUrl, resolveRecordingAppBaseUrl, roomId, roomCreatorId, currentUser?._id],
   );
 
   const createSafeRecorder = useCallback((stream, options = {}) => {

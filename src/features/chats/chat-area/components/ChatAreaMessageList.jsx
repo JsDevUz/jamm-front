@@ -58,6 +58,22 @@ const MessagesContainer = styled.div`
     padding-bottom 0.25s ease,
     scroll-padding-bottom 0.25s ease;
 
+  @media (max-width: 768px) {
+    padding: 8px 8px
+      ${(props) =>
+        props.$keyboardOpen
+          ? "72px"
+          : "calc(10px + env(safe-area-inset-bottom, 0px))"};
+  }
+
+  @media (max-width: 480px) {
+    padding: 4px 8px
+      ${(props) =>
+        props.$keyboardOpen
+          ? "72px"
+          : "calc(10px + env(safe-area-inset-bottom, 0px))"};
+  }
+
   &::-webkit-scrollbar {
     width: 8px;
   }
@@ -413,6 +429,14 @@ const InitialLayoutSkeleton = styled.div`
   background-position: center;
   pointer-events: none;
   overflow: hidden;
+
+  @media (max-width: 768px) {
+    padding: 8px 8px calc(10px + env(safe-area-inset-bottom, 0px));
+  }
+
+  @media (max-width: 480px) {
+    padding: 4px 8px calc(10px + env(safe-area-inset-bottom, 0px));
+  }
 `;
 
 const SkeletonRow = styled.div`

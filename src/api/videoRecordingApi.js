@@ -5,6 +5,9 @@ export const createRecordingSession = async (payload) => {
   return data;
 };
 
+// Recording session yaratishda roomCreatorId ham yuborilishi kerak
+// payload = { kind, roomId, mimeType, filename, apiBaseUrl, appBaseUrl, roomCreatorId }
+
 export const uploadRecordingChunk = async ({
   sessionId,
   chunkIndex,

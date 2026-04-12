@@ -34,7 +34,7 @@ const ChatHeader = styled.div`
     top: 0;
     left: 0;
     right: 0;
-    z-index: 8;
+    z-index: 100;
     box-sizing: border-box;
   }
 

@@ -1240,6 +1240,7 @@ export function useWebRTC({
   const [error, setError] = useState(null);
   const [roomTitle, setRoomTitle] = useState(chatTitle || "");
   const [roomIsPrivate, setRoomIsPrivate] = useState(isPrivate);
+  const [roomCreatorId, setRoomCreatorId] = useState(null);
   const [remoteIsRecording, setRemoteIsRecording] = useState(false);
   const [networkQuality, setNetworkQuality] = useState("good");
   const [qualityProfile, setQualityProfile] = useState(
@@ -1251,6 +1252,7 @@ export function useWebRTC({
   const [cameraFacingMode, setCameraFacingMode] = useState("user");
   const [videoInputCount, setVideoInputCount] = useState(0);
   const screenStreamRef = useRef(null);
+  const screenShareAbortControllerRef = useRef(null);
   const remoteStreamsRef = useRef([]);
   const compositeRemoteStreamsRef = useRef({});
   const knownStreamsRef = useRef({});
@@ -1266,6 +1268,8 @@ export function useWebRTC({
   const peerDisconnectTimeoutsRef = useRef({});
   const screenPeerDisconnectTimeoutsRef = useRef({});
   const statsIntervalRef = useRef(null);
+  const iceRestartAttemptsRef = useRef({});
+  const mediaStateSyncIntervalRef = useRef(null);
   const qualityProfileRef = useRef(CALL_QUALITY_PROFILES.balanced);
   const cameraFacingModeRef = useRef("user");
   const whiteboardStateRef = useRef(createInitialWhiteboardState());
@@ -1629,6 +1633,30 @@ export function useWebRTC({
         typeof payload.videoMuted === "boolean" ? payload.videoMuted : undefined,
     });
   }, [roomId]);
+
+  // ─── Periodic Media State Sync ────────────────────────────────────────────────
+
+  useEffect(() => {
+    if (joinStatus !== "joined" || !socketRef.current) {
+      if (mediaStateSyncIntervalRef.current) {
+        clearInterval(mediaStateSyncIntervalRef.current);
+        mediaStateSyncIntervalRef.current = null;
+      }
+      return;
+    }
+
+    // Emit media state every 5 seconds to keep peers in sync
+    mediaStateSyncIntervalRef.current = setInterval(() => {
+      emitLocalMediaState();
+    }, 5000);
+
+    return () => {
+      if (mediaStateSyncIntervalRef.current) {
+        clearInterval(mediaStateSyncIntervalRef.current);
+        mediaStateSyncIntervalRef.current = null;
+      }
+    };
+  }, [joinStatus, emitLocalMediaState]);
 
   const refreshVideoInputCount = useCallback(async () => {
     if (!navigator.mediaDevices?.enumerateDevices) return 0;
@@ -2237,24 +2265,56 @@ export function useWebRTC({
         }
       };
 
-      pc.onconnectionstatechange = () => {
+      pc.onconnectionstatechange = async () => {
         updateRemotePeerState(peerId, {
           connectionState: pc.connectionState,
         });
         if (["connected", "completed"].includes(pc.connectionState)) {
           clearPeerDisconnectTimeout(peerId);
+          // Reset ICE restart attempts on successful connection
+          iceRestartAttemptsRef.current[peerId] = 0;
           return;
         }
 
         if (pc.connectionState === "disconnected") {
-          try {
-            pc.restartIce?.();
-          } catch {}
-          schedulePeerDisconnectCleanup(peerId, removeRemoteStream);
+          // Try ICE restart first before cleaning up
+          const attempts = iceRestartAttemptsRef.current[peerId] || 0;
+          if (attempts < 3) {
+            iceRestartAttemptsRef.current[peerId] = attempts + 1;
+            try {
+              pc.restartIce?.();
+            } catch {}
+            // Give ICE restart time to work before cleanup
+            setTimeout(() => {
+              const currentPc = peerConnectionsRef.current[peerId];
+              if (currentPc?.connectionState === "disconnected" || currentPc?.connectionState === "failed") {
+                schedulePeerDisconnectCleanup(peerId, removeRemoteStream);
+              }
+            }, 4000);
+          } else {
+            schedulePeerDisconnectCleanup(peerId, removeRemoteStream);
+          }
           return;
         }
 
-        if (["failed", "closed"].includes(pc.connectionState)) {
+        if (pc.connectionState === "failed") {
+          // Attempt reconnection with new offer
+          const attempts = iceRestartAttemptsRef.current[peerId] || 0;
+          if (attempts < 3 && socketRef.current) {
+            iceRestartAttemptsRef.current[peerId] = attempts + 1;
+            try {
+              // Create new offer with ICE restart
+              const offer = await pc.createOffer({ iceRestart: true });
+              await pc.setLocalDescription(offer);
+              socketRef.current.emit("offer", { targetId: peerId, sdp: offer });
+              return;
+            } catch {}
+          }
+          clearPeerDisconnectTimeout(peerId);
+          removeRemoteStream(peerId);
+        }
+
+        if (pc.connectionState === "closed") {
           clearPeerDisconnectTimeout(peerId);
           removeRemoteStream(peerId);
         }
@@ -2334,11 +2394,29 @@ export function useWebRTC({
         }
 
         if (pc.connectionState === "disconnected") {
+          // Try ICE restart for screen share connection
+          try {
+            pc.restartIce?.();
+          } catch {}
           schedulePeerDisconnectCleanup(peerId, removeRemoteScreenStream, true);
           return;
         }
 
-        if (["failed", "closed"].includes(pc.connectionState)) {
+        if (pc.connectionState === "failed") {
+          // Attempt reconnection
+          if (socketRef.current && screenStreamRef.current) {
+            try {
+              const offer = pc.createOffer({ iceRestart: true });
+              pc.setLocalDescription(offer);
+              socketRef.current.emit("screen-offer", { targetId: peerId, sdp: offer });
+              return;
+            } catch {}
+          }
+          clearPeerDisconnectTimeout(peerId, true);
+          removeRemoteScreenStream(peerId);
+        }
+
+        if (pc.connectionState === "closed") {
           clearPeerDisconnectTimeout(peerId, true);
           removeRemoteScreenStream(peerId);
         }
@@ -2714,17 +2792,19 @@ export function useWebRTC({
           });
         }
 
-        // 5b. Listen for room-info (title, isPrivate) from server
-        socket.on("room-info", ({ title, isPrivate: nextIsPrivate }) => {
+        // 5b. Listen for room-info (title, isPrivate, creatorUserId) from server
+        socket.on("room-info", ({ title, isPrivate: nextIsPrivate, creatorUserId }) => {
           if (title) setRoomTitle(title);
           if (typeof nextIsPrivate === "boolean") {
             setRoomIsPrivate(nextIsPrivate);
           }
+          if (creatorUserId) {
+            setRoomCreatorId(String(creatorUserId));
+          }
         });
 
-        // 5c. Whiteboard sync
-        socket.on("whiteboard-state", (payload) => {
-          const nextState = normalizeWhiteboardState(payload);
+        socket.on("waiting-for-approval", () => {
+          setJoinStatus("waiting");
           const nextUpdatedAt = Number(nextState?.updatedAt || 0);
           if (nextUpdatedAt > 0 && nextUpdatedAt < (lastWhiteboardUpdatedAtRef.current || 0)) {
             return;
@@ -3048,6 +3128,10 @@ export function useWebRTC({
         clearInterval(statsIntervalRef.current);
         statsIntervalRef.current = null;
       }
+      if (mediaStateSyncIntervalRef.current) {
+        clearInterval(mediaStateSyncIntervalRef.current);
+        mediaStateSyncIntervalRef.current = null;
+      }
       if (socketRef.current) {
         socketRef.current.emit("leave-room", { roomId });
         socketRef.current.disconnect();
@@ -3211,16 +3295,34 @@ export function useWebRTC({
 
   const toggleScreenShare = useCallback(async () => {
     if (isScreenSharing) {
-      screenStreamRef.current?.getTracks().forEach((t) => t.stop());
+      // Stop abort controller first
+      if (screenShareAbortControllerRef.current) {
+        screenShareAbortControllerRef.current.abort();
+        screenShareAbortControllerRef.current = null;
+      }
+      // Stop all tracks
+      screenStreamRef.current?.getTracks().forEach((t) => {
+        t.onended = null;
+        t.stop();
+      });
       screenStreamRef.current = null;
       setScreenStream(null);
       setIsScreenSharing(false);
-      Object.values(screenPeerConnectionsRef.current).forEach((pc) => pc.close());
+      // Close all screen peer connections
+      Object.values(screenPeerConnectionsRef.current).forEach((pc) => {
+        try {
+          pc.close();
+        } catch {}
+      });
       screenPeerConnectionsRef.current = {};
       screenCandidateQueuesRef.current = {};
+      // Notify server
       if (socketRef.current) {
         socketRef.current.emit("screen-share-stopped", { roomId });
       }
+      // Restore quality profile
+      qualityProfileRef.current = CALL_QUALITY_PROFILES.balanced;
+      setQualityProfile(CALL_QUALITY_PROFILES.balanced);
       await applyMediaOptimization(qualityProfileRef.current);
       return true;
     }
@@ -3256,9 +3358,45 @@ export function useWebRTC({
       qualityProfileRef.current = nextScreenProfile;
       setQualityProfile(nextScreenProfile);
 
-      screen.getVideoTracks()[0].onended = () => {
-        toggleScreenShare();
+      // Observe all tracks for ended state
+      const observeScreenTracks = () => {
+        const tracks = screen.getTracks();
+        let endedCount = 0;
+        const totalTracks = tracks.length;
+
+        tracks.forEach((track) => {
+          const originalOnEnded = track.onended;
+          track.onended = () => {
+            endedCount++;
+            if (originalOnEnded) originalOnEnded();
+            // When all tracks end, cleanup screen share
+            if (endedCount >= totalTracks && isScreenSharing) {
+              toggleScreenShare();
+            }
+          };
+        });
+
+        // Also monitor via stream events for browser-native stop
+        const checkTrackState = () => {
+          const liveTracks = screen.getTracks().filter((t) => t.readyState === 'live');
+          if (liveTracks.length === 0 && isScreenSharing) {
+            toggleScreenShare();
+          }
+        };
+
+        // Check every 500ms for track state changes
+        const intervalId = setInterval(checkTrackState, 500);
+        screenShareAbortControllerRef.current = {
+          abort: () => {
+            clearInterval(intervalId);
+          },
+        };
+
+        // Initial check
+        checkTrackState();
       };
+
+      observeScreenTracks();
 
       await applyMediaOptimization(nextScreenProfile);
 
@@ -3308,6 +3446,17 @@ export function useWebRTC({
       }
     };
   }, [enabled, evaluateConnectionHealth, joinStatus]);
+
+  // ─── Recording info ───────────────────────────────────────────────────────────
+
+  const getRecordingMetadata = useCallback(() => {
+    return {
+      roomId,
+      roomCreatorId,
+      isCreator,
+      currentUserId,
+    };
+  }, [roomId, roomCreatorId, isCreator, currentUserId]);
 
   // ─── Recording signal ─────────────────────────────────────────────────────────
 
@@ -4068,6 +4217,7 @@ export function useWebRTC({
     error,
     roomTitle,
     roomIsPrivate,
+    roomCreatorId,
     remoteIsRecording,
     emitRecording,
     forceMuteMic,
