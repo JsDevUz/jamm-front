@@ -2161,6 +2161,14 @@ const PdfPageFrame = styled.div`
   box-shadow: 0 18px 36px rgba(15, 23, 42, 0.14);
 `;
 
+const PdfPageScaleLayer = styled.div`
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform-origin: top center;
+  will-change: transform;
+`;
+
 const PdfPageCanvas = styled.canvas`
   display: block;
   width: 100%;
@@ -4634,14 +4642,14 @@ const WhiteboardTile = ({
           WHITEBOARD_MIN_PDF_RENDER_WIDTH,
           pdfRenderWidth || WHITEBOARD_MIN_PDF_RENDER_WIDTH,
         );
-  const activePdfWidth =
+  const activePdfRenderWidth =
     shouldUseContainedGuestPdfViewport
       ? Math.max(
           WHITEBOARD_MIN_PDF_RENDER_WIDTH,
           Math.round(
-            (syncedGuestPdfWidth > 0
+            syncedGuestPdfWidth > 0
               ? Math.min(syncedGuestPdfWidth, pdfRenderWidth || syncedGuestPdfWidth)
-              : pdfRenderWidth || WHITEBOARD_MIN_PDF_RENDER_WIDTH) * activePdfZoom,
+              : pdfRenderWidth || WHITEBOARD_MIN_PDF_RENDER_WIDTH,
           ),
         )
       : !interactive && syncedGuestPdfWidth > 0
@@ -4651,10 +4659,19 @@ const WhiteboardTile = ({
           WHITEBOARD_MIN_PDF_RENDER_WIDTH,
           Math.round(pdfRenderWidth * activePdfZoom),
         )
-      : Math.max(WHITEBOARD_MIN_PDF_RENDER_WIDTH, pdfRenderWidth || WHITEBOARD_MIN_PDF_RENDER_WIDTH);
+      : Math.max(
+          WHITEBOARD_MIN_PDF_RENDER_WIDTH,
+          pdfRenderWidth || WHITEBOARD_MIN_PDF_RENDER_WIDTH,
+        );
+  const activePdfWidth = shouldUseContainedGuestPdfViewport
+    ? Math.max(
+        WHITEBOARD_MIN_PDF_RENDER_WIDTH,
+        Math.round(activePdfRenderWidth * activePdfZoom),
+      )
+    : activePdfRenderWidth;
   const activePdfRenderScale =
     activeTab?.type === "pdf"
-      ? activePdfWidth / activePdfViewportBaseWidth
+      ? activePdfRenderWidth / activePdfViewportBaseWidth
       : 1;
   const activeTabSelectedPagesKey =
     activeTab?.type === "pdf"
@@ -5208,8 +5225,10 @@ const WhiteboardTile = ({
           }
 
           const renderSignature = `${WHITEBOARD_PDF_RENDER_VERSION}:${activeTab.fileUrl}:${pageMeta.pageNumber}:${Math.round(
-            activePdfWidth,
-          )}:${Math.round(activePdfZoom * 1000)}`;
+            activePdfRenderWidth,
+          )}:${
+            shouldUseContainedGuestPdfViewport ? "contained" : Math.round(activePdfZoom * 1000)
+          }`;
           const cachedBitmap = pdfPageBitmapCacheRef.current.get(renderSignature);
           if (cachedBitmap) {
             const context = canvas.getContext("2d");
@@ -5254,7 +5273,7 @@ const WhiteboardTile = ({
           }
           const rotation = resolvePdfPageRotation(page);
           const baseViewport = page.getViewport({ scale: 1, rotation });
-          const scale = activePdfWidth / baseViewport.width;
+          const scale = activePdfRenderWidth / baseViewport.width;
           const viewport = page.getViewport({ scale, rotation });
           const ratio = isMobileSafariBrowser()
             ? 1
@@ -5443,9 +5462,10 @@ const WhiteboardTile = ({
     pdfMeta,
     pdfRenderWidth,
     activePdfZoom,
-    activePdfWidth,
+    activePdfRenderWidth,
     initialVisiblePdfPages,
     isMobile,
+    shouldUseContainedGuestPdfViewport,
     visiblePdfPages,
   ]);
 
@@ -7404,10 +7424,13 @@ const WhiteboardTile = ({
                     pageMetric?.height ||
                     (pdfRenderWidth > 0 && pageMeta.baseWidth > 0
                       ? Math.round(
-                          (activePdfWidth * pageMeta.baseHeight) /
+                          (activePdfRenderWidth * pageMeta.baseHeight) /
                             pageMeta.baseWidth,
                         )
                       : 720);
+                  const displayedPageHeight = shouldUseContainedGuestPdfViewport
+                    ? Math.max(1, Math.round(pageHeight * activePdfZoom))
+                    : pageHeight;
                   const shouldRenderPage =
                     visiblePdfPages.includes(pageMeta.pageNumber) ||
                     initialVisiblePdfPages.includes(pageMeta.pageNumber) ||
@@ -7427,7 +7450,7 @@ const WhiteboardTile = ({
                       style={{
                         width: `${activePdfWidth}px`,
                         minWidth: `${activePdfWidth}px`,
-                        height: `${pageHeight}px`,
+                        height: `${displayedPageHeight}px`,
                       }}
                     >
                       <PageBadge>
@@ -7435,42 +7458,91 @@ const WhiteboardTile = ({
                           current: pageMeta.pageNumber,
                         })}
                       </PageBadge>
-                      {shouldRenderPage ? (
+                      {shouldUseContainedGuestPdfViewport ? (
+                        <PdfPageScaleLayer
+                          style={{
+                            width: `${activePdfRenderWidth}px`,
+                            height: `${pageHeight}px`,
+                            transform: `translateX(-50%) scale(${activePdfZoom})`,
+                          }}
+                        >
+                          {shouldRenderPage ? (
+                            <>
+                              {mobileGuestPdfImage ? (
+                                <PdfRasterImage src={mobileGuestPdfImage} alt="" draggable={false} />
+                              ) : null}
+                              <PdfPageCanvas
+                                id={`pdf-page-${activeTab.id}-${pageMeta.pageNumber}`}
+                                $hidden={Boolean(mobileGuestPdfImage)}
+                              />
+                            </>
+                          ) : (
+                            <PdfPagePlaceholder />
+                          )}
+                          <StrokeCanvas
+                            strokes={pageStrokes}
+                            interactive={interactive}
+                            tool={tool}
+                            color={color}
+                            fillColor={fillColor}
+                            shapeEdge={shapeEdge}
+                            brushSize={brushSize}
+                            zoomScale={activePdfRenderScale}
+                            textFontFamily={textFontFamily}
+                            textSize={textSize}
+                            textAlign={textAlign}
+                            tabId={activeTab.id}
+                            pageNumber={pageMeta.pageNumber}
+                            onStrokeStart={onStrokeStart}
+                            onStrokeAppend={onStrokeAppend}
+                            onStrokeRemove={onStrokeRemove}
+                            onStrokeUpdate={onStrokeUpdate}
+                            onToolChange={onToolChange}
+                            onTextEditorStateChange={setActiveTextEditorState}
+                            surfaceMode="page"
+                            textPlaceholder={t("groupCall.whiteboard.textPlaceholder")}
+                          />
+                        </PdfPageScaleLayer>
+                      ) : (
                         <>
-                          {mobileGuestPdfImage ? (
-                            <PdfRasterImage src={mobileGuestPdfImage} alt="" draggable={false} />
-                          ) : null}
-                          <PdfPageCanvas
-                            id={`pdf-page-${activeTab.id}-${pageMeta.pageNumber}`}
-                            $hidden={Boolean(mobileGuestPdfImage)}
+                          {shouldRenderPage ? (
+                            <>
+                              {mobileGuestPdfImage ? (
+                                <PdfRasterImage src={mobileGuestPdfImage} alt="" draggable={false} />
+                              ) : null}
+                              <PdfPageCanvas
+                                id={`pdf-page-${activeTab.id}-${pageMeta.pageNumber}`}
+                                $hidden={Boolean(mobileGuestPdfImage)}
+                              />
+                            </>
+                          ) : (
+                            <PdfPagePlaceholder />
+                          )}
+                          <StrokeCanvas
+                            strokes={pageStrokes}
+                            interactive={interactive}
+                            tool={tool}
+                            color={color}
+                            fillColor={fillColor}
+                            shapeEdge={shapeEdge}
+                            brushSize={brushSize}
+                            zoomScale={activePdfRenderScale}
+                            textFontFamily={textFontFamily}
+                            textSize={textSize}
+                            textAlign={textAlign}
+                            tabId={activeTab.id}
+                            pageNumber={pageMeta.pageNumber}
+                            onStrokeStart={onStrokeStart}
+                            onStrokeAppend={onStrokeAppend}
+                            onStrokeRemove={onStrokeRemove}
+                            onStrokeUpdate={onStrokeUpdate}
+                            onToolChange={onToolChange}
+                            onTextEditorStateChange={setActiveTextEditorState}
+                            surfaceMode="page"
+                            textPlaceholder={t("groupCall.whiteboard.textPlaceholder")}
                           />
                         </>
-                      ) : (
-                        <PdfPagePlaceholder />
                       )}
-                      <StrokeCanvas
-                        strokes={pageStrokes}
-                        interactive={interactive}
-                        tool={tool}
-                        color={color}
-                        fillColor={fillColor}
-                        shapeEdge={shapeEdge}
-                        brushSize={brushSize}
-                        zoomScale={activePdfRenderScale}
-                        textFontFamily={textFontFamily}
-                        textSize={textSize}
-                        textAlign={textAlign}
-                        tabId={activeTab.id}
-                        pageNumber={pageMeta.pageNumber}
-                        onStrokeStart={onStrokeStart}
-                        onStrokeAppend={onStrokeAppend}
-                        onStrokeRemove={onStrokeRemove}
-                        onStrokeUpdate={onStrokeUpdate}
-                        onToolChange={onToolChange}
-                        onTextEditorStateChange={setActiveTextEditorState}
-                        surfaceMode="page"
-                        textPlaceholder={t("groupCall.whiteboard.textPlaceholder")}
-                      />
                     </PdfPageFrame>
                   );
                 })}
