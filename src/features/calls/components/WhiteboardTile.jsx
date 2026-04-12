@@ -5298,18 +5298,31 @@ const WhiteboardTile = ({
             rotation !== 0 && canvas.dataset.stableRenderKey !== renderSignature;
 
           if (shouldUseContainedGuestPdfViewport) {
-            canvas.width = Math.max(1, Math.floor(viewport.width));
-            canvas.height = Math.max(1, Math.floor(viewport.height));
+            const mobileRasterRatio = Math.max(
+              1,
+              Math.min(
+                2,
+                window.devicePixelRatio || 1,
+                WHITEBOARD_MOBILE_PDF_MAX_RENDER_EDGE /
+                  Math.max(1, viewport.width, viewport.height),
+              ),
+            );
+            const mobileRasterViewport =
+              mobileRasterRatio > 1.001
+                ? page.getViewport({ scale: scale * mobileRasterRatio, rotation })
+                : viewport;
+            canvas.width = Math.max(1, Math.floor(mobileRasterViewport.width));
+            canvas.height = Math.max(1, Math.floor(mobileRasterViewport.height));
             canvas.style.width = `${viewport.width}px`;
             canvas.style.height = `${viewport.height}px`;
-            context.setTransform(1, 0, 0, 1, 0, 0);
+            context.setTransform(mobileRasterRatio, 0, 0, mobileRasterRatio, 0, 0);
             context.clearRect(0, 0, canvas.width, canvas.height);
 
             const renderDirectly = async () => {
               context.clearRect(0, 0, canvas.width, canvas.height);
               const renderTask = page.render({
                 canvasContext: context,
-                viewport,
+                viewport: mobileRasterViewport,
               });
               await renderTask.promise;
             };
