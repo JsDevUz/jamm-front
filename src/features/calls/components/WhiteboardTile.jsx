@@ -123,6 +123,34 @@ const isMobileSafariBrowser = () => {
   return isIOSDevice && isSafariEngine;
 };
 
+const isMobilePdfBrowser = () => {
+  if (typeof navigator === "undefined") {
+    return false;
+  }
+
+  const userAgent = navigator.userAgent || "";
+  return /iPhone|iPad|iPod|Android/i.test(userAgent);
+};
+
+const buildPdfDocumentInit = (source) => {
+  const mobileSafeMode = isMobilePdfBrowser();
+  return {
+    ...source,
+    ...(mobileSafeMode
+      ? {
+          disableRange: true,
+          disableStream: true,
+          disableAutoFetch: true,
+          isOffscreenCanvasSupported: false,
+          isImageDecoderSupported: false,
+          useWorkerFetch: false,
+          useWasm: false,
+          enableHWA: false,
+        }
+      : {}),
+  };
+};
+
 const PDF_DEBUG_ENABLED = true;
 const pdfBufferCache = new Map();
 const pdfBufferPromiseCache = new Map();
@@ -959,12 +987,14 @@ const fetchPdfDocumentBuffer = async (targetUrl) => {
       targetUrl,
       byteLength: cachedBytes.byteLength,
     });
-    const loadingTask = pdfjsLib.getDocument({
-      data: cachedBytes.slice(),
-      disableRange: true,
-      disableStream: true,
-      disableAutoFetch: true,
-    });
+    const loadingTask = pdfjsLib.getDocument(
+      buildPdfDocumentInit({
+        data: cachedBytes.slice(),
+        disableRange: true,
+        disableStream: true,
+        disableAutoFetch: true,
+      }),
+    );
     const pdfDocument = await loadingTask.promise;
     logPdfDebug("buffer-fetch:pdf-ready", {
       targetUrl,
@@ -977,12 +1007,14 @@ const fetchPdfDocumentBuffer = async (targetUrl) => {
   if (pdfBufferPromiseCache.has(targetUrl)) {
     logPdfDebug("buffer-fetch:await-pending", { targetUrl });
     const pendingBytes = await pdfBufferPromiseCache.get(targetUrl);
-    const loadingTask = pdfjsLib.getDocument({
-      data: pendingBytes.slice(),
-      disableRange: true,
-      disableStream: true,
-      disableAutoFetch: true,
-    });
+    const loadingTask = pdfjsLib.getDocument(
+      buildPdfDocumentInit({
+        data: pendingBytes.slice(),
+        disableRange: true,
+        disableStream: true,
+        disableAutoFetch: true,
+      }),
+    );
     const pdfDocument = await loadingTask.promise;
     logPdfDebug("buffer-fetch:pdf-ready", {
       targetUrl,
@@ -1044,12 +1076,14 @@ const fetchPdfDocumentBuffer = async (targetUrl) => {
 
   try {
     const pdfBytes = await pdfBytesPromise;
-    const loadingTask = pdfjsLib.getDocument({
-      data: pdfBytes.slice(),
-      disableRange: true,
-      disableStream: true,
-      disableAutoFetch: true,
-    });
+    const loadingTask = pdfjsLib.getDocument(
+      buildPdfDocumentInit({
+        data: pdfBytes.slice(),
+        disableRange: true,
+        disableStream: true,
+        disableAutoFetch: true,
+      }),
+    );
     loadingTask.onProgress = (progress) => {
       logPdfDebug("buffer-fetch:progress", {
         targetUrl,
@@ -1085,17 +1119,19 @@ const loadPdfDocument = async (fileUrl, options = {}) => {
     isPublicCdn: isPublicCdnPdfUrl(targetUrl),
   });
 
-  if (preferBuffer || isPublicCdnPdfUrl(targetUrl)) {
+  if (preferBuffer || isPublicCdnPdfUrl(targetUrl) || isMobilePdfBrowser()) {
     logPdfDebug("load:prefer-buffer", { targetUrl });
     return fetchPdfDocumentBuffer(targetUrl);
   }
 
   try {
     logPdfDebug("load:url-anon:start", { targetUrl });
-    const loadingTask = pdfjsLib.getDocument({
-      url: targetUrl,
-      withCredentials: false,
-    });
+    const loadingTask = pdfjsLib.getDocument(
+      buildPdfDocumentInit({
+        url: targetUrl,
+        withCredentials: false,
+      }),
+    );
     loadingTask.onProgress = (progress) => {
       logPdfDebug("load:url-anon:progress", {
         targetUrl,
@@ -1116,10 +1152,12 @@ const loadPdfDocument = async (fileUrl, options = {}) => {
     });
     try {
       logPdfDebug("load:url-auth:start", { targetUrl });
-      const authenticatedLoadingTask = pdfjsLib.getDocument({
-        url: targetUrl,
-        withCredentials: true,
-      });
+      const authenticatedLoadingTask = pdfjsLib.getDocument(
+        buildPdfDocumentInit({
+          url: targetUrl,
+          withCredentials: true,
+        }),
+      );
       authenticatedLoadingTask.onProgress = (progress) => {
         logPdfDebug("load:url-auth:progress", {
           targetUrl,
