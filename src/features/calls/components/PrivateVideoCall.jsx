@@ -17,6 +17,33 @@ import {
 import { useWebRTC } from "../../../hooks/useWebRTC";
 import useAuthStore from "../../../store/authStore";
 
+const attachLivekitTrackOrStream = (node, { track = null, stream = null } = {}) => {
+  if (!node) return;
+
+  if (track?.attach) {
+    track.attach(node);
+    return;
+  }
+
+  if (node.srcObject !== stream) {
+    node.srcObject = stream || null;
+  }
+};
+
+const detachLivekitTrackOrStream = (node, { track = null } = {}) => {
+  if (!node) return;
+
+  if (track?.detach) {
+    try {
+      track.detach(node);
+    } catch {}
+  }
+
+  if (node.srcObject) {
+    node.srcObject = null;
+  }
+};
+
 const Overlay = styled.div`
   --call-bg: var(--background-color);
   --call-surface: color-mix(in srgb, var(--secondary-color) 92%, black 8%);
@@ -333,6 +360,7 @@ const PrivateVideoCall = ({
 
   const {
     localStream,
+    livekitLocalMedia,
     remoteStreams,
     remotePeerStates,
     isMicOn,
@@ -378,47 +406,75 @@ const PrivateVideoCall = ({
     (isReadablePeerName(remotePeer?.displayName) ? remotePeer.displayName : null) ||
     t("privateCall.remoteLabel");
   const remoteCameraVisible =
-    Boolean(remotePeer?.stream) && remotePeerState?.hasVideo !== false && remotePeerState?.videoMuted !== true;
-  const localCameraVisible = Boolean(localStream) && isCamOn;
+    (Boolean(remotePeer?.stream) || Boolean(remotePeer?.videoTrack)) &&
+    remotePeerState?.hasVideo !== false &&
+    remotePeerState?.videoMuted !== true;
+  const localCameraVisible =
+    (Boolean(localStream) || Boolean(livekitLocalMedia.cameraTrack)) && isCamOn;
   const swapAvailable =
-    localCameraVisible && (Boolean(remoteScreenStreams[0]?.stream) || remoteCameraVisible);
+    localCameraVisible &&
+    (Boolean(remoteScreenStreams[0]?.stream) ||
+      Boolean(remoteScreenStreams[0]?.videoTrack) ||
+      remoteCameraVisible);
   const remoteVideoRef = useCallback(
     (node) => {
-      if (node && remotePeer?.stream) {
-        node.srcObject = remotePeer.stream;
-      }
+      attachLivekitTrackOrStream(node, {
+        track: remotePeer?.videoTrack || null,
+        stream: remotePeer?.stream || null,
+      });
     },
-    [remotePeer?.stream],
+    [remotePeer?.stream, remotePeer?.videoTrack],
   );
   const localVideoRef = useCallback(
     (node) => {
-      if (node && localStream) {
-        node.srcObject = localStream;
-      }
+      attachLivekitTrackOrStream(node, {
+        track: livekitLocalMedia.cameraTrack,
+        stream: localStream,
+      });
     },
-    [localStream],
+    [livekitLocalMedia.cameraTrack, localStream],
   );
   const remoteScreenRef = useCallback(
     (node) => {
-      if (node && remoteScreenStreams[0]?.stream) {
-        node.srcObject = remoteScreenStreams[0].stream;
-      }
+      attachLivekitTrackOrStream(node, {
+        track: remoteScreenStreams[0]?.videoTrack || null,
+        stream: remoteScreenStreams[0]?.stream || null,
+      });
     },
     [remoteScreenStreams],
+  );
+  const remoteAudioRef = useCallback(
+    (node) => {
+      attachLivekitTrackOrStream(node, {
+        track: remoteScreenStreams[0]?.audioTrack || remotePeer?.audioTrack || null,
+        stream: remoteScreenStreams[0]?.stream || remotePeer?.stream || null,
+      });
+    },
+    [remotePeer?.audioTrack, remotePeer?.stream, remoteScreenStreams],
   );
   const miniPreviewStream =
     remoteScreenStreams[0]?.stream ||
     (remoteCameraVisible ? remotePeer?.stream : null) ||
     localStream ||
     null;
-  const miniPreviewShouldMirror = !remoteScreenStreams[0]?.stream && !remoteCameraVisible && Boolean(localStream);
+  const miniPreviewTrack =
+    remoteScreenStreams[0]?.videoTrack ||
+    (remoteCameraVisible ? remotePeer?.videoTrack : null) ||
+    livekitLocalMedia.cameraTrack ||
+    null;
+  const miniPreviewShouldMirror =
+    !remoteScreenStreams[0]?.stream &&
+    !remoteScreenStreams[0]?.videoTrack &&
+    !remoteCameraVisible &&
+    (Boolean(localStream) || Boolean(livekitLocalMedia.cameraTrack));
   const miniVideoRef = useCallback(
     (node) => {
-      if (node && miniPreviewStream) {
-        node.srcObject = miniPreviewStream;
-      }
+      attachLivekitTrackOrStream(node, {
+        track: miniPreviewTrack,
+        stream: miniPreviewStream,
+      });
     },
-    [miniPreviewStream],
+    [miniPreviewStream, miniPreviewTrack],
   );
   useEffect(() => {
     if (!swapAvailable && isLocalPrimary) {
@@ -642,6 +698,7 @@ const PrivateVideoCall = ({
 
           <Body>
             <MainStage>
+              <audio ref={remoteAudioRef} autoPlay playsInline style={{ display: "none" }} />
               {mainShowsLocal ? (
                 <VideoStage ref={localVideoRef} autoPlay muted playsInline $mirror />
               ) : remoteScreenStreams.length > 0 ? (
@@ -693,7 +750,7 @@ const PrivateVideoCall = ({
                   <VideoStage ref={remoteScreenRef} autoPlay playsInline />
                 ) : tileShowsRemote && remoteCameraVisible ? (
                   <VideoStage ref={remoteVideoRef} autoPlay playsInline />
-                ) : localCameraVisible && localStream ? (
+                ) : localCameraVisible ? (
                   <VideoStage
                     ref={localVideoRef}
                     autoPlay

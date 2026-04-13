@@ -62,6 +62,7 @@ const WHITEBOARD_MIN_PDF_RENDER_WIDTH = 120;
 const WHITEBOARD_MOBILE_PDF_MAX_RENDER_EDGE = 3072;
 const WHITEBOARD_MIN_BOARD_BASE_WIDTH = 120;
 const WHITEBOARD_MIN_BOARD_BASE_HEIGHT = 120;
+const WHITEBOARD_MIN_VIEWPORT_BASE_HEIGHT = 120;
 const WHITEBOARD_PDF_RENDER_VERSION = "v3";
 const WHITEBOARD_PDF_BUFFER_CACHE_MAX_ITEMS = 12;
 const WHITEBOARD_MAX_TEXT_CHARS = 240;
@@ -4428,6 +4429,7 @@ const WhiteboardTile = ({
   const pdfViewportRef = useRef(null);
   const boardViewportRef = useRef(null);
   const boardFrameRef = useRef(null);
+  const workspaceBodyRef = useRef(null);
   const scrollSyncRef = useRef({ lock: false, timeoutId: null, lastTabId: "" });
   const pdfDocumentRef = useRef(null);
   const pdfPickerDocumentRef = useRef(null);
@@ -4468,6 +4470,10 @@ const WhiteboardTile = ({
   const [pdfViewportHeight, setPdfViewportHeight] = useState(0);
   const [activeTextEditorState, setActiveTextEditorState] = useState(null);
   const [boardViewportSize, setBoardViewportSize] = useState({
+    width: 0,
+    height: 0,
+  });
+  const [workspaceViewportSize, setWorkspaceViewportSize] = useState({
     width: 0,
     height: 0,
   });
@@ -4515,6 +4521,16 @@ const WhiteboardTile = ({
     WHITEBOARD_MIN_BOARD_BASE_HEIGHT,
     Math.round(Number(boardTab?.viewportBaseHeight) || boardViewportSize.height || 0) || 0,
   );
+  const syncedPdfViewportBaseHeight =
+    activeTab?.type === "pdf" && Number.isFinite(Number(activeTab.viewportBaseHeight))
+      ? Math.max(
+          WHITEBOARD_MIN_VIEWPORT_BASE_HEIGHT,
+          Math.round(Number(activeTab.viewportBaseHeight)),
+        )
+      : Math.max(
+          WHITEBOARD_MIN_VIEWPORT_BASE_HEIGHT,
+          pdfViewportHeight || WHITEBOARD_MIN_VIEWPORT_BASE_HEIGHT,
+        );
 
   const handlePdfViewportRef = useCallback(
     (node) => {
@@ -4564,6 +4580,21 @@ const WhiteboardTile = ({
     WHITEBOARD_MIN_BOARD_BASE_HEIGHT,
     syncedBoardBaseHeight,
   );
+  const remoteBoardContainScale =
+    !interactive &&
+    activeTab?.type !== "pdf" &&
+    workspaceViewportSize.width > 0 &&
+    workspaceViewportSize.height > 0 &&
+    activeBoardBaseWidth > 0 &&
+    activeBoardBaseHeight > 0
+      ? Math.max(
+          0.05,
+          Math.min(
+            workspaceViewportSize.width / activeBoardBaseWidth,
+            workspaceViewportSize.height / activeBoardBaseHeight,
+          ),
+        )
+      : 1;
   const activePdfZoom =
     activeTab?.type === "pdf"
       ? !interactive && guestPdfOverride
@@ -4590,15 +4621,20 @@ const WhiteboardTile = ({
     (logicalZoom) => Math.max(0.05, Number(logicalZoom) || 1),
     [],
   );
-  const activeBoardRenderScale = getBoardRenderScale(activeBoardZoom);
+  const activeBoardRenderScale =
+    getBoardRenderScale(activeBoardZoom) * (interactive ? 1 : remoteBoardContainScale);
   const shouldUseContainedMobilePdfViewport =
     interactive && isMobile && activeTab?.type === "pdf";
   const activePdfViewportTopInset = shouldUseContainedMobilePdfViewport
     ? WHITEBOARD_VIEWPORT_TOP_SAFE_SPACE
-    : getPdfViewportTopInset(interactive);
+    : interactive || isFullscreen
+    ? WHITEBOARD_VIEWPORT_TOP_SAFE_SPACE
+    : 0;
   const activePdfViewportBottomInset = shouldUseContainedMobilePdfViewport
     ? WHITEBOARD_VIEWPORT_BOTTOM_SAFE_SPACE
-    : getPdfViewportBottomInset(interactive);
+    : interactive || isFullscreen
+    ? WHITEBOARD_VIEWPORT_BOTTOM_SAFE_SPACE
+    : 0;
   const effectivePdfViewportHeight = Math.max(
     1,
     pdfViewportHeight - activePdfViewportTopInset - activePdfViewportBottomInset,
@@ -4641,6 +4677,35 @@ const WhiteboardTile = ({
           WHITEBOARD_MIN_PDF_RENDER_WIDTH,
         pdfRenderWidth || WHITEBOARD_MIN_PDF_RENDER_WIDTH,
       );
+  const remotePdfContainScale =
+    !interactive &&
+    activeTab?.type === "pdf" &&
+    workspaceViewportSize.width > 0 &&
+    workspaceViewportSize.height > 0 &&
+    activePdfViewportBaseWidth > 0 &&
+    syncedPdfViewportBaseHeight > 0
+      ? Math.max(
+          0.05,
+          Math.min(
+            workspaceViewportSize.width / activePdfViewportBaseWidth,
+            workspaceViewportSize.height / syncedPdfViewportBaseHeight,
+          ),
+        )
+      : 1;
+  const containedGuestPdfViewportWidth =
+    !interactive && activeTab?.type === "pdf"
+      ? Math.max(
+          WHITEBOARD_MIN_PDF_RENDER_WIDTH,
+          Math.round(activePdfViewportBaseWidth * remotePdfContainScale),
+        )
+      : 0;
+  const containedGuestPdfViewportHeight =
+    !interactive && activeTab?.type === "pdf"
+      ? Math.max(
+          WHITEBOARD_MIN_VIEWPORT_BASE_HEIGHT,
+          Math.round(syncedPdfViewportBaseHeight * remotePdfContainScale),
+        )
+      : 0;
   const containedPdfWidthByHeight =
     activeTab?.type === "pdf" && effectivePdfViewportHeight > 0 && basePdfAspectRatio > 0
       ? Math.max(
@@ -4664,8 +4729,11 @@ const WhiteboardTile = ({
   const activePdfRenderWidth =
     shouldUseContainedMobilePdfViewport
       ? containedPdfBaseWidth
-      : !interactive && syncedGuestPdfWidth > 0
-      ? Math.round(syncedGuestPdfWidth * activePdfZoom)
+      : !interactive && activePdfViewportBaseWidth > 0
+      ? Math.max(
+          WHITEBOARD_MIN_PDF_RENDER_WIDTH,
+          Math.round(activePdfViewportBaseWidth * remotePdfContainScale * activePdfZoom),
+        )
       : activeTab?.type === "pdf" && pdfRenderWidth > 0
       ? Math.max(
           WHITEBOARD_MIN_PDF_RENDER_WIDTH,
@@ -4718,6 +4786,7 @@ const WhiteboardTile = ({
       viewportVisibleHeightRatio,
       viewportVisibleWidthRatio,
       viewportBaseWidth,
+      viewportBaseHeight,
     }) => {
       if (!activeTab || activeTab.type !== "pdf") {
         return;
@@ -4858,6 +4927,16 @@ const WhiteboardTile = ({
                 WHITEBOARD_MIN_PDF_RENDER_WIDTH,
                 pdfRenderWidth || WHITEBOARD_MIN_PDF_RENDER_WIDTH,
               ),
+        viewportBaseHeight:
+          typeof viewportBaseHeight === "number"
+            ? Math.max(
+                WHITEBOARD_MIN_VIEWPORT_BASE_HEIGHT,
+                Math.round(viewportBaseHeight),
+              )
+            : Math.max(
+                WHITEBOARD_MIN_VIEWPORT_BASE_HEIGHT,
+                pdfViewportHeight || WHITEBOARD_MIN_VIEWPORT_BASE_HEIGHT,
+              ),
         zoom:
           typeof zoom === "number"
             ? Math.min(WHITEBOARD_MAX_ZOOM, Math.max(WHITEBOARD_MIN_ZOOM, zoom))
@@ -4872,6 +4951,7 @@ const WhiteboardTile = ({
       onPdfViewportChange,
       pdfMeta.pages,
       pdfRenderWidth,
+      pdfViewportHeight,
     ],
   );
 
@@ -4915,6 +4995,28 @@ const WhiteboardTile = ({
   );
 
   useEffect(() => {
+    const viewport = workspaceBodyRef.current;
+    if (!viewport) {
+      return undefined;
+    }
+
+    const updateWorkspaceViewportSize = () => {
+      setWorkspaceViewportSize({
+        width: Math.max(1, Math.floor(viewport.clientWidth)),
+        height: Math.max(1, Math.floor(viewport.clientHeight)),
+      });
+    };
+
+    updateWorkspaceViewportSize();
+    const resizeObserver = new ResizeObserver(updateWorkspaceViewportSize);
+    resizeObserver.observe(viewport);
+
+    return () => {
+      resizeObserver.disconnect();
+    };
+  }, [activeTab?.id, isFullscreen]);
+
+  useEffect(() => {
     const viewport = pdfViewportRef.current;
     if (!viewport) {
       return undefined;
@@ -4936,7 +5038,7 @@ const WhiteboardTile = ({
     return () => {
       resizeObserver.disconnect();
     };
-  }, [activeTab?.id]);
+  }, [activeTab?.id, isFullscreen]);
 
   useEffect(() => {
     const viewport = boardViewportRef.current;
@@ -5575,10 +5677,23 @@ const WhiteboardTile = ({
       return;
     }
 
+    // Calculate height from PDF page dimensions, not viewport size
+    const nextViewportBaseHeight =
+      basePdfPage?.baseWidth && basePdfPage?.baseHeight
+        ? Math.max(
+            WHITEBOARD_MIN_VIEWPORT_BASE_HEIGHT,
+            Math.round((nextViewportBaseWidth * basePdfPage.baseHeight) / basePdfPage.baseWidth),
+          )
+        : Math.max(
+            WHITEBOARD_MIN_VIEWPORT_BASE_HEIGHT,
+            Math.round(nextViewportBaseWidth / (basePdfAspectRatio || 1.414)),
+          );
+
     emitPdfViewport({
       viewportBaseWidth: nextViewportBaseWidth,
+      viewportBaseHeight: nextViewportBaseHeight,
     });
-  }, [activeTab, emitPdfViewport, interactive, pdfRenderWidth]);
+  }, [activeTab, emitPdfViewport, interactive, pdfRenderWidth, basePdfPage, basePdfAspectRatio]);
 
   const handlePdfZoomChange = useCallback(
     (nextZoom) => {
@@ -6517,7 +6632,7 @@ const WhiteboardTile = ({
   const edgeToolActive = ["rectangle", "diamond", "triangle"].includes(tool);
 
   const shouldShowChrome = !compact;
-  const shouldShowToolbar = showToolbar;
+  const shouldShowToolbar = showToolbar && (!isFullscreen || interactive);
   const pdfLibraryModal =
     interactive && isPdfLibraryOpen ? (
       <ModalOverlay
@@ -6978,7 +7093,7 @@ const WhiteboardTile = ({
 
         {!compact ? <WorkspaceDivider /> : null}
 
-        <WorkspaceBody $compact={compact}>
+        <WorkspaceBody ref={workspaceBodyRef} $compact={compact}>
           {shouldShowToolbar ? (
             <FloatingTopToolbar onClick={(event) => event.stopPropagation()}>
               <Toolbar>
@@ -7486,6 +7601,17 @@ const WhiteboardTile = ({
               onScroll={handlePdfScroll}
               $interactive={interactive}
               $allowHorizontal={activePdfZoom > 1.001}
+              style={
+                !interactive && containedGuestPdfViewportWidth > 0 && containedGuestPdfViewportHeight > 0
+                  ? {
+                      width: `${containedGuestPdfViewportWidth}px`,
+                      height: `${containedGuestPdfViewportHeight}px`,
+                      maxWidth: "100%",
+                      maxHeight: "100%",
+                      margin: "0 auto",
+                    }
+                  : undefined
+              }
             >
               {pdfMeta.status === "loading" ? (
                 <PdfStatus>
@@ -7498,7 +7624,7 @@ const WhiteboardTile = ({
               ) : null}
 
               <PdfStack>
-                {interactive || shouldUseContainedMobilePdfViewport ? (
+                {interactive || shouldUseContainedMobilePdfViewport || isFullscreen ? (
                   <PdfViewportSpacer $size={activePdfViewportTopInset} />
                 ) : null}
                 {pdfMeta.pages.map((pageMeta) => {
@@ -7630,7 +7756,7 @@ const WhiteboardTile = ({
                     </PdfPageFrame>
                   );
                 })}
-                {interactive || shouldUseContainedMobilePdfViewport ? (
+                {interactive || shouldUseContainedMobilePdfViewport || isFullscreen ? (
                   <PdfViewportSpacer $size={activePdfViewportBottomInset} />
                 ) : null}
               </PdfStack>
@@ -7644,16 +7770,30 @@ const WhiteboardTile = ({
                 <BoardCanvasFrame
                   ref={boardFrameRef}
                   style={{
-                    width: `${Math.max(
-                      1,
-                      Math.round(activeBoardBaseWidth),
-                      Math.round(activeBoardBaseWidth * activeBoardRenderScale),
-                    )}px`,
-                    height: `${Math.max(
-                      1,
-                      Math.round(activeBoardBaseHeight),
-                      Math.round(activeBoardBaseHeight * activeBoardRenderScale),
-                    )}px`,
+                    width: `${
+                      interactive
+                        ? Math.max(
+                            1,
+                            Math.round(activeBoardBaseWidth),
+                            Math.round(activeBoardBaseWidth * activeBoardRenderScale),
+                          )
+                        : Math.max(
+                            1,
+                            Math.round(activeBoardBaseWidth * activeBoardRenderScale),
+                          )
+                    }px`,
+                    height: `${
+                      interactive
+                        ? Math.max(
+                            1,
+                            Math.round(activeBoardBaseHeight),
+                            Math.round(activeBoardBaseHeight * activeBoardRenderScale),
+                          )
+                        : Math.max(
+                            1,
+                            Math.round(activeBoardBaseHeight * activeBoardRenderScale),
+                          )
+                    }px`,
                   }}
                 >
                   <BoardSurface>

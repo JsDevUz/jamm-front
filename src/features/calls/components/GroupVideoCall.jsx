@@ -35,6 +35,9 @@ import {
   RefreshCcw,
   ChevronDown,
   ChevronUp,
+  MoreVertical,
+  Volume2,
+  Smartphone,
 } from "lucide-react";
 import { useWebRTC } from "../../../hooks/useWebRTC";
 import useAuthStore from "../../../store/authStore";
@@ -121,6 +124,33 @@ const resolvePeerMediaState = (peerState) => {
     actualVideoMuted,
     actualAudioMuted,
   };
+};
+
+const attachLivekitTrackOrStream = (node, { track = null, stream = null } = {}) => {
+  if (!node) return;
+
+  if (track?.attach) {
+    track.attach(node);
+    return;
+  }
+
+  if (node.srcObject !== stream) {
+    node.srcObject = stream || null;
+  }
+};
+
+const detachLivekitTrackOrStream = (node, { track = null } = {}) => {
+  if (!node) return;
+
+  if (track?.detach) {
+    try {
+      track.detach(node);
+    } catch {}
+  }
+
+  if (node.srcObject) {
+    node.srcObject = null;
+  }
 };
 
 const scoreRemoteTileCandidate = (tile) => {
@@ -360,14 +390,20 @@ const FloatingActionBtn = styled.button`
 `;
 
 const TopBar = styled.div`
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 10050;
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 10px 18px;
-  background: color-mix(in srgb, var(--call-bg) 78%, transparent);
-  border-bottom: 1px solid var(--call-border);
+  background: transparent;
+  border-bottom: none;
   backdrop-filter: blur(10px);
   flex-shrink: 0;
+  pointer-events: auto;
 
   @media (max-width: 768px) {
     flex-direction: row;
@@ -457,6 +493,9 @@ const TinyBtn = styled.button`
         : "color-mix(in srgb, var(--call-panel) 96%, transparent)"};
     color: ${(p) => (p.$danger ? "var(--call-danger)" : "var(--call-text)")};
   }
+  & svg {
+    pointer-events: none;
+  }
 `;
 
 const Body = styled.div`
@@ -464,14 +503,21 @@ const Body = styled.div`
   flex: 1;
   overflow: hidden;
   box-sizing: border-box;
-  padding-bottom: ${(p) =>
-    p.$whiteboardFullscreen ? "0" : p.$immersive ? "104px" : "104px"};
+  padding-top: ${(p) => (p.$immersive ? "0" : p.$uiHidden ? "0" : "60px")};
+  padding-bottom: ${(p) => (p.$immersive ? "0" : p.$uiHidden ? "0" : "100px")};
+  position: relative;
+`;
 
-  @media (max-width: 768px) {
-    padding-bottom: ${(p) =>
-      p.$whiteboardFullscreen
-        ? "0"
-        : "calc(92px + env(safe-area-inset-bottom, 0px))"};
+const ScreenClickOverlay = styled.div`
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  cursor: pointer;
+  background: transparent;
+  pointer-events: auto;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.01);
   }
 `;
 
@@ -745,11 +791,14 @@ const PiPNameLabel = styled.div`
 const VideoGrid = styled.div`
   flex: 1;
   display: grid;
-  padding: 14px;
-  gap: 10px;
+  padding: 8px;
+  gap: 8px;
   overflow: hidden;
   min-width: 0;
   min-height: 0;
+  position: relative;
+  z-index: 2;
+  pointer-events: none;
 
   grid-template-columns: ${(p) =>
     p.$count <= 1 ? "minmax(0, 1fr)" : "repeat(2, minmax(0, 1fr))"};
@@ -761,6 +810,7 @@ const VideoGrid = styled.div`
   & > * {
     min-width: 0;
     min-height: 0;
+    pointer-events: auto;
   }
 
   ${(p) =>
@@ -801,23 +851,30 @@ const StageLayout = styled.div`
   flex: 1;
   height: 100%;
   display: ${(p) => (p.$immersive && !p.$whiteboardFullscreen ? "block" : "grid")};
-  gap: ${(p) => (p.$whiteboardFullscreen ? "0" : "12px")};
-  padding: ${(p) => (p.$whiteboardFullscreen ? "0" : "14px")};
+  gap: ${(p) => (p.$whiteboardFullscreen || p.$immersive ? "0" : "10px")};
+  padding: ${(p) => (p.$whiteboardFullscreen || p.$immersive ? "0" : "8px")};
   min-width: 0;
   min-height: 0;
   position: relative;
+  z-index: 2;
+  pointer-events: none;
   grid-template-columns: ${(p) => {
     if (p.$mobile) return "minmax(0, 1fr)";
     if (p.$immersive) return "minmax(0, 1fr)";
+    if (p.$presenterMode) return "minmax(0, 1fr)";
     return "minmax(0, 1fr) minmax(220px, 0.3fr)";
   }};
   grid-template-rows: ${(p) =>
     "minmax(0, 1fr)"};
   overflow: hidden;
 
+  & > * {
+    pointer-events: auto;
+  }
+
   @media (max-width: 768px) {
     ${(p) =>
-      p.$whiteboardFullscreen
+      p.$whiteboardFullscreen || p.$immersive
         ? css`
             position: fixed;
             inset: 0;
@@ -828,17 +885,12 @@ const StageLayout = styled.div`
             gap: 0;
             background: var(--call-bg);
           `
-        : ""}
+        : css`
+            padding: 8px;
+            gap: 8px;
+          `}
     grid-template-rows: ${(p) =>
       !p.$whiteboardFullscreen && p.$immersive ? "auto minmax(0, 1fr)" : "minmax(0, 1fr)"};
-    padding-top: ${(p) =>
-      p.$whiteboardFullscreen
-        ? "0"
-        : p.$immersive
-          ? "14px"
-          : p.$mobileCompactCount > 0
-            ? "132px"
-            : "14px"};
   }
 `;
 
@@ -849,14 +901,13 @@ const StageMain = styled.div`
   min-width: 0;
   min-height: 0;
   overflow: hidden;
-  border-radius: ${(p) => (p.$whiteboardFullscreen ? "0" : "18px")};
-  background: ${(p) =>
-    p.$whiteboardFullscreen
-      ? "transparent"
-      : "color-mix(in srgb, var(--call-surface) 92%, black 8%)"};
-  border: ${(p) => (p.$whiteboardFullscreen ? "none" : "1px solid var(--call-border)")};
-  padding: ${(p) => (p.$immersive ? "0" : "4px")};
+  border-radius: 0;
+  background: transparent;
+  border: none;
+  padding: 0;
+  margin: 0;
   box-sizing: border-box;
+  z-index: 12;
 `;
 
 const StageRail = styled.div`
@@ -864,7 +915,7 @@ const StageRail = styled.div`
   min-height: 0;
   overflow: hidden;
   display: flex;
-  flex-direction: column;
+  flex-direction: ${(p) => (p.$immersive ? "row" : "column")};
   grid-column: ${(p) => (p.$immersive ? "1 / -1" : "auto")};
   grid-row: ${(p) => (p.$immersive ? "1" : "auto")};
   ${(p) =>
@@ -873,16 +924,25 @@ const StageRail = styled.div`
           position: absolute;
           top: 16px;
           left: 16px;
-          right: 84px;
+          right: 16px;
           z-index: 7;
+          height: auto;
+          max-height: 180px;
         `
-      : ""}
+      : css`
+          position: absolute;
+          top: 80px;
+          right: 16px;
+          width: min(30%, 280px);
+          max-height: calc(100% - 180px);
+          z-index: 7;
+        `}
 `;
 
 const StageRailGrid = styled.div`
   flex: ${(p) => (p.$immersive ? "0" : "1")};
   min-height: 0;
-  max-height: 120px;
+  max-height: ${(p) => (p.$immersive ? "160px" : "120px")};
   align-items: start;
   overflow-x: ${(p) => (p.$immersive ? "auto" : "hidden")};
   overflow-y: ${(p) => (p.$immersive ? "hidden" : "auto")};
@@ -892,14 +952,14 @@ const StageRailGrid = styled.div`
   grid-template-columns: ${(p) => {
     if (p.$immersive) return "unset";
     if (p.$mobile) return "repeat(2, minmax(0, 1fr))";
-    return p.$immersive ? "unset" : "1fr";
+    return "1fr";
   }};
   grid-template-rows: ${(p) => (p.$immersive ? "minmax(0, 1fr)" : "unset")};
   grid-auto-flow: ${(p) => (p.$immersive ? "column" : "row")};
   grid-auto-columns: ${(p) =>
-    p.$immersive ? "minmax(132px, 220px)" : "auto"};
+    p.$immersive ? "minmax(140px, 200px)" : "auto"};
   grid-auto-rows: ${(p) =>
-    p.$immersive ? "clamp(120px, 22vh, 168px)" : "minmax(132px, 1fr)"};
+    p.$immersive ? "140px" : "minmax(132px, 1fr)"};
   padding-left: ${(p) => (p.$immersive ? "4px" : "0")};
   padding-right: ${(p) => (p.$immersive ? "4px" : p.$mobile ? "0" : "4px")};
   padding-bottom: ${(p) => (p.$immersive ? "4px" : "0")};
@@ -914,7 +974,9 @@ const StageRailGrid = styled.div`
     p.$immersive
       ? css`
           & > * {
-            height: clamp(120px, 22vh, 168px);
+            height: 140px;
+            width: auto;
+            aspect-ratio: 16 / 9;
           }
         `
       : ""}
@@ -934,6 +996,111 @@ const StageRailLabel = styled.div`
   padding-left: 4px;
 `;
 
+// ─── Google Meet Style Floating Participants ─────────────────────────────────
+
+const FloatingParticipantsContainer = styled.div`
+  position: absolute;
+  top: 72px;
+  right: 16px;
+  z-index: 9;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: calc(100% - 160px);
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 4px;
+  scrollbar-width: none;
+  pointer-events: auto;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+
+  @media (max-width: 768px) {
+    top: 72px;
+    right: 12px;
+    gap: 6px;
+  }
+`;
+
+const FloatingParticipantTile = styled.div`
+  width: 120px;
+  height: 120px;
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--call-panel);
+  border: 2px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  position: relative;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+  }
+
+  video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+
+  @media (max-width: 768px) {
+    width: 100px;
+    height: 100px;
+    border-radius: 10px;
+  }
+
+  @media (max-width: 480px) {
+    width: 80px;
+    height: 80px;
+    border-radius: 8px;
+  }
+`;
+
+const FloatingParticipantLabel = styled.div`
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  right: 8px;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(8px);
+  color: white;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 8px;
+  border-radius: 8px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+`;
+
+const FloatingParticipantAvatar = styled.div`
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: ${(p) => p.$bg || "#315f14"};
+  color: white;
+  font-size: 48px;
+  font-weight: 700;
+
+  @media (max-width: 768px) {
+    font-size: 36px;
+  }
+
+  @media (max-width: 480px) {
+    font-size: 28px;
+  }
+`;
+
 const MobileImmersiveRail = styled.div`
   position: absolute;
   top: 18px;
@@ -948,7 +1115,7 @@ const MobileImmersiveRail = styled.div`
 
 const MobileTopRail = styled.div`
   position: absolute;
-  top: 16px;
+  top: 80px;
   left: 16px;
   right: 16px;
   z-index: 8;
@@ -961,6 +1128,7 @@ const MobileTopRail = styled.div`
   overflow-y: hidden;
   padding-bottom: 2px;
   scrollbar-width: none;
+  pointer-events: auto;
 
   &::-webkit-scrollbar {
     display: none;
@@ -976,11 +1144,17 @@ const MobileTopRailTile = styled.div`
 
 const StageActions = styled.div`
   position: absolute;
-  top: 14px;
+  top: 18px;
   right: 14px;
-  z-index: 8;
+  z-index: 20;
   display: flex;
   gap: 8px;
+  pointer-events: auto;
+
+  @media (max-width: 768px) {
+    top: 112px;
+    right: 12px;
+  }
 `;
 
 const StageActionBtn = styled.button`
@@ -995,6 +1169,8 @@ const StageActionBtn = styled.button`
   justify-content: center;
   cursor: pointer;
   transition: transform 0.16s ease, background 0.16s ease;
+  z-index: 20;
+  pointer-events: auto;
 
   &:hover {
     transform: translateY(-1px);
@@ -1004,29 +1180,32 @@ const StageActionBtn = styled.button`
 
 const VideoTile = styled.div`
   position: relative;
-  border-radius: ${(p) => (p.$compact ? "20px" : "14px")};
+  border-radius: ${(p) => (p.$immersive ? "0" : "12px")};
   overflow: hidden;
   background: var(--call-panel);
   min-width: 0;
   min-height: 0;
   height: 100%;
   isolation: isolate;
-  border: 2px solid
-    ${(p) =>
-      p.$isLocal
-        ? "color-mix(in srgb, var(--call-primary) 44%, transparent)"
-        : "var(--call-border)"};
+  border: ${(p) =>
+    p.$isSpeaking && !p.$immersive
+      ? "3px solid var(--call-primary)"
+      : "none"};
   box-shadow: ${(p) =>
-    p.$active ? "0 0 0 1px rgba(255,255,255,0.12), 0 18px 36px rgba(0,0,0,0.24)" : "none"};
+    p.$isSpeaking && !p.$immersive
+      ? "0 0 0 1px rgba(255,255,255,0.12), 0 18px 36px rgba(0,0,0,0.24)"
+      : "0 4px 12px rgba(0,0,0,0.15)"};
   cursor: ${(p) => (p.$clickable ? "pointer" : "default")};
   transition: border-color 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease;
+  margin: ${(p) => (p.$immersive ? "0" : "4px")};
+  padding: 0;
 
   &:hover {
-    transform: ${(p) => (p.$clickable ? "translateY(-1px)" : "none")};
-    border-color: ${(p) =>
-      p.$active
-        ? "color-mix(in srgb, var(--call-primary) 78%, white 6%)"
-        : "color-mix(in srgb, var(--call-primary) 42%, transparent)"};
+    transform: ${(p) => (p.$immersive ? "none" : "translateY(-2px)")};
+    box-shadow: ${(p) =>
+      p.$isSpeaking && !p.$immersive
+        ? "0 0 0 1px rgba(255,255,255,0.12), 0 20px 40px rgba(0,0,0,0.3)"
+        : "0 6px 16px rgba(0,0,0,0.2)"};
   }
 
   video {
@@ -1034,7 +1213,7 @@ const VideoTile = styled.div`
     height: 100%;
     object-fit: ${(p) => {
       if (p.$screenShare) return "contain";
-      if (p.$immersive) return "contain";
+      if (p.$immersive) return p.$mobile ? "contain" : "cover";
       if (p.$compact) return "cover";
       return p.$mobile ? "contain" : "cover";
     }};
@@ -1049,7 +1228,7 @@ const VideoTile = styled.div`
 
 const TileLabel = styled.div`
   position: absolute;
-  bottom: 10px;
+  bottom: ${(p) => (p.$immersive ? "18px" : "10px")};
   left: 10px;
   background: rgba(0, 0, 0, 0.55);
   backdrop-filter: blur(6px);
@@ -1065,6 +1244,12 @@ const TileLabel = styled.div`
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+
+  @media (max-width: 768px) {
+    bottom: ${(p) => (p.$immersive ? "106px" : "10px")};
+    left: 12px;
+    max-width: calc(100% - 24px);
+  }
 `;
 
 const NoCamera = styled.div`
@@ -1381,10 +1566,10 @@ const SectionLabel = styled.div`
 
 const NotifBadge = styled.span`
   position: absolute;
-  top: -4px;
-  right: -4px;
-  width: 16px;
-  height: 16px;
+  top: 2px;
+  right: 2px;
+  width: 14px;
+  height: 14px;
   border-radius: 50%;
   background: var(--call-danger);
   color: white;
@@ -1420,7 +1605,7 @@ const ControlBar = styled.div`
   width: max-content;
   max-width: calc(100% - 24px);
   padding: 12px 24px;
-  background: rgba(24, 24, 27, 0.92);
+  background: rgba(24, 24, 27, 0.65);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 30px;
   box-shadow: 0 16px 44px rgba(0, 0, 0, 0.32);
@@ -1561,6 +1746,53 @@ const ControlDivider = styled.div`
   }
 `;
 
+const MenuDialog = styled.div`
+  position: absolute;
+  bottom: calc(100% + 12px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10090;
+  background: rgba(32, 32, 36, 0.95);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 180px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4);
+
+  @media (max-width: 768px) {
+    bottom: calc(100% + 8px);
+    padding: 10px;
+    min-width: 160px;
+  }
+`;
+
+const MenuItem = styled.button`
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: 10px;
+  border: none;
+  background: transparent;
+  color: white;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  white-space: nowrap;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.1);
+  }
+
+  svg {
+    flex-shrink: 0;
+  }
+`;
+
 const CenterBox = styled.div`
   flex: 1;
   display: flex;
@@ -1570,6 +1802,8 @@ const CenterBox = styled.div`
   gap: 14px;
   color: var(--call-muted);
   font-size: 15px;
+  position: relative;
+  z-index: 2;
 `;
 
 const Spin = styled(Loader)`
@@ -1599,8 +1833,8 @@ const RecBadge = styled.div`
 
 const FullscreenBtn = styled.button`
   position: absolute;
-  top: 8px;
-  right: 8px;
+  top: ${(p) => (p.$immersive ? "18px" : "8px")};
+  right: ${(p) => (p.$immersive ? "14px" : "8px")};
   background: rgba(0, 0, 0, 0.55);
   border: none;
   border-radius: 6px;
@@ -1609,13 +1843,16 @@ const FullscreenBtn = styled.button`
   cursor: pointer;
   opacity: ${(p) => (p.$visible ? 1 : 0.92)};
   transition: opacity 0.15s;
-  z-index: 5;
+  z-index: 20;
+  pointer-events: auto;
   &:hover {
     background: rgba(114, 137, 218, 0.7);
   }
 
   @media (max-width: 768px) {
     opacity: 1;
+    top: ${(p) => (p.$immersive ? "112px" : "8px")};
+    right: ${(p) => (p.$immersive ? "12px" : "8px")};
   }
 `;
 
@@ -1638,10 +1875,14 @@ const VideoEl = ({
   handRaised = false,
   isMobile = false,
   immersive = false,
+  isSpeaking = false,
+  onSurfaceTap,
+  livekitTrack = null,
 }) => {
   const { t } = useTranslation();
   const ref = useRef(null);
-  const hasRenderableVideo = Boolean(stream) && Boolean(hasVideo) && Boolean(isCamOn);
+  const hasRenderableVideo =
+    (Boolean(stream) || Boolean(livekitTrack)) && Boolean(hasVideo) && Boolean(isCamOn);
   const fallbackBg = getParticipantFallbackColor(label);
   const showMicBadge = !isMicOn;
   const showCamBadge = !isCamOn && !isScreenShare;
@@ -1662,9 +1903,7 @@ const VideoEl = ({
       return undefined;
     }
 
-    if (node.srcObject !== stream) {
-      node.srcObject = stream;
-    }
+      attachLivekitTrackOrStream(node, { track: livekitTrack, stream });
 
     let cancelled = false;
     let retryTimeoutId = null;
@@ -1701,17 +1940,18 @@ const VideoEl = ({
         node.oncanplay = null;
         if (!hasRenderableVideo) {
           node.pause?.();
-          node.srcObject = null;
+          detachLivekitTrackOrStream(node, { track: livekitTrack });
           node.removeAttribute?.("src");
           node.load?.();
         }
       }
     };
-  }, [hasRenderableVideo, stream]);
+  }, [hasRenderableVideo, livekitTrack, stream]);
 
   const handleTileClick = useCallback(() => {
+    onSurfaceTap?.();
     onSelect?.();
-  }, [onSelect]);
+  }, [onSelect, onSurfaceTap]);
 
   const handleToggleFullscreen = useCallback(
     (event) => {
@@ -1731,12 +1971,14 @@ const VideoEl = ({
       $immersive={immersive}
       $active={isActive}
       $clickable={Boolean(onSelect)}
+      $isSpeaking={isSpeaking}
       onClick={handleTileClick}
     >
       {canFullscreen ? (
         <FullscreenBtn
           type="button"
           $visible={isActive || compact || isMobile || isFullscreen}
+          $immersive={immersive}
           onClick={handleToggleFullscreen}
           aria-label={isFullscreen ? "Exit fullscreen tile" : "Fullscreen tile"}
         >
@@ -1784,7 +2026,7 @@ const VideoEl = ({
           <Avatar $compact={compact}>{label?.charAt(0)?.toUpperCase() || "?"}</Avatar>
         </NoCamera>
       )}
-      <TileLabel $compact={compact}>
+      <TileLabel $compact={compact} $immersive={immersive}>
         {label}
         {isLocal && t("groupCall.localSuffix")}
       </TileLabel>
@@ -1792,16 +2034,14 @@ const VideoEl = ({
   );
 };
 
-const HiddenAudioEl = ({ stream }) => {
+const HiddenAudioEl = ({ stream, livekitTrack = null }) => {
   const ref = useRef(null);
 
   useEffect(() => {
     const node = ref.current;
     if (!node || !stream) return undefined;
 
-    if (node.srcObject !== stream) {
-      node.srcObject = stream;
-    }
+    attachLivekitTrackOrStream(node, { track: livekitTrack, stream });
 
     let cancelled = false;
     let retryTimeoutId = null;
@@ -1832,10 +2072,10 @@ const HiddenAudioEl = ({ stream }) => {
       if (node) {
         node.onloadedmetadata = null;
         node.oncanplay = null;
-        node.srcObject = null;
+        detachLivekitTrackOrStream(node, { track: livekitTrack });
       }
     };
-  }, [stream]);
+  }, [livekitTrack, stream]);
 
   return <audio ref={ref} autoPlay playsInline />;
 };
@@ -1859,13 +2099,18 @@ const GroupVideoCall = ({
   const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
   const [showDrawer, setShowDrawer] = useState(false);
+  const [showMenuDialog, setShowMenuDialog] = useState(false);
+  const [isSpeakerOn, setIsSpeakerOn] = useState(true);
   const [selectedTileId, setSelectedTileId] = useState(null);
   const [fullscreenTileId, setFullscreenTileId] = useState(null);
   const [isControlBarCollapsed, setIsControlBarCollapsed] = useState(false);
+  const [isUIHidden, setIsUIHidden] = useState(false);
   const [lastSpeakerPeerId, setLastSpeakerPeerId] = useState(null);
   const [pipWindow, setPipWindow] = useState(null);
   const [pipContainer, setPipContainer] = useState(null);
   const pipCloseIntentRef = useRef(false);
+  const menuButtonRef = useRef(null);
+  const menuDialogRef = useRef(null);
   const whiteboardWasActiveRef = useRef(false);
   const meetStartToneRoomRef = useRef(null);
   const [viewport, setViewport] = useState(() => ({
@@ -1891,8 +2136,29 @@ const GroupVideoCall = ({
     playMeetStartedTone().catch(() => {});
   }, [isOpen, roomId]);
 
+  // Speaker toggle effect for mobile
+  useEffect(() => {
+    const isMobile = window.innerWidth <= 768;
+    if (!isMobile) return;
+
+    const audioElements = document.querySelectorAll('audio');
+    audioElements.forEach((audio) => {
+      if (audio.setSinkId) {
+        audio.setSinkId(isSpeakerOn ? 'default' : '');
+      }
+    });
+
+    const videoElements = document.querySelectorAll('video');
+    videoElements.forEach((video) => {
+      if (video.setSinkId) {
+        video.setSinkId(isSpeakerOn ? 'default' : '');
+      }
+    });
+  }, [isSpeakerOn]);
+
   const {
     localStream,
+    livekitLocalMedia,
     remoteStreams,
     remotePeerStates,
     screenStream,
@@ -3185,37 +3451,25 @@ const GroupVideoCall = ({
       nextPipWindow.document.body.style.background = "#0b0d0f";
       nextPipWindow.document.body.style.overflow = "hidden";
 
-      const stylesheetLoadTasks = [...document.styleSheets].map((styleSheet) => {
-        try {
-          const cssRules = [...styleSheet.cssRules]
-            .map((rule) => rule.cssText)
-            .join("");
-          const style = document.createElement("style");
-          style.textContent = cssRules;
-          nextPipWindow.document.head.appendChild(style);
-          return Promise.resolve();
-        } catch {
-          if (!styleSheet.href) {
-            return Promise.resolve();
+      const copyStylesToPiP = () => {
+        nextPipWindow.document.head.innerHTML = "";
+
+        document.querySelectorAll('style, link[rel="stylesheet"]').forEach((node) => {
+          if (node.tagName === "STYLE") {
+            const newStyle = nextPipWindow.document.createElement("style");
+            newStyle.textContent = node.textContent;
+            newStyle.setAttribute("data-origin", "styled-components-copy");
+            nextPipWindow.document.head.appendChild(newStyle);
+          } else if (node.href) {
+            const link = nextPipWindow.document.createElement("link");
+            link.rel = "stylesheet";
+            link.href = node.href;
+            nextPipWindow.document.head.appendChild(link);
           }
+        });
+      };
 
-          const link = document.createElement("link");
-          link.rel = "stylesheet";
-          link.type = styleSheet.type;
-          link.media = styleSheet.media;
-          link.href = styleSheet.href;
-
-          const loadTask = new Promise((resolve) => {
-            link.onload = () => resolve();
-            link.onerror = () => resolve();
-          });
-
-          nextPipWindow.document.head.appendChild(link);
-          return loadTask;
-        }
-      });
-
-      await Promise.all(stylesheetLoadTasks);
+      copyStylesToPiP();
 
       const mountNode = nextPipWindow.document.createElement("div");
       mountNode.style.width = "100%";
@@ -3229,6 +3483,11 @@ const GroupVideoCall = ({
       pipCloseIntentRef.current = false;
       setPipWindow(nextPipWindow);
       setPipContainer(mountNode);
+
+      setTimeout(() => {
+        copyStylesToPiP();
+      }, 50);
+
       onMinimize?.();
     } catch (error) {
       console.error("Document PiP ochilmadi:", error);
@@ -3261,8 +3520,23 @@ const GroupVideoCall = ({
     const entries = [];
     const seenAudioKeys = new Set();
 
-    const pushStream = (stream, enabled = true) => {
-      if (!enabled || !stream) return;
+    const pushStream = ({ stream, livekitTrack = null, enabled = true, id = null }) => {
+      if (!enabled || (!stream && !livekitTrack)) return;
+
+      if (livekitTrack?.attach) {
+        const audioKey =
+          id || livekitTrack.sid || livekitTrack.mediaStreamTrack?.id || "livekit-audio";
+        if (seenAudioKeys.has(audioKey)) return;
+        seenAudioKeys.add(audioKey);
+        entries.push({
+          id: audioKey,
+          stream: stream || null,
+          livekitTrack,
+        });
+        return;
+      }
+
+      if (!stream) return;
       const liveAudioTracks =
         stream
           .getAudioTracks?.()
@@ -3280,19 +3554,30 @@ const GroupVideoCall = ({
       entries.push({
         id: audioKey,
         stream: new MediaStream(liveAudioTracks),
+        livekitTrack: null,
       });
     };
 
-    remoteStreams.forEach(({ peerId, stream }) => {
+    remoteStreams.forEach(({ peerId, stream, audioTrack }) => {
       const peerState = remotePeerStates?.[peerId];
       const resolvedMediaState = resolvePeerMediaState(peerState);
       const isAudioOn =
         resolvedMediaState.hasAudio && resolvedMediaState.audioMuted !== true;
-      pushStream(stream, isAudioOn);
+      pushStream({
+        stream,
+        livekitTrack: audioTrack,
+        enabled: isAudioOn,
+        id: `${peerId}-audio`,
+      });
     });
 
-    remoteScreenStreams.forEach(({ stream }) => {
-      pushStream(stream, true);
+    remoteScreenStreams.forEach(({ peerId, stream, audioTrack }) => {
+      pushStream({
+        stream,
+        livekitTrack: audioTrack,
+        enabled: true,
+        id: `${peerId}-screen-audio`,
+      });
     });
 
     return entries;
@@ -3308,30 +3593,37 @@ const GroupVideoCall = ({
         kind: "video",
         peerId: "local",
         stream: localStream,
+        livekitTrack: livekitLocalMedia.cameraTrack,
         label: displayName,
         isLocal: true,
         isScreenShare: false,
-        hasVideo: Boolean(localStream) && isCamOn,
-        hasAudio: Boolean(localStream?.getAudioTracks?.().length),
+        hasVideo: (Boolean(localStream) || Boolean(livekitLocalMedia.cameraTrack)) && isCamOn,
+        hasAudio:
+          Boolean(localStream?.getAudioTracks?.().length) ||
+          Boolean(livekitLocalMedia.microphoneTrack),
         isMicOn,
-        canFullscreen: Boolean(localStream) && isCamOn,
+        canFullscreen:
+          (Boolean(localStream) || Boolean(livekitLocalMedia.cameraTrack)) && isCamOn,
         handRaised: false,
         isCamOn,
         muted: true,
       },
     ];
 
-    if (screenStream) {
+    if (screenStream || livekitLocalMedia.screenVideoTrack) {
       tiles.unshift({
         id: "local-screen",
         kind: "video",
         peerId: "local",
         stream: screenStream,
+        livekitTrack: livekitLocalMedia.screenVideoTrack,
         label: `${displayName} · Ekran`,
         isLocal: true,
         isScreenShare: true,
-        hasVideo: true,
-        hasAudio: Boolean(screenStream?.getAudioTracks?.().length),
+        hasVideo: Boolean(screenStream) || Boolean(livekitLocalMedia.screenVideoTrack),
+        hasAudio:
+          Boolean(screenStream?.getAudioTracks?.().length) ||
+          Boolean(livekitLocalMedia.screenAudioTrack),
         isMicOn,
         canFullscreen: true,
         handRaised: false,
@@ -3343,7 +3635,7 @@ const GroupVideoCall = ({
     const remoteVideoCandidates = [];
     const renderedRemotePeerIds = new Set();
 
-    remoteStreams.forEach(({ peerId, stream, displayName: remoteName }) => {
+    remoteStreams.forEach(({ peerId, stream, displayName: remoteName, videoTrack }) => {
       const peerState = remotePeerStates[peerId];
       const connectionState = peerState?.connectionState || "connecting";
       const resolvedRemoteName = peerState?.displayName || remoteName || peerId;
@@ -3351,7 +3643,7 @@ const GroupVideoCall = ({
       const shouldShowRemoteCamState =
         resolvedMediaState.hasVideo && resolvedMediaState.videoMuted !== true;
       const hasRenderableRemoteVideo =
-        Boolean(stream) &&
+        (Boolean(stream) || Boolean(videoTrack)) &&
         resolvedMediaState.actualHasVideo &&
         resolvedMediaState.actualVideoMuted !== true &&
         shouldShowRemoteCamState;
@@ -3364,7 +3656,8 @@ const GroupVideoCall = ({
         id: peerId,
         kind: "video",
         peerId,
-        stream: hasRenderableRemoteVideo ? stream : null,
+        stream,
+        livekitTrack: hasRenderableRemoteVideo ? videoTrack : null,
         label: resolvedRemoteName,
         isLocal: false,
         isScreenShare: false,
@@ -3414,6 +3707,7 @@ const GroupVideoCall = ({
         kind: "video",
         peerId,
         stream: null,
+        livekitTrack: null,
         label: remoteName,
         isLocal: false,
         isScreenShare: false,
@@ -3454,7 +3748,8 @@ const GroupVideoCall = ({
 
     tiles.push(...bestRemoteTileByIdentity.values());
 
-    remoteScreenStreams.forEach(({ peerId, stream, displayName: remoteName }) => {
+    remoteScreenStreams.forEach(
+      ({ peerId, stream, displayName: remoteName, videoTrack, audioTrack }) => {
       const peerState = remotePeerStates[peerId];
       const resolvedRemoteName = peerState?.displayName || remoteName || peerId;
       tiles.unshift({
@@ -3462,13 +3757,14 @@ const GroupVideoCall = ({
         kind: "video",
         peerId,
         stream,
+        livekitTrack: videoTrack,
         label: `${resolvedRemoteName} · Ekran`,
         isLocal: false,
         isScreenShare: true,
-        hasVideo: Boolean(stream),
-        hasAudio: Boolean(stream?.getAudioTracks?.().length),
+        hasVideo: Boolean(stream) || Boolean(videoTrack),
+        hasAudio: Boolean(stream?.getAudioTracks?.().length) || Boolean(audioTrack),
         isMicOn: true,
-        canFullscreen: Boolean(stream),
+        canFullscreen: Boolean(stream) || Boolean(videoTrack),
         handRaised: false,
         isCamOn: true,
         muted: false,
@@ -3480,6 +3776,7 @@ const GroupVideoCall = ({
     displayName,
     isCamOn,
     localStream,
+    livekitLocalMedia,
     raisedHands,
     remotePeerStates,
     remoteScreenStreams,
@@ -3759,11 +4056,46 @@ const GroupVideoCall = ({
   const isWhiteboardFullscreen =
     Boolean(fullscreenTileId) && activeStageTile?.kind === "whiteboard";
 
+  const handleScreenClick = useCallback(() => {
+    setIsUIHidden((current) => !current);
+  }, []);
+
   useEffect(() => {
     if (!isWhiteboardFullscreen) {
       setIsControlBarCollapsed(false);
     }
   }, [isWhiteboardFullscreen]);
+
+  useEffect(() => {
+    if (!showMenuDialog) {
+      return undefined;
+    }
+
+    const handlePointerDown = (event) => {
+      const target = event.target;
+      if (
+        menuDialogRef.current?.contains(target) ||
+        menuButtonRef.current?.contains(target)
+      ) {
+        return;
+      }
+      setShowMenuDialog(false);
+    };
+
+    const handleEscape = (event) => {
+      if (event.key === "Escape") {
+        setShowMenuDialog(false);
+      }
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleEscape);
+
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [showMenuDialog]);
 
   const mobileCompactTiles = useMemo(() => {
     if (!isMobileViewport || !hasStageLayout) return [];
@@ -3864,6 +4196,7 @@ const GroupVideoCall = ({
     <VideoEl
       key={tile.id}
       stream={tile.stream}
+      livekitTrack={tile.livekitTrack}
       muted={tile.muted}
       isLocal={tile.isLocal}
       label={tile.label}
@@ -3875,11 +4208,13 @@ const GroupVideoCall = ({
       isFullscreen={fullscreenTileId === tile.id}
       onToggleFullscreen={() => handleToggleTileFullscreen(tile.id)}
       onSelect={selectable ? () => handleStageSelect(tile.id) : undefined}
+      onSurfaceTap={activeStageTileId === tile.id ? handleScreenClick : undefined}
       isActive={activeStageTileId === tile.id}
       compact={compact}
       handRaised={tile.handRaised}
       isMobile={isMobileViewport}
       immersive={Boolean(fullscreenTileId && activeStageTileId === tile.id && !tile.isScreenShare)}
+      isSpeaking={tile.peerId === lastSpeakerPeerId && !fullscreenTileId}
     />
   );
 
@@ -3966,10 +4301,81 @@ const GroupVideoCall = ({
           showFullscreenControl,
         });
 
+  const renderFloatingParticipantTile = useCallback((tile) => {
+    if (!tile || tile.kind !== "video") return null;
+
+    const hasRenderableVideo = tile.hasVideo && (tile.stream || tile.livekitTrack);
+    const participantLabel = tile.label || t("groupCall.roomDefault");
+    const fallbackBg = getParticipantFallbackColor(participantLabel);
+    const avatarLetter = participantLabel?.charAt(0)?.toUpperCase() || "?";
+    const isMuted = tile.isCamOn === false || tile.muted === true || !tile.hasVideo;
+    const isScreenShare = tile.isScreenShare;
+
+    return (
+      <FloatingParticipantTile
+        key={tile.id}
+        onClick={() => handleStageSelect(tile.id)}
+        title={participantLabel}
+      >
+        {hasRenderableVideo && !isScreenShare ? (
+          <video
+            autoPlay
+            playsInline
+            muted={tile.muted}
+            ref={(node) => {
+              if (!node) return;
+              attachLivekitTrackOrStream(node, {
+                track: tile.livekitTrack,
+                stream: tile.stream,
+              });
+              const playPromise = node.play?.();
+              if (playPromise?.catch) {
+                playPromise.catch(() => {});
+              }
+            }}
+            style={{
+              transform: tile.isLocal && !tile.isScreenShare ? "scaleX(-1)" : "none",
+            }}
+          />
+        ) : (
+          <FloatingParticipantAvatar $bg={fallbackBg}>
+            {avatarLetter}
+          </FloatingParticipantAvatar>
+        )}
+        <FloatingParticipantLabel>
+          {isMuted ? <MicOff size={10} /> : null}
+          {participantLabel}
+        </FloatingParticipantLabel>
+      </FloatingParticipantTile>
+    );
+  }, [t, handleStageSelect]);
+
+  const floatingParticipantTiles = useMemo(() => {
+    if (!hasStageLayout || !activeStageTile) return [];
+
+    // Get video tiles only (not screen shares or whiteboard), max 2
+    const videoTiles = sideTiles.filter(
+      (tile) => tile.kind === "video" && !tile.isScreenShare
+    );
+
+    // If active stage is screen share or whiteboard, show other participants as floating
+    const isPresenterMode = activeStageTile.isScreenShare || activeStageTile.kind === "whiteboard";
+    if (!isPresenterMode) return [];
+
+    return videoTiles.slice(0, 2);
+  }, [hasStageLayout, activeStageTile, sideTiles]);
+
+  const isPresenterMode = hasStageLayout && activeStageTile &&
+    (activeStageTile.isScreenShare || activeStageTile.kind === "whiteboard");
+
   const remoteAudioLayer = (
     <AudioLayer aria-hidden="true">
       {remoteAudioEntries.map((entry) => (
-        <HiddenAudioEl key={entry.id} stream={entry.stream} />
+        <HiddenAudioEl
+          key={entry.id}
+          stream={entry.stream}
+          livekitTrack={entry.livekitTrack}
+        />
       ))}
     </AudioLayer>
   );
@@ -3997,26 +4403,6 @@ const GroupVideoCall = ({
 
   const topBarContent = (
     <TopBar>
-      <CallInfo>
-        <CallTitle>
-          {roomTitle || chatTitle || "Meet"}
-          {roomIsPrivate && (
-            <span
-              style={{
-                fontSize: 11,
-                color: "#faa61a",
-                marginLeft: 8,
-                display: "flex",
-                alignItems: "center",
-                gap: "4px",
-              }}
-            >
-              <ShieldAlert size={12} /> {t("groupCall.privateBadge")}
-            </span>
-          )}
-        </CallTitle>
-        <CallSub>{roomId}</CallSub>
-      </CallInfo>
       <TopActions>
         {(isRecording || isWhiteboardRecording || remoteIsRecording) && (
           <RecBadge>
@@ -4035,6 +4421,24 @@ const GroupVideoCall = ({
         >
           {React.createElement(qualityIcon, { size: 16 })}
         </TinyBtn>
+        {isMobileViewport && (
+          <TinyBtn
+            onClick={() => setIsSpeakerOn((p) => !p)}
+            aria-label={isSpeakerOn ? "Use earpiece" : "Use speaker"}
+            title={isSpeakerOn ? "Use earpiece" : "Use speaker"}
+          >
+            {isSpeakerOn ? <Volume2 size={16} /> : <Smartphone size={16} />}
+          </TinyBtn>
+        )}
+        {isMobileViewport && canSwitchCamera && (
+          <TinyBtn
+            onClick={switchCamera}
+            aria-label={t("privateCall.switchCamera", "Switch camera")}
+            title={t("privateCall.switchCamera", "Switch camera")}
+          >
+            <RefreshCcw size={16} />
+          </TinyBtn>
+        )}
         {(onMinimize || isMinimized) && (
           <TinyBtn
             onClick={handleMinimizeToggle}
@@ -4044,34 +4448,6 @@ const GroupVideoCall = ({
             {isMinimized ? <Maximize size={16} /> : <Minimize2 size={16} />}
           </TinyBtn>
         )}
-        <TinyBtn
-          onClick={handleCopy}
-          aria-label={copied ? t("groupCall.copied") : t("groupCall.copyLink")}
-          title={copied ? t("groupCall.copied") : t("groupCall.copyLink")}
-        >
-          {copied ? <Check size={16} /> : <Copy size={16} />}
-        </TinyBtn>
-        {(isCreator || isWhiteboardActive) && !isMinimized ? (
-          <TinyBtn
-            onClick={handleWhiteboardTopAction}
-            aria-label={
-              isCreator
-                ? isWhiteboardActive
-                  ? t("groupCall.whiteboard.hide")
-                  : t("groupCall.whiteboard.show")
-                : t("groupCall.whiteboard.open")
-            }
-            title={
-              isCreator
-                ? isWhiteboardActive
-                  ? t("groupCall.whiteboard.hide")
-                  : t("groupCall.whiteboard.show")
-                : t("groupCall.whiteboard.open")
-            }
-          >
-            <PenSquare size={16} />
-          </TinyBtn>
-        ) : null}
         {!isMinimized && (
           <TinyBtn
             onClick={() => setShowDrawer((p) => !p)}
@@ -4118,7 +4494,8 @@ const GroupVideoCall = ({
       return null;
     }
 
-    const hasRenderableVideo = tile.kind === "video" && tile.hasVideo && tile.stream;
+    const hasRenderableVideo =
+      tile.kind === "video" && tile.hasVideo && (tile.stream || tile.livekitTrack);
     const participantLabel = tile.label || t("groupCall.roomDefault");
     const fallbackBg = getParticipantFallbackColor(participantLabel);
     const avatarLetter = participantLabel?.charAt(0)?.toUpperCase() || "?";
@@ -4133,10 +4510,13 @@ const GroupVideoCall = ({
             playsInline
             muted
             ref={(node) => {
-              if (!node || node.srcObject === tile.stream) {
+              if (!node) {
                 return;
               }
-              node.srcObject = tile.stream;
+              attachLivekitTrackOrStream(node, {
+                track: tile.livekitTrack,
+                stream: tile.stream,
+              });
               const playPromise = node.play?.();
               if (playPromise?.catch) {
                 playPromise.catch(() => {});
@@ -4241,8 +4621,8 @@ const GroupVideoCall = ({
           {minimizedPreviewNode}
           <MiniOverlay>
             <div>
-            <MiniTitle>{minimizedPreviewLabel}</MiniTitle>
-            <MiniMeta>
+              <MiniTitle>{minimizedPreviewLabel}</MiniTitle>
+              <MiniMeta>
                 {t("groupCall.participants", { count: participantsCount })} •{" "}
                 {roomIsPrivate ? t("groupCall.privateRoom") : t("groupCall.publicRoom")}
               </MiniMeta>
@@ -4256,11 +4636,16 @@ const GroupVideoCall = ({
         </MinimizedBody>
       ) : (
       <>
-      {topBarContent}
       <Body
         $immersive={Boolean(fullscreenTileId)}
         $whiteboardFullscreen={isWhiteboardFullscreen}
+        $uiHidden={isUIHidden}
       >
+        {/* TopBar floats on top of content */}
+        {!isUIHidden && !isWhiteboardFullscreen && topBarContent}
+
+        {/* Invisible overlay to toggle UI when clicking empty space */}
+        <ScreenClickOverlay onClick={handleScreenClick} />
         {error ? (
           <CenterBox>
             <AlertCircle size={38} color="#f04747" />
@@ -4297,9 +4682,12 @@ const GroupVideoCall = ({
             $whiteboardFullscreen={isWhiteboardFullscreen}
             $landscape={isLandscapeViewport}
             $mobileCompactCount={mobileCompactTiles.length}
+            $presenterMode={isPresenterMode}
           >
+            {/* Mobile top rail - hide in presenter mode (use floating participants instead) */}
             {isMobileViewport &&
             !isWhiteboardFullscreen &&
+            !isPresenterMode &&
             !(activeStageTile?.kind !== "whiteboard" && fullscreenTileId) &&
             mobileCompactTiles.length > 0 ? (
               <MobileTopRail>
@@ -4327,14 +4715,23 @@ const GroupVideoCall = ({
               {!isWhiteboardFullscreen ? (
               <StageActions>
                 {selectedTileId && !fullscreenTileId ? (
-                  <StageActionBtn type="button" onClick={handleResetStage}>
+                  <StageActionBtn
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleResetStage();
+                    }}
+                  >
                     <ArrowLeft size={18} />
                   </StageActionBtn>
                 ) : null}
                 {activeStageTile.canFullscreen ? (
                   <StageActionBtn
                     type="button"
-                    onClick={() => handleToggleTileFullscreen(activeStageTile.id)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleToggleTileFullscreen(activeStageTile.id);
+                    }}
                   >
                     {fullscreenTileId === activeStageTile.id ? (
                       <Minimize2 size={18} />
@@ -4345,10 +4742,19 @@ const GroupVideoCall = ({
                 ) : null}
               </StageActions>
               ) : null}
+
+              {/* Floating Participants (Google Meet style) */}
+              {isPresenterMode && floatingParticipantTiles.length > 0 && (
+                <FloatingParticipantsContainer>
+                  {floatingParticipantTiles.map((tile) => renderFloatingParticipantTile(tile))}
+                </FloatingParticipantsContainer>
+              )}
             </StageMain>
 
+            {/* Hide StageRail in presenter mode - show floating participants instead */}
             {!isWhiteboardFullscreen &&
             sideTiles.length > 0 &&
+            !isPresenterMode &&
             (!isMobileViewport || (activeStageTile?.kind !== "whiteboard" && fullscreenTileId)) ? (
               <StageRail
                 $immersive={Boolean(activeStageTile?.kind !== "whiteboard" && fullscreenTileId)}
@@ -4582,9 +4988,9 @@ const GroupVideoCall = ({
         )}
       </Body>
       </>
-        )}
+      )}
 
-      {!isMinimized && (
+      {!isMinimized && !isUIHidden && (
       <ControlBarDock>
         {isWhiteboardFullscreen ? (
           <ControlBarToggle
@@ -4632,16 +5038,6 @@ const GroupVideoCall = ({
             {isScreenSharing ? <MonitorOff size={21} /> : <Monitor size={21} />}
           </CtrlBtn>
         )}
-        {isMobileViewport && canSwitchCamera ? (
-          <CtrlBtn
-            $state="neutral"
-            onClick={switchCamera}
-            aria-label={t("privateCall.switchCamera", "Switch camera")}
-            title={t("privateCall.switchCamera", "Switch camera")}
-          >
-            <RefreshCcw size={21} />
-          </CtrlBtn>
-        ) : null}
         <CtrlBtn
           $state={isHandRaised ? "accent" : "neutral"}
           onClick={toggleHandRaise}
@@ -4656,6 +5052,38 @@ const GroupVideoCall = ({
             <Circle size={21} fill={isRecording ? "#f04747" : "none"} />
           </CtrlBtn>
         )}
+        <ControlDivider />
+        <CtrlBtn
+          ref={menuButtonRef}
+          $state="neutral"
+          onClick={(event) => {
+            event.stopPropagation();
+            setShowMenuDialog((p) => !p);
+          }}
+          style={{ position: "relative" }}
+          aria-label="More options"
+          title="More options"
+        >
+          <MoreVertical size={21} />
+          {showMenuDialog && (
+              <MenuDialog ref={menuDialogRef} onClick={(e) => e.stopPropagation()}>
+                <MenuItem onClick={() => { handleCopy(); setShowMenuDialog(false); }}>
+                  {copied ? <Check size={18} /> : <Copy size={18} />}
+                  {copied ? "Copied!" : "Copy link"}
+                </MenuItem>
+                {(isCreator || isWhiteboardActive) && (
+                  <MenuItem onClick={() => { handleWhiteboardTopAction(); setShowMenuDialog(false); }}>
+                    <PenSquare size={18} />
+                    {isCreator
+                      ? isWhiteboardActive
+                        ? "Hide whiteboard"
+                        : "Show whiteboard"
+                      : "Open whiteboard"}
+                  </MenuItem>
+                )}
+              </MenuDialog>
+          )}
+        </CtrlBtn>
         <ControlDivider />
         <CtrlBtn $danger onClick={handleLeave}>
           <PhoneOff size={21} />

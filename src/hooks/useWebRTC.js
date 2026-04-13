@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { io } from "socket.io-client";
 import { Room, RoomEvent } from "livekit-client";
 import axiosInstance from "../api/axiosInstance";
-import { createLivekitToken } from "../api/livekitApi";
+import { createLivekitToken, fetchLivekitConfig } from "../api/livekitApi";
 import useAuthStore from "../store/authStore";
 import { API_BASE_URL, LIVEKIT_URL } from "../config/env";
 import { isValidMeetRoomId } from "../utils/meetStore";
@@ -493,6 +493,7 @@ const normalizeWhiteboardTab = (tab) => {
         tab.viewportVisibleWidthRatio,
       ),
       viewportBaseWidth: normalizeWhiteboardViewportBaseWidth(tab.viewportBaseWidth),
+      viewportBaseHeight: normalizeWhiteboardViewportBaseHeight(tab.viewportBaseHeight),
       selectedPagesMode: normalizeWhiteboardSelectedPagesMode(
         tab.selectedPagesMode,
         tab.selectedPages,
@@ -978,6 +979,7 @@ const addWhiteboardPdfTabToState = (state, nextTab) => {
     viewportVisibleHeightRatio: 0,
     viewportVisibleWidthRatio: 0,
     viewportBaseWidth: WHITEBOARD_MIN_VIEWPORT_BASE_WIDTH,
+    viewportBaseHeight: WHITEBOARD_MIN_VIEWPORT_BASE_HEIGHT,
     selectedPagesMode:
       nextTab.selectedPagesMode ||
       normalizeWhiteboardSelectedPagesMode("custom", nextTab.selectedPages),
@@ -1056,6 +1058,7 @@ const setWhiteboardPdfViewportInState = (
     viewportVisibleHeightRatio,
     viewportVisibleWidthRatio,
     viewportBaseWidth,
+    viewportBaseHeight,
   },
 ) => {
   const targetTabId = resolveWhiteboardTargetTabId(state, tabId);
@@ -1098,6 +1101,10 @@ const setWhiteboardPdfViewportInState = (
               typeof viewportBaseWidth === "undefined"
                 ? normalizeWhiteboardViewportBaseWidth(tab.viewportBaseWidth)
                 : normalizeWhiteboardViewportBaseWidth(viewportBaseWidth),
+            viewportBaseHeight:
+              typeof viewportBaseHeight === "undefined"
+                ? normalizeWhiteboardViewportBaseHeight(tab.viewportBaseHeight)
+                : normalizeWhiteboardViewportBaseHeight(viewportBaseHeight),
           },
     ),
     activeTabId: targetTabId,
@@ -1226,9 +1233,16 @@ export function useWebRTC({
   const iceConfigRef = useRef(buildFallbackIceConfig());
   const livekitRoomRef = useRef(null);
   const livekitConnectPromiseRef = useRef(null);
-  const shouldUseLiveKit = Boolean(LIVEKIT_URL);
+  const [resolvedLivekitUrl, setResolvedLivekitUrl] = useState(() => LIVEKIT_URL || "");
+  const shouldUseLiveKit = Boolean(resolvedLivekitUrl);
 
   const [localStream, setLocalStream] = useState(null);
+  const [livekitLocalMedia, setLivekitLocalMedia] = useState({
+    cameraTrack: null,
+    microphoneTrack: null,
+    screenVideoTrack: null,
+    screenAudioTrack: null,
+  });
   const [remoteStreams, setRemoteStreams] = useState([]);
   const [remotePeerStates, setRemotePeerStates] = useState({});
   const [screenStream, setScreenStream] = useState(null);
@@ -1286,12 +1300,42 @@ export function useWebRTC({
   const isMicOnRef = useRef(initialMicOn);
   const isCamOnRef = useRef(initialCamOn);
   const removedPeerIdsRef = useRef(new Set());
+  const livekitRemoteMediaRef = useRef({});
   const currentUserId = String(currentUser?._id || currentUser?.id || "");
   const whiteboardPdfTabLimit = getTierLimit(APP_LIMITS.whiteboardPdfTabs, currentUser);
   const whiteboardPdfLibraryBytesLimit = getTierLimit(
     APP_LIMITS.whiteboardPdfLibraryBytes,
     currentUser,
   );
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (LIVEKIT_URL) {
+      setResolvedLivekitUrl(LIVEKIT_URL);
+      return undefined;
+    }
+
+    fetchLivekitConfig()
+      .then((config) => {
+        if (cancelled) {
+          return;
+        }
+        const nextUrl = String(config?.url || "").trim();
+        if (nextUrl) {
+          setResolvedLivekitUrl(nextUrl);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setResolvedLivekitUrl("");
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const applyLocalMediaStream = useCallback((tracks) => {
     const nextTracks = Array.isArray(tracks) ? tracks.filter(Boolean) : [];
@@ -1581,11 +1625,123 @@ export function useWebRTC({
     return normalizedSource === "screen_share" || normalizedSource === "screen_share_audio";
   }, []);
 
+  const getLivekitPublicationTrack = useCallback((publication) => {
+    if (!publication) {
+      return null;
+    }
+
+    return publication.track || publication.videoTrack || publication.audioTrack || null;
+  }, []);
+
+  const getLivekitPublicationMediaStreamTrack = useCallback(
+    (publication) => getLivekitPublicationTrack(publication)?.mediaStreamTrack || null,
+    [getLivekitPublicationTrack],
+  );
+
+  const ensureLivekitParticipantSubscriptions = useCallback((participant) => {
+    if (!participant?.trackPublications) {
+      return;
+    }
+
+    participant.trackPublications.forEach((publication) => {
+      if (typeof publication?.setSubscribed === "function") {
+        publication.setSubscribed(true);
+      }
+    });
+  }, []);
+
+  const setLivekitRemoteTrack = useCallback((participant, publication, track) => {
+    const peerId = String(participant?.identity || "").trim();
+    if (!peerId || !track) {
+      return;
+    }
+
+    const source = String(publication?.source || "").toLowerCase();
+    const kind = track?.kind || publication?.kind || track?.mediaStreamTrack?.kind || null;
+    const currentEntry = livekitRemoteMediaRef.current[peerId] || {};
+    const nextEntry = {
+      ...currentEntry,
+      displayName:
+        String(participant?.name || "").trim() ||
+        currentEntry.displayName ||
+        knownPeerNamesRef.current[peerId] ||
+        peerId,
+    };
+
+    if (source === "screen_share" || source === "screen_share_audio") {
+      if (kind === "video") {
+        nextEntry.screenVideoTrack = track;
+      }
+      if (kind === "audio") {
+        nextEntry.screenAudioTrack = track;
+      }
+    } else {
+      if (kind === "video") {
+        nextEntry.videoTrack = track;
+      }
+      if (kind === "audio") {
+        nextEntry.audioTrack = track;
+      }
+    }
+
+    livekitRemoteMediaRef.current[peerId] = nextEntry;
+  }, []);
+
+  const clearLivekitRemoteTrack = useCallback((participant, publication, track) => {
+    const peerId = String(participant?.identity || "").trim();
+    if (!peerId) {
+      return;
+    }
+
+    const currentEntry = livekitRemoteMediaRef.current[peerId];
+    if (!currentEntry) {
+      return;
+    }
+
+    const source = String(publication?.source || "").toLowerCase();
+    const kind = track?.kind || publication?.kind || track?.mediaStreamTrack?.kind || null;
+    const nextEntry = { ...currentEntry };
+
+    if (source === "screen_share" || source === "screen_share_audio") {
+      if (kind === "video") {
+        nextEntry.screenVideoTrack = null;
+      }
+      if (kind === "audio") {
+        nextEntry.screenAudioTrack = null;
+      }
+    } else {
+      if (kind === "video") {
+        nextEntry.videoTrack = null;
+      }
+      if (kind === "audio") {
+        nextEntry.audioTrack = null;
+      }
+    }
+
+    if (
+      !nextEntry.videoTrack &&
+      !nextEntry.audioTrack &&
+      !nextEntry.screenVideoTrack &&
+      !nextEntry.screenAudioTrack
+    ) {
+      delete livekitRemoteMediaRef.current[peerId];
+      return;
+    }
+
+    livekitRemoteMediaRef.current[peerId] = nextEntry;
+  }, []);
+
   const syncLivekitLocalState = useCallback(
     (room) => {
       if (!room?.localParticipant) {
         applyLocalMediaStream([]);
         applyScreenMediaStream([]);
+        setLivekitLocalMedia({
+          cameraTrack: null,
+          microphoneTrack: null,
+          screenVideoTrack: null,
+          screenAudioTrack: null,
+        });
         setIsMicOn(false);
         setIsCamOn(false);
         return;
@@ -1595,33 +1751,64 @@ export function useWebRTC({
       const screenTracks = [];
       let hasLiveAudio = false;
       let hasLiveVideo = false;
+      let cameraTrack = null;
+      let microphoneTrack = null;
+      let screenVideoTrack = null;
+      let screenAudioTrack = null;
 
       room.localParticipant.trackPublications.forEach((publication) => {
-        const mediaStreamTrack = publication?.track?.mediaStreamTrack;
-        if (!mediaStreamTrack) {
-          return;
-        }
+        const track = getLivekitPublicationTrack(publication);
+        const mediaStreamTrack = getLivekitPublicationMediaStreamTrack(publication);
+        const trackKind = mediaStreamTrack?.kind || publication?.kind || track?.kind || null;
 
         if (isLivekitScreenSource(publication.source)) {
-          screenTracks.push(mediaStreamTrack);
+          if (mediaStreamTrack) {
+            screenTracks.push(mediaStreamTrack);
+          }
+          if (trackKind === "video" && !screenVideoTrack) {
+            screenVideoTrack = track;
+          }
+          if (trackKind === "audio" && !screenAudioTrack) {
+            screenAudioTrack = track;
+          }
           return;
         }
 
-        mainTracks.push(mediaStreamTrack);
-        if (mediaStreamTrack.kind === "audio" && publication.isMuted !== true) {
-          hasLiveAudio = true;
+        if (mediaStreamTrack) {
+          mainTracks.push(mediaStreamTrack);
         }
-        if (mediaStreamTrack.kind === "video" && publication.isMuted !== true) {
+        if (trackKind === "audio" && publication.isMuted !== true) {
+          hasLiveAudio = true;
+          if (!microphoneTrack) {
+            microphoneTrack = track;
+          }
+        }
+        if (trackKind === "video" && publication.isMuted !== true) {
           hasLiveVideo = true;
+          if (!cameraTrack) {
+            cameraTrack = track;
+          }
         }
       });
 
       applyLocalMediaStream(mainTracks);
       applyScreenMediaStream(screenTracks);
+      setLivekitLocalMedia({
+        cameraTrack,
+        microphoneTrack,
+        screenVideoTrack,
+        screenAudioTrack,
+      });
       setIsMicOn(hasLiveAudio);
       setIsCamOn(hasLiveVideo);
     },
-    [applyLocalMediaStream, applyScreenMediaStream, isLivekitScreenSource],
+    [
+      applyLocalMediaStream,
+      applyScreenMediaStream,
+      getLivekitPublicationTrack,
+      getLivekitPublicationMediaStreamTrack,
+      isLivekitScreenSource,
+    ],
   );
 
   const syncLivekitRemoteParticipants = useCallback(
@@ -1656,41 +1843,119 @@ export function useWebRTC({
         let hasVideo = false;
         let audioMuted = true;
         let videoMuted = true;
+        let videoTrack = null;
+        let audioTrack = null;
+        let screenVideoTrack = null;
+        let screenAudioTrack = null;
+        const trackedMedia = livekitRemoteMediaRef.current[peerId] || {};
 
         participant.trackPublications.forEach((publication) => {
-          const mediaStreamTrack = publication?.track?.mediaStreamTrack;
+          const track = getLivekitPublicationTrack(publication);
+          const mediaStreamTrack = getLivekitPublicationMediaStreamTrack(publication);
           const isScreenTrack = isLivekitScreenSource(publication?.source);
+          const trackKind = mediaStreamTrack?.kind || publication?.kind || track?.kind || null;
 
           if (mediaStreamTrack) {
             if (isScreenTrack) {
               screenTracks.push(mediaStreamTrack);
+              if (trackKind === "video" && !screenVideoTrack) {
+                screenVideoTrack = track;
+              }
+              if (trackKind === "audio" && !screenAudioTrack) {
+                screenAudioTrack = track;
+              }
             } else {
               mainTracks.push(mediaStreamTrack);
+              if (trackKind === "video" && !videoTrack) {
+                videoTrack = track;
+              }
+              if (trackKind === "audio" && !audioTrack) {
+                audioTrack = track;
+              }
+            }
+          } else if (!isScreenTrack) {
+            if (trackKind === "video" && !videoTrack) {
+              videoTrack = track;
+            }
+            if (trackKind === "audio" && !audioTrack) {
+              audioTrack = track;
+            }
+          } else {
+            if (trackKind === "video" && !screenVideoTrack) {
+              screenVideoTrack = track;
+            }
+            if (trackKind === "audio" && !screenAudioTrack) {
+              screenAudioTrack = track;
             }
           }
 
           if (!isScreenTrack && publication?.kind === "audio") {
-            hasAudio = Boolean(mediaStreamTrack);
+            hasAudio = Boolean(track);
             audioMuted = publication?.isMuted !== false;
           }
 
           if (!isScreenTrack && publication?.kind === "video") {
-            hasVideo = Boolean(mediaStreamTrack);
+            hasVideo = Boolean(track);
             videoMuted = publication?.isMuted !== false;
           }
         });
+
+        videoTrack = videoTrack || trackedMedia.videoTrack || null;
+        audioTrack = audioTrack || trackedMedia.audioTrack || null;
+        screenVideoTrack = screenVideoTrack || trackedMedia.screenVideoTrack || null;
+        screenAudioTrack = screenAudioTrack || trackedMedia.screenAudioTrack || null;
+
+        if (videoTrack && !hasVideo) {
+          hasVideo = true;
+          videoMuted = Boolean(videoTrack?.isMuted);
+        }
+
+        if (audioTrack && !hasAudio) {
+          hasAudio = true;
+          audioMuted = Boolean(audioTrack?.isMuted);
+        }
+
+        if (videoTrack?.mediaStreamTrack && mainTracks.length === 0) {
+          mainTracks.push(videoTrack.mediaStreamTrack);
+        }
+
+        if (audioTrack?.mediaStreamTrack) {
+          const alreadyHasAudio = mainTracks.some(
+            (existingTrack) => existingTrack.id === audioTrack.mediaStreamTrack.id,
+          );
+          if (!alreadyHasAudio) {
+            mainTracks.push(audioTrack.mediaStreamTrack);
+          }
+        }
+
+        if (screenVideoTrack?.mediaStreamTrack && screenTracks.length === 0) {
+          screenTracks.push(screenVideoTrack.mediaStreamTrack);
+        }
+
+        if (screenAudioTrack?.mediaStreamTrack) {
+          const alreadyHasScreenAudio = screenTracks.some(
+            (existingTrack) => existingTrack.id === screenAudioTrack.mediaStreamTrack.id,
+          );
+          if (!alreadyHasScreenAudio) {
+            screenTracks.push(screenAudioTrack.mediaStreamTrack);
+          }
+        }
 
         nextRemoteStreams.push({
           peerId,
           stream: mainTracks.length > 0 ? new MediaStream(mainTracks) : null,
           displayName: participantName,
+          videoTrack,
+          audioTrack,
         });
 
-        if (screenTracks.length > 0) {
+        if (screenTracks.length > 0 || screenVideoTrack || screenAudioTrack) {
           nextRemoteScreenStreams.push({
             peerId,
-            stream: new MediaStream(screenTracks),
+            stream: screenTracks.length > 0 ? new MediaStream(screenTracks) : null,
             displayName: participantName,
+            videoTrack: screenVideoTrack,
+            audioTrack: screenAudioTrack,
           });
         }
 
@@ -1713,7 +1978,7 @@ export function useWebRTC({
       setRemoteScreenStreams(nextRemoteScreenStreams);
       setRemotePeerStates(nextPeerStates);
     },
-    [isLivekitScreenSource],
+    [getLivekitPublicationMediaStreamTrack, isLivekitScreenSource],
   );
 
   const disconnectLivekitRoom = useCallback(() => {
@@ -1721,14 +1986,21 @@ export function useWebRTC({
     livekitConnectPromiseRef.current = null;
     livekitRoomRef.current = null;
 
-    if (room) {
-      try {
-        room.disconnect();
-      } catch {}
-    }
+      if (room) {
+        try {
+          room.disconnect();
+        } catch {}
+      }
 
+    livekitRemoteMediaRef.current = {};
     applyLocalMediaStream([]);
     applyScreenMediaStream([]);
+    setLivekitLocalMedia({
+      cameraTrack: null,
+      microphoneTrack: null,
+      screenVideoTrack: null,
+      screenAudioTrack: null,
+    });
     setRemoteStreams([]);
     setRemoteScreenStreams([]);
     setRemotePeerStates({});
@@ -1762,7 +2034,6 @@ export function useWebRTC({
         });
 
         const room = new Room({
-          adaptiveStream: true,
           dynacast: true,
         });
 
@@ -1771,6 +2042,7 @@ export function useWebRTC({
 
         room
           .on(RoomEvent.ParticipantConnected, (participant) => {
+            ensureLivekitParticipantSubscriptions(participant);
             const peerId = String(participant?.identity || "").trim();
             if (peerId) {
               syncRemotePeerDisplayName(peerId, participant?.name || peerId);
@@ -1786,13 +2058,26 @@ export function useWebRTC({
             if (peerId) {
               removedPeerIdsRef.current.add(peerId);
               delete knownPeerNamesRef.current[peerId];
+              delete livekitRemoteMediaRef.current[peerId];
             }
             syncRemote();
           })
-          .on(RoomEvent.TrackSubscribed, () => {
+          .on(RoomEvent.TrackSubscribed, (track, publication, participant) => {
+            setLivekitRemoteTrack(participant, publication, track);
             syncRemote();
           })
-          .on(RoomEvent.TrackUnsubscribed, () => {
+          .on(RoomEvent.TrackPublished, (publication, participant) => {
+            ensureLivekitParticipantSubscriptions(participant);
+            if (typeof publication?.setSubscribed === "function") {
+              publication.setSubscribed(true);
+            }
+            syncRemote();
+          })
+          .on(RoomEvent.TrackUnsubscribed, (track, publication, participant) => {
+            clearLivekitRemoteTrack(participant, publication, track);
+            syncRemote();
+          })
+          .on(RoomEvent.TrackSubscriptionFailed, () => {
             syncRemote();
           })
           .on(RoomEvent.TrackMuted, () => {
@@ -1804,6 +2089,9 @@ export function useWebRTC({
             syncRemote();
           })
           .on(RoomEvent.LocalTrackPublished, () => {
+            syncLocal();
+          })
+          .on(RoomEvent.LocalTrackSubscribed, () => {
             syncLocal();
           })
           .on(RoomEvent.LocalTrackUnpublished, () => {
@@ -1823,7 +2111,12 @@ export function useWebRTC({
           });
 
         livekitRoomRef.current = room;
-        await room.connect(tokenPayload?.url || LIVEKIT_URL, tokenPayload.token);
+        await room.connect(tokenPayload?.url || resolvedLivekitUrl, tokenPayload.token, {
+          autoSubscribe: true,
+        });
+        room.remoteParticipants.forEach((participant) => {
+          ensureLivekitParticipantSubscriptions(participant);
+        });
         await room.localParticipant.setMicrophoneEnabled(Boolean(microphoneEnabled));
         await room.localParticipant.setCameraEnabled(Boolean(cameraEnabled));
         syncLocal();
@@ -1844,8 +2137,9 @@ export function useWebRTC({
     },
     [
       displayName,
-      LIVEKIT_URL,
+      ensureLivekitParticipantSubscriptions,
       roomId,
+      resolvedLivekitUrl,
       shouldUseLiveKit,
       syncLivekitLocalState,
       syncLivekitRemoteParticipants,
@@ -3370,6 +3664,33 @@ export function useWebRTC({
           },
         );
 
+        // Handle full whiteboard state sync (includes PDF tabs, library updates)
+        socket.on("whiteboard-state", (nextState) => {
+          const nextUpdatedAt = Number(nextState?.updatedAt || 0);
+          if (nextUpdatedAt > 0 && nextUpdatedAt < (lastWhiteboardUpdatedAtRef.current || 0)) {
+            return;
+          }
+          const normalizedState = normalizeWhiteboardState(nextState);
+          const mergedState = {
+            ...normalizedState,
+            tabs: mergeWhiteboardTabsWithPreservedSelections(
+              normalizedState,
+              whiteboardStateRef.current,
+            ).tabs,
+            pdfLibrary: mergeWhiteboardPdfLibraryItems(
+              normalizedState.pdfLibrary,
+              storedPdfLibraryRef.current,
+            ),
+          };
+          storedPdfLibraryRef.current = mergedState.pdfLibrary;
+          lastWhiteboardUpdatedAtRef.current = Math.max(
+            lastWhiteboardUpdatedAtRef.current || 0,
+            Number(mergedState?.updatedAt || 0),
+          );
+          whiteboardStateRef.current = mergedState;
+          setWhiteboardState(mergedState);
+        });
+
         // 5d. Screen share signals from peers
         socket.on("screen-share-stopped", ({ peerId: sharerPeerId }) => {
           removeRemoteScreenStream(sharerPeerId);
@@ -4333,6 +4654,7 @@ export function useWebRTC({
       viewportVisibleHeightRatio,
       viewportVisibleWidthRatio,
       viewportBaseWidth,
+      viewportBaseHeight,
     }) => {
       if (!isCreator || !socketRef.current) {
         return false;
@@ -4353,6 +4675,7 @@ export function useWebRTC({
           viewportVisibleHeightRatio,
           viewportVisibleWidthRatio,
           viewportBaseWidth,
+          viewportBaseHeight,
         }),
       );
       socketRef.current.emit("whiteboard-pdf-viewport", {
@@ -4366,6 +4689,7 @@ export function useWebRTC({
         viewportVisibleHeightRatio,
         viewportVisibleWidthRatio,
         viewportBaseWidth,
+        viewportBaseHeight,
       });
       return true;
     },
@@ -4674,6 +4998,7 @@ export function useWebRTC({
 
   return {
     localStream,
+    livekitLocalMedia,
     remoteStreams,
     remotePeerStates,
     screenStream,
