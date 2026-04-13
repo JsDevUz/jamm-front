@@ -11,8 +11,10 @@ import {
   MonitorOff,
   PhoneOff,
   RefreshCcw,
+  Smartphone,
   Video,
   VideoOff,
+  Volume2,
 } from "lucide-react";
 import { useWebRTC } from "../../../hooks/useWebRTC";
 import useAuthStore from "../../../store/authStore";
@@ -356,6 +358,7 @@ const PrivateVideoCall = ({
   const [pipWindow, setPipWindow] = useState(null);
   const [pipContainer, setPipContainer] = useState(null);
   const [isMobileViewport, setIsMobileViewport] = useState(detectMobileCallViewport);
+  const [isSpeakerOn, setIsSpeakerOn] = useState(true);
   const pipCloseIntentRef = useRef(false);
 
   const {
@@ -497,6 +500,24 @@ const PrivateVideoCall = ({
       window.removeEventListener("orientationchange", handleViewportChange);
     };
   }, []);
+
+  useEffect(() => {
+    if (!isMobileViewport) return;
+
+    const audioElements = document.querySelectorAll("audio");
+    audioElements.forEach((audio) => {
+      if (audio.setSinkId) {
+        audio.setSinkId(isSpeakerOn ? "default" : "");
+      }
+    });
+
+    const videoElements = document.querySelectorAll("video");
+    videoElements.forEach((video) => {
+      if (video.setSinkId) {
+        video.setSinkId(isSpeakerOn ? "default" : "");
+      }
+    });
+  }, [isMobileViewport, isSpeakerOn]);
 
   const handleSwapFeeds = useCallback(() => {
     if (!swapAvailable) return;
@@ -686,10 +707,30 @@ const PrivateVideoCall = ({
                     : t("groupCall.connecting")}
               </Subtitle>
             </HeaderText>
-            <HeaderActions>
-              <ActionButton type="button" onClick={handleMinimize}>
-                <Minimize2 size={16} />
-              </ActionButton>
+        <HeaderActions>
+          {isMobileViewport ? (
+            <ActionButton
+              type="button"
+              onClick={() => setIsSpeakerOn((prev) => !prev)}
+              aria-label={isSpeakerOn ? "Use earpiece" : "Use speaker"}
+              title={isSpeakerOn ? "Use earpiece" : "Use speaker"}
+            >
+              {isSpeakerOn ? <Volume2 size={16} /> : <Smartphone size={16} />}
+            </ActionButton>
+          ) : null}
+          {isMobileViewport && canSwitchCamera ? (
+            <ActionButton
+              type="button"
+              onClick={switchCamera}
+              aria-label={t("privateCall.switchCamera", "Switch camera")}
+              title={t("privateCall.switchCamera", "Switch camera")}
+            >
+              <RefreshCcw size={16} />
+            </ActionButton>
+          ) : null}
+          <ActionButton type="button" onClick={handleMinimize}>
+            <Minimize2 size={16} />
+          </ActionButton>
               {/* <ActionButton type="button" onClick={handleLeave}>
                 <PhoneOff size={16} />
               </ActionButton> */}

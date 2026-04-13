@@ -51,6 +51,8 @@ import {
   ChatTime,
 } from "../styles/ChatsSidebar.styles";
 
+const CHAT_SIDEBAR_SCROLL_CACHE_PREFIX = "jamm.chats.sidebar.scroll";
+
 const ChatsSidebar = ({
   onOpenCreateGroup,
   onOpenCreateMeet,
@@ -74,6 +76,7 @@ const ChatsSidebar = ({
   const currentUser = useAuthStore((state) => state.user);
   const navigate = useNavigate();
   const location = useLocation();
+  const sidebarScrollRafRef = useRef(null);
 
   const [searchQuery, setSearchQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState("all");
@@ -86,6 +89,7 @@ const ChatsSidebar = ({
 
   const effectiveChatTab =
     selectedNav === "groups" ? "group" : "private";
+  const sidebarScrollStorageKey = `${CHAT_SIDEBAR_SCROLL_CACHE_PREFIX}:${selectedNav}:${effectiveChatTab}:${location.pathname}`;
   const normalizedSearchQuery = searchQuery.trim();
   const hasMinimumSearchLength =
     normalizedSearchQuery.length >= MIN_SEARCH_LENGTH;
@@ -115,6 +119,7 @@ const ChatsSidebar = ({
       setChatTab("private");
     }
   }, [selectedNav]);
+
 
   useEffect(() => {
     if (!chats.length) return;
@@ -330,6 +335,45 @@ const ChatsSidebar = ({
     selectedChatId,
     selectedNav,
   ]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+
+    const scrollElement = document.getElementById("sidebarScrollArea");
+    if (!scrollElement) return undefined;
+
+    const restoreScroll = () => {
+      const rawValue = window.sessionStorage.getItem(sidebarScrollStorageKey);
+      const nextTop = Number(rawValue);
+      if (!Number.isFinite(nextTop) || nextTop < 0) return;
+      scrollElement.scrollTop = nextTop;
+    };
+
+    restoreScroll();
+    const rafId = window.requestAnimationFrame(restoreScroll);
+    sidebarScrollRafRef.current = rafId;
+
+    const handleScroll = () => {
+      window.sessionStorage.setItem(
+        sidebarScrollStorageKey,
+        String(scrollElement.scrollTop || 0),
+      );
+    };
+
+    scrollElement.addEventListener("scroll", handleScroll, { passive: true });
+
+    return () => {
+      window.sessionStorage.setItem(
+        sidebarScrollStorageKey,
+        String(scrollElement.scrollTop || 0),
+      );
+      scrollElement.removeEventListener("scroll", handleScroll);
+      if (sidebarScrollRafRef.current) {
+        window.cancelAnimationFrame(sidebarScrollRafRef.current);
+        sidebarScrollRafRef.current = null;
+      }
+    };
+  }, [sidebarScrollStorageKey, filteredChats.length, loadingSearch, normalizedSearchQuery]);
 
   const privateUnreadTotal = useMemo(
     () =>

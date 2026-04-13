@@ -4231,16 +4231,49 @@ export function useWebRTC({
 
   const switchCamera = useCallback(async () => {
     if (camLocked) return false;
-    if (shouldUseLiveKit) {
-      return false;
-    }
     if (!isLikelyMobileDevice() || !navigator.mediaDevices?.getUserMedia) {
       return false;
     }
 
-    const currentTrack = localStreamRef.current?.getVideoTracks()[0] || null;
     const nextFacingMode =
       cameraFacingModeRef.current === "user" ? "environment" : "user";
+
+    if (shouldUseLiveKit) {
+      try {
+        cameraFacingModeRef.current = nextFacingMode;
+        setCameraFacingMode(nextFacingMode);
+
+        const room = livekitRoomRef.current;
+        if (room?.localParticipant && isCamOn) {
+          await room.localParticipant.setCameraEnabled(false);
+          await room.localParticipant.setCameraEnabled(
+            true,
+            buildLivekitCameraCaptureOptions(
+              qualityProfileRef.current,
+              Boolean(room.localParticipant.isScreenShareEnabled),
+              nextFacingMode,
+            ),
+            buildLivekitCameraPublishOptions(
+              qualityProfileRef.current,
+              Boolean(room.localParticipant.isScreenShareEnabled),
+            ),
+          );
+          syncLivekitLocalState(room);
+          emitLocalMediaState({
+            hasVideo: true,
+            videoMuted: false,
+          });
+        }
+
+        await refreshVideoInputCount();
+        return true;
+      } catch (err) {
+        console.error("Switch camera error:", err);
+        return false;
+      }
+    }
+
+    const currentTrack = localStreamRef.current?.getVideoTracks()[0] || null;
 
     try {
       const nextStream = await navigator.mediaDevices.getUserMedia({
@@ -4270,12 +4303,16 @@ export function useWebRTC({
       return false;
     }
   }, [
+    buildLivekitCameraPublishOptions,
+    buildLivekitCameraCaptureOptions,
     buildCameraConstraints,
     camLocked,
+    emitLocalMediaState,
     isCamOn,
     refreshVideoInputCount,
     replaceCameraTrack,
     shouldUseLiveKit,
+    syncLivekitLocalState,
   ]);
 
   const leaveCall = useCallback(() => {
@@ -5325,6 +5362,6 @@ export function useWebRTC({
     removeWhiteboardStroke,
     updateWhiteboardStroke,
     cameraFacingMode,
-    canSwitchCamera: !shouldUseLiveKit && isLikelyMobileDevice() && videoInputCount > 1,
+    canSwitchCamera: isLikelyMobileDevice() && (shouldUseLiveKit || videoInputCount > 1),
   };
 }
