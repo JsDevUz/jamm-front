@@ -56,8 +56,8 @@ const WHITEBOARD_FILL_SWATCHES = ["", "#ffffff", ...WHITEBOARD_SWATCHES];
 const WHITEBOARD_BRUSH_PRESETS = [3, 6, 10];
 const WHITEBOARD_SHAPE_EDGE_OPTIONS = ["sharp", "rounded"];
 const WHITEBOARD_BOARD_TAB_ID = "board";
-const WHITEBOARD_MIN_ZOOM = 0.5;
-const WHITEBOARD_MAX_ZOOM = 3;
+const WHITEBOARD_MIN_ZOOM = 0.1;
+const WHITEBOARD_MAX_ZOOM = 30;
 const WHITEBOARD_MIN_PDF_RENDER_WIDTH = 120;
 const WHITEBOARD_MOBILE_PDF_MAX_RENDER_EDGE = 3072;
 const WHITEBOARD_MIN_BOARD_BASE_WIDTH = 120;
@@ -155,6 +155,8 @@ const buildPdfDocumentInit = (source) => {
 const PDF_DEBUG_ENABLED = true;
 const pdfBufferCache = new Map();
 const pdfBufferPromiseCache = new Map();
+const pdfDocumentCache = new Map();
+const pdfDocumentPromiseCache = new Map();
 
 const serializePdfError = (error) => {
   if (!error) {
@@ -194,6 +196,30 @@ const touchPdfBufferCacheEntry = (targetUrl, pdfBytes) => {
     const oldestKey = pdfBufferCache.keys().next().value;
     if (oldestKey) {
       pdfBufferCache.delete(oldestKey);
+    }
+  }
+};
+
+const touchPdfDocumentCacheEntry = (targetUrl, pdfDocument) => {
+  if (!targetUrl || !pdfDocument) {
+    return;
+  }
+
+  if (pdfDocumentCache.has(targetUrl)) {
+    pdfDocumentCache.delete(targetUrl);
+  }
+  pdfDocumentCache.set(targetUrl, pdfDocument);
+
+  if (pdfDocumentCache.size > WHITEBOARD_PDF_BUFFER_CACHE_MAX_ITEMS) {
+    const oldestKey = pdfDocumentCache.keys().next().value;
+    if (oldestKey) {
+      const oldestDocument = pdfDocumentCache.get(oldestKey);
+      if (oldestDocument && oldestDocument !== pdfDocument) {
+        try {
+          oldestDocument.destroy?.();
+        } catch {}
+      }
+      pdfDocumentCache.delete(oldestKey);
     }
   }
 };
@@ -1113,6 +1139,7 @@ const fetchPdfDocumentBuffer = async (targetUrl) => {
 const loadPdfDocument = async (fileUrl, options = {}) => {
   const targetUrl = buildPdfProxyUrl(fileUrl);
   const preferBuffer = Boolean(options.preferBuffer);
+  const cachedDocument = pdfDocumentCache.get(targetUrl);
   logPdfDebug("load:start", {
     fileUrl,
     targetUrl,
@@ -1120,74 +1147,103 @@ const loadPdfDocument = async (fileUrl, options = {}) => {
     isPublicCdn: isPublicCdnPdfUrl(targetUrl),
   });
 
-  if (preferBuffer || isPublicCdnPdfUrl(targetUrl) || isMobilePdfBrowser()) {
-    logPdfDebug("load:prefer-buffer", { targetUrl });
-    return fetchPdfDocumentBuffer(targetUrl);
+  if (cachedDocument) {
+    logPdfDebug("load:document-cache-hit", {
+      targetUrl,
+      numPages: cachedDocument?.numPages,
+    });
+    touchPdfDocumentCacheEntry(targetUrl, cachedDocument);
+    return cachedDocument;
   }
 
-  try {
-    logPdfDebug("load:url-anon:start", { targetUrl });
-    const loadingTask = pdfjsLib.getDocument(
-      buildPdfDocumentInit({
-        url: targetUrl,
-        withCredentials: false,
-      }),
-    );
-    loadingTask.onProgress = (progress) => {
-      logPdfDebug("load:url-anon:progress", {
-        targetUrl,
-        loaded: progress?.loaded,
-        total: progress?.total,
-      });
-    };
-    const pdfDocument = await loadingTask.promise;
-    logPdfDebug("load:url-anon:ready", {
-      targetUrl,
-      numPages: pdfDocument?.numPages,
-    });
-    return pdfDocument;
-  } catch (publicUrlError) {
-    logPdfDebug("load:url-anon:error", {
-      targetUrl,
-      error: serializePdfError(publicUrlError),
-    });
+  if (pdfDocumentPromiseCache.has(targetUrl)) {
+    logPdfDebug("load:document-cache-await", { targetUrl });
+    return pdfDocumentPromiseCache.get(targetUrl);
+  }
+
+  const loadTaskPromise = (async () => {
+    if (preferBuffer || isPublicCdnPdfUrl(targetUrl) || isMobilePdfBrowser()) {
+      logPdfDebug("load:prefer-buffer", { targetUrl });
+      const pdfDocument = await fetchPdfDocumentBuffer(targetUrl);
+      touchPdfDocumentCacheEntry(targetUrl, pdfDocument);
+      return pdfDocument;
+    }
+
     try {
-      logPdfDebug("load:url-auth:start", { targetUrl });
-      const authenticatedLoadingTask = pdfjsLib.getDocument(
+      logPdfDebug("load:url-anon:start", { targetUrl });
+      const loadingTask = pdfjsLib.getDocument(
         buildPdfDocumentInit({
           url: targetUrl,
-          withCredentials: true,
+          withCredentials: false,
         }),
       );
-      authenticatedLoadingTask.onProgress = (progress) => {
-        logPdfDebug("load:url-auth:progress", {
+      loadingTask.onProgress = (progress) => {
+        logPdfDebug("load:url-anon:progress", {
           targetUrl,
           loaded: progress?.loaded,
           total: progress?.total,
         });
       };
-      const pdfDocument = await authenticatedLoadingTask.promise;
-      logPdfDebug("load:url-auth:ready", {
+      const pdfDocument = await loadingTask.promise;
+      logPdfDebug("load:url-anon:ready", {
         targetUrl,
         numPages: pdfDocument?.numPages,
       });
+      touchPdfDocumentCacheEntry(targetUrl, pdfDocument);
       return pdfDocument;
-    } catch (credentialedUrlError) {
-      logPdfDebug("load:url-auth:error", {
+    } catch (publicUrlError) {
+      logPdfDebug("load:url-anon:error", {
         targetUrl,
-        error: serializePdfError(credentialedUrlError),
+        error: serializePdfError(publicUrlError),
       });
       try {
-        logPdfDebug("load:fallback-buffer", { targetUrl });
-        return await fetchPdfDocumentBuffer(targetUrl);
-      } catch (fetchIncludeError) {
-        logPdfDebug("load:fallback-buffer:error", {
+        logPdfDebug("load:url-auth:start", { targetUrl });
+        const authenticatedLoadingTask = pdfjsLib.getDocument(
+          buildPdfDocumentInit({
+            url: targetUrl,
+            withCredentials: true,
+          }),
+        );
+        authenticatedLoadingTask.onProgress = (progress) => {
+          logPdfDebug("load:url-auth:progress", {
+            targetUrl,
+            loaded: progress?.loaded,
+            total: progress?.total,
+          });
+        };
+        const pdfDocument = await authenticatedLoadingTask.promise;
+        logPdfDebug("load:url-auth:ready", {
           targetUrl,
-          error: serializePdfError(fetchIncludeError),
+          numPages: pdfDocument?.numPages,
         });
-        throw fetchIncludeError || credentialedUrlError || publicUrlError;
+        touchPdfDocumentCacheEntry(targetUrl, pdfDocument);
+        return pdfDocument;
+      } catch (credentialedUrlError) {
+        logPdfDebug("load:url-auth:error", {
+          targetUrl,
+          error: serializePdfError(credentialedUrlError),
+        });
+        try {
+          logPdfDebug("load:fallback-buffer", { targetUrl });
+          const pdfDocument = await fetchPdfDocumentBuffer(targetUrl);
+          touchPdfDocumentCacheEntry(targetUrl, pdfDocument);
+          return pdfDocument;
+        } catch (fetchIncludeError) {
+          logPdfDebug("load:fallback-buffer:error", {
+            targetUrl,
+            error: serializePdfError(fetchIncludeError),
+          });
+          throw fetchIncludeError || credentialedUrlError || publicUrlError;
+        }
       }
     }
+  })();
+
+  pdfDocumentPromiseCache.set(targetUrl, loadTaskPromise);
+  try {
+    return await loadTaskPromise;
+  } finally {
+    pdfDocumentPromiseCache.delete(targetUrl);
   }
 };
 
@@ -1612,15 +1668,9 @@ const Toolbar = styled.div`
   box-shadow: 0 12px 24px rgba(15, 23, 42, 0.1);
   width: fit-content;
   max-width: calc(100% - 24px);
-  overflow-x: auto;
-  overflow-y: hidden;
+  overflow: visible;
   -webkit-overflow-scrolling: touch;
-  scrollbar-width: none;
   pointer-events: auto;
-
-  &::-webkit-scrollbar {
-    display: none;
-  }
 
   @media (max-width: 768px) {
     max-width: calc(100% - 16px);
@@ -1661,6 +1711,7 @@ const FloatingTopToolbar = styled.div`
   display: flex;
   justify-content: center;
   width: 100%;
+  overflow: visible;
   pointer-events: none;
 
   @media (max-width: 768px) {
@@ -2135,6 +2186,21 @@ const PdfViewport = styled.div`
   touch-action: pan-x pan-y;
 `;
 
+const RemoteViewportShell = styled.div`
+  position: absolute;
+  inset: 0;
+  flex: 0 0 auto;
+  margin: auto;
+  overflow: hidden;
+`;
+
+const RemoteViewportScaleLayer = styled.div`
+  position: absolute;
+  inset: 0 auto auto 0;
+  transform-origin: top left;
+  will-change: transform;
+`;
+
 const PdfStack = styled.div`
   width: max-content;
   min-width: 100%;
@@ -2386,11 +2452,211 @@ const PdfStatus = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 12px;
   padding: 24px;
   color: rgba(15, 23, 42, 0.68);
   font-size: 14px;
   font-weight: 700;
+  z-index: 3;
+`;
+
+const PdfLoadingSkeleton = styled.div`
+  width: min(100%, 540px);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px;
+  border-radius: 24px;
+  border: 1px solid rgba(15, 23, 42, 0.06);
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.96), rgba(245,247,250,0.94)),
+    radial-gradient(circle at top left, rgba(99, 102, 241, 0.06), transparent 42%);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.88),
+    0 18px 34px rgba(15, 23, 42, 0.08);
+
+  @media (max-width: 768px) {
+    width: calc(100% - 12px);
+    padding: 14px;
+    gap: 10px;
+    border-radius: 20px;
+  }
+`;
+
+const PdfLoadingHeader = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+`;
+
+const PdfLoadingLine = styled.div`
+  position: relative;
+  overflow: hidden;
+  height: ${(p) => p.$height || "14px"};
+  width: ${(p) => p.$width || "100%"};
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.18);
+
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgba(255,255,255,0.72),
+      transparent
+    );
+    animation: whiteboardPdfSkeletonPulse 1.3s ease-in-out infinite;
+  }
+`;
+
+const PdfLoadingCanvas = styled.div`
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+  min-height: clamp(220px, 44vh, 420px);
+  border-radius: 20px;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.98), rgba(243,246,250,0.96)),
+    linear-gradient(135deg, rgba(99, 102, 241, 0.04), rgba(14, 165, 233, 0.03));
+  border: 1px solid rgba(15, 23, 42, 0.06);
+
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgba(255,255,255,0.6),
+      transparent
+    );
+    animation: whiteboardPdfSkeletonPulse 1.5s ease-in-out infinite;
+  }
+
+  @media (max-width: 768px) {
+    min-height: clamp(180px, 36vh, 300px);
+    border-radius: 16px;
+  }
+`;
+
+const PdfLoadingCaption = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: rgba(15, 23, 42, 0.64);
+  font-size: 13px;
+  font-weight: 700;
+`;
+
+const PdfLoadingDot = styled.span`
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  background: #6366f1;
+  box-shadow: 0 0 0 6px rgba(99, 102, 241, 0.12);
+`;
+
+const PdfLoadingText = styled.span`
+  min-width: 0;
+`;
+
+const PdfStatusText = styled.span`
+  text-align: center;
+`;
+
+const PdfStatusContent = styled.div`
+  width: min(100%, 540px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 20px;
+  border-radius: 24px;
+  background: rgba(255,255,255,0.9);
+  border: 1px solid rgba(15, 23, 42, 0.06);
+  box-shadow: 0 14px 30px rgba(15, 23, 42, 0.08);
+
+  @media (max-width: 768px) {
+    width: calc(100% - 12px);
+    padding: 16px;
+    border-radius: 18px;
+  }
+`;
+
+const PdfPagesLoadingSkeleton = styled.div`
+  width: min(100%, 720px);
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+  gap: 14px;
+
+  @media (max-width: 768px) {
+    width: 100%;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+`;
+
+const PdfPageThumbSkeleton = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 18px;
+  border: 1px solid rgba(15, 23, 42, 0.06);
+  background: rgba(255,255,255,0.94);
+  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.06);
+`;
+
+const PdfPageThumbFrame = styled.div`
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+  aspect-ratio: 0.72;
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(241,245,249,0.96), rgba(226,232,240,0.92));
+
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgba(255,255,255,0.64),
+      transparent
+    );
+    animation: whiteboardPdfSkeletonPulse 1.4s ease-in-out infinite;
+  }
+`;
+
+const PdfPageThumbMeta = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+`;
+
+const PdfPageThumbLabel = styled(PdfLoadingLine)`
+  width: 56%;
+  height: 11px;
+`;
+
+const PdfPageThumbSubLabel = styled(PdfLoadingLine)`
+  width: 78%;
+  height: 9px;
+`;
+
+const SkeletonMotion = styled.div`
+  display: none;
+
+  @keyframes whiteboardPdfSkeletonPulse {
+    100% {
+      transform: translateX(100%);
+    }
+  }
 `;
 
 const PageBadge = styled.div`
@@ -4431,6 +4697,7 @@ const WhiteboardTile = ({
   const boardFrameRef = useRef(null);
   const workspaceBodyRef = useRef(null);
   const scrollSyncRef = useRef({ lock: false, timeoutId: null, lastTabId: "" });
+  const boardScrollSyncRef = useRef({ lock: false, timeoutId: null });
   const pdfDocumentRef = useRef(null);
   const pdfPickerDocumentRef = useRef(null);
   const pdfPickerDocumentKeyRef = useRef("");
@@ -4480,6 +4747,8 @@ const WhiteboardTile = ({
   const [currentPdfPage, setCurrentPdfPage] = useState(1);
   const [guestPdfOverride, setGuestPdfOverride] = useState(false);
   const [guestPdfZoom, setGuestPdfZoom] = useState(1);
+  const [guestBoardOverride, setGuestBoardOverride] = useState(false);
+  const [guestBoardZoom, setGuestBoardZoom] = useState(1);
   const [isPdfLibraryOpen, setIsPdfLibraryOpen] = useState(false);
   const [visiblePdfPages, setVisiblePdfPages] = useState([]);
   const [pdfPageMetrics, setPdfPageMetrics] = useState({});
@@ -4521,6 +4790,8 @@ const WhiteboardTile = ({
     WHITEBOARD_MIN_BOARD_BASE_HEIGHT,
     Math.round(Number(boardTab?.viewportBaseHeight) || boardViewportSize.height || 0) || 0,
   );
+  const syncedBoardScrollLeftRatio = clampViewportRatio(boardTab?.scrollLeftRatio);
+  const syncedBoardScrollTopRatio = clampViewportRatio(boardTab?.scrollTopRatio);
   const syncedPdfViewportBaseHeight =
     activeTab?.type === "pdf" && Number.isFinite(Number(activeTab.viewportBaseHeight))
       ? Math.max(
@@ -4566,7 +4837,12 @@ const WhiteboardTile = ({
   }, [activeTab?.id, activeTab?.type, onRecordSurfaceChange]);
   const activeBoardZoom = Math.min(
     WHITEBOARD_MAX_ZOOM,
-    Math.max(WHITEBOARD_MIN_ZOOM, Number(boardZoom) || syncedBoardZoom || 1),
+    Math.max(
+      WHITEBOARD_MIN_ZOOM,
+      !interactive && guestBoardOverride
+        ? Number(guestBoardZoom) || syncedBoardZoom || 1
+        : Number(boardZoom) || syncedBoardZoom || 1,
+    ),
   );
   const syncedPdfZoom =
     activeTab?.type === "pdf"
@@ -4590,11 +4866,20 @@ const WhiteboardTile = ({
       ? Math.max(
           0.05,
           Math.min(
+            1,
             workspaceViewportSize.width / activeBoardBaseWidth,
             workspaceViewportSize.height / activeBoardBaseHeight,
           ),
         )
       : 1;
+  const shouldContainRemoteBoardViewport =
+    !interactive &&
+    !guestBoardOverride &&
+    activeTab?.type !== "pdf" &&
+    workspaceViewportSize.width > 0 &&
+    workspaceViewportSize.height > 0 &&
+    activeBoardBaseWidth > 0 &&
+    activeBoardBaseHeight > 0;
   const activePdfZoom =
     activeTab?.type === "pdf"
       ? !interactive && guestPdfOverride
@@ -4621,18 +4906,19 @@ const WhiteboardTile = ({
     (logicalZoom) => Math.max(0.05, Number(logicalZoom) || 1),
     [],
   );
-  const activeBoardRenderScale =
-    getBoardRenderScale(activeBoardZoom) * (interactive ? 1 : remoteBoardContainScale);
+  const activeBoardRenderScale = getBoardRenderScale(activeBoardZoom);
   const shouldUseContainedMobilePdfViewport =
     interactive && isMobile && activeTab?.type === "pdf";
+  const shouldMirrorRemotePdfViewportInsets =
+    !interactive && !guestPdfOverride && activeTab?.type === "pdf";
   const activePdfViewportTopInset = shouldUseContainedMobilePdfViewport
     ? WHITEBOARD_VIEWPORT_TOP_SAFE_SPACE
-    : interactive || isFullscreen
+    : interactive || isFullscreen || shouldMirrorRemotePdfViewportInsets
     ? WHITEBOARD_VIEWPORT_TOP_SAFE_SPACE
     : 0;
   const activePdfViewportBottomInset = shouldUseContainedMobilePdfViewport
     ? WHITEBOARD_VIEWPORT_BOTTOM_SAFE_SPACE
-    : interactive || isFullscreen
+    : interactive || isFullscreen || shouldMirrorRemotePdfViewportInsets
     ? WHITEBOARD_VIEWPORT_BOTTOM_SAFE_SPACE
     : 0;
   const effectivePdfViewportHeight = Math.max(
@@ -4677,34 +4963,35 @@ const WhiteboardTile = ({
           WHITEBOARD_MIN_PDF_RENDER_WIDTH,
         pdfRenderWidth || WHITEBOARD_MIN_PDF_RENDER_WIDTH,
       );
-  const remotePdfContainScale =
+  const activePdfViewportBaseHeight = syncedPdfViewportBaseHeight;
+  const activePdfViewportFrameWidth =
+    activeTab?.type === "pdf" ? Math.max(1, activePdfViewportBaseWidth + 40) : 0;
+  const shouldContainRemotePdfViewport =
     !interactive &&
+    !guestPdfOverride &&
     activeTab?.type === "pdf" &&
     workspaceViewportSize.width > 0 &&
     workspaceViewportSize.height > 0 &&
-    activePdfViewportBaseWidth > 0 &&
-    syncedPdfViewportBaseHeight > 0
+    activePdfViewportFrameWidth > 0 &&
+    activePdfViewportBaseHeight > 0;
+  const remotePdfContainScale =
+    shouldContainRemotePdfViewport
       ? Math.max(
           0.05,
           Math.min(
-            workspaceViewportSize.width / activePdfViewportBaseWidth,
-            workspaceViewportSize.height / syncedPdfViewportBaseHeight,
+            1,
+            workspaceViewportSize.width / activePdfViewportFrameWidth,
+            workspaceViewportSize.height / activePdfViewportBaseHeight,
           ),
         )
       : 1;
   const containedGuestPdfViewportWidth =
-    !interactive && activeTab?.type === "pdf"
-      ? Math.max(
-          WHITEBOARD_MIN_PDF_RENDER_WIDTH,
-          Math.round(activePdfViewportBaseWidth * remotePdfContainScale),
-        )
+    shouldContainRemotePdfViewport
+      ? Math.max(1, Math.round(activePdfViewportFrameWidth * remotePdfContainScale))
       : 0;
   const containedGuestPdfViewportHeight =
-    !interactive && activeTab?.type === "pdf"
-      ? Math.max(
-          WHITEBOARD_MIN_VIEWPORT_BASE_HEIGHT,
-          Math.round(syncedPdfViewportBaseHeight * remotePdfContainScale),
-        )
+    shouldContainRemotePdfViewport
+      ? Math.max(1, Math.round(activePdfViewportBaseHeight * remotePdfContainScale))
       : 0;
   const containedPdfWidthByHeight =
     activeTab?.type === "pdf" && effectivePdfViewportHeight > 0 && basePdfAspectRatio > 0
@@ -4729,10 +5016,15 @@ const WhiteboardTile = ({
   const activePdfRenderWidth =
     shouldUseContainedMobilePdfViewport
       ? containedPdfBaseWidth
-      : !interactive && activePdfViewportBaseWidth > 0
+      : shouldContainRemotePdfViewport && activePdfViewportBaseWidth > 0
       ? Math.max(
           WHITEBOARD_MIN_PDF_RENDER_WIDTH,
-          Math.round(activePdfViewportBaseWidth * remotePdfContainScale * activePdfZoom),
+          Math.round(activePdfViewportBaseWidth * activePdfZoom),
+        )
+      : !interactive && activeTab?.type === "pdf" && activePdfViewportBaseWidth > 0
+      ? Math.max(
+          WHITEBOARD_MIN_PDF_RENDER_WIDTH,
+          Math.round(pdfRenderWidth * activePdfZoom),
         )
       : activeTab?.type === "pdf" && pdfRenderWidth > 0
       ? Math.max(
@@ -4768,13 +5060,28 @@ const WhiteboardTile = ({
     if (activeTab?.type !== "pdf") {
       setGuestPdfOverride(false);
       setGuestPdfZoom(1);
+    } else if (!interactive && !guestPdfOverride) {
+      setGuestPdfZoom(syncedPdfZoom);
+    }
+
+    if (activeTab?.type === "pdf") {
+      setGuestBoardOverride(false);
+      setGuestBoardZoom(1);
       return;
     }
 
-    if (!interactive && !guestPdfOverride) {
-      setGuestPdfZoom(syncedPdfZoom);
+    if (!interactive && !guestBoardOverride) {
+      setGuestBoardZoom(syncedBoardZoom);
     }
-  }, [activeTab?.id, activeTab?.type, guestPdfOverride, interactive, syncedPdfZoom]);
+  }, [
+    activeTab?.id,
+    activeTab?.type,
+    guestBoardOverride,
+    guestPdfOverride,
+    interactive,
+    syncedBoardZoom,
+    syncedPdfZoom,
+  ]);
 
   const emitPdfViewport = useCallback(
     ({
@@ -5029,7 +5336,7 @@ const WhiteboardTile = ({
           Math.floor(viewport.clientWidth - 40),
         ),
       );
-      setPdfViewportHeight(Math.max(1, Math.floor(viewport.clientHeight - 40)));
+      setPdfViewportHeight(Math.max(1, Math.floor(viewport.clientHeight)));
     };
 
     updateWidth();
@@ -5088,10 +5395,32 @@ const WhiteboardTile = ({
       zoom: activeBoardZoom,
       viewportBaseWidth: nextViewportBaseWidth,
       viewportBaseHeight: nextViewportBaseHeight,
+      scrollLeftRatio: clampViewportRatio(
+        (() => {
+          const viewport = boardViewportRef.current;
+          if (!viewport) {
+            return boardTab?.scrollLeftRatio;
+          }
+          const maxScrollLeft = Math.max(0, viewport.scrollWidth - viewport.clientWidth);
+          return maxScrollLeft > 0 ? viewport.scrollLeft / maxScrollLeft : 0;
+        })(),
+      ),
+      scrollTopRatio: clampViewportRatio(
+        (() => {
+          const viewport = boardViewportRef.current;
+          if (!viewport) {
+            return boardTab?.scrollTopRatio;
+          }
+          const maxScrollTop = Math.max(0, viewport.scrollHeight - viewport.clientHeight);
+          return maxScrollTop > 0 ? viewport.scrollTop / maxScrollTop : 0;
+        })(),
+      ),
     });
   }, [
     activeBoardZoom,
     activeTab?.type,
+    boardTab?.scrollLeftRatio,
+    boardTab?.scrollTopRatio,
     boardViewportSize.height,
     boardViewportSize.width,
     interactive,
@@ -5162,15 +5491,6 @@ const WhiteboardTile = ({
     let disposed = false;
 
     if (!activeTab || activeTab.type !== "pdf" || compact) {
-      pdfDocumentRef.current?.destroy?.();
-      pdfDocumentRef.current = null;
-      setPdfMeta({
-        status: "idle",
-        fileUrl: "",
-        selectedPagesKey: "__all__",
-        pages: [],
-        error: "",
-      });
       return undefined;
     }
 
@@ -5183,7 +5503,6 @@ const WhiteboardTile = ({
       return undefined;
     }
 
-    pdfDocumentRef.current?.destroy?.();
     pdfDocumentRef.current = null;
     pdfPageBitmapCacheRef.current.clear();
     const staleCanvases = document.querySelectorAll(
@@ -5232,7 +5551,6 @@ const WhiteboardTile = ({
         }));
 
         if (disposed) {
-          await pdfDocument.destroy();
           return;
         }
 
@@ -5665,6 +5983,10 @@ const WhiteboardTile = ({
       WHITEBOARD_MIN_PDF_RENDER_WIDTH,
       pdfRenderWidth || WHITEBOARD_MIN_PDF_RENDER_WIDTH,
     );
+    const nextViewportBaseHeight = Math.max(
+      WHITEBOARD_MIN_VIEWPORT_BASE_HEIGHT,
+      pdfViewportHeight || WHITEBOARD_MIN_VIEWPORT_BASE_HEIGHT,
+    );
     if (
       Math.abs(
         nextViewportBaseWidth -
@@ -5672,28 +5994,23 @@ const WhiteboardTile = ({
             WHITEBOARD_MIN_PDF_RENDER_WIDTH,
             Number(activeTab.viewportBaseWidth) || WHITEBOARD_MIN_PDF_RENDER_WIDTH,
           ),
+      ) < 2 &&
+      Math.abs(
+        nextViewportBaseHeight -
+          Math.max(
+            WHITEBOARD_MIN_VIEWPORT_BASE_HEIGHT,
+            Number(activeTab.viewportBaseHeight) || WHITEBOARD_MIN_VIEWPORT_BASE_HEIGHT,
+          ),
       ) < 2
     ) {
       return;
     }
 
-    // Calculate height from PDF page dimensions, not viewport size
-    const nextViewportBaseHeight =
-      basePdfPage?.baseWidth && basePdfPage?.baseHeight
-        ? Math.max(
-            WHITEBOARD_MIN_VIEWPORT_BASE_HEIGHT,
-            Math.round((nextViewportBaseWidth * basePdfPage.baseHeight) / basePdfPage.baseWidth),
-          )
-        : Math.max(
-            WHITEBOARD_MIN_VIEWPORT_BASE_HEIGHT,
-            Math.round(nextViewportBaseWidth / (basePdfAspectRatio || 1.414)),
-          );
-
     emitPdfViewport({
       viewportBaseWidth: nextViewportBaseWidth,
       viewportBaseHeight: nextViewportBaseHeight,
     });
-  }, [activeTab, emitPdfViewport, interactive, pdfRenderWidth, basePdfPage, basePdfAspectRatio]);
+  }, [activeTab, emitPdfViewport, interactive, pdfRenderWidth, pdfViewportHeight]);
 
   const handlePdfZoomChange = useCallback(
     (nextZoom) => {
@@ -5720,7 +6037,7 @@ const WhiteboardTile = ({
 
   const handleBoardZoomChange = useCallback(
     (nextZoom, anchor = null) => {
-      if (!interactive || activeTab?.type === "pdf") {
+      if (activeTab?.type === "pdf") {
         return;
       }
 
@@ -5728,6 +6045,11 @@ const WhiteboardTile = ({
         WHITEBOARD_MAX_ZOOM,
         Math.max(WHITEBOARD_MIN_ZOOM, nextZoom),
       );
+      if (!interactive) {
+        setGuestBoardOverride(true);
+        setGuestBoardZoom(clampedZoom);
+        return;
+      }
       const nextRenderZoom = getBoardRenderScale(clampedZoom);
       const viewport = boardViewportRef.current;
       const frame = boardFrameRef.current;
@@ -5761,6 +6083,56 @@ const WhiteboardTile = ({
           frameOffsetLeft,
           frameOffsetTop,
         };
+
+        const nextFrameWidth = Math.max(
+          1,
+          Math.round(activeBoardBaseWidth),
+          Math.round(activeBoardBaseWidth * nextRenderZoom),
+        );
+        const nextFrameHeight = Math.max(
+          1,
+          Math.round(activeBoardBaseHeight),
+          Math.round(activeBoardBaseHeight * nextRenderZoom),
+        );
+        const nextFrameOffsetLeft =
+          nextFrameWidth < viewport.clientWidth
+            ? (viewport.clientWidth - nextFrameWidth) / 2
+            : 0;
+        const nextFrameOffsetTop =
+          nextFrameHeight < viewport.clientHeight
+            ? (viewport.clientHeight - nextFrameHeight) / 2
+            : 0;
+        const nextMaxScrollLeft = Math.max(0, nextFrameWidth - viewport.clientWidth);
+        const nextMaxScrollTop = Math.max(0, nextFrameHeight - viewport.clientHeight);
+        const nextScrollLeft = Math.min(
+          nextMaxScrollLeft,
+          Math.max(0, nextFrameOffsetLeft + boardX * nextRenderZoom - anchorX),
+        );
+        const nextScrollTop = Math.min(
+          nextMaxScrollTop,
+          Math.max(0, nextFrameOffsetTop + boardY * nextRenderZoom - anchorY),
+        );
+
+        setBoardZoom(clampedZoom);
+        onBoardZoomChange?.({
+          tabId: WHITEBOARD_BOARD_TAB_ID,
+          zoom: clampedZoom,
+          viewportBaseWidth: Math.max(
+            WHITEBOARD_MIN_BOARD_BASE_WIDTH,
+            Math.round(boardViewportSize.width || viewport.clientWidth || 0) ||
+              WHITEBOARD_MIN_BOARD_BASE_WIDTH,
+          ),
+          viewportBaseHeight: Math.max(
+            WHITEBOARD_MIN_BOARD_BASE_HEIGHT,
+            Math.round(boardViewportSize.height || viewport.clientHeight || 0) ||
+              WHITEBOARD_MIN_BOARD_BASE_HEIGHT,
+          ),
+          scrollLeftRatio:
+            nextMaxScrollLeft > 0 ? clampViewportRatio(nextScrollLeft / nextMaxScrollLeft) : 0,
+          scrollTopRatio:
+            nextMaxScrollTop > 0 ? clampViewportRatio(nextScrollTop / nextMaxScrollTop) : 0,
+        });
+        return;
       }
 
       setBoardZoom(clampedZoom);
@@ -5775,6 +6147,22 @@ const WhiteboardTile = ({
           WHITEBOARD_MIN_BOARD_BASE_HEIGHT,
           Math.round(boardViewportSize.height || 0) || WHITEBOARD_MIN_BOARD_BASE_HEIGHT,
         ),
+        scrollLeftRatio: clampViewportRatio(
+          (() => {
+            const maxScrollLeft = viewport
+              ? Math.max(0, viewport.scrollWidth - viewport.clientWidth)
+              : 0;
+            return maxScrollLeft > 0 ? viewport.scrollLeft / maxScrollLeft : 0;
+          })(),
+        ),
+        scrollTopRatio: clampViewportRatio(
+          (() => {
+            const maxScrollTop = viewport
+              ? Math.max(0, viewport.scrollHeight - viewport.clientHeight)
+              : 0;
+            return maxScrollTop > 0 ? viewport.scrollTop / maxScrollTop : 0;
+          })(),
+        ),
       });
     },
     [
@@ -5788,6 +6176,39 @@ const WhiteboardTile = ({
       onBoardZoomChange,
     ],
   );
+
+  const handleBoardScroll = useCallback(() => {
+    const viewport = boardViewportRef.current;
+    if (!viewport || activeTab?.type === "pdf" || boardScrollSyncRef.current.lock) {
+      return;
+    }
+
+    if (!interactive && !guestBoardOverride) {
+      setGuestBoardOverride(true);
+      setGuestBoardZoom(syncedBoardZoom);
+    }
+
+    if (boardScrollSyncRef.current.timeoutId) {
+      window.clearTimeout(boardScrollSyncRef.current.timeoutId);
+    }
+
+    if (!interactive) {
+      return;
+    }
+
+    const maxScrollLeft = Math.max(0, viewport.scrollWidth - viewport.clientWidth);
+    const maxScrollTop = Math.max(0, viewport.scrollHeight - viewport.clientHeight);
+    const scrollLeftRatio = maxScrollLeft > 0 ? viewport.scrollLeft / maxScrollLeft : 0;
+    const scrollTopRatio = maxScrollTop > 0 ? viewport.scrollTop / maxScrollTop : 0;
+
+    boardScrollSyncRef.current.timeoutId = window.setTimeout(() => {
+      onBoardZoomChange?.({
+        tabId: WHITEBOARD_BOARD_TAB_ID,
+        scrollLeftRatio,
+        scrollTopRatio,
+      });
+    }, 72);
+  }, [activeTab?.type, guestBoardOverride, interactive, onBoardZoomChange, syncedBoardZoom]);
 
   const activeWorkspaceZoom = activeTab?.type === "pdf" ? activePdfZoom : activeBoardZoom;
 
@@ -5854,6 +6275,52 @@ const WhiteboardTile = ({
       window.cancelAnimationFrame(frameId);
     };
   }, [activeBoardRenderScale, activeTab?.type]);
+
+  useEffect(() => {
+    if (interactive || guestBoardOverride || activeTab?.type === "pdf") {
+      return undefined;
+    }
+
+    const viewport = boardViewportRef.current;
+    if (!viewport) {
+      return undefined;
+    }
+
+    const frameId = window.requestAnimationFrame(() => {
+      const maxScrollLeft = Math.max(0, viewport.scrollWidth - viewport.clientWidth);
+      const maxScrollTop = Math.max(0, viewport.scrollHeight - viewport.clientHeight);
+      const nextLeft = maxScrollLeft > 0 ? maxScrollLeft * syncedBoardScrollLeftRatio : 0;
+      const nextTop = maxScrollTop > 0 ? maxScrollTop * syncedBoardScrollTopRatio : 0;
+
+      if (
+        Math.abs(viewport.scrollLeft - nextLeft) < 2 &&
+        Math.abs(viewport.scrollTop - nextTop) < 2
+      ) {
+        return;
+      }
+
+      boardScrollSyncRef.current.lock = true;
+      viewport.scrollLeft = nextLeft;
+      viewport.scrollTop = nextTop;
+      window.setTimeout(() => {
+        boardScrollSyncRef.current.lock = false;
+      }, 60);
+    });
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+    };
+  }, [
+    activeBoardBaseHeight,
+    activeBoardBaseWidth,
+    activeBoardRenderScale,
+    activeTab?.id,
+    activeTab?.type,
+    guestBoardOverride,
+    interactive,
+    syncedBoardScrollLeftRatio,
+    syncedBoardScrollTopRatio,
+  ]);
 
   useEffect(() => {
     const viewport = pdfViewportRef.current;
@@ -6307,6 +6774,11 @@ const WhiteboardTile = ({
     setGuestPdfZoom(syncedPdfZoom);
   }, [syncedPdfZoom]);
 
+  const handleResetGuestBoardSync = useCallback(() => {
+    setGuestBoardOverride(false);
+    setGuestBoardZoom(syncedBoardZoom);
+  }, [syncedBoardZoom]);
+
   const handleTabSelect = useCallback(
     (event, tabId) => {
       event.stopPropagation();
@@ -6613,6 +7085,53 @@ const WhiteboardTile = ({
   const recordTitle = isRecording
     ? t("groupCall.whiteboard.stopRecording")
     : t("groupCall.whiteboard.record");
+  const renderPdfLoadingState = useCallback(
+    (label) => (
+      <PdfStatus>
+        <PdfLoadingSkeleton>
+          <PdfLoadingHeader>
+            <PdfLoadingLine $width="42%" $height="12px" />
+            <PdfLoadingLine $width="68%" $height="10px" />
+          </PdfLoadingHeader>
+          <PdfLoadingCanvas />
+          <PdfLoadingCaption>
+            <PdfLoadingDot />
+            <PdfLoadingText>{label}</PdfLoadingText>
+          </PdfLoadingCaption>
+        </PdfLoadingSkeleton>
+      </PdfStatus>
+    ),
+    [],
+  );
+
+  const renderPdfPagesLoadingState = useCallback(
+    (label) => (
+      <PdfStatus>
+        <PdfLoadingSkeleton>
+          <PdfLoadingHeader>
+            <PdfLoadingLine $width="34%" $height="12px" />
+            <PdfLoadingLine $width="58%" $height="10px" />
+          </PdfLoadingHeader>
+          <PdfPagesLoadingSkeleton>
+            {Array.from({ length: 4 }).map((_, index) => (
+              <PdfPageThumbSkeleton key={`pdf-page-skeleton-${index}`}>
+                <PdfPageThumbFrame />
+                <PdfPageThumbMeta>
+                  <PdfPageThumbLabel />
+                  <PdfPageThumbSubLabel />
+                </PdfPageThumbMeta>
+              </PdfPageThumbSkeleton>
+            ))}
+          </PdfPagesLoadingSkeleton>
+          <PdfLoadingCaption>
+            <PdfLoadingDot />
+            <PdfLoadingText>{label}</PdfLoadingText>
+          </PdfLoadingCaption>
+        </PdfLoadingSkeleton>
+      </PdfStatus>
+    ),
+    [],
+  );
   const recordElapsedLabel = formatRecordingElapsed(recordingElapsedMs);
   const activeBrushPreset = WHITEBOARD_BRUSH_PRESETS.reduce((closest, preset) =>
     Math.abs(preset - brushSize) < Math.abs(closest - brushSize) ? preset : closest,
@@ -6725,12 +7244,9 @@ const WhiteboardTile = ({
                   </div>
                 </PdfPickerHeader>
 
-                {pdfPickerState.status === "loading" ? (
-                  <PdfStatus>
-                    <Spinner size={18} />
-                    <span>{t("groupCall.whiteboard.loadingPdfPages")}</span>
-                  </PdfStatus>
-                ) : null}
+                {pdfPickerState.status === "loading"
+                  ? renderPdfPagesLoadingState(t("groupCall.whiteboard.loadingPdfPages"))
+                  : null}
 
                 {pdfPickerState.status === "error" ? (
                   <PdfLibraryEmpty>{t("groupCall.whiteboard.pdfPagesLoadFailed")}</PdfLibraryEmpty>
@@ -7595,205 +8111,437 @@ const WhiteboardTile = ({
           ) : null}
 
           {activeTab?.type === "pdf" && !compact ? (
-            <PdfViewport
-              ref={handlePdfViewportRef}
-              data-record-surface-type="pdf"
-              onScroll={handlePdfScroll}
-              $interactive={interactive}
-              $allowHorizontal={activePdfZoom > 1.001}
-              style={
-                !interactive && containedGuestPdfViewportWidth > 0 && containedGuestPdfViewportHeight > 0
-                  ? {
-                      width: `${containedGuestPdfViewportWidth}px`,
-                      height: `${containedGuestPdfViewportHeight}px`,
-                      maxWidth: "100%",
-                      maxHeight: "100%",
-                      margin: "0 auto",
-                    }
-                  : undefined
-              }
-            >
-              {pdfMeta.status === "loading" ? (
-                <PdfStatus>
-                  <Spinner size={18} />
-                  <span>{t("groupCall.whiteboard.loadingPdf")}</span>
-                </PdfStatus>
-              ) : null}
-              {pdfMeta.status === "error" ? (
-                <PdfStatus>{t("groupCall.whiteboard.pdfLoadFailed")}</PdfStatus>
-              ) : null}
+            shouldContainRemotePdfViewport ? (
+              <RemoteViewportShell
+                style={{
+                  width: `${containedGuestPdfViewportWidth}px`,
+                  height: `${containedGuestPdfViewportHeight}px`,
+                }}
+              >
+                <RemoteViewportScaleLayer
+                  style={{
+                    width: `${activePdfViewportFrameWidth}px`,
+                    height: `${activePdfViewportBaseHeight}px`,
+                    transform: `scale(${remotePdfContainScale})`,
+                  }}
+                >
+                  <PdfViewport
+                    ref={handlePdfViewportRef}
+                    data-record-surface-type="pdf"
+                    onScroll={handlePdfScroll}
+                    $interactive={interactive}
+                    $allowHorizontal={activePdfZoom > 1.001}
+                    style={{
+                      width: `${activePdfViewportFrameWidth}px`,
+                      height: `${activePdfViewportBaseHeight}px`,
+                    }}
+                  >
+                    {pdfMeta.status === "loading"
+                      ? renderPdfLoadingState(t("groupCall.whiteboard.loadingPdf"))
+                      : null}
+                    {pdfMeta.status === "error" ? (
+                      <PdfStatus>
+                        <PdfStatusContent>
+                          <PdfStatusText>{t("groupCall.whiteboard.pdfLoadFailed")}</PdfStatusText>
+                        </PdfStatusContent>
+                      </PdfStatus>
+                    ) : null}
 
-              <PdfStack>
-                {interactive || shouldUseContainedMobilePdfViewport || isFullscreen ? (
-                  <PdfViewportSpacer $size={activePdfViewportTopInset} />
+                    <PdfStack>
+                      {interactive || shouldUseContainedMobilePdfViewport || isFullscreen ? (
+                        <PdfViewportSpacer $size={activePdfViewportTopInset} />
+                      ) : null}
+                      {pdfMeta.pages.map((pageMeta) => {
+                        const pageMetric = pdfPageMetrics[pageMeta.pageNumber];
+                        const pageHeight =
+                          pageMetric?.height ||
+                          (pdfRenderWidth > 0 && pageMeta.baseWidth > 0
+                            ? Math.round(
+                                (activePdfRenderWidth * pageMeta.baseHeight) /
+                                  pageMeta.baseWidth,
+                              )
+                            : 720);
+                        const displayedPageHeight = shouldUseContainedMobilePdfViewport
+                          ? Math.max(1, Math.round(pageHeight * activePdfZoom))
+                          : pageHeight;
+                        const shouldRenderPage =
+                          !interactive ||
+                          visiblePdfPages.includes(pageMeta.pageNumber) ||
+                          initialVisiblePdfPages.includes(pageMeta.pageNumber) ||
+                          pageMeta.pageNumber === currentPdfPage ||
+                          pageMeta.pageNumber === Number(activeTab.viewportPageNumber);
+                        const pageStrokes = getPdfTabPageStrokes(activeTab, pageMeta.pageNumber);
+                        const mobilePdfImage =
+                          shouldUseContainedMobilePdfViewport && pdfPageImages[pageMeta.pageNumber]
+                            ? pdfPageImages[pageMeta.pageNumber]
+                            : "";
+
+                        return (
+                          <PdfPageFrame
+                            key={pageMeta.pageNumber}
+                            id={`pdf-page-frame-${activeTab.id}-${pageMeta.pageNumber}`}
+                            data-page-number={pageMeta.pageNumber}
+                            style={{
+                              width: `${activePdfWidth}px`,
+                              minWidth: `${activePdfWidth}px`,
+                              height: `${displayedPageHeight}px`,
+                            }}
+                          >
+                            <PageBadge>
+                              {t("groupCall.whiteboard.pageShort", {
+                                current: pageMeta.pageNumber,
+                              })}
+                            </PageBadge>
+                            {shouldUseContainedMobilePdfViewport ? (
+                              <PdfPageScaleLayer
+                                style={{
+                                  width: `${activePdfRenderWidth}px`,
+                                  height: `${pageHeight}px`,
+                                  transform: `translateX(-50%) scale(${activePdfZoom})`,
+                                }}
+                              >
+                                {shouldRenderPage ? (
+                                  <>
+                                    {mobilePdfImage ? (
+                                      <PdfRasterImage src={mobilePdfImage} alt="" draggable={false} />
+                                    ) : null}
+                                    <PdfPageCanvas
+                                      id={`pdf-page-${activeTab.id}-${pageMeta.pageNumber}`}
+                                      $hidden={Boolean(mobilePdfImage)}
+                                    />
+                                  </>
+                                ) : (
+                                  <PdfPagePlaceholder />
+                                )}
+                                <StrokeCanvas
+                                  strokes={pageStrokes}
+                                  interactive={interactive}
+                                  tool={tool}
+                                  color={color}
+                                  fillColor={fillColor}
+                                  shapeEdge={shapeEdge}
+                                  brushSize={brushSize}
+                                  zoomScale={activePdfRenderScale}
+                                  textFontFamily={textFontFamily}
+                                  textSize={textSize}
+                                  textAlign={textAlign}
+                                  tabId={activeTab.id}
+                                  pageNumber={pageMeta.pageNumber}
+                                  onStrokeStart={onStrokeStart}
+                                  onStrokeAppend={onStrokeAppend}
+                                  onStrokeRemove={onStrokeRemove}
+                                  onStrokeUpdate={onStrokeUpdate}
+                                  onToolChange={onToolChange}
+                                  onTextEditorStateChange={setActiveTextEditorState}
+                                  surfaceMode="page"
+                                  textPlaceholder={t("groupCall.whiteboard.textPlaceholder")}
+                                />
+                              </PdfPageScaleLayer>
+                            ) : (
+                              <>
+                                {shouldRenderPage ? (
+                                  <>
+                                    {mobilePdfImage ? (
+                                      <PdfRasterImage src={mobilePdfImage} alt="" draggable={false} />
+                                    ) : null}
+                                    <PdfPageCanvas
+                                      id={`pdf-page-${activeTab.id}-${pageMeta.pageNumber}`}
+                                      $hidden={Boolean(mobilePdfImage)}
+                                    />
+                                  </>
+                                ) : (
+                                  <PdfPagePlaceholder />
+                                )}
+                                <StrokeCanvas
+                                  strokes={pageStrokes}
+                                  interactive={interactive}
+                                  tool={tool}
+                                  color={color}
+                                  fillColor={fillColor}
+                                  shapeEdge={shapeEdge}
+                                  brushSize={brushSize}
+                                  zoomScale={activePdfRenderScale}
+                                  textFontFamily={textFontFamily}
+                                  textSize={textSize}
+                                  textAlign={textAlign}
+                                  tabId={activeTab.id}
+                                  pageNumber={pageMeta.pageNumber}
+                                  onStrokeStart={onStrokeStart}
+                                  onStrokeAppend={onStrokeAppend}
+                                  onStrokeRemove={onStrokeRemove}
+                                  onStrokeUpdate={onStrokeUpdate}
+                                  onToolChange={onToolChange}
+                                  onTextEditorStateChange={setActiveTextEditorState}
+                                  surfaceMode="page"
+                                  textPlaceholder={t("groupCall.whiteboard.textPlaceholder")}
+                                />
+                              </>
+                            )}
+                          </PdfPageFrame>
+                        );
+                      })}
+                      {interactive || shouldUseContainedMobilePdfViewport || isFullscreen ? (
+                        <PdfViewportSpacer $size={activePdfViewportBottomInset} />
+                      ) : null}
+                    </PdfStack>
+                    {!pdfMeta.pages.length && pdfMeta.status === "ready" ? (
+                      <PdfStatus>{t("groupCall.whiteboard.emptyPdf")}</PdfStatus>
+                    ) : null}
+                  </PdfViewport>
+                </RemoteViewportScaleLayer>
+              </RemoteViewportShell>
+            ) : (
+              <PdfViewport
+                ref={handlePdfViewportRef}
+                data-record-surface-type="pdf"
+                onScroll={handlePdfScroll}
+                $interactive={interactive}
+                $allowHorizontal={activePdfZoom > 1.001}
+              >
+                {pdfMeta.status === "loading"
+                  ? renderPdfLoadingState(t("groupCall.whiteboard.loadingPdf"))
+                  : null}
+                {pdfMeta.status === "error" ? (
+                  <PdfStatus>
+                    <PdfStatusContent>
+                      <PdfStatusText>{t("groupCall.whiteboard.pdfLoadFailed")}</PdfStatusText>
+                    </PdfStatusContent>
+                  </PdfStatus>
                 ) : null}
-                {pdfMeta.pages.map((pageMeta) => {
-                  const pageMetric = pdfPageMetrics[pageMeta.pageNumber];
-                  const pageHeight =
-                    pageMetric?.height ||
-                    (pdfRenderWidth > 0 && pageMeta.baseWidth > 0
-                      ? Math.round(
-                          (activePdfRenderWidth * pageMeta.baseHeight) /
-                            pageMeta.baseWidth,
-                        )
-                      : 720);
-                  const displayedPageHeight = shouldUseContainedMobilePdfViewport
-                    ? Math.max(1, Math.round(pageHeight * activePdfZoom))
-                    : pageHeight;
-                  const shouldRenderPage =
-                    !interactive ||
-                    visiblePdfPages.includes(pageMeta.pageNumber) ||
-                    initialVisiblePdfPages.includes(pageMeta.pageNumber) ||
-                    pageMeta.pageNumber === currentPdfPage ||
-                    pageMeta.pageNumber === Number(activeTab.viewportPageNumber);
-                  const pageStrokes = getPdfTabPageStrokes(activeTab, pageMeta.pageNumber);
-                  const mobilePdfImage =
-                    shouldUseContainedMobilePdfViewport && pdfPageImages[pageMeta.pageNumber]
-                      ? pdfPageImages[pageMeta.pageNumber]
-                      : "";
 
-                  return (
-                    <PdfPageFrame
-                      key={pageMeta.pageNumber}
-                      id={`pdf-page-frame-${activeTab.id}-${pageMeta.pageNumber}`}
-                      data-page-number={pageMeta.pageNumber}
+                <PdfStack>
+                  {interactive || shouldUseContainedMobilePdfViewport || isFullscreen ? (
+                    <PdfViewportSpacer $size={activePdfViewportTopInset} />
+                  ) : null}
+                  {pdfMeta.pages.map((pageMeta) => {
+                    const pageMetric = pdfPageMetrics[pageMeta.pageNumber];
+                    const pageHeight =
+                      pageMetric?.height ||
+                      (pdfRenderWidth > 0 && pageMeta.baseWidth > 0
+                        ? Math.round(
+                            (activePdfRenderWidth * pageMeta.baseHeight) /
+                              pageMeta.baseWidth,
+                          )
+                        : 720);
+                    const displayedPageHeight = shouldUseContainedMobilePdfViewport
+                      ? Math.max(1, Math.round(pageHeight * activePdfZoom))
+                      : pageHeight;
+                    const shouldRenderPage =
+                      !interactive ||
+                      visiblePdfPages.includes(pageMeta.pageNumber) ||
+                      initialVisiblePdfPages.includes(pageMeta.pageNumber) ||
+                      pageMeta.pageNumber === currentPdfPage ||
+                      pageMeta.pageNumber === Number(activeTab.viewportPageNumber);
+                    const pageStrokes = getPdfTabPageStrokes(activeTab, pageMeta.pageNumber);
+                    const mobilePdfImage =
+                      shouldUseContainedMobilePdfViewport && pdfPageImages[pageMeta.pageNumber]
+                        ? pdfPageImages[pageMeta.pageNumber]
+                        : "";
+
+                    return (
+                      <PdfPageFrame
+                        key={pageMeta.pageNumber}
+                        id={`pdf-page-frame-${activeTab.id}-${pageMeta.pageNumber}`}
+                        data-page-number={pageMeta.pageNumber}
+                        style={{
+                          width: `${activePdfWidth}px`,
+                          minWidth: `${activePdfWidth}px`,
+                          height: `${displayedPageHeight}px`,
+                        }}
+                      >
+                        <PageBadge>
+                          {t("groupCall.whiteboard.pageShort", {
+                            current: pageMeta.pageNumber,
+                          })}
+                        </PageBadge>
+                        {shouldUseContainedMobilePdfViewport ? (
+                          <PdfPageScaleLayer
+                            style={{
+                              width: `${activePdfRenderWidth}px`,
+                              height: `${pageHeight}px`,
+                              transform: `translateX(-50%) scale(${activePdfZoom})`,
+                            }}
+                          >
+                            {shouldRenderPage ? (
+                              <>
+                                {mobilePdfImage ? (
+                                  <PdfRasterImage src={mobilePdfImage} alt="" draggable={false} />
+                                ) : null}
+                                <PdfPageCanvas
+                                  id={`pdf-page-${activeTab.id}-${pageMeta.pageNumber}`}
+                                  $hidden={Boolean(mobilePdfImage)}
+                                />
+                              </>
+                            ) : (
+                              <PdfPagePlaceholder />
+                            )}
+                            <StrokeCanvas
+                              strokes={pageStrokes}
+                              interactive={interactive}
+                              tool={tool}
+                              color={color}
+                              fillColor={fillColor}
+                              shapeEdge={shapeEdge}
+                              brushSize={brushSize}
+                              zoomScale={activePdfRenderScale}
+                              textFontFamily={textFontFamily}
+                              textSize={textSize}
+                              textAlign={textAlign}
+                              tabId={activeTab.id}
+                              pageNumber={pageMeta.pageNumber}
+                              onStrokeStart={onStrokeStart}
+                              onStrokeAppend={onStrokeAppend}
+                              onStrokeRemove={onStrokeRemove}
+                              onStrokeUpdate={onStrokeUpdate}
+                              onToolChange={onToolChange}
+                              onTextEditorStateChange={setActiveTextEditorState}
+                              surfaceMode="page"
+                              textPlaceholder={t("groupCall.whiteboard.textPlaceholder")}
+                            />
+                          </PdfPageScaleLayer>
+                        ) : (
+                          <>
+                            {shouldRenderPage ? (
+                              <>
+                                {mobilePdfImage ? (
+                                  <PdfRasterImage src={mobilePdfImage} alt="" draggable={false} />
+                                ) : null}
+                                <PdfPageCanvas
+                                  id={`pdf-page-${activeTab.id}-${pageMeta.pageNumber}`}
+                                  $hidden={Boolean(mobilePdfImage)}
+                                />
+                              </>
+                            ) : (
+                              <PdfPagePlaceholder />
+                            )}
+                            <StrokeCanvas
+                              strokes={pageStrokes}
+                              interactive={interactive}
+                              tool={tool}
+                              color={color}
+                              fillColor={fillColor}
+                              shapeEdge={shapeEdge}
+                              brushSize={brushSize}
+                              zoomScale={activePdfRenderScale}
+                              textFontFamily={textFontFamily}
+                              textSize={textSize}
+                              textAlign={textAlign}
+                              tabId={activeTab.id}
+                              pageNumber={pageMeta.pageNumber}
+                              onStrokeStart={onStrokeStart}
+                              onStrokeAppend={onStrokeAppend}
+                              onStrokeRemove={onStrokeRemove}
+                              onStrokeUpdate={onStrokeUpdate}
+                              onToolChange={onToolChange}
+                              onTextEditorStateChange={setActiveTextEditorState}
+                              surfaceMode="page"
+                              textPlaceholder={t("groupCall.whiteboard.textPlaceholder")}
+                            />
+                          </>
+                        )}
+                      </PdfPageFrame>
+                    );
+                  })}
+                  {interactive || shouldUseContainedMobilePdfViewport || isFullscreen ? (
+                    <PdfViewportSpacer $size={activePdfViewportBottomInset} />
+                  ) : null}
+                </PdfStack>
+                {!pdfMeta.pages.length && pdfMeta.status === "ready" ? (
+                  <PdfStatus>{t("groupCall.whiteboard.emptyPdf")}</PdfStatus>
+                ) : null}
+              </PdfViewport>
+            )
+          ) : shouldContainRemoteBoardViewport ? (
+            <RemoteViewportShell
+              style={{
+                width: `${Math.max(1, Math.round(activeBoardBaseWidth * remoteBoardContainScale))}px`,
+                height: `${Math.max(1, Math.round(activeBoardBaseHeight * remoteBoardContainScale))}px`,
+              }}
+            >
+              <RemoteViewportScaleLayer
+                style={{
+                  width: `${activeBoardBaseWidth}px`,
+                  height: `${activeBoardBaseHeight}px`,
+                  transform: `scale(${remoteBoardContainScale})`,
+                }}
+              >
+                <BoardViewport
+                  ref={handleBoardViewportRef}
+                  data-record-surface-type="board"
+                  onScroll={handleBoardScroll}
+                  style={{
+                    width: `${activeBoardBaseWidth}px`,
+                    height: `${activeBoardBaseHeight}px`,
+                  }}
+                >
+                  <BoardViewportContent>
+                    <BoardCanvasFrame
+                      ref={boardFrameRef}
                       style={{
-                        width: `${activePdfWidth}px`,
-                        minWidth: `${activePdfWidth}px`,
-                        height: `${displayedPageHeight}px`,
+                        width: `${Math.max(
+                          1,
+                          Math.round(activeBoardBaseWidth),
+                          Math.round(activeBoardBaseWidth * activeBoardRenderScale),
+                        )}px`,
+                        height: `${Math.max(
+                          1,
+                          Math.round(activeBoardBaseHeight),
+                          Math.round(activeBoardBaseHeight * activeBoardRenderScale),
+                        )}px`,
                       }}
                     >
-                      <PageBadge>
-                        {t("groupCall.whiteboard.pageShort", {
-                          current: pageMeta.pageNumber,
-                        })}
-                      </PageBadge>
-                      {shouldUseContainedMobilePdfViewport ? (
-                        <PdfPageScaleLayer
-                          style={{
-                            width: `${activePdfRenderWidth}px`,
-                            height: `${pageHeight}px`,
-                            transform: `translateX(-50%) scale(${activePdfZoom})`,
-                          }}
-                        >
-                          {shouldRenderPage ? (
-                            <>
-                              {mobilePdfImage ? (
-                                <PdfRasterImage src={mobilePdfImage} alt="" draggable={false} />
-                              ) : null}
-                              <PdfPageCanvas
-                                id={`pdf-page-${activeTab.id}-${pageMeta.pageNumber}`}
-                                $hidden={Boolean(mobilePdfImage)}
-                              />
-                            </>
-                          ) : (
-                            <PdfPagePlaceholder />
-                          )}
-                          <StrokeCanvas
-                            strokes={pageStrokes}
-                            interactive={interactive}
-                            tool={tool}
-                            color={color}
-                            fillColor={fillColor}
-                            shapeEdge={shapeEdge}
-                            brushSize={brushSize}
-                            zoomScale={activePdfRenderScale}
-                            textFontFamily={textFontFamily}
-                            textSize={textSize}
-                            textAlign={textAlign}
-                            tabId={activeTab.id}
-                            pageNumber={pageMeta.pageNumber}
-                            onStrokeStart={onStrokeStart}
-                            onStrokeAppend={onStrokeAppend}
-                            onStrokeRemove={onStrokeRemove}
-                            onStrokeUpdate={onStrokeUpdate}
-                            onToolChange={onToolChange}
-                            onTextEditorStateChange={setActiveTextEditorState}
-                            surfaceMode="page"
-                            textPlaceholder={t("groupCall.whiteboard.textPlaceholder")}
-                          />
-                        </PdfPageScaleLayer>
-                      ) : (
-                        <>
-                          {shouldRenderPage ? (
-                            <>
-                              {mobilePdfImage ? (
-                                <PdfRasterImage src={mobilePdfImage} alt="" draggable={false} />
-                              ) : null}
-                              <PdfPageCanvas
-                                id={`pdf-page-${activeTab.id}-${pageMeta.pageNumber}`}
-                                $hidden={Boolean(mobilePdfImage)}
-                              />
-                            </>
-                          ) : (
-                            <PdfPagePlaceholder />
-                          )}
-                          <StrokeCanvas
-                            strokes={pageStrokes}
-                            interactive={interactive}
-                            tool={tool}
-                            color={color}
-                            fillColor={fillColor}
-                            shapeEdge={shapeEdge}
-                            brushSize={brushSize}
-                            zoomScale={activePdfRenderScale}
-                            textFontFamily={textFontFamily}
-                            textSize={textSize}
-                            textAlign={textAlign}
-                            tabId={activeTab.id}
-                            pageNumber={pageMeta.pageNumber}
-                            onStrokeStart={onStrokeStart}
-                            onStrokeAppend={onStrokeAppend}
-                            onStrokeRemove={onStrokeRemove}
-                            onStrokeUpdate={onStrokeUpdate}
-                            onToolChange={onToolChange}
-                            onTextEditorStateChange={setActiveTextEditorState}
-                            surfaceMode="page"
-                            textPlaceholder={t("groupCall.whiteboard.textPlaceholder")}
-                          />
-                        </>
-                      )}
-                    </PdfPageFrame>
-                  );
-                })}
-                {interactive || shouldUseContainedMobilePdfViewport || isFullscreen ? (
-                  <PdfViewportSpacer $size={activePdfViewportBottomInset} />
-                ) : null}
-              </PdfStack>
-              {!pdfMeta.pages.length && pdfMeta.status === "ready" ? (
-                <PdfStatus>{t("groupCall.whiteboard.emptyPdf")}</PdfStatus>
-              ) : null}
-            </PdfViewport>
+                      <BoardSurface>
+                        <StrokeCanvas
+                          strokes={boardTab?.strokes || []}
+                          interactive={interactive}
+                          tool={tool}
+                          color={color}
+                          fillColor={fillColor}
+                          shapeEdge={shapeEdge}
+                          brushSize={brushSize}
+                          zoomScale={activeBoardRenderScale}
+                          textFontFamily={textFontFamily}
+                          textSize={textSize}
+                          textAlign={textAlign}
+                          tabId={WHITEBOARD_BOARD_TAB_ID}
+                          onStrokeStart={onStrokeStart}
+                          onStrokeAppend={onStrokeAppend}
+                          onStrokeRemove={onStrokeRemove}
+                          onStrokeUpdate={onStrokeUpdate}
+                          onToolChange={onToolChange}
+                          onTextEditorStateChange={setActiveTextEditorState}
+                          surfaceMode="board"
+                          textPlaceholder={t("groupCall.whiteboard.textPlaceholder")}
+                        />
+                        {!hasBoardStrokes ? (
+                          <EmptyState $compact={compact}>{helperText}</EmptyState>
+                        ) : null}
+                      </BoardSurface>
+                    </BoardCanvasFrame>
+                  </BoardViewportContent>
+                </BoardViewport>
+              </RemoteViewportScaleLayer>
+            </RemoteViewportShell>
           ) : (
-            <BoardViewport ref={handleBoardViewportRef} data-record-surface-type="board">
+            <BoardViewport
+              ref={handleBoardViewportRef}
+              data-record-surface-type="board"
+              onScroll={handleBoardScroll}
+            >
               <BoardViewportContent>
                 <BoardCanvasFrame
                   ref={boardFrameRef}
                   style={{
-                    width: `${
-                      interactive
-                        ? Math.max(
-                            1,
-                            Math.round(activeBoardBaseWidth),
-                            Math.round(activeBoardBaseWidth * activeBoardRenderScale),
-                          )
-                        : Math.max(
-                            1,
-                            Math.round(activeBoardBaseWidth * activeBoardRenderScale),
-                          )
-                    }px`,
-                    height: `${
-                      interactive
-                        ? Math.max(
-                            1,
-                            Math.round(activeBoardBaseHeight),
-                            Math.round(activeBoardBaseHeight * activeBoardRenderScale),
-                          )
-                        : Math.max(
-                            1,
-                            Math.round(activeBoardBaseHeight * activeBoardRenderScale),
-                          )
-                    }px`,
+                    width: `${Math.max(
+                      1,
+                      Math.round(activeBoardBaseWidth),
+                      Math.round(activeBoardBaseWidth * activeBoardRenderScale),
+                    )}px`,
+                    height: `${Math.max(
+                      1,
+                      Math.round(activeBoardBaseHeight),
+                      Math.round(activeBoardBaseHeight * activeBoardRenderScale),
+                    )}px`,
                   }}
                 >
                   <BoardSurface>
@@ -7802,13 +8550,13 @@ const WhiteboardTile = ({
                       interactive={interactive}
                       tool={tool}
                       color={color}
-                        fillColor={fillColor}
-                        shapeEdge={shapeEdge}
-                        brushSize={brushSize}
-                        zoomScale={activeBoardRenderScale}
-                        textFontFamily={textFontFamily}
-                        textSize={textSize}
-                        textAlign={textAlign}
+                      fillColor={fillColor}
+                      shapeEdge={shapeEdge}
+                      brushSize={brushSize}
+                      zoomScale={activeBoardRenderScale}
+                      textFontFamily={textFontFamily}
+                      textSize={textSize}
+                      textAlign={textAlign}
                       tabId={WHITEBOARD_BOARD_TAB_ID}
                       onStrokeStart={onStrokeStart}
                       onStrokeAppend={onStrokeAppend}
@@ -7828,10 +8576,16 @@ const WhiteboardTile = ({
             </BoardViewport>
           )}
 
-          {!interactive && activeTab?.type === "pdf" && guestPdfOverride ? (
+          {!interactive &&
+          ((activeTab?.type === "pdf" && guestPdfOverride) ||
+            (activeTab?.type !== "pdf" && guestBoardOverride)) ? (
             <GuestSyncButton
               type="button"
-              onClick={handleResetGuestPdfSync}
+              onClick={
+                activeTab?.type === "pdf"
+                  ? handleResetGuestPdfSync
+                  : handleResetGuestBoardSync
+              }
               aria-label="Asl"
               title="Asl"
             >
@@ -7839,7 +8593,7 @@ const WhiteboardTile = ({
             </GuestSyncButton>
           ) : null}
 
-          {interactive || (!interactive && activeTab?.type === "pdf") ? (
+          {activeTab ? (
             <FloatingControls>
               <FloatingGroup>
                 <ToolButton

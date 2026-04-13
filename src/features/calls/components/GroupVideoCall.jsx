@@ -70,6 +70,8 @@ const WHITEBOARD_DEFAULT_BRUSH_SIZE = 4;
 const WHITEBOARD_DEFAULT_TEXT_FONT_FAMILY = "sans";
 const WHITEBOARD_DEFAULT_TEXT_SIZE = "m";
 const WHITEBOARD_DEFAULT_TEXT_ALIGN = "left";
+const ACTIVE_SPEAKER_THRESHOLD = 10;
+const ACTIVE_SPEAKER_HOLD_MS = 1200;
 const WHITEBOARD_RECORDING_WEBM_AUDIO_MIME_TYPES = [
   "video/webm;codecs=vp8,opus",
   "video/webm;codecs=vp9,opus",
@@ -4014,9 +4016,12 @@ const GroupVideoCall = ({
         }
       });
 
-      if (strongestPeerId && strongestLevel > 10) {
+      if (strongestPeerId && strongestLevel > ACTIVE_SPEAKER_THRESHOLD) {
         const now = performance.now();
-        if (strongestPeerId !== lastCommittedPeerId || now - lastCommitAt > 1200) {
+        if (
+          strongestPeerId !== lastCommittedPeerId ||
+          now - lastCommitAt > ACTIVE_SPEAKER_HOLD_MS
+        ) {
           lastCommittedPeerId = strongestPeerId;
           lastCommitAt = now;
           setLastSpeakerPeerId((current) =>
@@ -4024,6 +4029,13 @@ const GroupVideoCall = ({
           );
         } else {
           lastCommitAt = now;
+        }
+      } else if (lastCommittedPeerId) {
+        const now = performance.now();
+        if (now - lastCommitAt > ACTIVE_SPEAKER_HOLD_MS) {
+          lastCommittedPeerId = null;
+          lastCommitAt = 0;
+          setLastSpeakerPeerId(null);
         }
       }
 
@@ -4744,7 +4756,9 @@ const GroupVideoCall = ({
               ) : null}
 
               {/* Floating Participants (Google Meet style) */}
-              {isPresenterMode && floatingParticipantTiles.length > 0 && (
+              {!isWhiteboardFullscreen &&
+                isPresenterMode &&
+                floatingParticipantTiles.length > 0 && (
                 <FloatingParticipantsContainer>
                   {floatingParticipantTiles.map((tile) => renderFloatingParticipantTile(tile))}
                 </FloatingParticipantsContainer>
@@ -5071,14 +5085,12 @@ const GroupVideoCall = ({
                   {copied ? <Check size={18} /> : <Copy size={18} />}
                   {copied ? "Copied!" : "Copy link"}
                 </MenuItem>
-                {(isCreator || isWhiteboardActive) && (
+                {isCreator && (
                   <MenuItem onClick={() => { handleWhiteboardTopAction(); setShowMenuDialog(false); }}>
                     <PenSquare size={18} />
-                    {isCreator
-                      ? isWhiteboardActive
-                        ? "Hide whiteboard"
-                        : "Show whiteboard"
-                      : "Open whiteboard"}
+                    {isWhiteboardActive
+                      ? "Hide whiteboard"
+                      : "Show whiteboard"}
                   </MenuItem>
                 )}
               </MenuDialog>

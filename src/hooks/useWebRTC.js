@@ -116,8 +116,8 @@ const WHITEBOARD_BOARD_TAB_ID = "board";
 const WHITEBOARD_TAB_ID_PATTERN = /^[a-zA-Z0-9_-]{1,80}$/;
 const WHITEBOARD_MAX_TABS = 6;
 const WHITEBOARD_PDF_LIBRARY_MAX_ITEMS = 24;
-const WHITEBOARD_MIN_ZOOM = 0.5;
-const WHITEBOARD_MAX_ZOOM = 3;
+const WHITEBOARD_MIN_ZOOM = 0.1;
+const WHITEBOARD_MAX_ZOOM = 30;
 const WHITEBOARD_BOARD_POINT_MIN = -0.5;
 const WHITEBOARD_BOARD_POINT_MAX = 1.5;
 const WHITEBOARD_MIN_VIEWPORT_BASE_WIDTH = 120;
@@ -138,6 +138,8 @@ const createWhiteboardBoardTab = () => ({
   zoom: 1,
   viewportBaseWidth: WHITEBOARD_MIN_VIEWPORT_BASE_WIDTH,
   viewportBaseHeight: WHITEBOARD_MIN_VIEWPORT_BASE_HEIGHT,
+  scrollLeftRatio: 0,
+  scrollTopRatio: 0,
   strokes: [],
 });
 
@@ -513,6 +515,8 @@ const normalizeWhiteboardTab = (tab) => {
     zoom: normalizeWhiteboardZoom(tab.zoom),
     viewportBaseWidth: normalizeWhiteboardViewportBaseWidth(tab.viewportBaseWidth),
     viewportBaseHeight: normalizeWhiteboardViewportBaseHeight(tab.viewportBaseHeight),
+    scrollLeftRatio: normalizeWhiteboardViewportLeftRatio(tab.scrollLeftRatio),
+    scrollTopRatio: normalizeWhiteboardScrollRatio(tab.scrollTopRatio),
     strokes: trimWhiteboardStrokes(
       (Array.isArray(tab.strokes) ? tab.strokes : [])
         .map((stroke) => normalizeWhiteboardStroke(stroke))
@@ -1113,7 +1117,7 @@ const setWhiteboardPdfViewportInState = (
 
 const setWhiteboardBoardZoomInState = (
   state,
-  { tabId, zoom, viewportBaseWidth, viewportBaseHeight },
+  { tabId, zoom, viewportBaseWidth, viewportBaseHeight, scrollLeftRatio, scrollTopRatio },
 ) => {
   const targetTabId = resolveWhiteboardTargetTabId(state, tabId);
 
@@ -1135,6 +1139,14 @@ const setWhiteboardBoardZoomInState = (
               typeof viewportBaseHeight === "undefined"
                 ? normalizeWhiteboardViewportBaseHeight(tab.viewportBaseHeight)
                 : normalizeWhiteboardViewportBaseHeight(viewportBaseHeight),
+            scrollLeftRatio:
+              typeof scrollLeftRatio === "undefined"
+                ? normalizeWhiteboardViewportLeftRatio(tab.scrollLeftRatio)
+                : normalizeWhiteboardViewportLeftRatio(scrollLeftRatio),
+            scrollTopRatio:
+              typeof scrollTopRatio === "undefined"
+                ? normalizeWhiteboardScrollRatio(tab.scrollTopRatio)
+                : normalizeWhiteboardScrollRatio(scrollTopRatio),
           },
     ),
     activeTabId: targetTabId,
@@ -4697,7 +4709,7 @@ export function useWebRTC({
   );
 
   const syncWhiteboardBoardZoom = useCallback(
-    ({ tabId, zoom, viewportBaseWidth, viewportBaseHeight }) => {
+    ({ tabId, zoom, viewportBaseWidth, viewportBaseHeight, scrollLeftRatio, scrollTopRatio }) => {
       if (!isCreator || !socketRef.current) {
         return false;
       }
@@ -4712,6 +4724,8 @@ export function useWebRTC({
           zoom,
           viewportBaseWidth,
           viewportBaseHeight,
+          scrollLeftRatio,
+          scrollTopRatio,
         }),
       );
       socketRef.current.emit("whiteboard-board-zoom", {
@@ -4720,6 +4734,8 @@ export function useWebRTC({
         zoom,
         viewportBaseWidth,
         viewportBaseHeight,
+        scrollLeftRatio,
+        scrollTopRatio,
       });
       return true;
     },
