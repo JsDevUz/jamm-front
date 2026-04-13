@@ -583,6 +583,8 @@ const TopActions = styled.div`
   gap: 8px;
   flex-shrink: 0;
   pointer-events: auto;
+  position: relative;
+  z-index: 4;
 
   @media (max-width: 768px) {
     flex-wrap: nowrap;
@@ -635,7 +637,9 @@ const TinyBtn = styled.button`
 
 const QualityIndicatorWrap = styled.div`
   position: relative;
-  z-index: 3;
+  z-index: 2;
+  display: inline-flex;
+  flex: 0 0 auto;
 `;
 
 const QualityBadge = styled(TinyBtn)`
@@ -656,8 +660,8 @@ const QualityBadgeText = styled.span`
 
 const QualityPopover = styled.div`
   position: absolute;
-  top: calc(100% + 10px);
-  right: 0;
+  top: calc(100% + 12px);
+  left: 0;
   width: min(320px, calc(100vw - 28px));
   padding: 14px;
   border-radius: 16px;
@@ -666,6 +670,13 @@ const QualityPopover = styled.div`
   box-shadow: 0 18px 48px rgba(0, 0, 0, 0.28);
   backdrop-filter: blur(16px);
   color: var(--call-text);
+  z-index: 20;
+  pointer-events: auto;
+
+  @media (max-width: 768px) {
+    top: calc(100% + 10px);
+    left: 0;
+  }
 `;
 
 const QualityPopoverTitle = styled.div`
@@ -4767,7 +4778,7 @@ const GroupVideoCall = ({
           <TinyBtn
             type="button"
             onClick={() => setShowDrawer((p) => !p)}
-            style={{ position: "relative", zIndex: 3 }}
+            style={{ position: "relative", zIndex: 8 }}
             aria-label={t("groupCall.participants", { count: participantsCount })}
             title={t("groupCall.participants", { count: participantsCount })}
           >
