@@ -52,10 +52,16 @@ export async function updateMeetPrivacy(roomId, isPrivate) {
 }
 
 export async function getMeetById(roomId) {
-  // In a real generic app we might fetch from server, but for now we just filter local if needed
-  // Alternatively return null if not fetched
-  const meets = await getMeets();
-  return meets.find((m) => m.roomId === roomId) || null;
+  try {
+    const { data } = await axiosInstance.get(`${API_BASE_URL}/meets/public/${roomId}`);
+    return data || null;
+  } catch (error) {
+    if (error?.response?.status === 404) {
+      return null;
+    }
+    console.error("Failed to fetch public meet", error);
+    return null;
+  }
 }
 
 export function markAsCreator(roomId) {

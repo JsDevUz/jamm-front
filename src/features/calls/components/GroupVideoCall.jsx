@@ -524,7 +524,12 @@ const TopBar = styled.div`
   border-bottom: none;
   backdrop-filter: blur(10px);
   flex-shrink: 0;
-  pointer-events: auto;
+  pointer-events: ${(p) => (p.$hidden ? "none" : "auto")};
+  opacity: ${(p) => (p.$hidden ? 0 : 1)};
+  transform: translateY(${(p) => (p.$hidden ? "-18px" : "0")});
+  transition:
+    opacity 0.34s ease,
+    transform 0.34s cubic-bezier(0.22, 1, 0.36, 1);
 
   @media (max-width: 768px) {
     flex-direction: row;
@@ -628,6 +633,64 @@ const TinyBtn = styled.button`
   }
 `;
 
+const QualityIndicatorWrap = styled.div`
+  position: relative;
+  z-index: 3;
+`;
+
+const QualityBadge = styled(TinyBtn)`
+  padding: 0 12px;
+  gap: 7px;
+`;
+
+const QualityBadgeText = styled.span`
+  max-width: 132px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+
+  @media (max-width: 768px) {
+    max-width: 88px;
+  }
+`;
+
+const QualityPopover = styled.div`
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  width: min(320px, calc(100vw - 28px));
+  padding: 14px;
+  border-radius: 16px;
+  border: 1px solid color-mix(in srgb, var(--call-border) 82%, transparent);
+  background: color-mix(in srgb, var(--call-panel) 96%, rgba(9, 12, 20, 0.18));
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(16px);
+  color: var(--call-text);
+`;
+
+const QualityPopoverTitle = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 700;
+`;
+
+const QualityPopoverText = styled.p`
+  margin: 10px 0 0;
+  color: var(--call-muted);
+  font-size: 12px;
+  line-height: 1.5;
+`;
+
+const QualityPopoverList = styled.ul`
+  margin: 12px 0 0;
+  padding-left: 18px;
+  color: var(--call-text);
+  font-size: 12px;
+  line-height: 1.5;
+`;
+
 const Body = styled.div`
   display: flex;
   flex: 1;
@@ -636,6 +699,9 @@ const Body = styled.div`
   padding-top: ${(p) => (p.$immersive ? "0" : p.$uiHidden ? "0" : "60px")};
   padding-bottom: ${(p) => (p.$immersive ? "0" : p.$uiHidden ? "0" : "100px")};
   position: relative;
+  transition:
+    padding-top 0.42s cubic-bezier(0.22, 1, 0.36, 1),
+    padding-bottom 0.42s cubic-bezier(0.22, 1, 0.36, 1);
 `;
 
 const ScreenClickOverlay = styled.div`
@@ -1067,6 +1133,12 @@ const StageRail = styled.div`
           max-height: calc(100% - 180px);
           z-index: 7;
         `}
+  transition:
+    top 0.42s cubic-bezier(0.22, 1, 0.36, 1),
+    width 0.42s cubic-bezier(0.22, 1, 0.36, 1),
+    max-height 0.42s cubic-bezier(0.22, 1, 0.36, 1),
+    left 0.42s cubic-bezier(0.22, 1, 0.36, 1),
+    right 0.42s cubic-bezier(0.22, 1, 0.36, 1);
 `;
 
 const StageRailGrid = styled.div`
@@ -1114,6 +1186,11 @@ const StageRailGrid = styled.div`
   &::-webkit-scrollbar {
     display: none;
   }
+
+  transition:
+    max-height 0.42s cubic-bezier(0.22, 1, 0.36, 1),
+    grid-auto-columns 0.42s cubic-bezier(0.22, 1, 0.36, 1),
+    grid-auto-rows 0.42s cubic-bezier(0.22, 1, 0.36, 1);
 `;
 
 const StageRailLabel = styled.div`
@@ -1141,7 +1218,14 @@ const FloatingParticipantsContainer = styled.div`
   overflow-x: hidden;
   padding: 4px;
   scrollbar-width: none;
-  pointer-events: auto;
+  pointer-events: ${(p) => (p.$hidden ? "none" : "auto")};
+  opacity: ${(p) => (p.$hidden ? 0 : 1)};
+  transform: translateY(${(p) => (p.$hidden ? "-10px" : "0")});
+  transition:
+    opacity 0.34s ease,
+    transform 0.34s cubic-bezier(0.22, 1, 0.36, 1),
+    top 0.42s cubic-bezier(0.22, 1, 0.36, 1),
+    max-height 0.42s cubic-bezier(0.22, 1, 0.36, 1);
 
   &::-webkit-scrollbar {
     display: none;
@@ -1164,7 +1248,11 @@ const FloatingParticipantTile = styled.div`
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
   position: relative;
   cursor: pointer;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  transition:
+    transform 0.34s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.34s ease,
+    width 0.42s cubic-bezier(0.22, 1, 0.36, 1),
+    height 0.42s cubic-bezier(0.22, 1, 0.36, 1);
 
   &:hover {
     transform: translateY(-2px);
@@ -1738,10 +1826,14 @@ const ControlBar = styled.div`
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
   pointer-events: auto;
-  transition: transform 0.22s ease, opacity 0.22s ease;
-  transform: translateY(${(p) => (p.$collapsed ? "calc(100% + 24px)" : "0")});
-  opacity: ${(p) => (p.$collapsed ? 0 : 1)};
-  pointer-events: ${(p) => (p.$collapsed ? "none" : "auto")};
+  transition:
+    transform 0.38s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.34s ease;
+  transform: translateY(
+    ${(p) => (p.$hidden ? "36px" : p.$collapsed ? "calc(100% + 24px)" : "0")}
+  );
+  opacity: ${(p) => (p.$hidden || p.$collapsed ? 0 : 1)};
+  pointer-events: ${(p) => (p.$hidden || p.$collapsed ? "none" : "auto")};
 
   @media (max-width: 768px) {
     gap: 10px;
@@ -1771,7 +1863,12 @@ const ControlBarDock = styled.div`
   gap: 8px;
   width: max-content;
   max-width: calc(100% - 24px);
-  pointer-events: none;
+  pointer-events: ${(p) => (p.$hidden ? "none" : "none")};
+  opacity: ${(p) => (p.$hidden ? 0 : 1)};
+  transform: translate(-50%, ${(p) => (p.$hidden ? "18px" : "0")});
+  transition:
+    opacity 0.34s ease,
+    transform 0.38s cubic-bezier(0.22, 1, 0.36, 1);
 
   @media (max-width: 768px) {
     bottom: calc(10px + env(safe-area-inset-bottom, 0px));
@@ -2228,6 +2325,7 @@ const GroupVideoCall = ({
   const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
   const [showDrawer, setShowDrawer] = useState(false);
+  const [showQualityHelp, setShowQualityHelp] = useState(false);
   const [showMenuDialog, setShowMenuDialog] = useState(false);
   const [isSpeakerOn, setIsSpeakerOn] = useState(true);
   const [selectedTileId, setSelectedTileId] = useState(null);
@@ -2240,6 +2338,7 @@ const GroupVideoCall = ({
   const pipCloseIntentRef = useRef(false);
   const menuButtonRef = useRef(null);
   const menuDialogRef = useRef(null);
+  const qualityHelpRef = useRef(null);
   const whiteboardWasActiveRef = useRef(false);
   const meetStartToneRoomRef = useRef(null);
   const [viewport, setViewport] = useState(() => ({
@@ -2264,6 +2363,23 @@ const GroupVideoCall = ({
     meetStartToneRoomRef.current = roomId;
     playMeetStartedTone().catch(() => {});
   }, [isOpen, roomId]);
+
+  useEffect(() => {
+    if (!showQualityHelp) {
+      return undefined;
+    }
+
+    const handleOutsideClick = (event) => {
+      if (!qualityHelpRef.current?.contains(event.target)) {
+        setShowQualityHelp(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleOutsideClick);
+    return () => {
+      document.removeEventListener("mousedown", handleOutsideClick);
+    };
+  }, [showQualityHelp]);
 
   // Speaker toggle effect for mobile
   useEffect(() => {
@@ -4306,11 +4422,52 @@ const GroupVideoCall = ({
         : qualityProfile?.key?.startsWith("screen")
           ? Monitor
           : CheckCircle;
+  const qualityBadgeLabel =
+    qualityProfile?.key === "poor"
+      ? "Audio priority"
+      : qualityProfile?.key === "crowded"
+        ? "Balanced"
+        : qualityProfile?.key?.startsWith("screen")
+          ? "Screen focus"
+          : "HD";
+  const qualityHelpTitle =
+    qualityProfile?.key === "poor"
+      ? "Audio priority mode"
+      : qualityProfile?.key?.startsWith("screen")
+        ? "Screen share priority"
+        : qualityProfile?.key === "crowded"
+          ? "Balanced call mode"
+          : "High quality mode";
+  const qualityHelpDescription =
+    qualityProfile?.key === "poor"
+      ? "Internet sekinlashganda ovoz tiniqroq qolishi uchun video birinchi bo'lib pasayadi."
+      : qualityProfile?.key?.startsWith("screen")
+        ? "Ekran ulashilganda matn va detail tiniqroq ko'rinishi uchun screen share ustuvor qilinadi."
+        : qualityProfile?.key === "crowded"
+          ? "Ishtirokchilar ko'payganda umumiy barqarorlik uchun video sifatlari yumshatiladi."
+          : "Tarmoq yaxshi bo'lsa kamera va screen share yuqori sifatda yuboriladi.";
+  const qualityHelpItems = [
+    `Tarmoq holati: ${networkQuality === "poor" ? "past" : networkQuality === "limited" ? "o'rtacha" : "yaxshi"}`,
+    `Aktiv profil: ${qualityBadgeLabel}`,
+    qualityProfile?.key === "poor"
+      ? "Video pasayishi mumkin, lekin mikrofon ustuvor ushlanadi."
+      : "Ovoz doim ustuvor, video esa tarmoqqa qarab moslashadi.",
+  ];
 
   const handleStageSelect = useCallback((tileId) => {
     setSelectedTileId((current) => (current === tileId ? null : tileId));
     setFullscreenTileId((current) => (current === tileId ? null : current));
   }, []);
+
+  const handleTileInteraction = useCallback(
+    (tileId) => {
+      handleScreenClick();
+      if (tileId) {
+        handleStageSelect(tileId);
+      }
+    },
+    [handleScreenClick, handleStageSelect],
+  );
 
   const handleToggleTileFullscreen = useCallback(
     (tileId) => {
@@ -4346,8 +4503,8 @@ const GroupVideoCall = ({
       canFullscreen={showFullscreenControl && tile.hasVideo}
       isFullscreen={fullscreenTileId === tile.id}
       onToggleFullscreen={() => handleToggleTileFullscreen(tile.id)}
-      onSelect={selectable ? () => handleStageSelect(tile.id) : undefined}
-      onSurfaceTap={activeStageTileId === tile.id ? handleScreenClick : undefined}
+      onSelect={selectable ? () => handleTileInteraction(tile.id) : undefined}
+      onSurfaceTap={!selectable ? handleScreenClick : undefined}
       isActive={activeStageTileId === tile.id}
       compact={compact}
       handRaised={tile.handRaised}
@@ -4371,7 +4528,7 @@ const GroupVideoCall = ({
       canFullscreen={showFullscreenControl && tile.canFullscreen}
       isFullscreen={fullscreenTileId === tile.id}
       onToggleFullscreen={() => handleToggleTileFullscreen(tile.id)}
-      onSelect={selectable ? () => handleStageSelect(tile.id) : undefined}
+      onSelect={selectable ? () => handleTileInteraction(tile.id) : handleScreenClick}
       interactive={Boolean(isCreator && activeStageTileId === tile.id && !compact)}
       tool={whiteboardTool}
       color={whiteboardColor}
@@ -4453,7 +4610,7 @@ const GroupVideoCall = ({
     return (
       <FloatingParticipantTile
         key={tile.id}
-        onClick={() => handleStageSelect(tile.id)}
+        onClick={() => handleTileInteraction(tile.id)}
         title={participantLabel}
       >
         {hasRenderableVideo && !isScreenShare ? (
@@ -4487,7 +4644,7 @@ const GroupVideoCall = ({
         </FloatingParticipantLabel>
       </FloatingParticipantTile>
     );
-  }, [t, handleStageSelect]);
+  }, [t, handleTileInteraction]);
 
   const floatingParticipantTiles = useMemo(() => {
     if (!hasStageLayout || !activeStageTile) return [];
@@ -4541,25 +4698,44 @@ const GroupVideoCall = ({
   }, [isScreenSharing, t, toggleScreenShare]);
 
   const topBarContent = (
-    <TopBar>
+    <TopBar $hidden={isUIHidden || isWhiteboardFullscreen}>
       <TopActions>
         {(isRecording || isWhiteboardRecording || remoteIsRecording) && (
           <RecBadge>
             <Circle size={8} fill="#f04747" /> {t("groupCall.recording")}
           </RecBadge>
         )}
-        <TinyBtn
-          as="div"
-          style={{
-            cursor: "default",
-            color: qualityTone,
-            borderColor: qualityTone,
-          }}
-          title={qualityProfile.label}
-          aria-label={qualityProfile.label}
-        >
-          {React.createElement(qualityIcon, { size: 16 })}
-        </TinyBtn>
+        <QualityIndicatorWrap ref={qualityHelpRef}>
+          <QualityBadge
+            type="button"
+            onClick={() => setShowQualityHelp((prev) => !prev)}
+            style={{
+              color: qualityTone,
+              borderColor: qualityTone,
+            }}
+            title={qualityHelpTitle}
+            aria-label={qualityHelpTitle}
+            aria-expanded={showQualityHelp}
+          >
+            {React.createElement(qualityIcon, { size: 16 })}
+            <QualityBadgeText>{qualityBadgeLabel}</QualityBadgeText>
+            {showQualityHelp ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+          </QualityBadge>
+          {showQualityHelp ? (
+            <QualityPopover>
+              <QualityPopoverTitle>
+                {React.createElement(qualityIcon, { size: 16, color: qualityTone })}
+                {qualityHelpTitle}
+              </QualityPopoverTitle>
+              <QualityPopoverText>{qualityHelpDescription}</QualityPopoverText>
+              <QualityPopoverList>
+                {qualityHelpItems.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </QualityPopoverList>
+            </QualityPopover>
+          ) : null}
+        </QualityIndicatorWrap>
         {isMobileViewport && (
           <TinyBtn
             onClick={() => setIsSpeakerOn((p) => !p)}
@@ -4782,7 +4958,7 @@ const GroupVideoCall = ({
         $uiHidden={isUIHidden}
       >
         {/* TopBar floats on top of content */}
-        {!isUIHidden && !isWhiteboardFullscreen && topBarContent}
+        {!isWhiteboardFullscreen && topBarContent}
 
         {/* Invisible overlay to toggle UI when clicking empty space */}
         <ScreenClickOverlay onClick={handleScreenClick} />
@@ -4887,7 +5063,7 @@ const GroupVideoCall = ({
               {!isWhiteboardFullscreen &&
                 isPresenterMode &&
                 floatingParticipantTiles.length > 0 && (
-                <FloatingParticipantsContainer>
+                <FloatingParticipantsContainer $hidden={isUIHidden}>
                   {floatingParticipantTiles.map((tile) => renderFloatingParticipantTile(tile))}
                 </FloatingParticipantsContainer>
               )}
@@ -5132,8 +5308,8 @@ const GroupVideoCall = ({
       </>
       )}
 
-      {!isMinimized && !isUIHidden && (
-      <ControlBarDock>
+      {!isMinimized && (
+      <ControlBarDock $hidden={isUIHidden}>
         {isWhiteboardFullscreen ? (
           <ControlBarToggle
             type="button"
@@ -5148,7 +5324,10 @@ const GroupVideoCall = ({
             {isControlBarCollapsed ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
           </ControlBarToggle>
         ) : null}
-      <ControlBar $collapsed={isWhiteboardFullscreen && isControlBarCollapsed}>
+      <ControlBar
+        $hidden={isUIHidden}
+        $collapsed={isWhiteboardFullscreen && isControlBarCollapsed}
+      >
         <CtrlBtn
           $state={isMicOn ? "on" : "off"}
           onClick={toggleMic}

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { io } from "socket.io-client";
-import { Room, RoomEvent } from "livekit-client";
+import { AudioPresets, Room, RoomEvent } from "livekit-client";
 import axiosInstance from "../api/axiosInstance";
 import { createLivekitToken, fetchLivekitConfig } from "../api/livekitApi";
 import useAuthStore from "../store/authStore";
@@ -32,6 +32,171 @@ const buildFallbackIceConfig = () => ({
   ],
 });
 
+const buildLivekitAudioCaptureOptions = () => ({
+  echoCancellation: true,
+  noiseSuppression: true,
+  autoGainControl: true,
+  channelCount: 1,
+  sampleRate: 48000,
+  sampleSize: 16,
+  latency: 0.01,
+  voiceIsolation: true,
+});
+
+const buildLivekitAudioPublishOptions = () => ({
+  audioPreset: AudioPresets.speech,
+  dtx: true,
+  red: true,
+  forceStereo: false,
+  stopMicTrackOnMute: false,
+});
+
+const getLivekitCameraProfile = (qualityProfile, withScreenShare = false) => {
+  const key = String(qualityProfile?.key || "");
+
+  if (withScreenShare) {
+    if (key === "screen-poor") {
+      return {
+        width: 640,
+        height: 360,
+        frameRate: 12,
+        maxBitrate: 450_000,
+        maxFramerate: 12,
+      };
+    }
+
+    if (key === "screen-limited") {
+      return {
+        width: 960,
+        height: 540,
+        frameRate: 16,
+        maxBitrate: 800_000,
+        maxFramerate: 16,
+      };
+    }
+
+    return {
+      width: 1280,
+      height: 720,
+      frameRate: 20,
+      maxBitrate: 1_100_000,
+      maxFramerate: 20,
+    };
+  }
+
+  if (key === "poor") {
+    return {
+      width: 640,
+      height: 360,
+      frameRate: 15,
+      maxBitrate: 500_000,
+      maxFramerate: 15,
+    };
+  }
+
+  if (key === "crowded") {
+    return {
+      width: 960,
+      height: 540,
+      frameRate: 20,
+      maxBitrate: 950_000,
+      maxFramerate: 20,
+    };
+  }
+
+  return {
+    width: 1280,
+    height: 720,
+    frameRate: 24,
+    maxBitrate: 1_800_000,
+    maxFramerate: 24,
+  };
+};
+
+const getLivekitScreenProfile = (qualityProfile) => {
+  const key = String(qualityProfile?.key || "");
+
+  if (key === "screen-poor") {
+    return {
+      width: 1280,
+      height: 720,
+      frameRate: 8,
+      maxBitrate: 1_200_000,
+      maxFramerate: 8,
+    };
+  }
+
+  if (key === "screen-limited") {
+    return {
+      width: 1600,
+      height: 900,
+      frameRate: 12,
+      maxBitrate: 2_000_000,
+      maxFramerate: 12,
+    };
+  }
+
+  return {
+    width: 1920,
+    height: 1080,
+    frameRate: 15,
+    maxBitrate: 3_000_000,
+    maxFramerate: 15,
+  };
+};
+
+const buildLivekitCameraCaptureOptions = (
+  qualityProfile,
+  withScreenShare = false,
+  facingMode = "user",
+) => {
+  const profile = getLivekitCameraProfile(qualityProfile, withScreenShare);
+
+  return {
+    resolution: {
+      width: profile.width,
+      height: profile.height,
+      frameRate: profile.frameRate,
+    },
+    ...(isLikelyMobileDevice() ? { facingMode } : {}),
+  };
+};
+
+const buildLivekitCameraPublishOptions = (qualityProfile, withScreenShare = false) => {
+  const profile = getLivekitCameraProfile(qualityProfile, withScreenShare);
+
+  return {
+    simulcast: true,
+    videoEncoding: {
+      maxBitrate: profile.maxBitrate,
+      maxFramerate: profile.maxFramerate,
+    },
+  };
+};
+
+const buildLivekitScreenShareOptions = (qualityProfile) => {
+  const profile = getLivekitScreenProfile(qualityProfile);
+
+  return {
+    resolution: {
+      width: profile.width,
+      height: profile.height,
+      frameRate: profile.frameRate,
+    },
+  };
+};
+
+const buildLivekitScreenSharePublishOptions = (qualityProfile) => {
+  const profile = getLivekitScreenProfile(qualityProfile);
+
+  return {
+    videoEncoding: {
+      maxBitrate: profile.maxBitrate,
+      maxFramerate: profile.maxFramerate,
+    },
+  };
+};
+
 const CALL_QUALITY_PROFILES = {
   balanced: {
     key: "balanced",
@@ -40,7 +205,7 @@ const CALL_QUALITY_PROFILES = {
     height: 540,
     frameRate: 24,
     videoBitrate: 700_000,
-    audioBitrate: 48_000,
+    audioBitrate: 64_000,
     scaleResolutionDownBy: 1,
   },
   crowded: {
@@ -49,8 +214,8 @@ const CALL_QUALITY_PROFILES = {
     width: 640,
     height: 360,
     frameRate: 18,
-    videoBitrate: 420_000,
-    audioBitrate: 40_000,
+    videoBitrate: 320_000,
+    audioBitrate: 64_000,
     scaleResolutionDownBy: 1.2,
   },
   poor: {
@@ -59,8 +224,8 @@ const CALL_QUALITY_PROFILES = {
     width: 320,
     height: 180,
     frameRate: 10,
-    videoBitrate: 150_000,
-    audioBitrate: 48_000,
+    videoBitrate: 90_000,
+    audioBitrate: 56_000,
     scaleResolutionDownBy: 1.6,
   },
   screen: {
@@ -70,7 +235,7 @@ const CALL_QUALITY_PROFILES = {
     height: 1080,
     frameRate: 12,
     videoBitrate: 2_400_000,
-    audioBitrate: 48_000,
+    audioBitrate: 64_000,
     scaleResolutionDownBy: 1,
   },
   screenLimited: {
@@ -80,7 +245,7 @@ const CALL_QUALITY_PROFILES = {
     height: 900,
     frameRate: 10,
     videoBitrate: 1_600_000,
-    audioBitrate: 48_000,
+    audioBitrate: 64_000,
     scaleResolutionDownBy: 1,
   },
   screenPoor: {
@@ -90,7 +255,7 @@ const CALL_QUALITY_PROFILES = {
     height: 720,
     frameRate: 8,
     videoBitrate: 900_000,
-    audioBitrate: 48_000,
+    audioBitrate: 56_000,
     scaleResolutionDownBy: 1,
   },
   screenCamera: {
@@ -99,8 +264,8 @@ const CALL_QUALITY_PROFILES = {
     width: 320,
     height: 180,
     frameRate: 6,
-    videoBitrate: 120_000,
-    audioBitrate: 40_000,
+    videoBitrate: 80_000,
+    audioBitrate: 56_000,
     scaleResolutionDownBy: 2,
   },
 };
@@ -2049,6 +2214,12 @@ export function useWebRTC({
       const room = new Room({
           dynacast: true,
           adaptiveStream: true,
+          publishDefaults: {
+            audioPreset: AudioPresets.speech,
+            dtx: true,
+            red: true,
+            stopMicTrackOnMute: false,
+          },
         });
 
         const syncLocal = () => syncLivekitLocalState(room);
@@ -2131,8 +2302,20 @@ export function useWebRTC({
         room.remoteParticipants.forEach((participant) => {
           ensureLivekitParticipantSubscriptions(participant);
         });
-        await room.localParticipant.setMicrophoneEnabled(Boolean(microphoneEnabled));
-        await room.localParticipant.setCameraEnabled(Boolean(cameraEnabled));
+        await room.localParticipant.setMicrophoneEnabled(
+          Boolean(microphoneEnabled),
+          buildLivekitAudioCaptureOptions(),
+          buildLivekitAudioPublishOptions(),
+        );
+        await room.localParticipant.setCameraEnabled(
+          Boolean(cameraEnabled),
+          buildLivekitCameraCaptureOptions(
+            qualityProfileRef.current,
+            false,
+            cameraFacingModeRef.current,
+          ),
+          buildLivekitCameraPublishOptions(qualityProfileRef.current, false),
+        );
         syncLocal();
         syncRemote();
         setNetworkQuality("good");
@@ -2308,7 +2491,46 @@ export function useWebRTC({
     return nextStream;
   }, []);
 
+  const applyLivekitMediaOptimization = useCallback(
+    async (profile) => {
+      const room = livekitRoomRef.current;
+      if (!room?.localParticipant) {
+        return;
+      }
+
+      const hasActiveScreenShare = Boolean(
+        room.localParticipant.isScreenShareEnabled || screenStreamRef.current,
+      );
+
+      if (isCamOnRef.current) {
+        await room.localParticipant.setCameraEnabled(
+          true,
+          buildLivekitCameraCaptureOptions(
+            profile,
+            hasActiveScreenShare,
+            cameraFacingModeRef.current,
+          ),
+          buildLivekitCameraPublishOptions(profile, hasActiveScreenShare),
+        );
+      }
+
+      if (hasActiveScreenShare) {
+        await room.localParticipant.setScreenShareEnabled(
+          true,
+          buildLivekitScreenShareOptions(profile),
+          buildLivekitScreenSharePublishOptions(profile),
+        );
+      }
+    },
+    [],
+  );
+
   const applyMediaOptimization = useCallback(async (profile) => {
+    if (shouldUseLiveKit) {
+      await applyLivekitMediaOptimization(profile);
+      return;
+    }
+
     const stream = localStreamRef.current;
     if (!stream) return;
     const hasActiveScreenShare = Boolean(isScreenSharing || screenStreamRef.current);
@@ -2710,7 +2932,18 @@ export function useWebRTC({
     if (shouldUseLiveKit) {
       const room = livekitRoomRef.current || (await connectLivekitRoom());
       if (!room?.localParticipant) return false;
-      await room.localParticipant.setCameraEnabled(true);
+      await room.localParticipant.setCameraEnabled(
+        true,
+        buildLivekitCameraCaptureOptions(
+          qualityProfileRef.current,
+          Boolean(room.localParticipant.isScreenShareEnabled),
+          cameraFacingModeRef.current,
+        ),
+        buildLivekitCameraPublishOptions(
+          qualityProfileRef.current,
+          Boolean(room.localParticipant.isScreenShareEnabled),
+        ),
+      );
       syncLivekitLocalState(room);
       emitLocalMediaState({
         hasVideo: true,
@@ -2848,7 +3081,7 @@ export function useWebRTC({
     }
 
     setNetworkQuality((prev) => (prev === nextQuality ? prev : nextQuality));
-  }, []);
+  }, [applyLivekitMediaOptimization, shouldUseLiveKit]);
 
   // ─── Peer connection factory ──────────────────────────────────────────────────
 
@@ -3941,7 +4174,11 @@ export function useWebRTC({
       if (!room?.localParticipant) {
         return;
       }
-      await room.localParticipant.setMicrophoneEnabled(!isMicOn);
+      await room.localParticipant.setMicrophoneEnabled(
+        !isMicOn,
+        buildLivekitAudioCaptureOptions(),
+        buildLivekitAudioPublishOptions(),
+      );
       syncLivekitLocalState(room);
       emitLocalMediaState();
       return;
@@ -4092,7 +4329,26 @@ export function useWebRTC({
           return false;
         }
 
-        await room.localParticipant.setScreenShareEnabled(!isScreenSharing);
+        const nextIsScreenSharing = !isScreenSharing;
+        await room.localParticipant.setScreenShareEnabled(
+          nextIsScreenSharing,
+          buildLivekitScreenShareOptions(qualityProfileRef.current),
+          buildLivekitScreenSharePublishOptions(qualityProfileRef.current),
+        );
+        if (isCamOnRef.current) {
+          await room.localParticipant.setCameraEnabled(
+            true,
+            buildLivekitCameraCaptureOptions(
+              qualityProfileRef.current,
+              nextIsScreenSharing,
+              cameraFacingModeRef.current,
+            ),
+            buildLivekitCameraPublishOptions(
+              qualityProfileRef.current,
+              nextIsScreenSharing,
+            ),
+          );
+        }
         syncLivekitLocalState(room);
         return true;
       } catch (err) {
