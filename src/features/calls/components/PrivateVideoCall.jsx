@@ -148,7 +148,7 @@ const MainStage = styled.div`
 const VideoStage = styled.video`
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
   background: black;
   transform: ${(props) => (props.$mirror ? "scaleX(-1)" : "none")};
 `;

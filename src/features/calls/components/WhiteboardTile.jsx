@@ -56,8 +56,8 @@ const WHITEBOARD_FILL_SWATCHES = ["", "#ffffff", ...WHITEBOARD_SWATCHES];
 const WHITEBOARD_BRUSH_PRESETS = [3, 6, 10];
 const WHITEBOARD_SHAPE_EDGE_OPTIONS = ["sharp", "rounded"];
 const WHITEBOARD_BOARD_TAB_ID = "board";
-const WHITEBOARD_MIN_ZOOM = 0.1;
-const WHITEBOARD_MAX_ZOOM = 30;
+const WHITEBOARD_MIN_ZOOM = 0.5;
+const WHITEBOARD_MAX_ZOOM = 3;
 const WHITEBOARD_MIN_PDF_RENDER_WIDTH = 120;
 const WHITEBOARD_MOBILE_PDF_MAX_RENDER_EDGE = 3072;
 const WHITEBOARD_MIN_BOARD_BASE_WIDTH = 120;
@@ -170,6 +170,22 @@ const serializePdfError = (error) => {
   };
 };
 
+const isPdfDocumentUsable = (pdfDocument) => {
+  if (!pdfDocument || typeof pdfDocument !== "object") {
+    return false;
+  }
+
+  if (pdfDocument.destroyed === true) {
+    return false;
+  }
+
+  if (pdfDocument._transport?.destroyed === true) {
+    return false;
+  }
+
+  return typeof pdfDocument.getPage === "function";
+};
+
 const logPdfDebug = (step, payload = {}) => {
   if (!PDF_DEBUG_ENABLED || typeof console === "undefined") {
     return;
@@ -201,7 +217,11 @@ const touchPdfBufferCacheEntry = (targetUrl, pdfBytes) => {
 };
 
 const touchPdfDocumentCacheEntry = (targetUrl, pdfDocument) => {
-  if (!targetUrl || !pdfDocument) {
+  if (!targetUrl || !isPdfDocumentUsable(pdfDocument)) {
+    if (targetUrl) {
+      pdfDocumentCache.delete(targetUrl);
+      pdfDocumentPromiseCache.delete(targetUrl);
+    }
     return;
   }
 
@@ -1053,13 +1073,19 @@ const fetchPdfDocumentBuffer = async (targetUrl) => {
 
   logPdfDebug("buffer-fetch:start", { targetUrl });
   const pdfBytesPromise = (async () => {
-    const response = await fetch(targetUrl, {
-      credentials: "omit",
-      cache: "default",
-      headers: {
-        Accept: "application/pdf",
-      },
-    });
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
+    
+    try {
+      const response = await fetch(targetUrl, {
+        credentials: "omit",
+        cache: "default",
+        headers: {
+          Accept: "application/pdf",
+        },
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
     if (!response.ok) {
       logPdfDebug("buffer-fetch:http-error", {
         targetUrl,
@@ -1096,7 +1122,15 @@ const fetchPdfDocumentBuffer = async (targetUrl) => {
       throw new Error("PDF response did not return a valid PDF file");
     }
     touchPdfBufferCacheEntry(targetUrl, pdfBytes);
-    return pdfBytes;
+      return pdfBytes;
+    } catch (error) {
+      clearTimeout(timeoutId);
+      logPdfDebug("buffer-fetch:error", {
+        targetUrl,
+        error: error?.message || String(error),
+      });
+      throw error;
+    }
   })();
 
   pdfBufferPromiseCache.set(targetUrl, pdfBytesPromise);
@@ -1147,13 +1181,17 @@ const loadPdfDocument = async (fileUrl, options = {}) => {
     isPublicCdn: isPublicCdnPdfUrl(targetUrl),
   });
 
-  if (cachedDocument) {
+  if (cachedDocument && isPdfDocumentUsable(cachedDocument)) {
     logPdfDebug("load:document-cache-hit", {
       targetUrl,
       numPages: cachedDocument?.numPages,
     });
     touchPdfDocumentCacheEntry(targetUrl, cachedDocument);
     return cachedDocument;
+  }
+
+  if (cachedDocument && !isPdfDocumentUsable(cachedDocument)) {
+    pdfDocumentCache.delete(targetUrl);
   }
 
   if (pdfDocumentPromiseCache.has(targetUrl)) {
@@ -1673,7 +1711,17 @@ const Toolbar = styled.div`
   pointer-events: auto;
 
   @media (max-width: 768px) {
+    width: calc(100% - 16px);
     max-width: calc(100% - 16px);
+    overflow-x: auto;
+    overflow-y: visible;
+    scrollbar-width: none;
+    touch-action: pan-x;
+    justify-content: flex-start;
+
+    &::-webkit-scrollbar {
+      display: none;
+    }
   }
 `;
 
@@ -2222,10 +2270,16 @@ const PdfViewportSpacer = styled.div`
 const PdfPageFrame = styled.div`
   position: relative;
   width: 100%;
+  max-width: 100vw;
   background: #fff;
   border-radius: 18px;
   overflow: hidden;
   box-shadow: 0 18px 36px rgba(15, 23, 42, 0.14);
+
+  @media (max-width: 768px) {
+    max-width: calc(100vw - 24px);
+    margin: 0 auto;
+  }
 `;
 
 const PdfPageScaleLayer = styled.div`
@@ -2447,15 +2501,14 @@ const EmptyState = styled.div`
 `;
 
 const PdfStatus = styled.div`
-  position: absolute;
-  inset: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 24px;
-  color: rgba(15, 23, 42, 0.68);
+  color: var(--call-text);
   font-size: 14px;
   font-weight: 700;
+  min-height: 200px;
+  padding: 40px 20px;
   z-index: 3;
 `;
 
@@ -2466,13 +2519,9 @@ const PdfLoadingSkeleton = styled.div`
   gap: 14px;
   padding: 18px;
   border-radius: 24px;
-  border: 1px solid rgba(15, 23, 42, 0.06);
-  background:
-    linear-gradient(180deg, rgba(255,255,255,0.96), rgba(245,247,250,0.94)),
-    radial-gradient(circle at top left, rgba(99, 102, 241, 0.06), transparent 42%);
-  box-shadow:
-    inset 0 1px 0 rgba(255,255,255,0.88),
-    0 18px 34px rgba(15, 23, 42, 0.08);
+  border: 1px solid var(--call-border);
+  background: var(--call-panel);
+  box-shadow: 0 18px 34px rgba(0, 0, 0, 0.12);
 
   @media (max-width: 768px) {
     width: calc(100% - 12px);
@@ -2494,7 +2543,7 @@ const PdfLoadingLine = styled.div`
   height: ${(p) => p.$height || "14px"};
   width: ${(p) => p.$width || "100%"};
   border-radius: 999px;
-  background: rgba(148, 163, 184, 0.18);
+  background: color-mix(in srgb, var(--call-text) 12%, transparent);
 
   &::after {
     content: "";
@@ -2504,7 +2553,7 @@ const PdfLoadingLine = styled.div`
     background: linear-gradient(
       90deg,
       transparent,
-      rgba(255,255,255,0.72),
+      color-mix(in srgb, var(--call-surface) 72%, transparent),
       transparent
     );
     animation: whiteboardPdfSkeletonPulse 1.3s ease-in-out infinite;
@@ -2517,10 +2566,8 @@ const PdfLoadingCanvas = styled.div`
   width: 100%;
   min-height: clamp(220px, 44vh, 420px);
   border-radius: 20px;
-  background:
-    linear-gradient(180deg, rgba(255,255,255,0.98), rgba(243,246,250,0.96)),
-    linear-gradient(135deg, rgba(99, 102, 241, 0.04), rgba(14, 165, 233, 0.03));
-  border: 1px solid rgba(15, 23, 42, 0.06);
+  background: color-mix(in srgb, var(--call-text) 4%, var(--call-panel));
+  border: 1px solid var(--call-border);
 
   &::after {
     content: "";
@@ -2530,7 +2577,7 @@ const PdfLoadingCanvas = styled.div`
     background: linear-gradient(
       90deg,
       transparent,
-      rgba(255,255,255,0.6),
+      color-mix(in srgb, var(--call-surface) 60%, transparent),
       transparent
     );
     animation: whiteboardPdfSkeletonPulse 1.5s ease-in-out infinite;
@@ -2546,7 +2593,7 @@ const PdfLoadingCaption = styled.div`
   display: flex;
   align-items: center;
   gap: 10px;
-  color: rgba(15, 23, 42, 0.64);
+  color: color-mix(in srgb, var(--call-text) 64%, transparent);
   font-size: 13px;
   font-weight: 700;
 `;
@@ -2555,8 +2602,8 @@ const PdfLoadingDot = styled.span`
   width: 9px;
   height: 9px;
   border-radius: 999px;
-  background: #6366f1;
-  box-shadow: 0 0 0 6px rgba(99, 102, 241, 0.12);
+  background: var(--call-primary);
+  box-shadow: 0 0 0 6px color-mix(in srgb, var(--call-primary) 12%, transparent);
 `;
 
 const PdfLoadingText = styled.span`
@@ -2589,12 +2636,15 @@ const PdfStatusContent = styled.div`
 const PdfPagesLoadingSkeleton = styled.div`
   width: min(100%, 720px);
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+  grid-auto-flow: column;
+  grid-auto-columns: 168px;
   gap: 14px;
+  overflow-x: hidden;
+  align-items: start;
 
   @media (max-width: 768px) {
     width: 100%;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-auto-columns: 140px;
     gap: 10px;
   }
 `;
@@ -2605,9 +2655,9 @@ const PdfPageThumbSkeleton = styled.div`
   gap: 10px;
   padding: 12px;
   border-radius: 18px;
-  border: 1px solid rgba(15, 23, 42, 0.06);
-  background: rgba(255,255,255,0.94);
-  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.06);
+  border: 1px solid var(--call-border);
+  background: var(--call-panel);
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.08);
 `;
 
 const PdfPageThumbFrame = styled.div`
@@ -2616,7 +2666,7 @@ const PdfPageThumbFrame = styled.div`
   width: 100%;
   aspect-ratio: 0.72;
   border-radius: 14px;
-  background: linear-gradient(180deg, rgba(241,245,249,0.96), rgba(226,232,240,0.92));
+  background: color-mix(in srgb, var(--call-text) 6%, var(--call-panel));
 
   &::after {
     content: "";
@@ -2626,7 +2676,7 @@ const PdfPageThumbFrame = styled.div`
     background: linear-gradient(
       90deg,
       transparent,
-      rgba(255,255,255,0.64),
+      color-mix(in srgb, var(--call-surface) 64%, transparent),
       transparent
     );
     animation: whiteboardPdfSkeletonPulse 1.4s ease-in-out infinite;
@@ -2679,61 +2729,81 @@ const HiddenInput = styled.input`
 
 const PdfLibraryGrid = styled.div`
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 16px;
 `;
 
 const PdfLibraryCard = styled.button`
-  min-height: 124px;
-  border-radius: 16px;
-  border: 1px solid rgba(15, 23, 42, 0.08);
-  background: rgba(255, 255, 255, 0.98);
-  padding: 14px;
+  min-height: 140px;
+  border-radius: 18px;
+  border: 2px solid rgba(255, 255, 255, 0.18);
+  background: color-mix(in srgb, var(--call-panel) 92%, white 8%);
+  padding: 18px;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 12px;
+  gap: 14px;
   text-align: left;
   cursor: pointer;
-  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.08);
-  transition: transform 0.16s ease, box-shadow 0.16s ease;
+  box-shadow: none;
+  transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s ease;
 
   &:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 16px 28px rgba(15, 23, 42, 0.12);
+    transform: translateY(-2px);
+    border-color: color-mix(in srgb, var(--call-primary) 58%, white 22%);
+    background: color-mix(in srgb, var(--call-panel) 86%, white 14%);
+  }
+
+  &:active {
+    transform: translateY(0);
   }
 `;
 
 const PdfLibraryTitle = styled.div`
-  font-size: 14px;
-  font-weight: 700;
+  font-size: 15px;
+  font-weight: 600;
   color: var(--call-text);
-  line-height: 1.35;
+  line-height: 1.4;
   word-break: break-word;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 `;
 
 const PdfLibraryMeta = styled.div`
   font-size: 12px;
-  color: rgba(15, 23, 42, 0.62);
+  color: color-mix(in srgb, var(--call-text) 60%, transparent);
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
 `;
 
 const PdfUploadCard = styled(PdfLibraryCard)`
   align-items: center;
   justify-content: center;
   text-align: center;
-  color: rgba(15, 23, 42, 0.72);
+  color: color-mix(in srgb, var(--call-text) 70%, transparent);
   border-style: dashed;
+  border-color: color-mix(in srgb, var(--call-primary) 40%, var(--call-border));
+  background: color-mix(in srgb, var(--call-primary) 4%, var(--call-panel));
+
+  &:hover {
+    background: color-mix(in srgb, var(--call-primary) 8%, var(--call-panel));
+    border-color: color-mix(in srgb, var(--call-primary) 60%, var(--call-border));
+  }
 `;
 
 const PdfLibraryEmpty = styled.div`
-  padding: 12px 4px 2px;
-  color: rgba(15, 23, 42, 0.62);
-  font-size: 13px;
-  font-weight: 600;
+  padding: 24px;
+  color: color-mix(in srgb, var(--call-text) 60%, transparent);
+  font-size: 14px;
+  font-weight: 500;
+  text-align: center;
+  background: var(--call-panel);
+  border-radius: 16px;
+  border: 1px dashed var(--call-border);
 `;
 
 const PdfPickerHeader = styled.div`
@@ -2745,15 +2815,19 @@ const PdfPickerHeader = styled.div`
 
 const PdfPickerMeta = styled.div`
   font-size: 12px;
-  color: rgba(15, 23, 42, 0.62);
+  color: color-mix(in srgb, var(--call-text) 62%, transparent);
 `;
 
 const PageSelectionToolbar = styled.div`
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   flex-wrap: wrap;
-  margin-bottom: 16px;
+  margin-bottom: 20px;
+  padding: 16px 20px;
+  background: color-mix(in srgb, var(--call-text) 2%, var(--call-panel));
+  border-radius: 16px;
+  border: 1px solid var(--call-border);
 `;
 
 const PageSelectionGrid = styled.div`
@@ -2778,11 +2852,11 @@ const PagePreviewCard = styled.button`
     ${(p) =>
       p.$active
         ? "color-mix(in srgb, var(--call-primary) 48%, transparent)"
-        : "rgba(15, 23, 42, 0.08)"};
+        : "var(--call-border)"};
   background: ${(p) =>
     p.$active
-      ? "color-mix(in srgb, var(--call-primary) 12%, white 88%)"
-      : "rgba(255,255,255,0.96)"};
+      ? "color-mix(in srgb, var(--call-primary) 12%, var(--call-panel))"
+      : "var(--call-panel)"};
   color: var(--call-text);
   cursor: pointer;
   overflow: hidden;
@@ -2791,13 +2865,13 @@ const PagePreviewCard = styled.button`
   flex-direction: column;
   gap: 10px;
   box-shadow: ${(p) =>
-    p.$active ? "0 16px 30px rgba(59, 130, 246, 0.14)" : "0 12px 24px rgba(15, 23, 42, 0.08)"};
+    p.$active ? "0 16px 30px rgba(59, 130, 246, 0.14)" : "0 12px 24px rgba(0, 0, 0, 0.08)"};
   transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease;
 
   &:hover {
     transform: translateY(-1px);
     box-shadow: ${(p) =>
-      p.$active ? "0 18px 34px rgba(59, 130, 246, 0.18)" : "0 16px 28px rgba(15, 23, 42, 0.12)"};
+      p.$active ? "0 18px 34px rgba(59, 130, 246, 0.18)" : "0 16px 28px rgba(0, 0, 0, 0.12)"};
   }
 `;
 
@@ -2807,9 +2881,7 @@ const PagePreviewViewport = styled.div`
   min-height: 188px;
   border-radius: 14px;
   overflow: hidden;
-  background:
-    linear-gradient(180deg, rgba(241,245,249,0.98), rgba(226,232,240,0.98)),
-    linear-gradient(135deg, rgba(255,255,255,0.32), transparent 42%);
+  background: color-mix(in srgb, var(--call-text) 4%, var(--call-panel));
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2819,7 +2891,7 @@ const PagePreviewCanvas = styled.canvas`
   display: block;
   width: 100%;
   height: auto;
-  background: #fff;
+  background: var(--call-surface);
 `;
 
 const PagePreviewPlaceholder = styled.div`
@@ -2828,7 +2900,7 @@ const PagePreviewPlaceholder = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
-  color: rgba(15, 23, 42, 0.44);
+  color: color-mix(in srgb, var(--call-text) 44%, transparent);
   font-size: 13px;
   font-weight: 800;
 `;
@@ -2849,7 +2921,8 @@ const PagePreviewNumber = styled.div`
 const PagePreviewStatus = styled.div`
   font-size: 11px;
   font-weight: 800;
-  color: ${(p) => (p.$active ? "var(--call-primary)" : "rgba(15, 23, 42, 0.46)")};
+  color: ${(p) =>
+    p.$active ? "var(--call-primary)" : "color-mix(in srgb, var(--call-text) 46%, transparent)"};
 `;
 
 const PdfPickerPageCard = ({ pdfDocument, pageNumber, active = false, onClick }) => {
@@ -4910,7 +4983,7 @@ const WhiteboardTile = ({
   const shouldUseContainedMobilePdfViewport =
     interactive && isMobile && activeTab?.type === "pdf";
   const shouldMirrorRemotePdfViewportInsets =
-    !interactive && !guestPdfOverride && activeTab?.type === "pdf";
+    !interactive && activeTab?.type === "pdf";
   const activePdfViewportTopInset = shouldUseContainedMobilePdfViewport
     ? WHITEBOARD_VIEWPORT_TOP_SAFE_SPACE
     : interactive || isFullscreen || shouldMirrorRemotePdfViewportInsets
@@ -4968,7 +5041,6 @@ const WhiteboardTile = ({
     activeTab?.type === "pdf" ? Math.max(1, activePdfViewportBaseWidth + 40) : 0;
   const shouldContainRemotePdfViewport =
     !interactive &&
-    !guestPdfOverride &&
     activeTab?.type === "pdf" &&
     workspaceViewportSize.width > 0 &&
     workspaceViewportSize.height > 0 &&
@@ -5004,12 +5076,14 @@ const WhiteboardTile = ({
     ? Math.max(
         WHITEBOARD_MIN_PDF_RENDER_WIDTH,
         Math.round(
-          Math.min(
-            containedPdfWidthByHeight || Number.POSITIVE_INFINITY,
-            !interactive && syncedGuestPdfWidth > 0
-              ? Math.min(syncedGuestPdfWidth, pdfRenderWidth || syncedGuestPdfWidth)
-              : pdfRenderWidth || WHITEBOARD_MIN_PDF_RENDER_WIDTH,
-          ),
+          interactive
+            ? pdfRenderWidth || WHITEBOARD_MIN_PDF_RENDER_WIDTH
+            : Math.min(
+                containedPdfWidthByHeight || Number.POSITIVE_INFINITY,
+                syncedGuestPdfWidth > 0
+                  ? Math.min(syncedGuestPdfWidth, pdfRenderWidth || syncedGuestPdfWidth)
+                  : pdfRenderWidth || WHITEBOARD_MIN_PDF_RENDER_WIDTH,
+              ),
         ),
       )
     : 0;
@@ -5045,6 +5119,14 @@ const WhiteboardTile = ({
     activeTab?.type === "pdf"
       ? activePdfRenderWidth / activePdfViewportBaseWidth
       : 1;
+  const shouldShowGuestPdfSyncButton =
+    !interactive &&
+    activeTab?.type === "pdf" &&
+    (guestPdfOverride || Math.abs(activePdfZoom - syncedPdfZoom) > 0.001);
+  const shouldShowGuestBoardSyncButton =
+    !interactive &&
+    activeTab?.type !== "pdf" &&
+    (guestBoardOverride || Math.abs(activeBoardZoom - syncedBoardZoom) > 0.001);
   const activeTabSelectedPagesKey =
     activeTab?.type === "pdf"
       ? activeTab.selectedPagesMode === "custom"
@@ -5265,7 +5347,6 @@ const WhiteboardTile = ({
   useEffect(() => {
     return () => {
       pdfPageBitmapCacheRef.current.clear();
-      pdfPickerDocumentRef.current?.destroy?.();
       pdfPickerDocumentRef.current = null;
       pdfPickerDocumentKeyRef.current = "";
     };
@@ -6732,7 +6813,7 @@ const WhiteboardTile = ({
       return;
     }
 
-    if (!interactive && !guestPdfOverride && pdfUserGestureRef.current) {
+    if (!interactive && !guestPdfOverride) {
       setGuestPdfOverride(true);
       setGuestPdfZoom(syncedPdfZoom);
     }
@@ -6807,7 +6888,6 @@ const WhiteboardTile = ({
   );
 
   const handlePdfLibraryClose = useCallback(() => {
-    pdfPickerDocumentRef.current?.destroy?.();
     pdfPickerDocumentRef.current = null;
     pdfPickerDocumentKeyRef.current = "";
     setIsPdfLibraryOpen(false);
@@ -6826,27 +6906,11 @@ const WhiteboardTile = ({
         return;
       }
 
-      if (
-        pdfPickerDocumentRef.current &&
-        pdfPickerDocumentKeyRef.current === item.id
-      ) {
-        const cachedPageCount =
-          pdfPageCountCacheRef.current[item.id] ||
-          pdfPickerDocumentRef.current.numPages ||
-          0;
-        setPdfPickerState({
-          status: "ready",
-          item,
-          pageCount: cachedPageCount,
-          selectedPages: [],
-          error: "",
-        });
-        return;
-      }
-
+      // Always reload the PDF to ensure it's available
       const cachedPageCount = pdfPageCountCacheRef.current[item.id];
-      if (pdfPickerDocumentRef.current) {
-        pdfPickerDocumentRef.current.destroy?.();
+      
+      // Release previous picker reference but keep shared cache alive.
+      if (pdfPickerDocumentRef.current && pdfPickerDocumentKeyRef.current !== item.id) {
         pdfPickerDocumentRef.current = null;
         pdfPickerDocumentKeyRef.current = "";
       }
@@ -6864,12 +6928,25 @@ const WhiteboardTile = ({
           itemId: item.id,
           fileUrl: item.fileUrl,
           title: item.title,
+          fromCache: Boolean(pdfPickerDocumentRef.current && pdfPickerDocumentKeyRef.current === item.id),
         });
-        const pdfDocument = await loadPdfDocument(item.fileUrl);
+        
+        // Use cached document if available for this item
+        let pdfDocument;
+        if (
+          pdfPickerDocumentRef.current &&
+          pdfPickerDocumentKeyRef.current === item.id &&
+          isPdfDocumentUsable(pdfPickerDocumentRef.current)
+        ) {
+          pdfDocument = pdfPickerDocumentRef.current;
+        } else {
+          pdfDocument = await loadPdfDocument(item.fileUrl);
+          pdfPickerDocumentRef.current = pdfDocument;
+          pdfPickerDocumentKeyRef.current = item.id;
+        }
+        
         const pageCount = pdfDocument.numPages || 0;
         pdfPageCountCacheRef.current[item.id] = pageCount;
-        pdfPickerDocumentRef.current = pdfDocument;
-        pdfPickerDocumentKeyRef.current = item.id;
 
         logPdfDebug("picker-load:ready", {
           itemId: item.id,
@@ -6923,7 +7000,6 @@ const WhiteboardTile = ({
   );
 
   const handlePdfPickerBack = useCallback(() => {
-    pdfPickerDocumentRef.current?.destroy?.();
     pdfPickerDocumentRef.current = null;
     pdfPickerDocumentKeyRef.current = "";
     setPdfPickerState({
@@ -7088,17 +7164,16 @@ const WhiteboardTile = ({
   const renderPdfLoadingState = useCallback(
     (label) => (
       <PdfStatus>
-        <PdfLoadingSkeleton>
-          <PdfLoadingHeader>
-            <PdfLoadingLine $width="42%" $height="12px" />
-            <PdfLoadingLine $width="68%" $height="10px" />
-          </PdfLoadingHeader>
-          <PdfLoadingCanvas />
-          <PdfLoadingCaption>
-            <PdfLoadingDot />
-            <PdfLoadingText>{label}</PdfLoadingText>
-          </PdfLoadingCaption>
-        </PdfLoadingSkeleton>
+        <div style={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          gap: '12px',
+          flexWrap: 'wrap',
+          justifyContent: 'center'
+        }}>
+          <Spinner size={20} />
+          <span style={{ color: 'var(--call-text)' }}>{label}</span>
+        </div>
       </PdfStatus>
     ),
     [],
@@ -7107,27 +7182,16 @@ const WhiteboardTile = ({
   const renderPdfPagesLoadingState = useCallback(
     (label) => (
       <PdfStatus>
-        <PdfLoadingSkeleton>
-          <PdfLoadingHeader>
-            <PdfLoadingLine $width="34%" $height="12px" />
-            <PdfLoadingLine $width="58%" $height="10px" />
-          </PdfLoadingHeader>
-          <PdfPagesLoadingSkeleton>
-            {Array.from({ length: 4 }).map((_, index) => (
-              <PdfPageThumbSkeleton key={`pdf-page-skeleton-${index}`}>
-                <PdfPageThumbFrame />
-                <PdfPageThumbMeta>
-                  <PdfPageThumbLabel />
-                  <PdfPageThumbSubLabel />
-                </PdfPageThumbMeta>
-              </PdfPageThumbSkeleton>
-            ))}
-          </PdfPagesLoadingSkeleton>
-          <PdfLoadingCaption>
-            <PdfLoadingDot />
-            <PdfLoadingText>{label}</PdfLoadingText>
-          </PdfLoadingCaption>
-        </PdfLoadingSkeleton>
+        <div style={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          gap: '12px',
+          flexWrap: 'wrap',
+          justifyContent: 'center'
+        }}>
+          <Spinner size={20} />
+          <span style={{ color: 'var(--call-text)' }}>{label}</span>
+        </div>
       </PdfStatus>
     ),
     [],
@@ -8576,9 +8640,7 @@ const WhiteboardTile = ({
             </BoardViewport>
           )}
 
-          {!interactive &&
-          ((activeTab?.type === "pdf" && guestPdfOverride) ||
-            (activeTab?.type !== "pdf" && guestBoardOverride)) ? (
+          {shouldShowGuestPdfSyncButton || shouldShowGuestBoardSyncButton ? (
             <GuestSyncButton
               type="button"
               onClick={

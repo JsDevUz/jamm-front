@@ -36,21 +36,21 @@ const CALL_QUALITY_PROFILES = {
   balanced: {
     key: "balanced",
     label: "balanced",
-    width: 640,
-    height: 360,
-    frameRate: 18,
-    videoBitrate: 380_000,
-    audioBitrate: 32_000,
+    width: 960,
+    height: 540,
+    frameRate: 24,
+    videoBitrate: 700_000,
+    audioBitrate: 48_000,
     scaleResolutionDownBy: 1,
   },
   crowded: {
     key: "crowded",
     label: "crowded",
-    width: 480,
-    height: 270,
-    frameRate: 15,
-    videoBitrate: 220_000,
-    audioBitrate: 32_000,
+    width: 640,
+    height: 360,
+    frameRate: 18,
+    videoBitrate: 420_000,
+    audioBitrate: 40_000,
     scaleResolutionDownBy: 1.2,
   },
   poor: {
@@ -59,8 +59,8 @@ const CALL_QUALITY_PROFILES = {
     width: 320,
     height: 180,
     frameRate: 10,
-    videoBitrate: 110_000,
-    audioBitrate: 40_000,
+    videoBitrate: 150_000,
+    audioBitrate: 48_000,
     scaleResolutionDownBy: 1.6,
   },
   screen: {
@@ -70,7 +70,7 @@ const CALL_QUALITY_PROFILES = {
     height: 1080,
     frameRate: 12,
     videoBitrate: 2_400_000,
-    audioBitrate: 32_000,
+    audioBitrate: 48_000,
     scaleResolutionDownBy: 1,
   },
   screenLimited: {
@@ -80,7 +80,7 @@ const CALL_QUALITY_PROFILES = {
     height: 900,
     frameRate: 10,
     videoBitrate: 1_600_000,
-    audioBitrate: 32_000,
+    audioBitrate: 48_000,
     scaleResolutionDownBy: 1,
   },
   screenPoor: {
@@ -90,7 +90,7 @@ const CALL_QUALITY_PROFILES = {
     height: 720,
     frameRate: 8,
     videoBitrate: 900_000,
-    audioBitrate: 32_000,
+    audioBitrate: 48_000,
     scaleResolutionDownBy: 1,
   },
   screenCamera: {
@@ -99,8 +99,8 @@ const CALL_QUALITY_PROFILES = {
     width: 320,
     height: 180,
     frameRate: 6,
-    videoBitrate: 90_000,
-    audioBitrate: 32_000,
+    videoBitrate: 120_000,
+    audioBitrate: 40_000,
     scaleResolutionDownBy: 2,
   },
 };
@@ -116,8 +116,8 @@ const WHITEBOARD_BOARD_TAB_ID = "board";
 const WHITEBOARD_TAB_ID_PATTERN = /^[a-zA-Z0-9_-]{1,80}$/;
 const WHITEBOARD_MAX_TABS = 6;
 const WHITEBOARD_PDF_LIBRARY_MAX_ITEMS = 24;
-const WHITEBOARD_MIN_ZOOM = 0.1;
-const WHITEBOARD_MAX_ZOOM = 30;
+const WHITEBOARD_MIN_ZOOM = 0.5;
+const WHITEBOARD_MAX_ZOOM = 3;
 const WHITEBOARD_BOARD_POINT_MIN = -0.5;
 const WHITEBOARD_BOARD_POINT_MAX = 1.5;
 const WHITEBOARD_MIN_VIEWPORT_BASE_WIDTH = 120;
@@ -1961,7 +1961,8 @@ export function useWebRTC({
           audioTrack,
         });
 
-        if (screenTracks.length > 0 || screenVideoTrack || screenAudioTrack) {
+        // Only add screen stream if there are actual screen tracks with valid MediaStreamTracks
+        if (screenTracks.length > 0 && screenVideoTrack?.mediaStreamTrack) {
           nextRemoteScreenStreams.push({
             peerId,
             stream: screenTracks.length > 0 ? new MediaStream(screenTracks) : null,
@@ -2045,8 +2046,9 @@ export function useWebRTC({
           canSubscribe: true,
         });
 
-        const room = new Room({
+      const room = new Room({
           dynacast: true,
+          adaptiveStream: true,
         });
 
         const syncLocal = () => syncLivekitLocalState(room);

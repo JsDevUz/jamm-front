@@ -204,6 +204,125 @@ const getRecordingFileExtension = (mimeType) => {
   return "webm";
 };
 
+const configureRealtimeElement = (node) => {
+  if (!node) {
+    return;
+  }
+
+  try {
+    node.disableRemotePlayback = true;
+  } catch {}
+
+  try {
+    node.playsInline = true;
+  } catch {}
+
+  try {
+    node.preservesPitch = true;
+  } catch {}
+
+  try {
+    node.mozPreservesPitch = true;
+  } catch {}
+
+  try {
+    node.webkitPreservesPitch = true;
+  } catch {}
+
+  const tracks = node.srcObject?.getTracks?.() || [];
+  tracks.forEach((track) => {
+    try {
+      track.contentHint = track.kind === "audio" ? "speech" : "motion";
+    } catch {}
+
+    try {
+      track.playoutDelayHint = 0.04;
+    } catch {}
+  });
+};
+
+const attachPlaybackRecovery = (node) => {
+  if (!node) {
+    return () => {};
+  }
+
+  configureRealtimeElement(node);
+
+  let cancelled = false;
+  let lastWallTime = performance.now();
+  let lastMediaTime = Number(node.currentTime || 0);
+  let estimatedLagSeconds = 0;
+
+  const resolveRecoveryRate = () => {
+    if (estimatedLagSeconds > 2.4) return 2;
+    if (estimatedLagSeconds > 1.4) return 1.5;
+    if (estimatedLagSeconds > 0.8) return 1.2;
+    if (estimatedLagSeconds > 0.28) return 1.08;
+    return 1;
+  };
+
+  const tick = () => {
+    if (cancelled || !node.isConnected) {
+      return;
+    }
+
+    const wallTime = performance.now();
+    const mediaTime = Number(node.currentTime || 0);
+    const wallDeltaSeconds = Math.max(0, (wallTime - lastWallTime) / 1000);
+    const mediaDeltaSeconds = Math.max(0, mediaTime - lastMediaTime);
+    lastWallTime = wallTime;
+    lastMediaTime = mediaTime;
+
+    if (wallDeltaSeconds > 0.01) {
+      estimatedLagSeconds = Math.max(
+        0,
+        Math.min(
+          4,
+          estimatedLagSeconds + (wallDeltaSeconds - mediaDeltaSeconds),
+        ),
+      );
+    }
+
+    const nextPlaybackRate = resolveRecoveryRate();
+    if (Math.abs((node.playbackRate || 1) - nextPlaybackRate) > 0.01) {
+      try {
+        node.playbackRate = nextPlaybackRate;
+        node.defaultPlaybackRate = nextPlaybackRate;
+      } catch {}
+    }
+
+    if (node.paused) {
+      const playPromise = node.play?.();
+      playPromise?.catch?.(() => {});
+    }
+  };
+
+  const intervalId = window.setInterval(tick, 900);
+  const handleRecover = () => {
+    estimatedLagSeconds = Math.min(4, Math.max(estimatedLagSeconds, 0.9));
+    tick();
+  };
+
+  node.addEventListener("waiting", handleRecover);
+  node.addEventListener("stalled", handleRecover);
+  node.addEventListener("canplay", tick);
+  node.addEventListener("playing", tick);
+  tick();
+
+  return () => {
+    cancelled = true;
+    window.clearInterval(intervalId);
+    node.removeEventListener("waiting", handleRecover);
+    node.removeEventListener("stalled", handleRecover);
+    node.removeEventListener("canplay", tick);
+    node.removeEventListener("playing", tick);
+    try {
+      node.playbackRate = 1;
+      node.defaultPlaybackRate = 1;
+    } catch {}
+  };
+};
+
 const drawBoardRecordingBackground = (ctx, width, height) => {
   ctx.fillStyle = "#fbfcfe";
   ctx.fillRect(0, 0, width, height);
@@ -458,6 +577,7 @@ const TopActions = styled.div`
   display: flex;
   gap: 8px;
   flex-shrink: 0;
+  pointer-events: auto;
 
   @media (max-width: 768px) {
     flex-wrap: nowrap;
@@ -466,6 +586,7 @@ const TopActions = styled.div`
 `;
 
 const TinyBtn = styled.button`
+  position: relative;
   display: flex;
   align-items: center;
   gap: 5px;
@@ -487,6 +608,10 @@ const TinyBtn = styled.button`
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
+  pointer-events: auto;
+  z-index: 1;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
   transition: all 0.18s ease;
   &:hover {
     background: ${(p) =>
@@ -494,6 +619,9 @@ const TinyBtn = styled.button`
         ? "color-mix(in srgb, var(--call-danger) 18%, transparent)"
         : "color-mix(in srgb, var(--call-panel) 96%, transparent)"};
     color: ${(p) => (p.$danger ? "var(--call-danger)" : "var(--call-text)")};
+  }
+  & > * {
+    pointer-events: none;
   }
   & svg {
     pointer-events: none;
@@ -1213,12 +1341,7 @@ const VideoTile = styled.div`
   video {
     width: 100%;
     height: 100%;
-    object-fit: ${(p) => {
-      if (p.$screenShare) return "contain";
-      if (p.$immersive) return p.$mobile ? "contain" : "cover";
-      if (p.$compact) return "cover";
-      return p.$mobile ? "contain" : "cover";
-    }};
+    object-fit: "contain",
     display: block;
     transform: ${(p) => (p.$mirror ? "scaleX(-1)" : "none")};
     background: ${(p) =>
@@ -1905,7 +2028,8 @@ const VideoEl = ({
       return undefined;
     }
 
-      attachLivekitTrackOrStream(node, { track: livekitTrack, stream });
+    attachLivekitTrackOrStream(node, { track: livekitTrack, stream });
+    const detachPlaybackRecovery = attachPlaybackRecovery(node);
 
     let cancelled = false;
     let retryTimeoutId = null;
@@ -1940,6 +2064,7 @@ const VideoEl = ({
       if (node) {
         node.onloadedmetadata = null;
         node.oncanplay = null;
+        detachPlaybackRecovery();
         if (!hasRenderableVideo) {
           node.pause?.();
           detachLivekitTrackOrStream(node, { track: livekitTrack });
@@ -2044,6 +2169,7 @@ const HiddenAudioEl = ({ stream, livekitTrack = null }) => {
     if (!node || !stream) return undefined;
 
     attachLivekitTrackOrStream(node, { track: livekitTrack, stream });
+    const detachPlaybackRecovery = attachPlaybackRecovery(node);
 
     let cancelled = false;
     let retryTimeoutId = null;
@@ -2074,6 +2200,7 @@ const HiddenAudioEl = ({ stream, livekitTrack = null }) => {
       if (node) {
         node.onloadedmetadata = null;
         node.oncanplay = null;
+        detachPlaybackRecovery();
         detachLivekitTrackOrStream(node, { track: livekitTrack });
       }
     };
@@ -4462,8 +4589,9 @@ const GroupVideoCall = ({
         )}
         {!isMinimized && (
           <TinyBtn
+            type="button"
             onClick={() => setShowDrawer((p) => !p)}
-            style={{ position: "relative" }}
+            style={{ position: "relative", zIndex: 3 }}
             aria-label={t("groupCall.participants", { count: participantsCount })}
             title={t("groupCall.participants", { count: participantsCount })}
           >
