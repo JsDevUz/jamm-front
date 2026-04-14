@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Copy } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -39,6 +39,7 @@ const ArticlesSidebar = ({ selectedArticleId }) => {
   const [loading, setLoading] = useState(true);
   const [editorOpen, setEditorOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const swipeGestureRef = useRef(null);
 
   const sortTabs = useMemo(
     () => [
@@ -70,6 +71,54 @@ const ArticlesSidebar = ({ selectedArticleId }) => {
   useEffect(() => {
     void loadArticles(1, false);
   }, [activeSort]);
+
+  const changeSortByOffset = (offset) => {
+    const currentIndex = sortTabs.findIndex((tab) => tab.key === activeSort);
+    if (currentIndex === -1) return;
+    const nextIndex = Math.min(
+      sortTabs.length - 1,
+      Math.max(0, currentIndex + offset),
+    );
+    if (nextIndex === currentIndex) return;
+    setActiveSort(sortTabs[nextIndex].key);
+  };
+
+  const handleTouchStart = (event) => {
+    if (event.touches.length !== 1) return;
+
+    const target = event.target;
+    if (
+      !(target instanceof HTMLElement) ||
+      target.closest("button, a, input, textarea, [role='button'], [contenteditable='true']")
+    ) {
+      swipeGestureRef.current = null;
+      return;
+    }
+
+    const touch = event.touches[0];
+    swipeGestureRef.current = {
+      startX: touch.clientX,
+      startY: touch.clientY,
+    };
+  };
+
+  const handleTouchEnd = (event) => {
+    if (!swipeGestureRef.current || event.changedTouches.length !== 1) {
+      swipeGestureRef.current = null;
+      return;
+    }
+
+    const touch = event.changedTouches[0];
+    const deltaX = touch.clientX - swipeGestureRef.current.startX;
+    const deltaY = touch.clientY - swipeGestureRef.current.startY;
+    swipeGestureRef.current = null;
+
+    if (Math.abs(deltaX) < 56 || Math.abs(deltaX) < Math.abs(deltaY) * 1.2) {
+      return;
+    }
+
+    changeSortByOffset(deltaX < 0 ? 1 : -1);
+  };
 
   const loadMore = async () => {
     const nextPage = page + 1;
@@ -152,7 +201,11 @@ const ArticlesSidebar = ({ selectedArticleId }) => {
         ))}
       </TabsRow>
 
-      <ArticleList id="articles-sidebar-scroll">
+      <ArticleList
+        id="articles-sidebar-scroll"
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+      >
         {loading ? (
           <>{renderArticleSkeletons(1)}</>
         ) : articles.length === 0 ? (

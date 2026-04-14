@@ -33,7 +33,10 @@ export const ModalOverlay = styled.div`
   animation: ${overlayIn} 0.18s ease-out;
 
   @media (max-width: 768px) {
-    padding: ${(props) => props.$paddingMobile || "12px"};
+    padding: ${(props) =>
+      props.$paddingMobile ||
+      "max(12px, env(safe-area-inset-top, 0px)) max(12px, env(safe-area-inset-right, 0px)) max(12px, env(safe-area-inset-bottom, 0px)) max(12px, env(safe-area-inset-left, 0px))"};
+    align-items: center;
   }
 `;
 
@@ -55,7 +58,9 @@ export const ModalPanel = styled.div`
     width: ${(props) => (props.$mobileFull ? "100%" : props.$width || "100%")};
     max-width: 100%;
     max-height: ${(props) =>
-      props.$mobileFull ? "calc(100vh - 24px)" : props.$maxHeight || "90vh"};
+      props.$mobileFull
+        ? "calc(100dvh - max(24px, env(safe-area-inset-top, 0px) + env(safe-area-inset-bottom, 0px)))"
+        : "min(calc(100dvh - max(24px, env(safe-area-inset-top, 0px) + env(safe-area-inset-bottom, 0px))), 90vh)"};
     height: auto;
     min-height: 0;
     border-radius: ${(props) => props.$radius || "18px"};

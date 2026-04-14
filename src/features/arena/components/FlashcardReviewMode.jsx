@@ -180,9 +180,12 @@ export default function FlashcardReviewMode({
           <div
             style={{
               width: "100%",
+              height: "100%",
+              position: "relative",
               display: "flex",
               flexDirection: "column",
               alignItems: "center",
+              justifyContent: "center",
               gap: "18px",
             }}
           >
@@ -198,12 +201,18 @@ export default function FlashcardReviewMode({
                 }}
               />
             )}
-            <div>{getPromptText(currentCard) || "???"}</div>
+            <div style={{ textAlign: "center", zIndex: 1 }}>
+              {getPromptText(currentCard) || "???"}
+            </div>
 
             {showingBack ? (
               <div
                 style={{
-                  width: "min(100%, 480px)",
+                  position: "absolute",
+                  left: "50%",
+                  bottom: "20px",
+                  transform: "translateX(-50%)",
+                  width: "min(calc(100% - 24px), 480px)",
                   padding: "18px 20px",
                   borderRadius: "14px",
                   border: "1px solid var(--border-color)",
@@ -214,6 +223,9 @@ export default function FlashcardReviewMode({
                   alignItems: "center",
                   gap: "14px",
                   fontSize: "18px",
+                  boxShadow: "0 14px 28px rgba(0, 0, 0, 0.18)",
+                  backdropFilter: "blur(8px)",
+                  zIndex: 3,
                 }}
               >
                 {getAnswerImage(currentCard) && (
@@ -228,7 +240,9 @@ export default function FlashcardReviewMode({
                     }}
                   />
                 )}
-                <div>{getAnswerText(currentCard) || "???"}</div>
+                <div style={{ textAlign: "center" }}>
+                  {getAnswerText(currentCard) || "???"}
+                </div>
               </div>
             ) : null}
           </div>

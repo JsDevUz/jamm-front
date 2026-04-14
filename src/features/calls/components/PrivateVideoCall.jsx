@@ -70,6 +70,16 @@ const Overlay = styled.div`
   display: flex;
   flex-direction: column;
   overflow: hidden;
+
+  @media (max-width: 768px) {
+    padding:
+      ${(props) =>
+        props.$minimized
+          ? "0"
+          : "env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px)"};
+    box-sizing: border-box;
+    background: ${(props) => (props.$minimized ? "var(--call-surface)" : "transparent")};
+  }
 `;
 
 const PiPFrame = styled.div`
@@ -89,6 +99,13 @@ const Header = styled.div`
   border-bottom: 1px solid var(--call-border);
   background: color-mix(in srgb, var(--call-surface) 90%, transparent);
   backdrop-filter: blur(10px);
+
+  @media (max-width: 768px) {
+    margin:
+      0 max(10px, env(safe-area-inset-right, 0px)) 0 max(10px, env(safe-area-inset-left, 0px));
+    border-radius: 24px 24px 0 0;
+    padding: 10px 14px 12px;
+  }
 `;
 
 const HeaderText = styled.div`
@@ -138,6 +155,14 @@ const Body = styled.div`
   min-height: 0;
   position: relative;
   background: color-mix(in srgb, var(--call-bg) 88%, black 12%);
+
+  @media (max-width: 768px) {
+    margin:
+      0 max(10px, env(safe-area-inset-right, 0px)) max(10px, env(safe-area-inset-bottom, 0px))
+      max(10px, env(safe-area-inset-left, 0px));
+    border-radius: 0 0 28px 28px;
+    overflow: hidden;
+  }
 `;
 
 const MainStage = styled.div`
@@ -236,7 +261,7 @@ const LocalTile = styled.button`
     width: 144px;
     height: 104px;
     right: 12px;
-    bottom: 78px;
+    bottom: calc(78px + env(safe-area-inset-bottom, 0px));
   }
 `;
 
@@ -256,6 +281,10 @@ const ControlBar = styled.div`
     rgba(0, 0, 0, 0.28) 24%,
     rgba(0, 0, 0, 0.64) 100%
   );
+
+  @media (max-width: 768px) {
+    padding: 14px 18px calc(18px + env(safe-area-inset-bottom, 0px));
+  }
 `;
 
 const ControlButton = styled.button`

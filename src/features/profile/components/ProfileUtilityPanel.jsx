@@ -37,6 +37,7 @@ import { ProfileMobileBackButton } from "../ui";
 import AppLockPinPad from "../../../app/components/AppLockPinPad";
 import usePremiumUpgradeModalStore from "../../../app/store/usePremiumUpgradeModalStore";
 import useProfileDecorationsStore from "../../../store/profileDecorationsStore";
+import { MarkdownRenderer } from "../../articles/components";
 
 const MobileBackBtn = styled(ProfileMobileBackButton)``;
 
@@ -376,6 +377,82 @@ const FavoriteMeta = styled.div`
   font-size: 12px;
   line-height: 1.45;
 `;
+
+const FavoriteMarkdownPreview = styled(MarkdownRenderer)`
+  color: var(--text-muted-color);
+  font-size: 12px;
+  line-height: 1.45;
+  max-height: calc(1.45em * 4);
+  overflow: hidden;
+  position: relative;
+  mask-image: linear-gradient(180deg, #000 0%, #000 72%, transparent 100%);
+  -webkit-mask-image: linear-gradient(
+    180deg,
+    #000 0%,
+    #000 72%,
+    transparent 100%
+  );
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6,
+  blockquote,
+  pre,
+  hr,
+  details,
+  img {
+    display: none;
+  }
+
+  p,
+  ul,
+  ol {
+    margin: 0;
+    font-size: inherit;
+    line-height: inherit;
+  }
+
+  ul,
+  ol {
+    padding-left: 1rem;
+  }
+
+  li + li {
+    margin-top: 0.2rem;
+  }
+
+  p + p,
+  p + ul,
+  p + ol,
+  ul + p,
+  ol + p {
+    margin-top: 0.35rem;
+  }
+
+  code {
+    font-size: 0.95em;
+    padding: 0.08rem 0.28rem;
+  }
+
+  a {
+    color: inherit;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+`;
+
+const getFavoriteMarkdown = (item) =>
+  String(
+    item?.content ||
+      item?.markdown ||
+      item?.excerpt ||
+      item?.summary ||
+      item?.description ||
+      "",
+  ).trim();
 
 const ProfileUtilityPanel = ({ section, currentUser, onBack }) => {
   const { t, i18n } = useTranslation();
@@ -1090,9 +1167,11 @@ const ProfileUtilityPanel = ({ section, currentUser, onBack }) => {
                   <FavoriteTitle>
                     {post.author?.nickname || post.author?.username || t("common.author")}
                   </FavoriteTitle>
-                  <FavoriteMeta>
-                    {String(post.content || "").slice(0, 160)}
-                  </FavoriteMeta>
+                  {getFavoriteMarkdown(post) ? (
+                    <FavoriteMarkdownPreview content={getFavoriteMarkdown(post)} />
+                  ) : (
+                    <FavoriteMeta>Kontent yo'q</FavoriteMeta>
+                  )}
                 </FavoriteCard>
               ))}
             </CardsGrid>
@@ -1120,6 +1199,9 @@ const ProfileUtilityPanel = ({ section, currentUser, onBack }) => {
                   onClick={() => navigate(`/articles/${article.slug || article._id}`)}
                 >
                   <FavoriteTitle>{article.title}</FavoriteTitle>
+                  {getFavoriteMarkdown(article) ? (
+                    <FavoriteMarkdownPreview content={getFavoriteMarkdown(article)} />
+                  ) : null}
                   <FavoriteMeta>
                     {article.author?.nickname || article.author?.username || t("common.author")}
                     {" · "}

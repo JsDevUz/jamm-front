@@ -2294,6 +2294,10 @@ const PdfPageCanvas = styled.canvas`
   display: block;
   width: 100%;
   height: auto;
+  transform: rotate(0deg) translateZ(0);
+  transform-origin: top left;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
   ${(p) =>
     p.$hidden
       ? `
@@ -2312,6 +2316,10 @@ const PdfRasterImage = styled.img`
   user-select: none;
   -webkit-user-drag: none;
   pointer-events: none;
+  transform: rotate(0deg) translateZ(0);
+  transform-origin: top left;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
 `;
 
 const PdfPagePlaceholder = styled.div`
@@ -5869,17 +5877,19 @@ const WhiteboardTile = ({
 
             canvas.dataset.renderKey = renderSignature;
             delete canvas.dataset.pendingRenderKey;
-            try {
-              const nextImageSrc = canvas.toDataURL("image/png");
-              setPdfPageImages((prev) =>
-                prev[pageMeta.pageNumber] === nextImageSrc
-                  ? prev
-                  : {
-                      ...prev,
-                      [pageMeta.pageNumber]: nextImageSrc,
-                    },
-              );
-            } catch {}
+            if (!interactive) {
+              try {
+                const nextImageSrc = canvas.toDataURL("image/png");
+                setPdfPageImages((prev) =>
+                  prev[pageMeta.pageNumber] === nextImageSrc
+                    ? prev
+                    : {
+                        ...prev,
+                        [pageMeta.pageNumber]: nextImageSrc,
+                      },
+                );
+              } catch {}
+            }
             setPdfPageMetrics((prev) => {
               const nextWidth = viewport.width;
               const nextHeight = viewport.height;
@@ -8236,7 +8246,9 @@ const WhiteboardTile = ({
                           pageMeta.pageNumber === Number(activeTab.viewportPageNumber);
                         const pageStrokes = getPdfTabPageStrokes(activeTab, pageMeta.pageNumber);
                         const mobilePdfImage =
-                          shouldUseContainedMobilePdfViewport && pdfPageImages[pageMeta.pageNumber]
+                          shouldUseContainedMobilePdfViewport &&
+                          !interactive &&
+                          pdfPageImages[pageMeta.pageNumber]
                             ? pdfPageImages[pageMeta.pageNumber]
                             : "";
 
@@ -8398,7 +8410,9 @@ const WhiteboardTile = ({
                       pageMeta.pageNumber === Number(activeTab.viewportPageNumber);
                     const pageStrokes = getPdfTabPageStrokes(activeTab, pageMeta.pageNumber);
                     const mobilePdfImage =
-                      shouldUseContainedMobilePdfViewport && pdfPageImages[pageMeta.pageNumber]
+                      shouldUseContainedMobilePdfViewport &&
+                      !interactive &&
+                      pdfPageImages[pageMeta.pageNumber]
                         ? pdfPageImages[pageMeta.pageNumber]
                         : "";
 

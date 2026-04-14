@@ -4050,6 +4050,30 @@ export function useWebRTC({
                 );
                 setTimeout(join, 1500); // Retry after 1.5s
               } else {
+                if (shouldUseLiveKit && !isPrivate) {
+                  console.warn(
+                    "[useWebRTC] Socket room not found for guest; continuing with LiveKit-only public meet flow.",
+                  );
+                  setError("");
+                  setJoinStatus("joined");
+                  connectLivekitRoom({
+                    microphoneEnabled: shouldStartWithMic,
+                    cameraEnabled: shouldStartWithCam,
+                  })
+                    .then(() => {
+                      emitLocalMediaState();
+                    })
+                    .catch((livekitError) => {
+                      console.error("LiveKit connect fallback error:", livekitError);
+                      if (!isMounted) return;
+                      setError(
+                        livekitError?.message || "LiveKit roomga ulanib bo'lmadi",
+                      );
+                      setJoinStatus("idle");
+                    });
+                  return;
+                }
+
                 setError("Xona topilmadi yoki hali boshlanmagan");
                 setJoinStatus("idle");
               }

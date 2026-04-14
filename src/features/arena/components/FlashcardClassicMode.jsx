@@ -305,7 +305,11 @@ key={classicExitDirection ? `swipe-card-exiting-${classicIndex}` : `swipe-card-$
                         {classicShowBack ? (
                           <div
                             style={{
-                              width: "min(100%, 540px)",
+                              position: "absolute",
+                              left: "50%",
+                              bottom: "24px",
+                              transform: "translateX(-50%)",
+                              width: "min(calc(100% - 24px), 540px)",
                               borderRadius: 22,
                               border: "1px solid color-mix(in srgb, var(--border-color) 76%, transparent)",
                               background:
@@ -315,6 +319,10 @@ key={classicExitDirection ? `swipe-card-exiting-${classicIndex}` : `swipe-card-$
                               flexDirection: "column",
                               alignItems: "center",
                               gap: 14,
+                              boxShadow: "0 16px 32px rgba(0, 0, 0, 0.18)",
+                              backdropFilter: "blur(10px)",
+                              zIndex: 3,
+                              pointerEvents: "auto",
                             }}
                           >
                             <ClassicCardToolbar
@@ -329,7 +337,12 @@ key={classicExitDirection ? `swipe-card-exiting-${classicIndex}` : `swipe-card-$
                               </ClassicToolbarIcon>
                             </ClassicCardToolbar>
                             {answerImage && <ClassicCardImage src={answerImage} />}
-                            <ClassicCardWord style={{ fontSize: "clamp(24px, 4vw, 42px)" }}>
+                            <ClassicCardWord
+                              style={{
+                                fontSize: "clamp(24px, 4vw, 42px)",
+                                textAlign: "center",
+                              }}
+                            >
                               {answerText}
                             </ClassicCardWord>
                           </div>

@@ -21,7 +21,21 @@ function App() {
     <Router>
       <ThemeProvider>
         <AppGate>
-          <Toaster position="top-center" containerStyle={{ zIndex: 99999 }} />
+          <Toaster
+            position="top-center"
+            gutter={10}
+            containerStyle={{
+              zIndex: 99999,
+              top: "calc(env(safe-area-inset-top, 0px) + 10px)",
+              left: "max(10px, env(safe-area-inset-left, 0px))",
+              right: "max(10px, env(safe-area-inset-right, 0px))",
+            }}
+            toastOptions={{
+              style: {
+                marginTop: 0,
+              },
+            }}
+          />
           <ChatsProvider>
             <RouteMetadataManager />
             <PresenceProvider>

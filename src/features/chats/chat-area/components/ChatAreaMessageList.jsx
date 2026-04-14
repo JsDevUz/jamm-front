@@ -376,18 +376,49 @@ const EditedIndicator = styled.span`
 
 const LoaderText = styled.h4`
   position: absolute;
-  top: 10px;
+  top: 12px;
   left: 50%;
   transform: translateX(-50%);
-  z-index: 4;
+  z-index: 7;
   text-align: center;
-  padding: 6px 12px;
-  border-radius: 999px;
-  background: var(--surface-color);
-  border: 1px solid var(--border-color);
-  color: var(--text-muted-color);
+  padding: 10px 16px;
+  border-radius: 18px;
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--surface-color) 96%, white 4%) 0%,
+      color-mix(in srgb, var(--surface-color) 88%, black 12%) 100%
+    );
+  border: 1px solid color-mix(in srgb, white 12%, var(--border-color));
+  box-shadow:
+    0 18px 40px rgba(0, 0, 0, 0.22),
+    inset 0 1px 0 color-mix(in srgb, white 10%, transparent);
+  color: color-mix(in srgb, var(--text-color) 84%, white 16%);
   margin: 0;
   pointer-events: none;
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+
+  &::before {
+    content: "";
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    margin-right: 10px;
+    border-radius: 999px;
+    background: linear-gradient(
+      135deg,
+      var(--primary-color) 0%,
+      color-mix(in srgb, var(--primary-color) 54%, white 46%) 100%
+    );
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--primary-color) 18%, transparent);
+    animation: ${skeletonPulse} 1.1s ease-in-out infinite;
+    vertical-align: middle;
+  }
 `;
 
 const InitialLoaderState = styled.div`
@@ -417,7 +448,7 @@ const EmptyState = styled.div`
 const InitialLayoutSkeleton = styled.div`
   position: absolute;
   inset: 0;
-  z-index: 3;
+  z-index: 5;
   display: flex;
   flex-direction: column;
   justify-content: flex-start;
@@ -430,6 +461,22 @@ const InitialLayoutSkeleton = styled.div`
   pointer-events: none;
   overflow: hidden;
 
+  &::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background:
+      linear-gradient(
+        180deg,
+        rgba(8, 10, 18, 0.82) 0%,
+        rgba(8, 10, 18, 0.7) 18%,
+        rgba(8, 10, 18, 0.48) 44%,
+        rgba(8, 10, 18, 0.62) 100%
+      );
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+  }
+
   @media (max-width: 768px) {
     padding: 8px 8px calc(10px + env(safe-area-inset-bottom, 0px));
   }
@@ -440,17 +487,52 @@ const InitialLayoutSkeleton = styled.div`
 `;
 
 const SkeletonRow = styled.div`
+  position: relative;
+  z-index: 1;
   display: flex;
   align-items: flex-end;
   justify-content: ${(props) => (props.$isOwn ? "flex-end" : "flex-start")};
   gap: 8px;
 `;
 
+const SkeletonIntroCard = styled.div`
+  position: relative;
+  z-index: 1;
+  align-self: center;
+  width: min(100%, 360px);
+  margin: 2px auto 10px;
+  padding: 16px 18px;
+  border-radius: 22px;
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--surface-color) 92%, white 8%) 0%,
+      color-mix(in srgb, var(--surface-color) 84%, black 16%) 100%
+    );
+  border: 1px solid color-mix(in srgb, white 14%, var(--border-color));
+  box-shadow: 0 22px 48px rgba(0, 0, 0, 0.28);
+  text-align: center;
+`;
+
+const SkeletonIntroTitle = styled.div`
+  color: color-mix(in srgb, white 86%, var(--text-color));
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1.2;
+`;
+
+const SkeletonIntroSubtitle = styled.div`
+  margin-top: 8px;
+  color: color-mix(in srgb, white 58%, var(--text-secondary-color));
+  font-size: 13px;
+  line-height: 1.45;
+`;
+
 const SkeletonAvatar = styled.div`
   width: 34px;
   height: 34px;
   border-radius: 999px;
-  background: color-mix(in srgb, white 8%, transparent);
+  background: color-mix(in srgb, white 16%, transparent);
   margin-bottom: 8px;
   flex-shrink: 0;
   animation: ${skeletonPulse} 1.35s ease-in-out infinite;
@@ -466,8 +548,15 @@ const SkeletonBubble = styled.div`
   height: ${(props) => props.$height}px;
   max-width: 88%;
   border-radius: 18px;
-  background: color-mix(in srgb, white 8%, transparent);
-  border: 1px solid color-mix(in srgb, white 4%, transparent);
+  background:
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, white 10%, transparent) 0%,
+      color-mix(in srgb, white 18%, transparent) 50%,
+      color-mix(in srgb, white 10%, transparent) 100%
+    );
+  border: 1px solid color-mix(in srgb, white 9%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 8%, transparent);
   animation: ${skeletonPulse} 1.35s ease-in-out infinite;
   animation-delay: ${(props) => props.$delay || "0s"};
 `;
@@ -1110,6 +1199,12 @@ const ChatAreaMessageList = ({ keyboardHeight = 0 }) => {
     <ScrollArea>
       {showInitialLoader ? (
         <InitialLayoutSkeleton>
+          <SkeletonIntroCard>
+            <SkeletonIntroTitle>Suhbat yuklanmoqda</SkeletonIntroTitle>
+            <SkeletonIntroSubtitle>
+              Xabarlar tayyorlanmoqda, hozir chat ochiladi.
+            </SkeletonIntroSubtitle>
+          </SkeletonIntroCard>
           {chatSkeletonItems.map((item) => (
             <SkeletonRow key={item.id} $isOwn={item.own}>
               {!item.own ? <SkeletonAvatar /> : null}

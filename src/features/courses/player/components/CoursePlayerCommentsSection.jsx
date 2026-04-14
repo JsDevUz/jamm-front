@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { ChevronUp, Send } from "lucide-react";
 import { useCoursePlayerContext } from "../context/CoursePlayerContext";
 import {
@@ -36,11 +36,24 @@ import {
 
 const getNameInitial = (name) => (name || "?").charAt(0).toUpperCase();
 
-const Avatar = ({ src, label, isAdmin, small = false }) => (
-  <CommentAvatar $small={small} $isAdmin={isAdmin}>
-    {src?.length > 1 ? <AvatarImage src={src} alt={label} /> : getNameInitial(label)}
-  </CommentAvatar>
-);
+const Avatar = ({ src, label, isAdmin, small = false }) => {
+  const [imageFailed, setImageFailed] = useState(false);
+  const hasImage = Boolean(src?.length > 1 && !imageFailed);
+
+  useEffect(() => {
+    setImageFailed(false);
+  }, [src]);
+
+  return (
+    <CommentAvatar $small={small} $isAdmin={isAdmin}>
+      {hasImage ? (
+        <AvatarImage src={src} alt={label} onError={() => setImageFailed(true)} />
+      ) : (
+        getNameInitial(label)
+      )}
+    </CommentAvatar>
+  );
+};
 
 const CoursePlayerCommentsSection = () => {
   const {

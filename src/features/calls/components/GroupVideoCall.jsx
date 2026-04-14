@@ -477,6 +477,16 @@ const Overlay = styled.div`
   box-shadow: ${(p) =>
     p.$minimized ? "0 20px 50px rgba(0,0,0,0.45)" : "none"};
   overflow: hidden;
+
+  @media (max-width: 768px) {
+    padding:
+      ${(p) =>
+        p.$minimized
+          ? "0"
+          : "env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px)"};
+    box-sizing: border-box;
+    background: ${(p) => (p.$minimized ? "var(--call-bg)" : "transparent")};
+  }
 `;
 
 const FloatingActionBar = styled.div`
@@ -707,12 +717,29 @@ const Body = styled.div`
   flex: 1;
   overflow: hidden;
   box-sizing: border-box;
+  margin:
+    ${(p) =>
+      p.$immersive
+        ? "0"
+        : "0 max(8px, env(safe-area-inset-right, 0px)) max(8px, env(safe-area-inset-bottom, 0px)) max(8px, env(safe-area-inset-left, 0px))"};
+  border-radius: ${(p) => (p.$immersive ? "0" : "24px")};
   padding-top: ${(p) => (p.$immersive ? "0" : p.$uiHidden ? "0" : "60px")};
   padding-bottom: ${(p) => (p.$immersive ? "0" : p.$uiHidden ? "0" : "100px")};
   position: relative;
   transition:
+    margin 0.42s cubic-bezier(0.22, 1, 0.36, 1),
+    border-radius 0.42s cubic-bezier(0.22, 1, 0.36, 1),
     padding-top 0.42s cubic-bezier(0.22, 1, 0.36, 1),
     padding-bottom 0.42s cubic-bezier(0.22, 1, 0.36, 1);
+
+  @media (max-width: 768px) {
+    margin:
+      ${(p) =>
+        p.$immersive
+          ? "0"
+          : "0 max(10px, env(safe-area-inset-right, 0px)) max(10px, env(safe-area-inset-bottom, 0px)) max(10px, env(safe-area-inset-left, 0px))"};
+    border-radius: ${(p) => (p.$immersive ? "0" : "28px")};
+  }
 `;
 
 const ScreenClickOverlay = styled.div`
@@ -5384,7 +5411,6 @@ const GroupVideoCall = ({
             <Circle size={21} fill={isRecording ? "#f04747" : "none"} />
           </CtrlBtn>
         )}
-        <ControlDivider />
         <CtrlBtn
           ref={menuButtonRef}
           $state="neutral"

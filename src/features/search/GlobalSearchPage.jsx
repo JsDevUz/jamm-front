@@ -7,6 +7,10 @@ import { searchArticles } from "../../api/articlesApi";
 import { searchCourses } from "../../api/coursesApi";
 import { useChats } from "../../contexts/ChatsContext";
 import useAuthStore from "../../store/authStore";
+import {
+  mobileFullscreenPane,
+  mobileTopSafePadding,
+} from "../../shared/styles/mobileSafeArea";
 
 const slideIn = keyframes`
   from {
@@ -25,6 +29,15 @@ const Shell = styled.div`
   background: var(--secondary-color);
   color: var(--text-color);
   animation: ${slideIn} 0.24s ease-out;
+
+  @media (max-width: 768px) {
+    ${mobileFullscreenPane};
+    z-index: 9999;
+    width: 100vw;
+    max-width: 100vw;
+    overflow: hidden;
+    background: var(--secondary-color);
+  }
 `;
 
 const Inner = styled.div`
@@ -34,6 +47,14 @@ const Inner = styled.div`
   min-height: 100dvh;
   display: flex;
   flex-direction: column;
+
+  @media (max-width: 768px) {
+    max-width: none;
+    width: 100%;
+    min-height: var(--app-height, 100dvh);
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
 `;
 
 const Header = styled.div`
@@ -41,6 +62,11 @@ const Header = styled.div`
   display: flex;
   align-items: center;
   gap: 12px;
+
+  @media (max-width: 768px) {
+    ${mobileTopSafePadding(12, 16, 0, 16)};
+    padding-bottom: 14px;
+  }
 `;
 
 const BackButton = styled.button`
@@ -88,6 +114,17 @@ const Tabs = styled.div`
   padding: 0 16px;
   justify-content: space-around;
   overflow-x: auto;
+
+  @media (max-width: 768px) {
+    gap: 18px;
+    justify-content: flex-start;
+    padding: 0 16px;
+    scrollbar-width: none;
+
+    &::-webkit-scrollbar {
+      display: none;
+    }
+  }
 `;
 
 const TabButton = styled.button`
@@ -112,6 +149,10 @@ const Content = styled.div`
   display: flex;
   flex-direction: column;
   gap: 10px;
+
+  @media (max-width: 768px) {
+    padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+  }
 `;
 
 const EmptyState = styled.div`

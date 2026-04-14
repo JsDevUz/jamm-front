@@ -1005,16 +1005,15 @@ const ClassicSwipeCard = styled.div`
   /* Transform – asosiy harakatlar uchun */
   transform: ${(props) => {
     if (props.$exiting) {
-      const exitX = props.$exitDirection === "right" ? "160vw" : "-160vw";
-      const exitRotate = props.$exitDirection === "right" ? "35deg" : "-35deg";
-      return `translate(-50%, -50%) translate3d(${exitX}, 10vh, 0) rotate(${exitRotate}) scale(0.9)`;
+      const exitX = props.$exitDirection === "right" ? "135vw" : "-135vw";
+      const exitRotate = props.$exitDirection === "right" ? "18deg" : "-18deg";
+      return `translate(-50%, -50%) translate3d(${exitX}, 4vh, 0) rotate(${exitRotate}) scale(0.97)`;
     }
 
     return `translate(-50%, -50%)
             translate3d(${props.$dragX || 0}px, 0, 0)
-            rotate(${((props.$dragX || 0) / 16).toFixed(2)}deg)
-            rotateX(${((props.$dragX || 0) / -140).toFixed(2)}deg)
-            scale(${props.$dragging ? 1.02 : 1})`;
+            rotate(${((props.$dragX || 0) / 26).toFixed(2)}deg)
+            scale(${props.$dragging ? 1.008 : 1})`;
   }};
 
   opacity: ${(props) => (props.$exiting ? 0 : 1)};
@@ -1024,10 +1023,10 @@ const ClassicSwipeCard = styled.div`
     props.$dragging
       ? "none"                                                // drag paytida hech qanday transition bo‘lmasin
       : props.$exiting
-        ? "transform 0.55s cubic-bezier(0.19, 1, 0.22, 1), opacity 0.45s ease-out"
+        ? "transform 0.34s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.28s ease-out"
         : props.$isFirst
-          ? "transform 0.4s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.35s ease-out"
-          : "transform 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94), opacity 0.2s linear"};
+          ? "transform 0.28s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.28s ease-out"
+          : "transform 0.22s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.18s linear"};
 
   /* Keyingi kartalarda faqat kirish animatsiyasini bloklaymiz, lekin chiqish va drag saqlanib qoladi */
   ${(props) =>
@@ -1069,7 +1068,7 @@ const ClassicFlipLayer = styled.div`
   will-change: transform;
   padding: 28px;
   ${classicCardSurfaceCss};
-  transition: transform 0.62s cubic-bezier(0.22, 1, 0.36, 1);
+  transition: transform 0.34s cubic-bezier(0.22, 1, 0.36, 1);
   transform: rotateY(${(props) => (props.$flipped ? 180 : 0)}deg) translateZ(0);
   border: 1px solid
     ${(props) =>
@@ -1178,6 +1177,7 @@ const ClassicCardBody = styled.div`
   transform: translateZ(8px);
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
+  overflow: hidden;
 `;
 
 const ClassicCardImage = styled.img`
@@ -2060,7 +2060,7 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
     }
 
     const known = action === "right";
-    const swipeOffset = action === "right" ? 140 : -140;
+    const swipeOffset = action === "right" ? 96 : -96;
 
     setClassicExitDirection(action);
     setClassicDragX(swipeOffset);
@@ -2091,7 +2091,7 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
       }
       setClassicShowBack(false);
       resetClassicCardMotion();
-    }, 500);
+    }, 340);
     return () => window.clearTimeout(timer);
   }, [classicExitDirection, classicIndex, classicQueue.length]);
 
@@ -2131,7 +2131,7 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
       return;
 
     const deltaX = event.clientX - classicPointerStateRef.current.startX;
-    if (Math.abs(deltaX) > 8) {
+    if (Math.abs(deltaX) > 6) {
       classicPointerStateRef.current.dragStarted = true;
       setClassicDragging(true);
     }
@@ -2161,7 +2161,7 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
       return;
     }
 
-    if (Math.abs(deltaX) >= 110) {
+    if (Math.abs(deltaX) >= 72) {
       const direction = deltaX > 0 ? "right" : "left";
       const currentCard = classicQueue[classicIndex];
       if (!currentCard) return;
