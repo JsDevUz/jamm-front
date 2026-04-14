@@ -37,7 +37,7 @@ const skeletonPulse = keyframes`
 const MessagesContainer = styled.div`
   flex: 1;
   overflow-y: auto;
-  padding: 16px 8px
+  padding: ${(props) => (props.$keyboardOpen ? "10px" : "16px")} 8px
     ${(props) =>
       props.$keyboardOpen
         ? "72px"
@@ -55,11 +55,12 @@ const MessagesContainer = styled.div`
       ? "92px"
       : "calc(72px + env(safe-area-inset-bottom, 0px))"};
   transition:
+    padding-top 0.28s cubic-bezier(0.22, 1, 0.36, 1),
     padding-bottom 0.25s ease,
     scroll-padding-bottom 0.25s ease;
 
   @media (max-width: 768px) {
-    padding: 8px 8px
+    padding: ${(props) => (props.$keyboardOpen ? "4px" : "8px")} 8px
       ${(props) =>
         props.$keyboardOpen
           ? "72px"
@@ -67,7 +68,7 @@ const MessagesContainer = styled.div`
   }
 
   @media (max-width: 480px) {
-    padding: 4px 8px
+    padding: ${(props) => (props.$keyboardOpen ? "2px" : "4px")} 8px
       ${(props) =>
         props.$keyboardOpen
           ? "72px"

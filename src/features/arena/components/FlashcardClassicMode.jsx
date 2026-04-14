@@ -77,7 +77,6 @@ export default function FlashcardClassicMode({
   const missedCount = classicAnswers.filter((item) => !item.known).length;
   const swipeProgress = Math.min(Math.abs(classicDragX) / 120, 1);
   const promptImage = getPromptImage(currentCard);
-  const answerImage = getAnswerImage(currentCard);
   const promptText = getPromptText(currentCard) || "???";
   const answerText = getAnswerText(currentCard) || "???";
   const progressValue = classicQueue.length
@@ -289,8 +288,8 @@ key={classicExitDirection ? `swipe-card-exiting-${classicIndex}` : `swipe-card-$
                       </ClassicCardToolbar>
                       <ClassicCardBody
                         style={{
-                          justifyContent: classicShowBack ? "flex-start" : "center",
-                          paddingTop: classicShowBack ? 12 : 18,
+                          justifyContent: "center",
+                          paddingTop: 18,
                           overflowY: "auto",
                         }}
                       >
@@ -303,49 +302,18 @@ key={classicExitDirection ? `swipe-card-exiting-${classicIndex}` : `swipe-card-$
                         </ClassicCardWord>
 
                         {classicShowBack ? (
-                          <div
-                            style={{
-                              position: "absolute",
-                              left: "50%",
-                              bottom: "24px",
-                              transform: "translateX(-50%)",
-                              width: "min(calc(100% - 24px), 540px)",
-                              borderRadius: 22,
-                              border: "1px solid color-mix(in srgb, var(--border-color) 76%, transparent)",
-                              background:
-                                "color-mix(in srgb, var(--secondary-color) 92%, var(--background-color))",
-                              padding: "18px 18px 20px",
-                              display: "flex",
-                              flexDirection: "column",
-                              alignItems: "center",
-                              gap: 14,
-                              boxShadow: "0 16px 32px rgba(0, 0, 0, 0.18)",
-                              backdropFilter: "blur(10px)",
-                              zIndex: 3,
-                              pointerEvents: "auto",
-                            }}
-                          >
-                            <ClassicCardToolbar
-                              style={{ width: "100%", justifyContent: "flex-end" }}
-                            >
-                              <ClassicToolbarIcon
-                                type="button"
-                                onPointerDown={(event) => event.stopPropagation()}
-                                onClick={(event) => speakClassicCard("answer", event)}
-                              >
-                                <Volume2 size={22} />
-                              </ClassicToolbarIcon>
-                            </ClassicCardToolbar>
-                            {answerImage && <ClassicCardImage src={answerImage} />}
+                          <>
                             <ClassicCardWord
                               style={{
+                                marginTop: 6,
                                 fontSize: "clamp(24px, 4vw, 42px)",
                                 textAlign: "center",
+                                color: "var(--muted-text-color, rgba(255,255,255,0.72))",
                               }}
                             >
                               {answerText}
                             </ClassicCardWord>
-                          </div>
+                          </>
                         ) : null}
                       </ClassicCardBody>
                     </div>

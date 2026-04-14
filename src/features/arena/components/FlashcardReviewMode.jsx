@@ -176,12 +176,11 @@ export default function FlashcardReviewMode({
           </div>
         ) : null}
 
-        <FlashcardBox>
+        <FlashcardBox onClick={() => currentCard && setShowingBack((value) => !value)} style={{ cursor: "pointer" }}>
           <div
             style={{
               width: "100%",
               height: "100%",
-              position: "relative",
               display: "flex",
               flexDirection: "column",
               alignItems: "center",
@@ -208,41 +207,18 @@ export default function FlashcardReviewMode({
             {showingBack ? (
               <div
                 style={{
-                  position: "absolute",
-                  left: "50%",
-                  bottom: "20px",
-                  transform: "translateX(-50%)",
-                  width: "min(calc(100% - 24px), 480px)",
-                  padding: "18px 20px",
-                  borderRadius: "14px",
-                  border: "1px solid var(--border-color)",
-                  background:
-                    "color-mix(in srgb, var(--secondary-color) 90%, var(--background-color))",
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  gap: "14px",
+                  marginTop: "6px",
+                  textAlign: "center",
+                  color: "var(--muted-text-color, rgba(255,255,255,0.72))",
                   fontSize: "18px",
-                  boxShadow: "0 14px 28px rgba(0, 0, 0, 0.18)",
-                  backdropFilter: "blur(8px)",
-                  zIndex: 3,
+                  lineHeight: 1.5,
+                  fontWeight: 700,
+                  width: "100%",
+                  maxWidth: "480px",
+                  padding: "0 8px",
                 }}
               >
-                {getAnswerImage(currentCard) && (
-                  <img
-                    src={getAnswerImage(currentCard)}
-                    alt="back"
-                    style={{
-                      maxWidth: "100%",
-                      maxHeight: "140px",
-                      borderRadius: "10px",
-                      objectFit: "contain",
-                    }}
-                  />
-                )}
-                <div style={{ textAlign: "center" }}>
-                  {getAnswerText(currentCard) || "???"}
-                </div>
+                {getAnswerText(currentCard) || "???"}
               </div>
             ) : null}
           </div>

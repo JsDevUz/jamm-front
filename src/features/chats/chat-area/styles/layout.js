@@ -61,12 +61,17 @@ export const ChatMain = styled.div`
 
   @media (max-width: 768px) {
     /* Header fixed bo'lgani uchun padding kerak */
-    padding-top: calc(56px + env(safe-area-inset-top, 0px));
+    padding-top: calc(
+      56px + env(safe-area-inset-top, 0px) + ${(props) => (props.$keyboardOpen ? "4px" : "10px")}
+    );
     padding-bottom: 0;
+    transition: padding-top 0.28s cubic-bezier(0.22, 1, 0.36, 1);
   }
 
   @media (max-width: 480px) {
-    padding-top: calc(48px + env(safe-area-inset-top, 0px));
+    padding-top: calc(
+      48px + env(safe-area-inset-top, 0px) + ${(props) => (props.$keyboardOpen ? "2px" : "8px")}
+    );
   }
 `;
 

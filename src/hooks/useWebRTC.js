@@ -2471,13 +2471,68 @@ export function useWebRTC({
     }
   }, []);
 
+  const pickVideoInputDeviceId = useCallback(
+    async (preferredFacingMode = cameraFacingModeRef.current) => {
+      if (!navigator.mediaDevices?.enumerateDevices) {
+        return null;
+      }
+
+      try {
+        const devices = (await navigator.mediaDevices.enumerateDevices()).filter(
+          (device) => device.kind === "videoinput",
+        );
+
+        if (devices.length <= 1) {
+          return null;
+        }
+
+        const currentTrack = localStreamRef.current?.getVideoTracks?.()?.[0] || null;
+        const currentSettings =
+          typeof currentTrack?.getSettings === "function" ? currentTrack.getSettings() : {};
+        const currentDeviceId = String(currentSettings?.deviceId || "").trim();
+        const normalizedFacing = preferredFacingMode === "environment" ? "environment" : "user";
+        const preferredPatterns =
+          normalizedFacing === "environment"
+            ? /(back|rear|environment|world)/i
+            : /(front|user|facetime)/i;
+
+        const preferredDevice = devices.find((device) => {
+          if (!device?.deviceId || device.deviceId === currentDeviceId) {
+            return false;
+          }
+
+          return preferredPatterns.test(String(device.label || ""));
+        });
+
+        if (preferredDevice?.deviceId) {
+          return preferredDevice.deviceId;
+        }
+
+        const fallbackDevice = devices.find((device) => device.deviceId !== currentDeviceId);
+        return fallbackDevice?.deviceId || null;
+      } catch {
+        return null;
+      }
+    },
+    [],
+  );
+
   const buildCameraConstraints = useCallback(
-    (facingMode = cameraFacingModeRef.current) => ({
-      width: { ideal: 640, max: 640 },
-      height: { ideal: 360, max: 360 },
-      frameRate: { ideal: 18, max: 18 },
-      ...(isLikelyMobileDevice() ? { facingMode: { ideal: facingMode } } : {}),
-    }),
+    (facingMode = cameraFacingModeRef.current, deviceId = null) => {
+      const constraints = {
+        width: { ideal: 640, max: 640 },
+        height: { ideal: 360, max: 360 },
+        frameRate: { ideal: 18, max: 18 },
+      };
+
+      if (deviceId) {
+        constraints.deviceId = { exact: deviceId };
+      } else if (isLikelyMobileDevice()) {
+        constraints.facingMode = { ideal: facingMode };
+      }
+
+      return constraints;
+    },
     [],
   );
 
@@ -4300,8 +4355,9 @@ export function useWebRTC({
     const currentTrack = localStreamRef.current?.getVideoTracks()[0] || null;
 
     try {
+      const nextDeviceId = await pickVideoInputDeviceId(nextFacingMode);
       const nextStream = await navigator.mediaDevices.getUserMedia({
-        video: buildCameraConstraints(nextFacingMode),
+        video: buildCameraConstraints(nextFacingMode, nextDeviceId),
         audio: false,
       });
       const nextTrack = nextStream.getVideoTracks()[0];
@@ -4333,6 +4389,7 @@ export function useWebRTC({
     camLocked,
     emitLocalMediaState,
     isCamOn,
+    pickVideoInputDeviceId,
     refreshVideoInputCount,
     replaceCameraTrack,
     shouldUseLiveKit,

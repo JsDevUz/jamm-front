@@ -110,24 +110,18 @@ const SearchInput = styled.input`
 
 const Tabs = styled.div`
   display: flex;
-  gap: 22px;
+  gap: 0;
   padding: 0 16px;
-  justify-content: space-around;
-  overflow-x: auto;
+  justify-content: space-between;
 
   @media (max-width: 768px) {
-    gap: 18px;
-    justify-content: flex-start;
+    justify-content: space-between;
     padding: 0 16px;
-    scrollbar-width: none;
-
-    &::-webkit-scrollbar {
-      display: none;
-    }
   }
 `;
 
 const TabButton = styled.button`
+  flex: 1;
   min-height: 54px;
   padding: 0;
   border: none;
@@ -140,6 +134,7 @@ const TabButton = styled.button`
   cursor: pointer;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   white-space: nowrap;
 `;
 

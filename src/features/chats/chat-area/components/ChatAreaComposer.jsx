@@ -15,11 +15,18 @@ const MessageInputContainer = styled.div`
   border-top: 1px solid var(--border-color);
   position: relative;
   transition:
+    padding-top 0.28s cubic-bezier(0.22, 1, 0.36, 1),
     padding-bottom 0.25s ease,
-    border-color 0.25s ease;
+    border-color 0.25s ease,
+    transform 0.3s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.3s ease,
+    background-color 0.3s ease;
+  transform: translateY(${(props) => (props.$keyboardOpen ? "-2px" : "0px")});
+  box-shadow: ${(props) =>
+    props.$keyboardOpen ? "0 -12px 28px rgba(0, 0, 0, 0.14)" : "0 0 0 rgba(0, 0, 0, 0)"};
 
   @media (max-width: 768px) {
-    padding: 8px 12px
+    padding: ${(props) => (props.$keyboardOpen ? "6px" : "8px")} 12px
       ${(props) =>
         props.$keyboardOpen
           ? "0px"
@@ -31,6 +38,7 @@ const ComposerStack = styled.div`
   display: flex;
   flex-direction: column;
   gap: 8px;
+  transition: gap 0.26s cubic-bezier(0.22, 1, 0.36, 1);
 `;
 
 const JoinPreview = styled.div`
@@ -112,9 +120,13 @@ const InputWrapper = styled.div`
   border-radius: 20px;
   padding: 8px 12px;
   min-height: 44px;
-  transition: background-color 0.2s ease;
+  transition:
+    background-color 0.2s ease,
+    border-radius 0.28s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
   opacity: ${(props) => (props.$disabled ? 0.72 : 1)};
   pointer-events: ${(props) => (props.$disabled ? "none" : "auto")};
+  transform: translateY(${(props) => (props.$keyboardOpen ? "-1px" : "0px")});
 
   &:focus-within {
     background-color: var(--hover-color);
@@ -324,7 +336,7 @@ const ChatAreaComposer = ({
           </ReplyPreview>
         )}
 
-        <InputWrapper $disabled={isComposerDisabled}>
+        <InputWrapper $disabled={isComposerDisabled} $keyboardOpen={keyboardOpen}>
           <InputButtons $side="left">
             {showComingSoonTooltip ? (
               <InlineTooltip>Tez kunda...</InlineTooltip>
