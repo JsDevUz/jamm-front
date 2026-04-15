@@ -23,7 +23,6 @@ export default function FlashcardClassicMode({
   getClassicStackLayout,
   getPromptImage,
   getPromptText,
-  getAnswerImage,
   getAnswerText,
   handleClassicPointerDown,
   handleClassicPointerMove,
@@ -33,6 +32,7 @@ export default function FlashcardClassicMode({
   restartClassicAll,
 }) {
   const isDesktop = typeof window !== "undefined" && window.innerWidth > 768;
+  const shouldUseFullscreen = !classicCompleted && !isDesktop;
   const {
     Container,
     ClassicFullscreenShell,
@@ -46,18 +46,18 @@ export default function FlashcardClassicMode({
     ClassicFloatingCounter,
     ClassicCardStage,
     ClassicStackCard,
-    ClassicNextPreviewCard,
-    ClassicCardToolbarSpacer,
     ClassicToolbarIcon,
     ClassicCardBody,
+    ClassicCardContent,
     ClassicCardImage,
-    ClassicNextPreviewWord,
     ClassicSwipeCard,
     ClassicFlipLayer,
-    ClassicCardFront,
     ClassicCardToolbar,
     ClassicCardWord,
-    ClassicCardBack,
+    ClassicSecondarySlot,
+    ClassicPromptHint,
+    ClassicAnswerPanel,
+    ClassicSwipeStamp,
     StudyArea,
     BackBtn,
     Title,
@@ -72,7 +72,7 @@ export default function FlashcardClassicMode({
   } = ui;
 
   const currentCard = classicQueue[classicIndex];
-  const stackedCards = classicQueue.slice(classicIndex + 1);
+  const stackedCards = classicQueue.slice(classicIndex + 1, classicIndex + 4);
   const foundCount = classicAnswers.filter((item) => item.known).length;
   const missedCount = classicAnswers.filter((item) => !item.known).length;
   const swipeProgress = Math.min(Math.abs(classicDragX) / 120, 1);
@@ -86,6 +86,35 @@ export default function FlashcardClassicMode({
     : 0;
   const swipeTone =
     classicDragX > 0 ? "success" : classicDragX < 0 ? "danger" : null;
+  const leftExitDepth =
+    classicQueue.length <= 2
+      ? 2
+      : classicQueue.length === 3
+        ? 3
+        : classicQueue.length === 4
+          ? 4
+          : 5;
+  const leftExitLayout = getClassicStackLayout(leftExitDepth);
+  const leftExitTranslateZ =
+    leftExitDepth === 2
+      ? -120
+      : leftExitDepth === 3
+        ? -180
+        : leftExitDepth === 4
+          ? -240
+          : -300;
+  const leftSwipeStampOpacity =
+    classicExitDirection === "left"
+      ? 1
+      : classicDragX < 0
+        ? swipeProgress
+        : 0;
+  const rightSwipeStampOpacity =
+    classicExitDirection === "right"
+      ? 1
+      : classicDragX > 0
+        ? swipeProgress
+        : 0;
 
   useHotkeys(
     "left",
@@ -148,11 +177,8 @@ export default function FlashcardClassicMode({
     ],
   );
 
-  // Faqat birinchi karta uchun kirish animatsiyasi bo'ladi
-  const isFirstCard = classicIndex === 0;
-
   return (
-    <Container $fullscreen={!classicCompleted}>
+    <Container $fullscreen={shouldUseFullscreen}>
       {!classicCompleted ? (
         <ClassicFullscreenShell data-classic-flashcard-fullscreen="true">
           <ClassicTopBar>
@@ -175,7 +201,7 @@ export default function FlashcardClassicMode({
             <ClassicGhostAction
               type="button"
               onClick={handleClassicReplay}
-              disabled={classicIndex === 0 && classicAnswers.length === 0}
+              disabled={Boolean(classicExitDirection)}
               title="Oldingi karta"
             >
               <Undo2 size={24} />
@@ -197,74 +223,47 @@ export default function FlashcardClassicMode({
             <ClassicCardStage>
               {/* Stacked kartalar (oldingi ko'rinishlar) */}
               {stackedCards
-                .map((card, idx) => ({ card, depth: idx + 1 }))
+                .map((card, idx) => ({ card, depth: idx + 2 }))
                 .reverse()
                 .map(({ card, depth }) => {
                   const stackLayout = getClassicStackLayout(depth);
-                  if (depth !== 1) {
-                    return (
-                      <ClassicStackCard
-                        key={card._id || `stack-surface-${depth}`}
-                        $offsetX={stackLayout.offsetX}
-                        $offsetY={stackLayout.offsetY}
-                        $rotate={stackLayout.rotate}
-                        $scale={stackLayout.scale}
-                        $opacity={stackLayout.opacity}
-                        $zIndex={stackLayout.zIndex}
-                      />
-                    );
-                  }
-
-                  const previewImage = getPromptImage(card);
-                  const previewText = getPromptText(card) || "???";
                   return (
-                    <ClassicNextPreviewCard
-                      key={card._id || `stack-${depth}`}
+                    <ClassicStackCard
+                      key={card._id || `stack-surface-${depth}`}
                       $offsetX={stackLayout.offsetX}
                       $offsetY={stackLayout.offsetY}
                       $rotate={stackLayout.rotate}
                       $scale={stackLayout.scale}
                       $opacity={stackLayout.opacity}
                       $zIndex={stackLayout.zIndex}
-                    >
-                      <ClassicCardToolbarSpacer>
-                        <ClassicToolbarIcon
-                          type="button"
-                          tabIndex={-1}
-                          aria-hidden="true"
-                        >
-                          <Volume2 size={22} />
-                        </ClassicToolbarIcon>
-                      </ClassicCardToolbarSpacer>
-                      <ClassicCardBody>
-                        {previewImage ? (
-                          <ClassicCardImage src={previewImage} />
-                        ) : null}
-                        <ClassicNextPreviewWord>{previewText}</ClassicNextPreviewWord>
-                      </ClassicCardBody>
-                    </ClassicNextPreviewCard>
+                    />
                   );
                 })}
 
               {/* Asosiy suriladigan karta */}
-{!classicCompleted && currentCard && (
-  <ClassicSwipeCard
-key={classicExitDirection ? `swipe-card-exiting-${classicIndex}` : `swipe-card-${classicIndex}`}
-  $isFirst={classicIndex === 0}
-  $dragX={classicDragX}
-  $dragging={classicDragging}
-  $exiting={Boolean(classicExitDirection)}
-  $exitDirection={classicExitDirection}
-  $swipeTone={swipeTone}
-  $swipeStrength={swipeProgress}
-  onPointerDown={handleClassicPointerDown}
-  onPointerMove={handleClassicPointerMove}
-  onPointerUp={handleClassicPointerEnd}
-  onPointerCancel={handleClassicPointerEnd}
-  onPointerLeave={() => {
-    if (classicDragging) handleClassicPointerEnd();
-  }}
-  >
+              {!classicCompleted && currentCard && (
+                <ClassicSwipeCard
+                  key={currentCard._id || `swipe-card-${classicIndex}`}
+                  $isFirst={classicIndex === 0}
+                  $dragX={classicDragX}
+                  $dragging={classicDragging}
+                  $exiting={Boolean(classicExitDirection)}
+                  $exitDirection={classicExitDirection}
+                  $swipeTone={swipeTone}
+                  $swipeStrength={swipeProgress}
+                  $leftExitOffsetX={leftExitLayout?.offsetX}
+                  $leftExitOffsetY={leftExitLayout?.offsetY}
+                  $leftExitRotate={leftExitLayout?.rotate}
+                  $leftExitScale={leftExitLayout?.scale}
+                  $leftExitTranslateZ={leftExitTranslateZ}
+                  onPointerDown={handleClassicPointerDown}
+                  onPointerMove={handleClassicPointerMove}
+                  onPointerUp={handleClassicPointerEnd}
+                  onPointerCancel={handleClassicPointerEnd}
+                  onPointerLeave={() => {
+                    if (classicDragging) handleClassicPointerEnd();
+                  }}
+                >
                   <ClassicFlipLayer $swipeTone={swipeTone} $swipeStrength={swipeProgress}>
                     <div
                       style={{
@@ -273,10 +272,24 @@ key={classicExitDirection ? `swipe-card-exiting-${classicIndex}` : `swipe-card-$
                         height: "100%",
                         display: "flex",
                         flexDirection: "column",
-                        padding: 20,
+                        padding: 14,
                         boxSizing: "border-box",
                       }}
                     >
+                      <ClassicSwipeStamp
+                        $side="left"
+                        $tone="danger"
+                        $opacity={leftSwipeStampOpacity}
+                      >
+                        YANA ×
+                      </ClassicSwipeStamp>
+                      <ClassicSwipeStamp
+                        $side="right"
+                        $tone="success"
+                        $opacity={rightSwipeStampOpacity}
+                      >
+                        BILAMAN ✓
+                      </ClassicSwipeStamp>
                       <ClassicCardToolbar>
                         <ClassicToolbarIcon
                           type="button"
@@ -289,32 +302,43 @@ key={classicExitDirection ? `swipe-card-exiting-${classicIndex}` : `swipe-card-$
                       <ClassicCardBody
                         style={{
                           justifyContent: "center",
-                          paddingTop: 18,
-                          overflowY: "auto",
+                          paddingTop: 0,
                         }}
                       >
-                        {promptImage && <ClassicCardImage src={promptImage} />}
-                        <ClassicCardWord
-                          $blur={swipeProgress * 2}
-                          $fade={swipeProgress}
-                        >
-                          {promptText}
-                        </ClassicCardWord>
-
-                        {classicShowBack ? (
-                          <>
-                            <ClassicCardWord
-                              style={{
-                                marginTop: 6,
-                                fontSize: "clamp(24px, 4vw, 42px)",
-                                textAlign: "center",
-                                color: "var(--muted-text-color, rgba(255,255,255,0.72))",
-                              }}
-                            >
-                              {answerText}
-                            </ClassicCardWord>
-                          </>
-                        ) : null}
+                        <ClassicCardContent $hasImage={Boolean(promptImage)}>
+                          {promptImage && <ClassicCardImage src={promptImage} />}
+                          <ClassicCardWord
+                            $blur={swipeProgress * 2}
+                            $fade={swipeProgress}
+                            $offsetY={
+                              promptImage
+                                ? "0px"
+                                : "calc(-1 * clamp(34px, 4vh, 60px))"
+                            }
+                          >
+                            {promptText}
+                          </ClassicCardWord>
+                          <ClassicSecondarySlot $hasImage={Boolean(promptImage)}>
+                            <ClassicPromptHint $visible={!classicShowBack}>
+                              JAVOBNI KO&apos;RSATISH
+                            </ClassicPromptHint>
+                            <ClassicAnswerPanel $visible={classicShowBack}>
+                              <ClassicCardWord
+                                $offsetY="0px"
+                                style={{
+                                  fontSize: "clamp(22px, 3.2vw, 40px)",
+                                  lineHeight: 1.12,
+                                  fontWeight: 300,
+                                  textAlign: "center",
+                                  color: "#F3F5F9",
+                                  letterSpacing: "0",
+                                }}
+                              >
+                                {answerText}
+                              </ClassicCardWord>
+                            </ClassicAnswerPanel>
+                          </ClassicSecondarySlot>
+                        </ClassicCardContent>
                       </ClassicCardBody>
                     </div>
                   </ClassicFlipLayer>

@@ -42,6 +42,8 @@ export const TabsRow = styled.div`
 `;
 
 export const SortTab = styled.button`
+  appearance: none;
+  -webkit-appearance: none;
   flex: 0 0 auto;
   min-height: 52px;
   min-width: 92px;
@@ -59,10 +61,24 @@ export const SortTab = styled.button`
   white-space: nowrap;
   cursor: pointer;
   transition: all 0.2s;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  outline: none;
 
   &:hover {
     color: var(--text-color);
     background: var(--hover-color);
+  }
+
+  &:focus,
+  &:focus-visible,
+  &:active {
+    outline: none;
+    box-shadow: none;
+    background: transparent;
   }
 `;
 

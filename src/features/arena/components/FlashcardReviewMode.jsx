@@ -19,28 +19,6 @@ const hotkeyBadgeStyle = {
   flexShrink: 0,
 };
 
-const hotkeyHintRowStyle = {
-  display: "flex",
-  flexWrap: "wrap",
-  justifyContent: "center",
-  gap: "8px",
-  marginTop: "-4px",
-  marginBottom: "8px",
-};
-
-const hotkeyHintItemStyle = {
-  display: "inline-flex",
-  alignItems: "center",
-  gap: "8px",
-  padding: "8px 12px",
-  borderRadius: "999px",
-  background: "rgba(255, 255, 255, 0.05)",
-  border: "1px solid rgba(255, 255, 255, 0.08)",
-  color: "rgba(255, 255, 255, 0.72)",
-  fontSize: "13px",
-  fontWeight: 600,
-};
-
 const buttonHotkeyContentStyle = {
   display: "inline-flex",
   alignItems: "center",
@@ -160,22 +138,6 @@ export default function FlashcardReviewMode({
           {studyingDeck.title} - Qolgan: {reviewQueue.length - currentCardIndex}
         </Title>
 
-        {isDesktop ? (
-          <div style={hotkeyHintRowStyle}>
-            {!showingBack ? (
-              <div style={hotkeyHintItemStyle}>
-                <span style={hotkeyBadgeStyle}>Space</span>
-                <span>Javobni ko'rish</span>
-              </div>
-            ) : (
-              <div style={hotkeyHintItemStyle}>
-                <span style={hotkeyBadgeStyle}>1-4</span>
-                <span>Bahoni tanlash</span>
-              </div>
-            )}
-          </div>
-        ) : null}
-
         <FlashcardBox onClick={() => currentCard && setShowingBack((value) => !value)} style={{ cursor: "pointer" }}>
           <div
             style={{
@@ -186,36 +148,57 @@ export default function FlashcardReviewMode({
               alignItems: "center",
               justifyContent: "center",
               gap: "18px",
+              position: "relative",
+              paddingBottom: showingBack ? "110px" : "0",
+              boxSizing: "border-box",
             }}
           >
-            {getPromptImage(currentCard) && (
-              <img
-                src={getPromptImage(currentCard)}
-                alt="prompt"
-                style={{
-                  maxWidth: "100%",
-                  maxHeight: "200px",
-                  borderRadius: "8px",
-                  objectFit: "contain",
-                }}
-              />
-            )}
-            <div style={{ textAlign: "center", zIndex: 1 }}>
-              {getPromptText(currentCard) || "???"}
+            <div
+              style={{
+                width: "100%",
+                flex: 1,
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "18px",
+              }}
+            >
+              {getPromptImage(currentCard) && (
+                <img
+                  src={getPromptImage(currentCard)}
+                  alt="prompt"
+                  style={{
+                    maxWidth: "100%",
+                    maxHeight: "200px",
+                    borderRadius: "8px",
+                    objectFit: "contain",
+                  }}
+                />
+              )}
+              <div style={{ textAlign: "center", zIndex: 1 }}>
+                {getPromptText(currentCard) || "???"}
+              </div>
             </div>
 
             {showingBack ? (
               <div
                 style={{
-                  marginTop: "6px",
+                  position: "absolute",
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
                   textAlign: "center",
                   color: "var(--muted-text-color, rgba(255,255,255,0.72))",
                   fontSize: "18px",
                   lineHeight: 1.5,
                   fontWeight: 700,
-                  width: "100%",
                   maxWidth: "480px",
-                  padding: "0 8px",
+                  margin: "0 auto",
+                  padding: "16px 18px",
+                  borderRadius: "20px",
+                  border: "1px solid rgba(255, 255, 255, 0.08)",
+                  background: "rgba(255, 255, 255, 0.05)",
                 }}
               >
                 {getAnswerText(currentCard) || "???"}

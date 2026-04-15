@@ -79,6 +79,7 @@ const AnimatedShell = styled.div`
 const Container = styled.div`
   display: flex;
   flex-direction: column;
+  width: 100%;
 
   @media (max-width: 768px) {
     position: fixed;
@@ -87,7 +88,7 @@ const Container = styled.div`
     right: 0;
     bottom: 0;
     width: 100%;
-    height: 100vh;
+    height: ${(props) => (props.$fullscreen ? "var(--app-height, 100dvh)" : "100vh")};
     z-index: 9999;
     background-color: var(--background-color);
     padding: ${(props) => (props.$fullscreen ? "0" : "20px")};
@@ -710,22 +711,36 @@ const ClassicDeckShell = styled.div`
 `;
 
 const ClassicFullscreenShell = styled.div`
-  width: 100%;
-  height: 100dvh;
-  min-height: 100dvh;
+  position: relative;
+  width: min(100%, 1180px);
+  height: min(74vh, 820px);
+  min-height: 620px;
+  max-height: calc(100vh - 138px);
+  border-radius: 36px;
   color: var(--text-color);
   display: flex;
   flex-direction: column;
   flex: 1 1 auto;
   overflow-x: hidden;
+  overflow-y: hidden;
+  overscroll-behavior: none;
 
   @media (max-width: 768px) {
-    height: var(--app-height, 100dvh);
-    min-height: var(--app-height, 100dvh);
+    width: 100%;
+    height: min(var(--app-height, 100dvh), 760px);
+    min-height: 540px;
+    max-height: none;
+    margin: 0;
+    border-radius: 0;
   }
 `;
 
 const ClassicTopBar = styled.div`
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 10;
   display: grid;
   grid-template-columns: 52px 1fr 52px;
   align-items: center;
@@ -743,9 +758,9 @@ const ClassicTopIconButton = styled.button`
   width: 44px;
   height: 44px;
   border-radius: 14px;
-  border: 1px solid color-mix(in srgb, var(--border-color) 88%, transparent);
-  background: transparent;
-  color: var(--text-color);
+  border: 1px solid rgba(118, 133, 166, 0.16);
+  background: rgba(20, 29, 48, 0.24);
+  color: rgba(244, 246, 250, 0.72);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -764,19 +779,13 @@ const ClassicTopIconButton = styled.button`
 
 const ClassicTopCounter = styled.div`
   text-align: center;
-  font-size: 18px;
-  font-weight: 800;
-  letter-spacing: 0.02em;
-  color: var(--text-color);
+  font-size: 0;
+  opacity: 0;
+  pointer-events: none;
 `;
 
 const ClassicProgressTrack = styled.div`
-  position: relative;
-  width: 100%;
-  height: 8px;
-  margin: 10px 0 18px;
-  background: color-mix(in srgb, var(--secondary-color) 82%, transparent);
-  overflow: hidden;
+  display: none;
 `;
 
 const ClassicProgressFill = styled.div`
@@ -792,12 +801,14 @@ const ClassicViewport = styled.div`
   display: flex;
   flex-direction: column;
   min-height: 0;
-  height: calc(100dvh - 110px);
-  padding: 0 35px;
+  height: 100%;
+  padding: 0;
   overflow-x: hidden;
+  overflow-y: hidden;
+  overscroll-behavior: none;
 
   @media (max-width: 768px) {
-    height: calc(var(--app-height, 100dvh) - 110px);
+    height: var(--app-height, 100dvh);
   }
 `;
 
@@ -813,34 +824,7 @@ const ClassicSummaryBar = styled.div`
 `;
 
 const ClassicFloatingCounter = styled.div`
-  position: absolute;
-  top: 50%;
-  ${(props) => (props.$side === "left" ? "left: 0px;" : "right: 0px;")}
-  min-width: 64px;
-  min-height: 56px;
-  padding: 0 18px;
-  border-radius: ${(props) =>
-    props.$side === "left" ? "0 999px 999px 0" : "999px 0 0 999px"};
-  border: 2px solid
-    ${(props) =>
-      props.$side === "left"
-        ? "color-mix(in srgb, var(--danger-color, #f59e0b) 78%, var(--border-color))"
-        : "color-mix(in srgb, var(--success-color, #10b981) 78%, var(--border-color))"};
-  background: ${(props) =>
-    props.$side === "left"
-      ? "color-mix(in srgb, var(--danger-color, #f59e0b) 10%, var(--background-color))"
-      : "color-mix(in srgb, var(--success-color, #10b981) 10%, var(--background-color))"};
-  color: ${(props) =>
-    props.$side === "left"
-      ? "var(--danger-color, #f59e0b)"
-      : "var(--success-color, #10b981)"};
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 28px;
-  font-weight: 900;
-  line-height: 1;
-  z-index: 4;
+  display: none;
 `;
 
 const ClassicSummaryPill = styled.div`
@@ -886,9 +870,11 @@ const ClassicCardStage = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 20px 0 8px;
+  padding: clamp(16px, 2vw, 24px);
+  margin: clamp(24px, 3vw, 40px) auto 0;
   perspective: 1800px;
   perspective-origin: center center;
+  overflow: hidden;
 `;
 
 const ClassicGhostCard = styled.div`
@@ -909,15 +895,15 @@ const ClassicGhostCard = styled.div`
 
 const ClassicStackCard = styled.div`
   position: absolute;
-  top: 300px;
+  top: 50%;
   left: 50%;
-  width: min(100%, 820px);
-  height: min(68vh, 720px);
-  min-height: min(68vh, 720px);
+  width: 400px;
+  height: 600px;
   max-height: 100%;
-  border-radius: 34px;
-  background: color-mix(in srgb, var(--secondary-color) 96%, var(--background-color));
-  border: 1px solid color-mix(in srgb, var(--border-color) 72%, transparent);
+  max-width: calc(100% - 32px);
+  border-radius: 44px;
+  background: #232d3e;
+  border: 1px solid rgba(118, 133, 166, 0.24);
   transform: translate(-50%, -50%)
              translate3d(${(props) => props.$offsetX || 0}px, ${(props) => props.$offsetY || 0}px, -100px)
              rotate(${(props) => props.$rotate || 0}deg)
@@ -925,34 +911,36 @@ const ClassicStackCard = styled.div`
   opacity: ${(props) => props.$opacity || 1};
   z-index: ${(props) => props.$zIndex || 1};
   pointer-events: none;
-  transition: none;
+  transition:
+    transform 0.48s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.36s ease;
+  box-shadow:
+    0 34px 100px rgba(0, 0, 0, 0.36),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.03);
 
   @media (max-width: 768px) {
-    width: min(100%, 820px);
-    height: min(64vh, 640px);
-    min-height: min(64vh, 640px);
+    width: min(400px, calc(100% - 32px));
+    height: min(600px, calc(100% - 32px));
   }
 `;
 
 const classicCardSurfaceCss = css`
-  border-radius: 30px;
-  border: 1px solid
-    color-mix(in srgb, var(--border-color) 78%, transparent);
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--secondary-color) 94%, var(--background-color)) 0%,
-    color-mix(in srgb, var(--tertiary-color) 96%, var(--background-color)) 100%
-  );
+  border-radius: 44px;
+  border: 1px solid rgba(118, 133, 166, 0.24);
+  background: #232d3e;
+  box-shadow:
+    0 34px 100px rgba(0, 0, 0, 0.36),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.03);
 `;
 
 const ClassicNextPreviewCard = styled.div`
   position: absolute;
-  top: 300px;
+  top: 50%;
   left: 50%;
-  width: min(100%, 820px);
-  height: min(68vh, 720px);
-  min-height: min(68vh, 720px);
+  width: 400px;
+  height: 600px;
   max-height: 100%;
+  max-width: calc(100% - 32px);
   ${classicCardSurfaceCss};
   display: flex;
   flex-direction: column;
@@ -968,35 +956,37 @@ const ClassicNextPreviewCard = styled.div`
     scale(${(props) => props.$scale || 1});
   opacity: ${(props) => props.$opacity ?? 1};
   z-index: ${(props) => props.$zIndex || 4};
-  transition: none;
+  transition:
+    transform 0.48s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.36s ease;
 
   @media (max-width: 768px) {
-    height: min(64vh, 640px);
-    min-height: min(64vh, 640px);
-    padding: 20px;
+    width: min(400px, calc(100% - 32px));
+    height: min(600px, calc(100% - 32px));
+    padding: 16px;
   }
 `;
 
 const ClassicNextPreviewWord = styled.div`
   max-width: 100%;
-  font-size: clamp(30px, 5vw, 60px);
-  line-height: 1.08;
-  font-weight: 800;
-  color: color-mix(in srgb, var(--text-color) 90%, transparent);
+  font-size: clamp(38px, 7.2vw, 72px);
+  line-height: 1.02;
+  font-weight: 700;
+  color: #f4f6fa;
   text-align: center;
   word-break: break-word;
-  opacity: 0.92;
+  letter-spacing: -0.03em;
 `;
 
 const ClassicSwipeCard = styled.div`
   position: absolute;
-  top: 300px;
+  top: 50%;
   left: 50%;
-  width: min(100%, 820px);
-  height: min(68vh, 720px);
-  min-height: min(68vh, 720px);
+  width: 400px;
+  height: 600px;
   max-height: 100%;
-  border-radius: 36px;
+  max-width: calc(100% - 32px);
+  border-radius: 44px;
   cursor: grab;
   transform-style: preserve-3d;
   will-change: transform, opacity;
@@ -1005,9 +995,11 @@ const ClassicSwipeCard = styled.div`
   /* Transform – asosiy harakatlar uchun */
   transform: ${(props) => {
     if (props.$exiting) {
-      const exitX = props.$exitDirection === "right" ? "135vw" : "-135vw";
-      const exitRotate = props.$exitDirection === "right" ? "18deg" : "-18deg";
-      return `translate(-50%, -50%) translate3d(${exitX}, 4vh, 0) rotate(${exitRotate}) scale(0.97)`;
+      if (props.$exitDirection === "left") {
+        return `translate(-50%, -50%) translate3d(${props.$leftExitOffsetX || 58}px, ${props.$leftExitOffsetY || 74}px, ${props.$leftExitTranslateZ || -280}px) rotate(${props.$leftExitRotate || -5.2}deg) scale(${props.$leftExitScale || 0.99})`;
+      }
+
+      return `translate(-50%, -50%) translate3d(140vw, 6vh, 0) rotate(24deg) scale(0.92)`;
     }
 
     return `translate(-50%, -50%)
@@ -1016,14 +1008,17 @@ const ClassicSwipeCard = styled.div`
             scale(${props.$dragging ? 1.008 : 1})`;
   }};
 
-  opacity: ${(props) => (props.$exiting ? 0 : 1)};
+  opacity: ${(props) =>
+    props.$exiting ? (props.$exitDirection === "left" ? 1 : 0) : 1};
 
   /* Transition ni juda ehtiyotkorlik bilan boshqaramiz */
   transition: ${(props) =>
     props.$dragging
       ? "none"                                                // drag paytida hech qanday transition bo‘lmasin
-      : props.$exiting
-        ? "transform 0.34s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.28s ease-out"
+      : props.$exiting && props.$exitDirection === "left"
+        ? "transform 0.56s cubic-bezier(0.18, 0.88, 0.24, 1), opacity 0.2s linear"
+        : props.$exiting
+          ? "transform 0.36s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.3s ease-out"
         : props.$isFirst
           ? "transform 0.28s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.28s ease-out"
           : "transform 0.22s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.18s linear"};
@@ -1039,14 +1034,15 @@ const ClassicSwipeCard = styled.div`
     `}
 
   user-select: none;
-  touch-action: pan-y;
+  touch-action: none;
   overflow: hidden;
   pointer-events: ${(props) => (props.$exiting ? "none" : "auto")};
-  z-index: 6;
+  z-index: ${(props) =>
+    props.$exiting && props.$exitDirection === "left" ? 1 : 6};
 
   @media (max-width: 768px) {
-    height: min(64vh, 640px);
-    min-height: min(64vh, 640px);
+    width: min(400px, calc(100% - 32px));
+    height: min(600px, calc(100% - 32px));
   }
 `;
 const ClassicOutgoingCard = styled(ClassicSwipeCard)`
@@ -1066,35 +1062,11 @@ const ClassicFlipLayer = styled.div`
   transform-style: preserve-3d;
   -webkit-transform-style: preserve-3d;
   will-change: transform;
-  padding: 28px;
+  padding: 24px 20px 24px;
   ${classicCardSurfaceCss};
   transition: transform 0.34s cubic-bezier(0.22, 1, 0.36, 1);
   transform: rotateY(${(props) => (props.$flipped ? 180 : 0)}deg) translateZ(0);
-  border: 1px solid
-    ${(props) =>
-      props.$swipeTone === "success"
-        ? `color-mix(in srgb, var(--success-color, #10b981) ${30 + (props.$swipeStrength || 0) * 45}%, var(--border-color))`
-        : props.$swipeTone === "danger"
-          ? `color-mix(in srgb, var(--danger-color, #ef4444) ${30 + (props.$swipeStrength || 0) * 45}%, var(--border-color))`
-          : "color-mix(in srgb, var(--border-color) 78%, transparent)"};
-  background: linear-gradient(
-    180deg,
-    ${(props) =>
-        props.$swipeTone === "success"
-          ? `color-mix(in srgb, var(--success-color, #10b981) ${10 + (props.$swipeStrength || 0) * 18}%, var(--secondary-color))`
-          : props.$swipeTone === "danger"
-            ? `color-mix(in srgb, var(--danger-color, #ef4444) ${10 + (props.$swipeStrength || 0) * 18}%, var(--secondary-color))`
-            : "color-mix(in srgb, var(--secondary-color) 94%, var(--background-color))"}
-      0%,
-    ${(props) =>
-        props.$swipeTone === "success"
-          ? `color-mix(in srgb, var(--success-color, #10b981) ${6 + (props.$swipeStrength || 0) * 14}%, var(--tertiary-color))`
-          : props.$swipeTone === "danger"
-            ? `color-mix(in srgb, var(--danger-color, #ef4444) ${6 + (props.$swipeStrength || 0) * 14}%, var(--tertiary-color))`
-            : "color-mix(in srgb, var(--tertiary-color) 96%, var(--background-color))"}
-      100%
-  );
-  box-shadow: none;
+  border-color: rgba(118, 133, 166, 0.24);
 `;
 
 const ClassicCardFace = styled.div`
@@ -1124,17 +1096,23 @@ const ClassicCardBack = styled(ClassicCardFace)`
 const ClassicCardToolbar = styled.div`
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 12px;
+  width: auto;
   color: color-mix(in srgb, var(--text-color) 92%, transparent);
-  position: relative;
-  z-index: 2;
-  transform: translateZ(6px);
+  position: absolute;
+  top: 20px;
+  left: 18px;
+  z-index: 4;
+  transform: translateZ(8px);
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
 `;
 
 const ClassicCardToolbarSpacer = styled(ClassicCardToolbar)`
+  position: relative;
+  top: auto;
+  left: auto;
   width: 100%;
   align-self: stretch;
   justify-content: flex-start;
@@ -1145,13 +1123,9 @@ const ClassicToolbarIcon = styled.button`
   width: 40px;
   height: 40px;
   border-radius: 12px;
-  border: 1px solid color-mix(in srgb, var(--border-color) 78%, transparent);
-  background: color-mix(
-    in srgb,
-    var(--secondary-color) 88%,
-    var(--background-color)
-  );
-  color: inherit;
+  border: none;
+  background: transparent;
+  color: rgba(244, 246, 250, 0.38);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1170,8 +1144,7 @@ const ClassicCardBody = styled.div`
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 18px;
-  padding: 18px 8px;
+  padding: 12px 8px 16px;
   position: relative;
   z-index: 1;
   transform: translateZ(8px);
@@ -1180,36 +1153,151 @@ const ClassicCardBody = styled.div`
   overflow: hidden;
 `;
 
+const ClassicCardContent = styled.div`
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  max-width: min(100%, 520px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: ${(props) => (props.$hasImage ? "16px" : "0")};
+  position: relative;
+`;
+
+const ClassicSecondarySlot = styled.div`
+  position: ${(props) => (props.$hasImage ? "relative" : "absolute")};
+  left: ${(props) => (props.$hasImage ? "auto" : "50%")};
+  top: ${(props) => (props.$hasImage ? "auto" : "50%")};
+  width: min(100%, 460px);
+  min-height: clamp(56px, 8vh, 92px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transform: ${(props) =>
+    props.$hasImage
+      ? "none"
+      : "translate(-50%, calc(-50% + clamp(88px, 10vh, 124px)))"};
+`;
+
 const ClassicCardImage = styled.img`
   max-width: 100%;
-  max-height: 220px;
+  max-height: 150px;
   border-radius: 18px;
   object-fit: contain;
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
 
   @media (max-width: 768px) {
-    max-height: 180px;
+    max-height: 132px;
   }
 `;
 
 const ClassicCardWord = styled.div`
   max-width: 100%;
-  font-size: clamp(36px, 7vw, 74px);
-  line-height: 1.05;
-  font-weight: 800;
-  color: var(--text-color);
+  font-size: clamp(34px, 6.4vw, 64px);
+  line-height: 1.02;
+  font-weight: 700;
+  color: #f4f6fa;
   text-align: center;
   word-break: break-word;
   filter: blur(${(props) => `${(props.$blur || 0).toFixed(2)}px`});
   opacity: ${(props) => 1 - (props.$fade || 0) * 0.55};
   transition:
     filter 0.12s ease,
-    opacity 0.12s ease;
-  text-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+    opacity 0.12s ease,
+    transform 0.36s cubic-bezier(0.22, 1, 0.36, 1);
+  text-shadow: none;
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
-  transform: translateZ(10px);
+  transform: translate3d(0, ${(props) => props.$offsetY || "0px"}, 10px);
+  letter-spacing: -0.03em;
+`;
+
+const ClassicPromptHint = styled.div`
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(197, 204, 219, 0.58);
+  font-size: clamp(14px, 1.75vw, 20px);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  font-weight: 500;
+  opacity: ${(props) => (props.$visible ? 1 : 0)};
+  filter: blur(${(props) => (props.$visible ? "0px" : "8px")});
+  transform: translateY(${(props) => (props.$visible ? "0" : "-10px")})
+    scale(${(props) => (props.$visible ? 1 : 0.96)});
+  transition:
+    opacity 0.36s ease,
+    filter 0.4s ease,
+    transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+  pointer-events: none;
+`;
+
+const ClassicAnswerPanel = styled.div`
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  background: transparent;
+  opacity: ${(props) => (props.$visible ? 1 : 0)};
+  filter: blur(${(props) => (props.$visible ? "0px" : "10px")});
+  transform: translateY(${(props) => (props.$visible ? "0" : "14px")})
+    scale(${(props) => (props.$visible ? 1 : 0.965)});
+  transition:
+    opacity 0.4s ease,
+    filter 0.42s ease,
+    transform 0.42s cubic-bezier(0.22, 1, 0.36, 1);
+  pointer-events: none;
+`;
+
+const ClassicSwipeStamp = styled.div`
+  position: absolute;
+  top: clamp(18px, 2.4vw, 28px);
+  ${(props) =>
+    props.$side === "right"
+      ? css`
+          right: clamp(18px, 2.4vw, 28px);
+        `
+      : css`
+          left: clamp(18px, 2.4vw, 28px);
+        `}
+  min-width: clamp(118px, 16vw, 190px);
+  padding: clamp(7px, 1vw, 10px) clamp(12px, 1.4vw, 16px);
+  border-radius: 16px;
+  border: 3px solid
+    ${(props) =>
+      props.$tone === "success"
+        ? "rgba(42, 135, 111, 0.9)"
+        : "rgba(137, 82, 90, 0.9)"};
+  color: ${(props) =>
+    props.$tone === "success"
+      ? "rgba(42, 135, 111, 0.92)"
+      : "rgba(137, 82, 90, 0.92)"};
+  background: rgba(35, 45, 62, 0.16);
+  opacity: ${(props) => props.$opacity || 0};
+  transform: rotate(${(props) => (props.$side === "right" ? "8deg" : "-8deg")})
+    scale(${(props) => (props.$opacity ? 0.94 + props.$opacity * 0.08 : 0.94)});
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: clamp(18px, 3.2vw, 28px);
+  line-height: 1;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.14);
+  transition:
+    opacity 0.18s ease,
+    transform 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+  pointer-events: none;
+  z-index: 4;
 `;
 
 const ClassicCardHint = styled.div`
@@ -1417,6 +1505,7 @@ const flashcardStudyUi = {
   ClassicCardToolbarSpacer,
   ClassicToolbarIcon,
   ClassicCardBody,
+  ClassicCardContent,
   ClassicCardImage,
   ClassicNextPreviewWord,
   ClassicSwipeCard,
@@ -1424,7 +1513,11 @@ const flashcardStudyUi = {
   ClassicCardFront,
   ClassicCardToolbar,
   ClassicCardWord,
+  ClassicSecondarySlot,
+  ClassicPromptHint,
   ClassicCardBack,
+  ClassicAnswerPanel,
+  ClassicSwipeStamp,
   TestOptions,
   TestOptionBtn,
 };
@@ -1544,6 +1637,8 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
     startX: 0,
     dragStarted: false,
   });
+  const classicHistoryRef = useRef([]);
+  const classicMissedIdsRef = useRef(new Set());
   const speechVoicesRef = useRef([]);
 
   const isPremium = isPremiumUser(user);
@@ -1761,6 +1856,8 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
     promptSide === "front" ? card?.back : card?.front;
   const getAnswerImage = (card) =>
     promptSide === "front" ? card?.backImage : card?.frontImage;
+  const getClassicCardKey = (card) =>
+    String(card?._id || `${card?.front || ""}::${card?.back || ""}`);
 
   const resetClassicCardMotion = () => {
     setClassicDragX(0);
@@ -1772,6 +1869,17 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
       startX: 0,
       dragStarted: false,
     };
+  };
+
+  const pushClassicHistorySnapshot = () => {
+    classicHistoryRef.current.push({
+      queue: [...classicQueue],
+      index: classicIndex,
+      answers: [...classicAnswers],
+      showBack: classicShowBack,
+      completed: classicCompleted,
+      missedIds: [...classicMissedIdsRef.current],
+    });
   };
 
   const resolveSpeechVoice = (text) => {
@@ -1868,6 +1976,8 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
     setViewingDeck(null);
     setTrainingPickerDeck(null);
     setStudyingDeck(null);
+    classicHistoryRef.current = [];
+    classicMissedIdsRef.current = new Set();
     setClassicDeck(deck);
     setClassicQueue(cards);
     setClassicIndex(0);
@@ -2035,14 +2145,42 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
   };
 
   const handleClassicReplay = () => {
-    if (classicIndex === 0 || classicAnswers.length === 0) return;
-    const nextAnswers = [...classicAnswers];
-    nextAnswers.pop();
-    setClassicAnswers(nextAnswers);
-    setClassicIndex((prev) => Math.max(prev - 1, 0));
-    setClassicShowBack(false);
-    setClassicCompleted(false);
+    const previousSnapshot = classicHistoryRef.current.pop();
+    if (!previousSnapshot) return;
+    setClassicQueue(previousSnapshot.queue);
+    setClassicIndex(previousSnapshot.index);
+    setClassicAnswers(previousSnapshot.answers);
+    setClassicShowBack(previousSnapshot.showBack);
+    setClassicCompleted(previousSnapshot.completed);
+    classicMissedIdsRef.current = new Set(previousSnapshot.missedIds);
     resetClassicCardMotion();
+  };
+
+  const commitClassicSwipe = (direction, swipeOffset) => {
+    const currentCard = classicQueue[classicIndex];
+    if (!currentCard || (direction !== "left" && direction !== "right")) return;
+
+    pushClassicHistorySnapshot();
+
+    if (direction === "left") {
+      classicMissedIdsRef.current.add(getClassicCardKey(currentCard));
+    } else {
+      const cardKey = getClassicCardKey(currentCard);
+      const wasMissed = classicMissedIdsRef.current.has(cardKey);
+      classicMissedIdsRef.current.delete(cardKey);
+      setClassicAnswers((prev) => [
+        ...prev,
+        {
+          card: currentCard,
+          known: !wasMissed,
+        },
+      ]);
+    }
+
+    setClassicExitDirection(direction);
+    setClassicDragX(swipeOffset);
+    setClassicDragging(false);
+    setClassicExitFlipped(classicShowBack);
   };
 
   const handleClassicKeyboardSwipe = (action) => {
@@ -2059,20 +2197,8 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
       return;
     }
 
-    const known = action === "right";
     const swipeOffset = action === "right" ? 96 : -96;
-
-    setClassicExitDirection(action);
-    setClassicDragX(swipeOffset);
-    setClassicDragging(false);
-    setClassicExitFlipped(classicShowBack);
-    setClassicAnswers((prev) => [
-      ...prev,
-      {
-        card: currentCard,
-        known,
-      },
-    ]);
+    commitClassicSwipe(action, swipeOffset);
   };
 
   useEffect(() => {
@@ -2081,17 +2207,57 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
   }, [classicDeck, classicIndex, classicCompleted]);
 
   useEffect(() => {
+    if (typeof document === "undefined" || !classicDeck || classicCompleted) {
+      return undefined;
+    }
+
+    if (window.innerWidth > 768) {
+      return undefined;
+    }
+
+    const { body, documentElement } = document;
+    const previousBodyOverflow = body.style.overflow;
+    const previousHtmlOverflow = documentElement.style.overflow;
+    const previousBodyOverscroll = body.style.overscrollBehavior;
+    const previousHtmlOverscroll = documentElement.style.overscrollBehavior;
+
+    body.style.overflow = "hidden";
+    documentElement.style.overflow = "hidden";
+    body.style.overscrollBehavior = "none";
+    documentElement.style.overscrollBehavior = "none";
+
+    return () => {
+      body.style.overflow = previousBodyOverflow;
+      documentElement.style.overflow = previousHtmlOverflow;
+      body.style.overscrollBehavior = previousBodyOverscroll;
+      documentElement.style.overscrollBehavior = previousHtmlOverscroll;
+    };
+  }, [classicDeck, classicCompleted]);
+
+  useEffect(() => {
     if (!classicExitDirection) return undefined;
     const timer = window.setTimeout(() => {
-      const isLast = classicIndex + 1 >= classicQueue.length;
-      if (isLast) {
-        setClassicCompleted(true);
+      if (classicExitDirection === "left") {
+        setClassicQueue((prev) => {
+          const next = [...prev];
+          const [cycledCard] = next.splice(classicIndex, 1);
+          if (cycledCard) {
+            next.push(cycledCard);
+          }
+          return next;
+        });
+        setClassicIndex((prev) => Math.min(prev, Math.max(classicQueue.length - 1, 0)));
       } else {
-        setClassicIndex((prev) => prev + 1);
+        const isLast = classicIndex + 1 >= classicQueue.length;
+        if (isLast) {
+          setClassicCompleted(true);
+        } else {
+          setClassicIndex((prev) => prev + 1);
+        }
       }
       setClassicShowBack(false);
       resetClassicCardMotion();
-    }, 340);
+    }, classicExitDirection === "left" ? 560 : 360);
     return () => window.clearTimeout(timer);
   }, [classicExitDirection, classicIndex, classicQueue.length]);
 
@@ -2114,6 +2280,7 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
 
   const handleClassicPointerDown = (event) => {
     if (classicCompleted || classicExitDirection) return;
+    event.preventDefault?.();
     classicPointerStateRef.current = {
       active: true,
       startX: event.clientX,
@@ -2129,6 +2296,8 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
       classicExitDirection
     )
       return;
+
+    event.preventDefault?.();
 
     const deltaX = event.clientX - classicPointerStateRef.current.startX;
     if (Math.abs(deltaX) > 6) {
@@ -2165,19 +2334,7 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
       const direction = deltaX > 0 ? "right" : "left";
       const currentCard = classicQueue[classicIndex];
       if (!currentCard) return;
-      const known = direction === "right";
-
-      setClassicExitDirection(direction);
-      setClassicDragX(deltaX);
-      setClassicDragging(false);
-      setClassicExitFlipped(classicShowBack);
-      setClassicAnswers((prev) => [
-        ...prev,
-        {
-          card: currentCard,
-          known,
-        },
-      ]);
+      commitClassicSwipe(direction, deltaX);
       return;
     }
 
@@ -2195,27 +2352,16 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
   };
 
   const getClassicStackLayout = (depth) => {
-    const cappedDepth = Math.min(depth, 6);
-
-    if (cappedDepth === 1) {
-      return {
-        offsetX: 0,
-        offsetY: 0,
-        rotate: 0,
-        scale: 1,
-        opacity: 1,
-        zIndex: 5,
-      };
-    }
-
-    return {
-      offsetX: depth % 2 === 0 ? -10 - cappedDepth * 2 : 10 + cappedDepth * 2,
-      offsetY: 10 + cappedDepth * 12,
-      rotate: depth % 2 === 0 ? -2.6 - cappedDepth * 0.35 : 2.6 + cappedDepth * 0.35,
-      scale: Math.max(0.88, 0.97 - cappedDepth * 0.022),
-      opacity: Math.max(0.16, 0.78 - cappedDepth * 0.1),
-      zIndex: Math.max(1, 5 - cappedDepth),
+    const cappedDepth = Math.min(depth, 5);
+    const layoutMap = {
+      1: { offsetX: 0, offsetY: 0, rotate: 0, scale: 1, opacity: 1, zIndex: 5 },
+      2: { offsetX: 42, offsetY: 26, rotate: -7.5, scale: 0.998, opacity: 1, zIndex: 4 },
+      3: { offsetX: -34, offsetY: 54, rotate: 7.8, scale: 0.998, opacity: 1, zIndex: 3 },
+      4: { offsetX: 18, offsetY: -28, rotate: -9.2, scale: 0.996, opacity: 1, zIndex: 2 },
+      5: { offsetX: 58, offsetY: 74, rotate: -5.2, scale: 0.99, opacity: 1, zIndex: 1 },
     };
+
+    return layoutMap[cappedDepth] || layoutMap[5];
   };
 
   const handleDeleteDeck = async () => {

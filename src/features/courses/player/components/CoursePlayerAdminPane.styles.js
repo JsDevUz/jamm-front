@@ -242,14 +242,22 @@ export const PaneTabs = styled.div`
   padding: 12px 18px 0;
   display: flex;
   gap: 8px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
 `;
 
 export const PaneTabButton = styled.button`
+  flex: 0 0 auto;
   padding: 8px 12px;
   border-radius: 999px;
-    white-space: nowrap;
-
+  white-space: nowrap;
   border: 1px solid
     ${(props) => (props.$active ? "var(--primary-color)" : "var(--border-color)")};
   background: ${(props) =>

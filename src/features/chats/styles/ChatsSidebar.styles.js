@@ -50,6 +50,8 @@ export const ChatsTabsRow = styled.div`
 `;
 
 export const ChatsTab = styled.button`
+  appearance: none;
+  -webkit-appearance: none;
   flex: 1;
   padding: 11px 0;
   background: transparent;
@@ -62,10 +64,24 @@ export const ChatsTab = styled.button`
   font-weight: ${(props) => (props.$active ? "700" : "500")};
   cursor: pointer;
   transition: all 0.2s;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  outline: none;
 
   &:hover {
     color: var(--text-color);
     background: var(--hover-color);
+  }
+
+  &:focus,
+  &:focus-visible,
+  &:active {
+    outline: none;
+    box-shadow: none;
+    background: transparent;
   }
 `;
 
@@ -226,17 +242,20 @@ export const ChatName = styled.div`
 `;
 
 export const ChatMessage = styled.div`
+  min-width: 0;
+  max-width: 100%;
   font-size: 14px;
+  line-height: 1.35;
+  font-weight: 400;
   color: var(--text-secondary-color);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  display: flex;
-  align-items: center;
-  gap: 4px;
+  display: block;
   span {
-    font-size: 10px;
-    color: var(--text-color);
+    display: inline;
+    font-size: inherit;
+    color: inherit;
   }
 `;
 

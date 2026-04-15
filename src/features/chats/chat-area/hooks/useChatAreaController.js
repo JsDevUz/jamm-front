@@ -662,8 +662,14 @@ export default function useChatAreaController({
           break;
         }
 
-        collectedMessages = [...olderMessages, ...collectedMessages];
-        const combinedMessages = [...collectedMessages, ...messages];
+        collectedMessages = mergeChronologicalMessages(
+          olderMessages,
+          collectedMessages,
+        );
+        const combinedMessages = mergeChronologicalMessages(
+          collectedMessages,
+          messages,
+        );
         const combinedOldestDayStart = getOldestLoadedDayStart(combinedMessages);
 
         if (
@@ -680,7 +686,9 @@ export default function useChatAreaController({
         return;
       }
 
-      setMessages((previous) => [...collectedMessages, ...previous]);
+      setMessages((previous) =>
+        mergeChronologicalMessages(collectedMessages, previous),
+      );
       setMessagesCursor(nextCursor);
       setMessagesHasMore(nextHasMore);
 

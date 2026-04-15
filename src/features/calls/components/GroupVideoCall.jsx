@@ -807,7 +807,7 @@ const MiniPreview = styled.div`
 const MiniPreviewVideo = styled.video`
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
   background: black;
   transform: ${(props) => (props.$mirror ? "scaleX(-1)" : "none")};
 `;
@@ -906,7 +906,7 @@ const PiPMobileCard = styled.div`
 const PiPMobileVideo = styled.video`
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
   background: black;
   transform: ${(props) => (props.$mirror ? "scaleX(-1)" : "none")};
 `;
@@ -4136,32 +4136,7 @@ const GroupVideoCall = ({
     },
     [minimizedPreviewStream],
   );
-  const minimizedLocalTile = useMemo(
-    () =>
-      allTiles.find(
-        (tile) => tile.kind === "video" && tile.isLocal && !tile.isScreenShare,
-      ) || null,
-    [allTiles],
-  );
-  const minimizedRemoteTile = useMemo(() => {
-    const remoteVideoTiles = allTiles.filter(
-      (tile) => tile.kind === "video" && !tile.isLocal && !tile.isScreenShare,
-    );
-    if (remoteVideoTiles.length === 0) {
-      return null;
-    }
-
-    if (participantsCount <= 2) {
-      return remoteVideoTiles[0] || null;
-    }
-
-    return (
-      remoteVideoTiles.find((tile) => tile.peerId === lastSpeakerPeerId) ||
-      remoteVideoTiles.find((tile) => tile.hasVideo) ||
-      remoteVideoTiles[0] ||
-      null
-    );
-  }, [allTiles, lastSpeakerPeerId, participantsCount]);
+  const minimizedSpeakerTile = minimizedPreviewTile;
 
   const tileCount = allTiles.length;
 
@@ -4898,10 +4873,9 @@ const GroupVideoCall = ({
       <PiPStage type="button" onClick={handleMaximizeFromPiP}>
         <PiPStageInner>
           {isMobileViewport ? (
-            <PiPMobileGrid $single={!minimizedRemoteTile}>
-              {renderPiPMobileParticipant(minimizedLocalTile || minimizedPreviewTile)}
-              {minimizedRemoteTile ? (
-                renderPiPMobileParticipant(minimizedRemoteTile)
+            <PiPMobileGrid $single>
+              {minimizedSpeakerTile ? (
+                renderPiPMobileParticipant(minimizedSpeakerTile)
               ) : (
                 <PiPMobileAloneCard>{`You're alone on the call`}</PiPMobileAloneCard>
               )}
