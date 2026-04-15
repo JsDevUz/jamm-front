@@ -32,6 +32,125 @@ const buildFallbackIceConfig = () => ({
   ],
 });
 
+const LIVEKIT_DEBUG_PREFIX = "[Jamm RTC]";
+
+const logRtcInfo = (message, details) => {
+  if (details === undefined) {
+    console.info(`${LIVEKIT_DEBUG_PREFIX} ${message}`);
+    return;
+  }
+  console.info(`${LIVEKIT_DEBUG_PREFIX} ${message}`, details);
+};
+
+const logRtcWarn = (message, details) => {
+  if (details === undefined) {
+    console.warn(`${LIVEKIT_DEBUG_PREFIX} ${message}`);
+    return;
+  }
+  console.warn(`${LIVEKIT_DEBUG_PREFIX} ${message}`, details);
+};
+
+const logRtcError = (message, details) => {
+  if (details === undefined) {
+    console.error(`${LIVEKIT_DEBUG_PREFIX} ${message}`);
+    return;
+  }
+  console.error(`${LIVEKIT_DEBUG_PREFIX} ${message}`, details);
+};
+
+const summarizeIceServers = (rtcConfig) => {
+  const iceServers = Array.isArray(rtcConfig?.iceServers) ? rtcConfig.iceServers : [];
+
+  return iceServers.map((server, index) => {
+    const rawUrls = Array.isArray(server?.urls) ? server.urls : [server?.urls];
+    const urls = rawUrls.map((value) => String(value || "").trim()).filter(Boolean);
+    const hasTurn = urls.some((value) => value.startsWith("turn:") || value.startsWith("turns:"));
+    const hasStun = urls.some((value) => value.startsWith("stun:") || value.startsWith("stuns:"));
+
+    return {
+      index,
+      urls,
+      transport: hasTurn ? "turn" : hasStun ? "stun" : "unknown",
+      hasCredential: Boolean(server?.username || server?.credential),
+    };
+  });
+};
+
+const extractSelectedIcePairSummary = async (pcTransport) => {
+  if (!pcTransport?.getStats) {
+    return null;
+  }
+
+  const stats = await pcTransport.getStats();
+  let selectedPair = null;
+  const localCandidates = new Map();
+  const remoteCandidates = new Map();
+
+  stats.forEach((report) => {
+    if (report?.type === "local-candidate") {
+      localCandidates.set(report.id, report);
+      return;
+    }
+
+    if (report?.type === "remote-candidate") {
+      remoteCandidates.set(report.id, report);
+    }
+  });
+
+  stats.forEach((report) => {
+    if (report?.type !== "candidate-pair") {
+      return;
+    }
+
+    const isSelected =
+      report.selected === true ||
+      report.nominated === true ||
+      report.state === "succeeded";
+
+    if (!isSelected) {
+      return;
+    }
+
+    if (!selectedPair || report.selected === true || report.nominated === true) {
+      selectedPair = report;
+    }
+  });
+
+  if (!selectedPair) {
+    return {
+      path: "unknown",
+      reason: "no-selected-candidate-pair",
+    };
+  }
+
+  const localCandidate = localCandidates.get(selectedPair.localCandidateId) || null;
+  const remoteCandidate = remoteCandidates.get(selectedPair.remoteCandidateId) || null;
+  const localType = String(localCandidate?.candidateType || "").toLowerCase();
+  const remoteType = String(remoteCandidate?.candidateType || "").toLowerCase();
+  const path =
+    localType === "relay" || remoteType === "relay"
+      ? "turn"
+      : localType === "srflx" || remoteType === "srflx"
+        ? "stun"
+        : localType === "host" && remoteType === "host"
+          ? "direct"
+          : "unknown";
+
+  return {
+    path,
+    localCandidateType: localType || "unknown",
+    remoteCandidateType: remoteType || "unknown",
+    protocol:
+      String(localCandidate?.protocol || remoteCandidate?.protocol || "").toLowerCase() ||
+      "unknown",
+    currentRoundTripTime: Number(selectedPair.currentRoundTripTime || 0),
+    availableOutgoingBitrate: Number(selectedPair.availableOutgoingBitrate || 0),
+    bytesSent: Number(selectedPair.bytesSent || 0),
+    bytesReceived: Number(selectedPair.bytesReceived || 0),
+    networkType: String(localCandidate?.networkType || "").toLowerCase() || "unknown",
+  };
+};
+
 const buildLivekitAudioCaptureOptions = () => ({
   echoCancellation: true,
   noiseSuppression: true,
@@ -1490,6 +1609,7 @@ export function useWebRTC({
     let cancelled = false;
 
     if (LIVEKIT_URL) {
+      logRtcInfo("LiveKit URL env'dan olindi", { url: LIVEKIT_URL });
       setResolvedLivekitUrl(LIVEKIT_URL);
       return undefined;
     }
@@ -1501,11 +1621,13 @@ export function useWebRTC({
         }
         const nextUrl = String(config?.url || "").trim();
         if (nextUrl) {
+          logRtcInfo("LiveKit config API'dan olindi", { url: nextUrl });
           setResolvedLivekitUrl(nextUrl);
         }
       })
       .catch(() => {
         if (!cancelled) {
+          logRtcWarn("LiveKit config API olinmadi");
           setResolvedLivekitUrl("");
         }
       });
@@ -1854,6 +1976,75 @@ export function useWebRTC({
     },
     [getLivekitPublicationMediaStreamTrack, isLivekitScreenSource],
   );
+
+  const logLivekitTransportDiagnostics = useCallback(
+    async (room, phase) => {
+      const pcManager = room?.engine?.pcManager;
+      if (!pcManager) {
+        logRtcWarn(`LiveKit ${phase}: pcManager topilmadi`);
+        return;
+      }
+
+      const logTransport = async (label, transport) => {
+        if (!transport) {
+          logRtcWarn(`LiveKit ${phase}: ${label} transport topilmadi`);
+          return;
+        }
+
+        try {
+          const summary = await extractSelectedIcePairSummary(transport);
+          logRtcInfo(`LiveKit ${phase}: ${label} ICE`, summary);
+        } catch (error) {
+          logRtcWarn(`LiveKit ${phase}: ${label} ICE stat olinmadi`, {
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+      };
+
+      try {
+        const connectedAddress = await room?.engine?.getConnectedServerAddress?.();
+        if (connectedAddress) {
+          logRtcInfo(`LiveKit ${phase}: server address`, { connectedAddress });
+        }
+      } catch (error) {
+        logRtcWarn(`LiveKit ${phase}: server address olinmadi`, {
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+
+      await Promise.all([
+        logTransport("publisher", pcManager.publisher),
+        logTransport("subscriber", pcManager.subscriber),
+      ]);
+    },
+    [],
+  );
+
+  const attachLivekitIceCandidateErrorLogging = useCallback((room) => {
+    const pcManager = room?.engine?.pcManager;
+    if (!pcManager) {
+      return;
+    }
+
+    const bindLogger = (label, transport) => {
+      if (!transport) {
+        return;
+      }
+
+      transport.onIceCandidateError = (event) => {
+        logRtcWarn(`LiveKit ${label} ICE candidate error`, {
+          address: event?.address || "",
+          port: Number(event?.port || 0),
+          url: String(event?.url || ""),
+          errorCode: Number(event?.errorCode || 0),
+          errorText: String(event?.errorText || ""),
+        });
+      };
+    };
+
+    bindLogger("publisher", pcManager.publisher);
+    bindLogger("subscriber", pcManager.subscriber);
+  }, []);
 
   const ensureLivekitParticipantSubscriptions = useCallback((participant) => {
     if (!participant?.trackPublications) {
@@ -2251,9 +2442,19 @@ export function useWebRTC({
           canSubscribe: true,
         });
 
+      const rtcConfig = buildFallbackIceConfig();
+      logRtcInfo("LiveKit ulanish boshlandi", {
+        roomId,
+        url: tokenPayload?.url || resolvedLivekitUrl,
+        participantName: displayName,
+        turnConfigured: TURN_URLS.length > 0,
+        iceServers: summarizeIceServers(rtcConfig),
+      });
+
       const room = new Room({
           dynacast: true,
           adaptiveStream: true,
+          rtcConfig,
           publishDefaults: {
             audioPreset: AudioPresets.speech,
             dtx: true,
@@ -2302,8 +2503,29 @@ export function useWebRTC({
             clearLivekitRemoteTrack(participant, publication, track);
             syncRemote();
           })
-          .on(RoomEvent.TrackSubscriptionFailed, () => {
+          .on(RoomEvent.TrackSubscriptionFailed, (trackSid, participant, error) => {
+            logRtcWarn("LiveKit track subscription failed", {
+              trackSid: String(trackSid || ""),
+              participant: participant?.identity || participant?.name || "unknown",
+              error: error instanceof Error ? error.message : String(error || ""),
+            });
             syncRemote();
+          })
+          .on(RoomEvent.TrackStreamStateChanged, (publication, streamState, participant) => {
+            logRtcInfo("LiveKit track stream state o'zgardi", {
+              participant: participant?.identity || participant?.name || "unknown",
+              source: String(publication?.source || ""),
+              streamState: String(streamState || ""),
+              trackSid: publication?.trackSid || publication?.trackSid || "",
+            });
+          })
+          .on(RoomEvent.TrackSubscriptionStatusChanged, (publication, status, participant) => {
+            logRtcInfo("LiveKit track subscription status o'zgardi", {
+              participant: participant?.identity || participant?.name || "unknown",
+              source: String(publication?.source || ""),
+              status: String(status || ""),
+              trackSid: publication?.trackSid || "",
+            });
           })
           .on(RoomEvent.TrackMuted, () => {
             syncLocal();
@@ -2312,6 +2534,16 @@ export function useWebRTC({
           .on(RoomEvent.TrackUnmuted, () => {
             syncLocal();
             syncRemote();
+          })
+          .on(RoomEvent.SignalConnected, () => {
+            logRtcInfo("LiveKit signal connected", { roomId });
+            attachLivekitIceCandidateErrorLogging(room);
+          })
+          .on(RoomEvent.ConnectionQualityChanged, (quality, participant) => {
+            logRtcInfo("LiveKit connection quality o'zgardi", {
+              participant: participant?.identity || participant?.name || "local",
+              quality: String(quality || ""),
+            });
           })
           .on(RoomEvent.LocalTrackPublished, () => {
             syncLocal();
@@ -2323,14 +2555,22 @@ export function useWebRTC({
             syncLocal();
           })
           .on(RoomEvent.Reconnecting, () => {
+            logRtcWarn("LiveKit reconnecting", { roomId });
             setJoinStatus("connecting");
           })
           .on(RoomEvent.Reconnected, () => {
+            logRtcInfo("LiveKit reconnected", { roomId });
             setJoinStatus("joined");
             syncLocal();
             syncRemote();
+            attachLivekitIceCandidateErrorLogging(room);
+            logLivekitTransportDiagnostics(room, "reconnected");
           })
-          .on(RoomEvent.Disconnected, () => {
+          .on(RoomEvent.Disconnected, (reason) => {
+            logRtcWarn("LiveKit disconnected", {
+              roomId,
+              reason: reason ? String(reason) : "unknown",
+            });
             livekitRoomRef.current = null;
             livekitConnectPromiseRef.current = null;
           });
@@ -2339,6 +2579,13 @@ export function useWebRTC({
         await room.connect(tokenPayload?.url || resolvedLivekitUrl, tokenPayload.token, {
           autoSubscribe: true,
         });
+        attachLivekitIceCandidateErrorLogging(room);
+        logRtcInfo("LiveKit connected", {
+          roomId,
+          participantIdentity: tokenPayload?.participantIdentity || "",
+          participantName: tokenPayload?.participantName || displayName,
+        });
+        logLivekitTransportDiagnostics(room, "connected");
         room.remoteParticipants.forEach((participant) => {
           ensureLivekitParticipantSubscriptions(participant);
         });
@@ -2366,6 +2613,12 @@ export function useWebRTC({
 
       try {
         return await connectTask;
+      } catch (error) {
+        logRtcError("LiveKit ulanish yiqildi", {
+          roomId,
+          error: error instanceof Error ? error.message : String(error),
+        });
+        throw error;
       } finally {
         if (livekitConnectPromiseRef.current === connectTask) {
           livekitConnectPromiseRef.current = null;
@@ -2375,6 +2628,8 @@ export function useWebRTC({
     [
       displayName,
       ensureLivekitParticipantSubscriptions,
+      attachLivekitIceCandidateErrorLogging,
+      logLivekitTransportDiagnostics,
       roomId,
       resolvedLivekitUrl,
       shouldUseLiveKit,
@@ -4487,10 +4742,24 @@ export function useWebRTC({
       try {
         const room = livekitRoomRef.current || (await connectLivekitRoom());
         if (!room?.localParticipant) {
+          logRtcWarn("LiveKit screen share yoqilmadi: localParticipant topilmadi");
           return false;
         }
 
         const nextIsScreenSharing = !isScreenSharing;
+        logRtcInfo(
+          nextIsScreenSharing
+            ? "LiveKit screen share yoqish boshlandi"
+            : "LiveKit screen share o'chirish boshlandi",
+          {
+            roomId,
+            profile: qualityProfileRef.current?.key || "unknown",
+            options: buildLivekitScreenShareOptions(qualityProfileRef.current),
+            publishOptions: buildLivekitScreenSharePublishOptions(
+              qualityProfileRef.current,
+            ),
+          },
+        );
         await room.localParticipant.setScreenShareEnabled(
           nextIsScreenSharing,
           buildLivekitScreenShareOptions(qualityProfileRef.current),
@@ -4519,9 +4788,16 @@ export function useWebRTC({
           );
         }
         syncLivekitLocalState(room);
+        await logLivekitTransportDiagnostics(
+          room,
+          nextIsScreenSharing ? "screen-share-started" : "screen-share-stopped",
+        );
         return true;
       } catch (err) {
-        console.error("LiveKit screen share error:", err);
+        logRtcError("LiveKit screen share xatosi", {
+          roomId,
+          error: err instanceof Error ? err.message : String(err),
+        });
         return false;
       }
     }
