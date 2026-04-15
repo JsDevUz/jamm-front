@@ -118,29 +118,29 @@ const getLivekitScreenProfile = (qualityProfile) => {
 
   if (key === "screen-poor") {
     return {
-      width: 1280,
-      height: 720,
+      width: 1600,
+      height: 900,
       frameRate: 8,
-      maxBitrate: 1_200_000,
+      maxBitrate: 2_500_000,
       maxFramerate: 8,
     };
   }
 
   if (key === "screen-limited") {
     return {
-      width: 1600,
-      height: 900,
+      width: 1920,
+      height: 1080,
       frameRate: 12,
-      maxBitrate: 2_000_000,
+      maxBitrate: 4_500_000,
       maxFramerate: 12,
     };
   }
 
   return {
-    width: 1920,
-    height: 1080,
+    width: 2560,
+    height: 1440,
     frameRate: 15,
-    maxBitrate: 3_000_000,
+    maxBitrate: 8_000_000,
     maxFramerate: 15,
   };
 };
@@ -190,6 +190,7 @@ const buildLivekitScreenSharePublishOptions = (qualityProfile) => {
   const profile = getLivekitScreenProfile(qualityProfile);
 
   return {
+    simulcast: false,
     videoEncoding: {
       maxBitrate: profile.maxBitrate,
       maxFramerate: profile.maxFramerate,
@@ -1815,6 +1816,45 @@ export function useWebRTC({
     [getLivekitPublicationTrack],
   );
 
+  const optimizeLivekitScreenShareTrack = useCallback(
+    (publication, profile) => {
+      if (!isLivekitScreenSource(publication?.source)) {
+        return;
+      }
+
+      const mediaStreamTrack = getLivekitPublicationMediaStreamTrack(publication);
+      if (mediaStreamTrack?.kind !== "video") {
+        return;
+      }
+
+      const screenProfile = getLivekitScreenProfile(profile);
+
+      try {
+        mediaStreamTrack.contentHint = "detail";
+      } catch {}
+
+      try {
+        mediaStreamTrack
+          .applyConstraints?.({
+            width: {
+              ideal: screenProfile.width,
+              max: screenProfile.width,
+            },
+            height: {
+              ideal: screenProfile.height,
+              max: screenProfile.height,
+            },
+            frameRate: {
+              ideal: screenProfile.frameRate,
+              max: screenProfile.frameRate,
+            },
+          })
+          ?.catch?.(() => {});
+      } catch {}
+    },
+    [getLivekitPublicationMediaStreamTrack, isLivekitScreenSource],
+  );
+
   const ensureLivekitParticipantSubscriptions = useCallback((participant) => {
     if (!participant?.trackPublications) {
       return;
@@ -2575,9 +2615,12 @@ export function useWebRTC({
           buildLivekitScreenShareOptions(profile),
           buildLivekitScreenSharePublishOptions(profile),
         );
+        room.localParticipant.trackPublications.forEach((publication) => {
+          optimizeLivekitScreenShareTrack(publication, profile);
+        });
       }
     },
-    [],
+    [optimizeLivekitScreenShareTrack],
   );
 
   const applyMediaOptimization = useCallback(async (profile) => {
@@ -4453,6 +4496,14 @@ export function useWebRTC({
           buildLivekitScreenShareOptions(qualityProfileRef.current),
           buildLivekitScreenSharePublishOptions(qualityProfileRef.current),
         );
+        if (nextIsScreenSharing) {
+          room.localParticipant.trackPublications.forEach((publication) => {
+            optimizeLivekitScreenShareTrack(
+              publication,
+              qualityProfileRef.current,
+            );
+          });
+        }
         if (isCamOnRef.current) {
           await room.localParticipant.setCameraEnabled(
             true,
@@ -4606,6 +4657,7 @@ export function useWebRTC({
     connectLivekitRoom,
     isScreenSharing,
     networkQuality,
+    optimizeLivekitScreenShareTrack,
     remoteScreenStreams.length,
     remoteStreams.length,
     roomId,
