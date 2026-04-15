@@ -52,6 +52,7 @@ export default function FlashcardReviewMode({
 
   const currentCard = reviewQueue[currentCardIndex];
   const isDesktop = typeof window !== "undefined" && window.innerWidth > 768;
+  const answerText = getAnswerText(currentCard) || "???";
 
   useHotkeys(
     "space",
@@ -149,7 +150,7 @@ export default function FlashcardReviewMode({
               justifyContent: "center",
               gap: "18px",
               position: "relative",
-              paddingBottom: showingBack ? "110px" : "0",
+              overflow: "hidden",
               boxSizing: "border-box",
             }}
           >
@@ -162,6 +163,11 @@ export default function FlashcardReviewMode({
                 alignItems: "center",
                 justifyContent: "center",
                 gap: "18px",
+                position: "relative",
+                zIndex: 1,
+                transition: "transform 260ms cubic-bezier(0.22, 1, 0.36, 1), filter 220ms ease",
+                transform: "translateY(0)",
+                filter: "none",
               }}
             >
               {getPromptImage(currentCard) && (
@@ -181,29 +187,30 @@ export default function FlashcardReviewMode({
               </div>
             </div>
 
-            {showingBack ? (
-              <div
-                style={{
-                  position: "absolute",
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
-                  textAlign: "center",
-                  color: "var(--muted-text-color, rgba(255,255,255,0.72))",
-                  fontSize: "18px",
-                  lineHeight: 1.5,
-                  fontWeight: 700,
-                  maxWidth: "480px",
-                  margin: "0 auto",
-                  padding: "16px 18px",
-                  borderRadius: "20px",
-                  border: "1px solid rgba(255, 255, 255, 0.08)",
-                  background: "rgba(255, 255, 255, 0.05)",
-                }}
-              >
-                {getAnswerText(currentCard) || "???"}
-              </div>
-            ) : null}
+            <div
+              aria-hidden={!showingBack}
+              style={{
+                position: "absolute",
+                left: "50%",
+                bottom: "clamp(20px, 5vh, 42px)",
+                width: "min(100% - 36px, 480px)",
+                textAlign: "center",
+                color: "var(--muted-text-color, rgba(255,255,255,0.72))",
+                fontSize: "18px",
+                lineHeight: 1.5,
+                fontWeight: 700,
+                letterSpacing: "0.01em",
+                transform: `translate(-50%, ${showingBack ? "0" : "18px"})`,
+                opacity: showingBack ? 1 : 0,
+                filter: showingBack ? "blur(0)" : "blur(6px)",
+                transition:
+                  "opacity 220ms ease, transform 280ms cubic-bezier(0.22, 1, 0.36, 1), filter 220ms ease",
+                pointerEvents: "none",
+                zIndex: 2,
+              }}
+            >
+              {answerText}
+            </div>
           </div>
         </FlashcardBox>
 

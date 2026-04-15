@@ -713,10 +713,10 @@ const ClassicDeckShell = styled.div`
 const ClassicFullscreenShell = styled.div`
   position: relative;
   width: min(100%, 1180px);
-  height: min(74vh, 820px);
-  min-height: 620px;
-  max-height: calc(100vh - 138px);
-  border-radius: 36px;
+  height: 100vh;
+  min-height: 100vh;
+  max-height: 100vh;
+  border-radius: 0;
   color: var(--text-color);
   display: flex;
   flex-direction: column;
@@ -727,9 +727,9 @@ const ClassicFullscreenShell = styled.div`
 
   @media (max-width: 768px) {
     width: 100%;
-    height: min(var(--app-height, 100dvh), 760px);
-    min-height: 540px;
-    max-height: none;
+    height: 100vh;
+    min-height: 100vh;
+    max-height: 100vh;
     margin: 0;
     border-radius: 0;
   }
@@ -871,7 +871,7 @@ const ClassicCardStage = styled.div`
   align-items: center;
   justify-content: center;
   padding: clamp(16px, 2vw, 24px);
-  margin: clamp(24px, 3vw, 40px) auto 0;
+  margin: 0 auto;
   perspective: 1800px;
   perspective-origin: center center;
   overflow: hidden;
@@ -914,9 +914,7 @@ const ClassicStackCard = styled.div`
   transition:
     transform 0.48s cubic-bezier(0.22, 1, 0.36, 1),
     opacity 0.36s ease;
-  box-shadow:
-    0 34px 100px rgba(0, 0, 0, 0.36),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.03);
+  box-shadow: none;
 
   @media (max-width: 768px) {
     width: min(400px, calc(100% - 32px));
@@ -928,9 +926,7 @@ const classicCardSurfaceCss = css`
   border-radius: 44px;
   border: 1px solid rgba(118, 133, 166, 0.24);
   background: #232d3e;
-  box-shadow:
-    0 34px 100px rgba(0, 0, 0, 0.36),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.03);
+  box-shadow: none;
 `;
 
 const ClassicNextPreviewCard = styled.div`
@@ -1292,7 +1288,7 @@ const ClassicSwipeStamp = styled.div`
   font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.14);
+  box-shadow: none;
   transition:
     opacity 0.18s ease,
     transform 0.22s cubic-bezier(0.22, 1, 0.36, 1);
