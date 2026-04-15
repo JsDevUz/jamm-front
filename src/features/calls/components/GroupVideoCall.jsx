@@ -1400,7 +1400,7 @@ const MobileTopRailTile = styled.div`
 
 const StageActions = styled.div`
   position: absolute;
-  top: 18px;
+  bottom: 18px;
   right: 14px;
   z-index: 20;
   display: flex;
@@ -2093,7 +2093,7 @@ const RecBadge = styled.div`
 
 const FullscreenBtn = styled.button`
   position: absolute;
-  top: ${(p) => (p.$immersive ? "18px" : "8px")};
+  bottom: ${(p) => (p.$immersive ? "18px" : "8px")};
   right: ${(p) => (p.$immersive ? "14px" : "8px")};
   background: rgba(0, 0, 0, 0.55);
   border: none;
@@ -2111,7 +2111,7 @@ const FullscreenBtn = styled.button`
 
   @media (max-width: 768px) {
     opacity: 1;
-    top: ${(p) => (p.$immersive ? "112px" : "8px")};
+    bottom: ${(p) => (p.$immersive ? "92px" : "8px")};
     right: ${(p) => (p.$immersive ? "12px" : "8px")};
   }
 `;
@@ -2479,6 +2479,7 @@ const GroupVideoCall = ({
     networkQuality,
     qualityProfile,
     whiteboardState,
+    whiteboardCursor,
     toggleWhiteboard,
     clearWhiteboard,
     clearWhiteboardPage,
@@ -2490,6 +2491,8 @@ const GroupVideoCall = ({
     removeWhiteboardTab,
     syncWhiteboardPdfViewport,
     syncWhiteboardBoardZoom,
+    syncWhiteboardCursor,
+    clearWhiteboardCursor,
     startWhiteboardStroke,
     appendWhiteboardStroke,
     removeWhiteboardStroke,
@@ -2591,7 +2594,7 @@ const GroupVideoCall = ({
     if (!isCreator) {
       if (isWhiteboardActive) {
         setSelectedTileId("whiteboard");
-        setFullscreenTileId(null);
+        setFullscreenTileId("whiteboard");
       }
       return;
     }
@@ -2604,7 +2607,7 @@ const GroupVideoCall = ({
 
     if (!isWhiteboardActive) {
       setSelectedTileId("whiteboard");
-      setFullscreenTileId(null);
+      setFullscreenTileId("whiteboard");
       return;
     }
 
@@ -4158,6 +4161,11 @@ const GroupVideoCall = ({
   }, [allTiles]);
 
   useEffect(() => {
+    if (isWhiteboardActive && !whiteboardWasActiveRef.current) {
+      setSelectedTileId("whiteboard");
+      setFullscreenTileId("whiteboard");
+    }
+
     if (!isWhiteboardActive && whiteboardWasActiveRef.current) {
       setSelectedTileId((current) => (current === "whiteboard" ? null : current));
       setFullscreenTileId((current) => (current === "whiteboard" ? null : current));
@@ -4325,14 +4333,54 @@ const GroupVideoCall = ({
     Boolean(fullscreenTileId) && activeStageTile?.kind === "whiteboard";
 
   const handleScreenClick = useCallback(() => {
+    if (isWhiteboardFullscreen) {
+      if (isUIHidden || isControlBarCollapsed) {
+        setIsUIHidden(false);
+        setIsControlBarCollapsed(false);
+        return;
+      }
+      setIsUIHidden(true);
+      setIsControlBarCollapsed(true);
+      return;
+    }
+
     setIsUIHidden((current) => !current);
-  }, []);
+  }, [isControlBarCollapsed, isUIHidden, isWhiteboardFullscreen]);
 
   useEffect(() => {
     if (!isWhiteboardFullscreen) {
       setIsControlBarCollapsed(false);
     }
   }, [isWhiteboardFullscreen]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !isWhiteboardFullscreen || !isUIHidden) {
+      return undefined;
+    }
+
+    const EDGE_TRIGGER_PX = 28;
+    const handlePointerMove = (event) => {
+      const viewportWidth = window.innerWidth || 0;
+      const viewportHeight = window.innerHeight || 0;
+      const nearEdge =
+        event.clientX <= EDGE_TRIGGER_PX ||
+        event.clientY <= EDGE_TRIGGER_PX ||
+        viewportWidth - event.clientX <= EDGE_TRIGGER_PX ||
+        viewportHeight - event.clientY <= EDGE_TRIGGER_PX;
+
+      if (!nearEdge) {
+        return;
+      }
+
+      setIsUIHidden(false);
+      setIsControlBarCollapsed(false);
+    };
+
+    window.addEventListener("pointermove", handlePointerMove, { passive: true });
+    return () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+    };
+  }, [isUIHidden, isWhiteboardFullscreen]);
 
   useEffect(() => {
     if (!showMenuDialog) {
@@ -4535,6 +4583,7 @@ const GroupVideoCall = ({
       key={tile.id}
       label={tile.label}
       workspace={whiteboardState}
+      remoteCursor={whiteboardCursor}
       compact={compact}
       isActive={activeStageTileId === tile.id}
       isMobile={isMobileViewport}
@@ -4581,6 +4630,8 @@ const GroupVideoCall = ({
       onTabRemove={removeWhiteboardTab}
       onPdfViewportChange={syncWhiteboardPdfViewport}
       onBoardZoomChange={syncWhiteboardBoardZoom}
+      onCursorMove={syncWhiteboardCursor}
+      onCursorLeave={clearWhiteboardCursor}
       onRecordSurfaceChange={handleWhiteboardRecordSurfaceChange}
       onToggleRecording={startWhiteboardRecording}
       isRecording={isWhiteboardRecording}
@@ -4676,6 +4727,8 @@ const GroupVideoCall = ({
 
   const isPresenterMode = hasStageLayout && activeStageTile &&
     (activeStageTile.isScreenShare || activeStageTile.kind === "whiteboard");
+  const shouldHidePresenterCompanions =
+    isUIHidden || (isWhiteboardFullscreen && isControlBarCollapsed);
 
   const remoteAudioLayer = (
     <AudioLayer aria-hidden="true">
@@ -5072,10 +5125,9 @@ const GroupVideoCall = ({
               ) : null}
 
               {/* Floating Participants (Google Meet style) */}
-              {!isWhiteboardFullscreen &&
-                isPresenterMode &&
+              {isPresenterMode &&
                 floatingParticipantTiles.length > 0 && (
-                <FloatingParticipantsContainer $hidden={isUIHidden}>
+                <FloatingParticipantsContainer $hidden={shouldHidePresenterCompanions}>
                   {floatingParticipantTiles.map((tile) => renderFloatingParticipantTile(tile))}
                 </FloatingParticipantsContainer>
               )}

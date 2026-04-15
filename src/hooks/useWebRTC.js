@@ -176,11 +176,11 @@ const getLivekitCameraProfile = (qualityProfile, withScreenShare = false) => {
   if (withScreenShare) {
     if (key === "screen-poor") {
       return {
-        width: 640,
-        height: 360,
-        frameRate: 12,
-        maxBitrate: 450_000,
-        maxFramerate: 12,
+        width: 854,
+        height: 480,
+        frameRate: 14,
+        maxBitrate: 700_000,
+        maxFramerate: 14,
       };
     }
 
@@ -188,18 +188,18 @@ const getLivekitCameraProfile = (qualityProfile, withScreenShare = false) => {
       return {
         width: 960,
         height: 540,
-        frameRate: 16,
-        maxBitrate: 800_000,
-        maxFramerate: 16,
+        frameRate: 18,
+        maxBitrate: 1_200_000,
+        maxFramerate: 18,
       };
     }
 
     return {
       width: 1280,
       height: 720,
-      frameRate: 20,
-      maxBitrate: 1_100_000,
-      maxFramerate: 20,
+      frameRate: 24,
+      maxBitrate: 1_900_000,
+      maxFramerate: 24,
     };
   }
 
@@ -381,12 +381,12 @@ const CALL_QUALITY_PROFILES = {
   screenCamera: {
     key: "screen-camera",
     label: "camera-low",
-    width: 320,
-    height: 180,
-    frameRate: 6,
-    videoBitrate: 80_000,
+    width: 960,
+    height: 540,
+    frameRate: 15,
+    videoBitrate: 900_000,
     audioBitrate: 56_000,
-    scaleResolutionDownBy: 2,
+    scaleResolutionDownBy: 1.1,
   },
 };
 
@@ -436,6 +436,33 @@ const createInitialWhiteboardState = () => ({
   tabs: [createWhiteboardBoardTab()],
   pdfLibrary: [],
 });
+
+const normalizeWhiteboardCursor = (rawCursor) => {
+  if (!rawCursor || typeof rawCursor !== "object") {
+    return null;
+  }
+
+  const x = Number(rawCursor.x);
+  const y = Number(rawCursor.y);
+  if (!Number.isFinite(x) || !Number.isFinite(y)) {
+    return null;
+  }
+
+  const peerId =
+    typeof rawCursor.peerId === "string" ? rawCursor.peerId.trim() : "";
+  if (!peerId) {
+    return null;
+  }
+
+  return {
+    peerId,
+    displayName:
+      typeof rawCursor.displayName === "string" ? rawCursor.displayName.trim().slice(0, 60) : "",
+    x: Math.min(1, Math.max(0, x)),
+    y: Math.min(1, Math.max(0, y)),
+    updatedAt: Number(rawCursor.updatedAt) || Date.now(),
+  };
+};
 
 const clampUnitValue = (value) => {
   const nextValue = Number(value);
@@ -1565,6 +1592,7 @@ export function useWebRTC({
   const [whiteboardState, setWhiteboardState] = useState(() =>
     createInitialWhiteboardState(),
   );
+  const [whiteboardCursor, setWhiteboardCursor] = useState(null);
   const [cameraFacingMode, setCameraFacingMode] = useState("user");
   const [videoInputCount, setVideoInputCount] = useState(0);
   const screenStreamRef = useRef(null);
@@ -1589,6 +1617,7 @@ export function useWebRTC({
   const qualityProfileRef = useRef(CALL_QUALITY_PROFILES.balanced);
   const cameraFacingModeRef = useRef("user");
   const whiteboardStateRef = useRef(createInitialWhiteboardState());
+  const whiteboardCursorRef = useRef(null);
   const storedPdfLibraryRef = useRef([]);
   const lastWhiteboardUpdatedAtRef = useRef(
     Number(createInitialWhiteboardState()?.updatedAt) || 0,
@@ -1811,6 +1840,11 @@ export function useWebRTC({
     });
   }, []);
 
+  const commitWhiteboardCursor = useCallback((nextCursor) => {
+    whiteboardCursorRef.current = nextCursor;
+    setWhiteboardCursor(nextCursor);
+  }, []);
+
   const clearPeerDisconnectTimeout = useCallback((peerId, isScreen = false) => {
     const timeoutMap = isScreen
       ? screenPeerDisconnectTimeoutsRef.current
@@ -1975,6 +2009,63 @@ export function useWebRTC({
       } catch {}
     },
     [getLivekitPublicationMediaStreamTrack, isLivekitScreenSource],
+  );
+
+  const optimizeLivekitCameraTrack = useCallback(
+    (publication, profile, withScreenShare = false) => {
+      if (isLivekitScreenSource(publication?.source)) {
+        return;
+      }
+
+      const mediaStreamTrack = getLivekitPublicationMediaStreamTrack(publication);
+      if (mediaStreamTrack?.kind !== "video") {
+        return;
+      }
+
+      const cameraProfile = getLivekitCameraProfile(profile, withScreenShare);
+
+      try {
+        mediaStreamTrack.contentHint = "motion";
+      } catch {}
+
+      try {
+        mediaStreamTrack
+          .applyConstraints?.({
+            width: {
+              ideal: cameraProfile.width,
+              max: cameraProfile.width,
+            },
+            height: {
+              ideal: cameraProfile.height,
+              max: cameraProfile.height,
+            },
+            frameRate: {
+              ideal: cameraProfile.frameRate,
+              max: cameraProfile.frameRate,
+            },
+          })
+          ?.catch?.(() => {});
+      } catch {}
+    },
+    [getLivekitPublicationMediaStreamTrack, isLivekitScreenSource],
+  );
+
+  const optimizeLivekitLocalTracks = useCallback(
+    (room, profile) => {
+      if (!room?.localParticipant) {
+        return;
+      }
+
+      const hasActiveScreenShare = Boolean(
+        room.localParticipant.isScreenShareEnabled || screenStreamRef.current,
+      );
+
+      room.localParticipant.trackPublications.forEach((publication) => {
+        optimizeLivekitCameraTrack(publication, profile, hasActiveScreenShare);
+        optimizeLivekitScreenShareTrack(publication, profile);
+      });
+    },
+    [optimizeLivekitCameraTrack, optimizeLivekitScreenShareTrack],
   );
 
   const logLivekitTransportDiagnostics = useCallback(
@@ -2603,6 +2694,7 @@ export function useWebRTC({
           ),
           buildLivekitCameraPublishOptions(qualityProfileRef.current, false),
         );
+        optimizeLivekitLocalTracks(room, qualityProfileRef.current);
         syncLocal();
         syncRemote();
         setNetworkQuality("good");
@@ -2631,6 +2723,7 @@ export function useWebRTC({
       attachLivekitIceCandidateErrorLogging,
       logLivekitTransportDiagnostics,
       roomId,
+      optimizeLivekitLocalTracks,
       resolvedLivekitUrl,
       shouldUseLiveKit,
       syncLivekitLocalState,
@@ -2814,10 +2907,14 @@ export function useWebRTC({
 
   const buildCameraConstraints = useCallback(
     (facingMode = cameraFacingModeRef.current, deviceId = null) => {
+      const cameraProfile = getLivekitCameraProfile(
+        qualityProfileRef.current || CALL_QUALITY_PROFILES.balanced,
+        Boolean(screenStreamRef.current),
+      );
       const constraints = {
-        width: { ideal: 640, max: 640 },
-        height: { ideal: 360, max: 360 },
-        frameRate: { ideal: 18, max: 18 },
+        width: { ideal: cameraProfile.width, max: cameraProfile.width },
+        height: { ideal: cameraProfile.height, max: cameraProfile.height },
+        frameRate: { ideal: cameraProfile.frameRate, max: cameraProfile.frameRate },
       };
 
       if (deviceId) {
@@ -2870,12 +2967,11 @@ export function useWebRTC({
           buildLivekitScreenShareOptions(profile),
           buildLivekitScreenSharePublishOptions(profile),
         );
-        room.localParticipant.trackPublications.forEach((publication) => {
-          optimizeLivekitScreenShareTrack(publication, profile);
-        });
       }
+
+      optimizeLivekitLocalTracks(room, profile);
     },
-    [optimizeLivekitScreenShareTrack],
+    [optimizeLivekitLocalTracks],
   );
 
   const applyMediaOptimization = useCallback(async (profile) => {
@@ -3297,6 +3393,7 @@ export function useWebRTC({
           Boolean(room.localParticipant.isScreenShareEnabled),
         ),
       );
+      optimizeLivekitLocalTracks(room, qualityProfileRef.current);
       syncLivekitLocalState(room);
       emitLocalMediaState({
         hasVideo: true,
@@ -3367,6 +3464,7 @@ export function useWebRTC({
     buildCameraConstraints,
     connectLivekitRoom,
     emitLocalMediaState,
+    optimizeLivekitLocalTracks,
     refreshVideoInputCount,
     replaceCameraTrack,
     shouldUseLiveKit,
@@ -4132,6 +4230,7 @@ export function useWebRTC({
         });
 
         socket.on("whiteboard-stopped", ({ ownerPeerId }) => {
+          commitWhiteboardCursor(null);
           commitWhiteboardState((prev) => ({
             ...prev,
             isActive: false,
@@ -4146,6 +4245,30 @@ export function useWebRTC({
               tabId: prev.activeTabId,
               pageNumber: 1,
             }),
+          );
+        });
+
+        socket.on("whiteboard-cursor", (payload) => {
+          const nextCursor = normalizeWhiteboardCursor(payload);
+          if (!nextCursor) {
+            return;
+          }
+
+          commitWhiteboardCursor(nextCursor);
+        });
+
+        socket.on("whiteboard-cursor-clear", ({ peerId }) => {
+          const normalizedPeerId =
+            typeof peerId === "string" ? peerId.trim() : "";
+          if (!normalizedPeerId) {
+            commitWhiteboardCursor(null);
+            return;
+          }
+
+          commitWhiteboardCursor(
+            whiteboardCursorRef.current?.peerId === normalizedPeerId
+              ? null
+              : whiteboardCursorRef.current,
           );
         });
 
@@ -4289,6 +4412,9 @@ export function useWebRTC({
           );
           whiteboardStateRef.current = mergedState;
           setWhiteboardState(mergedState);
+          if (!mergedState.isActive) {
+            commitWhiteboardCursor(null);
+          }
         });
 
         // 5d. Screen share signals from peers
@@ -4584,7 +4710,24 @@ export function useWebRTC({
       if (!room?.localParticipant) {
         return;
       }
-      await room.localParticipant.setCameraEnabled(!isCamOn);
+      const nextIsCamOn = !isCamOn;
+      if (nextIsCamOn) {
+        await room.localParticipant.setCameraEnabled(
+          true,
+          buildLivekitCameraCaptureOptions(
+            qualityProfileRef.current,
+            Boolean(room.localParticipant.isScreenShareEnabled),
+            cameraFacingModeRef.current,
+          ),
+          buildLivekitCameraPublishOptions(
+            qualityProfileRef.current,
+            Boolean(room.localParticipant.isScreenShareEnabled),
+          ),
+        );
+        optimizeLivekitLocalTracks(room, qualityProfileRef.current);
+      } else {
+        await room.localParticipant.setCameraEnabled(false);
+      }
       syncLivekitLocalState(room);
       emitLocalMediaState();
       return;
@@ -4596,12 +4739,15 @@ export function useWebRTC({
     }
     await ensureLocalVideoTrack();
   }, [
+    buildLivekitCameraCaptureOptions,
+    buildLivekitCameraPublishOptions,
     camLocked,
     connectLivekitRoom,
     disableLocalVideoTrack,
     emitLocalMediaState,
     ensureLocalVideoTrack,
     isCamOn,
+    optimizeLivekitLocalTracks,
     shouldUseLiveKit,
     syncLivekitLocalState,
   ]);
@@ -4635,6 +4781,7 @@ export function useWebRTC({
               Boolean(room.localParticipant.isScreenShareEnabled),
             ),
           );
+          optimizeLivekitLocalTracks(room, qualityProfileRef.current);
           syncLivekitLocalState(room);
           emitLocalMediaState({
             hasVideo: true,
@@ -4687,6 +4834,7 @@ export function useWebRTC({
     camLocked,
     emitLocalMediaState,
     isCamOn,
+    optimizeLivekitLocalTracks,
     pickVideoInputDeviceId,
     refreshVideoInputCount,
     replaceCameraTrack,
@@ -4765,14 +4913,6 @@ export function useWebRTC({
           buildLivekitScreenShareOptions(qualityProfileRef.current),
           buildLivekitScreenSharePublishOptions(qualityProfileRef.current),
         );
-        if (nextIsScreenSharing) {
-          room.localParticipant.trackPublications.forEach((publication) => {
-            optimizeLivekitScreenShareTrack(
-              publication,
-              qualityProfileRef.current,
-            );
-          });
-        }
         if (isCamOnRef.current) {
           await room.localParticipant.setCameraEnabled(
             true,
@@ -4787,6 +4927,7 @@ export function useWebRTC({
             ),
           );
         }
+        optimizeLivekitLocalTracks(room, qualityProfileRef.current);
         syncLivekitLocalState(room);
         await logLivekitTransportDiagnostics(
           room,
@@ -4933,7 +5074,7 @@ export function useWebRTC({
     connectLivekitRoom,
     isScreenSharing,
     networkQuality,
-    optimizeLivekitScreenShareTrack,
+    optimizeLivekitLocalTracks,
     remoteScreenStreams.length,
     remoteStreams.length,
     roomId,
@@ -5446,6 +5587,47 @@ export function useWebRTC({
     [commitWhiteboardState, isCreator, roomId],
   );
 
+  const syncWhiteboardCursor = useCallback(
+    ({ x, y }) => {
+      if (!isCreator || !socketRef.current || !whiteboardStateRef.current.isActive) {
+        return false;
+      }
+
+      const nextCursor = normalizeWhiteboardCursor({
+        peerId: socketRef.current.id || whiteboardStateRef.current.ownerPeerId || "whiteboard-owner",
+        displayName: displayName || whiteboardStateRef.current.ownerDisplayName || "Host",
+        x,
+        y,
+        updatedAt: Date.now(),
+      });
+      if (!nextCursor) {
+        return false;
+      }
+
+      commitWhiteboardCursor(nextCursor);
+      socketRef.current.emit("whiteboard-cursor", {
+        roomId,
+        ...nextCursor,
+      });
+      return true;
+    },
+    [commitWhiteboardCursor, displayName, isCreator, roomId],
+  );
+
+  const clearWhiteboardCursor = useCallback(() => {
+    if (!isCreator || !socketRef.current) {
+      return false;
+    }
+
+    const peerId = socketRef.current.id || whiteboardStateRef.current.ownerPeerId;
+    commitWhiteboardCursor(null);
+    socketRef.current.emit("whiteboard-cursor-clear", {
+      roomId,
+      peerId,
+    });
+    return true;
+  }, [commitWhiteboardCursor, isCreator, roomId]);
+
   const startWhiteboardStroke = useCallback(
     ({
       tabId,
@@ -5755,6 +5937,7 @@ export function useWebRTC({
     networkQuality,
     qualityProfile,
     whiteboardState,
+    whiteboardCursor,
     toggleWhiteboard,
     clearWhiteboard,
     clearWhiteboardPage,
@@ -5766,6 +5949,8 @@ export function useWebRTC({
     removeWhiteboardTab,
     syncWhiteboardPdfViewport,
     syncWhiteboardBoardZoom,
+    syncWhiteboardCursor,
+    clearWhiteboardCursor,
     startWhiteboardStroke,
     appendWhiteboardStroke,
     removeWhiteboardStroke,

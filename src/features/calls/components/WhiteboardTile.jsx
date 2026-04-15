@@ -1494,7 +1494,7 @@ const TileRoot = styled.div`
 
 const FullscreenBtn = styled.button`
   position: absolute;
-  top: 8px;
+  bottom: 8px;
   right: 8px;
   background: rgba(0, 0, 0, 0.55);
   border: none;
@@ -2163,6 +2163,45 @@ const GuestSyncButton = styled.button`
     right: 14px;
     bottom: 78px;
   }
+`;
+
+const RemoteCursorLayer = styled.div`
+  position: absolute;
+  inset: 0;
+  z-index: 9;
+  pointer-events: none;
+`;
+
+const RemoteCursorWrap = styled.div`
+  position: absolute;
+  left: ${(p) => `${p.$x * 100}%`};
+  top: ${(p) => `${p.$y * 100}%`};
+  transform: translate(-2px, -2px);
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+`;
+
+const RemoteCursorGlyph = styled.div`
+  width: 18px;
+  height: 18px;
+  color: #2563eb;
+  filter: drop-shadow(0 1px 2px rgba(15, 23, 42, 0.2));
+`;
+
+const RemoteCursorLabel = styled.div`
+  max-width: 160px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.82);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 `;
 
 const WorkspaceBody = styled.div`
@@ -4764,12 +4803,15 @@ const WhiteboardTile = ({
   onTabRemove,
   onPdfViewportChange,
   onBoardZoomChange,
+  onCursorMove,
+  onCursorLeave,
   onRecordSurfaceChange,
   onToggleRecording,
   isRecording = false,
   recordingElapsedMs = 0,
   recordingReady = false,
   showToolbar = false,
+  remoteCursor = null,
 }) => {
   const { t } = useTranslation();
   const fileInputRef = useRef(null);
@@ -4779,6 +4821,8 @@ const WhiteboardTile = ({
   const workspaceBodyRef = useRef(null);
   const scrollSyncRef = useRef({ lock: false, timeoutId: null, lastTabId: "" });
   const boardScrollSyncRef = useRef({ lock: false, timeoutId: null });
+  const pdfViewportSyncTimeoutRef = useRef(0);
+  const boardViewportSyncTimeoutRef = useRef(0);
   const pdfDocumentRef = useRef(null);
   const pdfPickerDocumentRef = useRef(null);
   const pdfPickerDocumentKeyRef = useRef("");
@@ -4788,6 +4832,12 @@ const WhiteboardTile = ({
   const pdfPinchScrollRef = useRef({ left: 0, top: 0 });
   const pdfZoomAnchorRef = useRef(null);
   const pdfUserGestureRef = useRef(false);
+  const livePdfZoomRef = useRef(1);
+  const liveBoardZoomRef = useRef(1);
+  const pendingInteractivePdfZoomRef = useRef(null);
+  const pendingInteractiveBoardZoomRef = useRef(null);
+  const lastPdfTabIdRef = useRef(null);
+  const lastBoardTabIdRef = useRef(null);
   const pinchStateRef = useRef({
     active: false,
     distance: 0,
@@ -4830,6 +4880,7 @@ const WhiteboardTile = ({
   const [guestPdfZoom, setGuestPdfZoom] = useState(1);
   const [guestBoardOverride, setGuestBoardOverride] = useState(false);
   const [guestBoardZoom, setGuestBoardZoom] = useState(1);
+  const [pdfZoom, setPdfZoom] = useState(null);
   const [isPdfLibraryOpen, setIsPdfLibraryOpen] = useState(false);
   const [visiblePdfPages, setVisiblePdfPages] = useState([]);
   const [pdfPageMetrics, setPdfPageMetrics] = useState({});
@@ -4850,6 +4901,8 @@ const WhiteboardTile = ({
     selectedPages: [],
     error: "",
   });
+  const cursorBroadcastRafRef = useRef(0);
+  const cursorBroadcastPointRef = useRef(null);
 
   const tabs = Array.isArray(workspace?.tabs) ? workspace.tabs : [];
   const pdfLibrary = Array.isArray(workspace?.pdfLibrary) ? workspace.pdfLibrary : [];
@@ -4963,12 +5016,20 @@ const WhiteboardTile = ({
     activeBoardBaseHeight > 0;
   const activePdfZoom =
     activeTab?.type === "pdf"
-      ? !interactive && guestPdfOverride
+      ? interactive
         ? Math.min(
             WHITEBOARD_MAX_ZOOM,
-            Math.max(WHITEBOARD_MIN_ZOOM, Number(guestPdfZoom) || syncedPdfZoom || 1),
+            Math.max(
+              WHITEBOARD_MIN_ZOOM,
+              typeof pdfZoom === "number" ? pdfZoom : syncedPdfZoom || 1,
+            ),
           )
-        : syncedPdfZoom
+        : guestPdfOverride
+          ? Math.min(
+              WHITEBOARD_MAX_ZOOM,
+              Math.max(WHITEBOARD_MIN_ZOOM, Number(guestPdfZoom) || syncedPdfZoom || 1),
+            )
+          : syncedPdfZoom
       : 1;
   const basePdfPage = pdfMeta.pages[0] || null;
   const basePdfAspectRatio =
@@ -5173,6 +5234,69 @@ const WhiteboardTile = ({
     syncedPdfZoom,
   ]);
 
+  useEffect(() => {
+    livePdfZoomRef.current = activePdfZoom;
+  }, [activePdfZoom]);
+
+  useEffect(() => {
+    liveBoardZoomRef.current = activeBoardZoom;
+  }, [activeBoardZoom]);
+
+  useEffect(() => {
+    return () => {
+      if (cursorBroadcastRafRef.current) {
+        window.cancelAnimationFrame(cursorBroadcastRafRef.current);
+        cursorBroadcastRafRef.current = 0;
+      }
+      if (pdfViewportSyncTimeoutRef.current) {
+        window.clearTimeout(pdfViewportSyncTimeoutRef.current);
+      }
+      if (boardViewportSyncTimeoutRef.current) {
+        window.clearTimeout(boardViewportSyncTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    const currentPdfTabId = activeTab?.type === "pdf" ? activeTab.id : null;
+    if (lastPdfTabIdRef.current !== currentPdfTabId) {
+      lastPdfTabIdRef.current = currentPdfTabId;
+      pendingInteractivePdfZoomRef.current = null;
+      if (pdfViewportSyncTimeoutRef.current) {
+        window.clearTimeout(pdfViewportSyncTimeoutRef.current);
+        pdfViewportSyncTimeoutRef.current = 0;
+      }
+      setPdfZoom(currentPdfTabId ? syncedPdfZoom : null);
+      return;
+    }
+
+    if (activeTab?.type !== "pdf") {
+      setPdfZoom(null);
+      return;
+    }
+
+    if (!interactive) {
+      pendingInteractivePdfZoomRef.current = null;
+      setPdfZoom(syncedPdfZoom);
+      return;
+    }
+
+    const pendingZoom = pendingInteractivePdfZoomRef.current;
+    if (typeof pendingZoom === "number") {
+      if (Math.abs(syncedPdfZoom - pendingZoom) <= 0.001) {
+        pendingInteractivePdfZoomRef.current = null;
+      } else {
+        return;
+      }
+    }
+
+    setPdfZoom((current) =>
+      typeof current === "number" && Math.abs(current - syncedPdfZoom) <= 0.001
+        ? current
+        : syncedPdfZoom,
+    );
+  }, [activeTab?.id, activeTab?.type, interactive, syncedPdfZoom]);
+
   const emitPdfViewport = useCallback(
     ({
       zoom,
@@ -5352,6 +5476,44 @@ const WhiteboardTile = ({
     ],
   );
 
+  const schedulePdfViewportSync = useCallback(
+    (payload) => {
+      if (!interactive) {
+        emitPdfViewport(payload);
+        return;
+      }
+
+      if (pdfViewportSyncTimeoutRef.current) {
+        window.clearTimeout(pdfViewportSyncTimeoutRef.current);
+      }
+
+      pdfViewportSyncTimeoutRef.current = window.setTimeout(() => {
+        pdfViewportSyncTimeoutRef.current = 0;
+        emitPdfViewport(payload);
+      }, 32);
+    },
+    [emitPdfViewport, interactive],
+  );
+
+  const scheduleBoardViewportSync = useCallback(
+    (payload) => {
+      if (!interactive) {
+        onBoardZoomChange?.(payload);
+        return;
+      }
+
+      if (boardViewportSyncTimeoutRef.current) {
+        window.clearTimeout(boardViewportSyncTimeoutRef.current);
+      }
+
+      boardViewportSyncTimeoutRef.current = window.setTimeout(() => {
+        boardViewportSyncTimeoutRef.current = 0;
+        onBoardZoomChange?.(payload);
+      }, 32);
+    },
+    [interactive, onBoardZoomChange],
+  );
+
   useEffect(() => {
     return () => {
       pdfPageBitmapCacheRef.current.clear();
@@ -5381,6 +5543,80 @@ const WhiteboardTile = ({
   const handleTileClick = useCallback(() => {
     onSelect?.();
   }, [onSelect]);
+
+  const emitCursorPosition = useCallback(
+    (x, y) => {
+      if (!interactive || !isActive) {
+        return;
+      }
+
+      const clampedX = Math.min(1, Math.max(0, Number(x) || 0));
+      const clampedY = Math.min(1, Math.max(0, Number(y) || 0));
+      onCursorMove?.({
+        x: clampedX,
+        y: clampedY,
+      });
+    },
+    [interactive, isActive, onCursorMove],
+  );
+
+  const handleWorkspacePointerMove = useCallback(
+    (event) => {
+      if (!interactive || !isActive) {
+        return;
+      }
+
+      const workspaceNode = workspaceBodyRef.current;
+      if (!workspaceNode) {
+        return;
+      }
+
+      const rect = workspaceNode.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) {
+        return;
+      }
+
+      cursorBroadcastPointRef.current = {
+        x: (event.clientX - rect.left) / rect.width,
+        y: (event.clientY - rect.top) / rect.height,
+      };
+
+      if (cursorBroadcastRafRef.current) {
+        return;
+      }
+
+      cursorBroadcastRafRef.current = window.requestAnimationFrame(() => {
+        cursorBroadcastRafRef.current = 0;
+        const nextPoint = cursorBroadcastPointRef.current;
+        if (!nextPoint) {
+          return;
+        }
+        emitCursorPosition(nextPoint.x, nextPoint.y);
+      });
+    },
+    [emitCursorPosition, interactive, isActive],
+  );
+
+  const handleWorkspacePointerLeave = useCallback(() => {
+    cursorBroadcastPointRef.current = null;
+    if (cursorBroadcastRafRef.current) {
+      window.cancelAnimationFrame(cursorBroadcastRafRef.current);
+      cursorBroadcastRafRef.current = 0;
+    }
+
+    if (interactive && isActive) {
+      onCursorLeave?.();
+    }
+  }, [interactive, isActive, onCursorLeave]);
+
+  useEffect(() => {
+    if (interactive && isActive) {
+      return undefined;
+    }
+
+    handleWorkspacePointerLeave();
+    return undefined;
+  }, [activeTab?.id, handleWorkspacePointerLeave, interactive, isActive]);
 
   const handleToggleFullscreen = useCallback(
     (event) => {
@@ -6119,11 +6355,17 @@ const WhiteboardTile = ({
         return;
       }
 
-      emitPdfViewport({
+      pendingInteractivePdfZoomRef.current = clampedZoom;
+      setPdfZoom((current) =>
+        typeof current === "number" && Math.abs(current - clampedZoom) <= 0.001
+          ? current
+          : clampedZoom,
+      );
+      schedulePdfViewportSync({
         zoom: clampedZoom,
       });
     },
-    [activeTab, emitPdfViewport, interactive],
+    [activeTab, interactive, schedulePdfViewportSync],
   );
 
   const handleBoardZoomChange = useCallback(
@@ -6204,8 +6446,13 @@ const WhiteboardTile = ({
           Math.max(0, nextFrameOffsetTop + boardY * nextRenderZoom - anchorY),
         );
 
-        setBoardZoom(clampedZoom);
-        onBoardZoomChange?.({
+        pendingInteractiveBoardZoomRef.current = clampedZoom;
+        setBoardZoom((current) =>
+          Math.abs((Number(current) || clampedZoom) - clampedZoom) <= 0.001
+            ? current
+            : clampedZoom,
+        );
+        scheduleBoardViewportSync({
           tabId: WHITEBOARD_BOARD_TAB_ID,
           zoom: clampedZoom,
           viewportBaseWidth: Math.max(
@@ -6226,8 +6473,13 @@ const WhiteboardTile = ({
         return;
       }
 
-      setBoardZoom(clampedZoom);
-      onBoardZoomChange?.({
+      pendingInteractiveBoardZoomRef.current = clampedZoom;
+      setBoardZoom((current) =>
+        Math.abs((Number(current) || clampedZoom) - clampedZoom) <= 0.001
+          ? current
+          : clampedZoom,
+      );
+      scheduleBoardViewportSync({
         tabId: WHITEBOARD_BOARD_TAB_ID,
         zoom: clampedZoom,
         viewportBaseWidth: Math.max(
@@ -6264,7 +6516,7 @@ const WhiteboardTile = ({
       getBoardRenderScale,
       getBoardViewportAnchor,
       interactive,
-      onBoardZoomChange,
+      scheduleBoardViewportSync,
     ],
   );
 
@@ -6315,9 +6567,55 @@ const WhiteboardTile = ({
     [activeTab?.type, handleBoardZoomChange, handlePdfZoomChange],
   );
 
+  const handleWorkspaceZoomStep = useCallback(
+    (delta) => {
+      const currentZoom =
+        activeTab?.type === "pdf" ? livePdfZoomRef.current : liveBoardZoomRef.current;
+      handleWorkspaceZoomChange(currentZoom + delta);
+    },
+    [activeTab?.type, handleWorkspaceZoomChange],
+  );
+
   useEffect(() => {
-    setBoardZoom(syncedBoardZoom);
-  }, [syncedBoardZoom]);
+    const currentBoardTabId = activeTab?.type === "pdf" ? null : activeTab?.id || WHITEBOARD_BOARD_TAB_ID;
+    if (lastBoardTabIdRef.current !== currentBoardTabId) {
+      lastBoardTabIdRef.current = currentBoardTabId;
+      pendingInteractiveBoardZoomRef.current = null;
+      if (boardViewportSyncTimeoutRef.current) {
+        window.clearTimeout(boardViewportSyncTimeoutRef.current);
+        boardViewportSyncTimeoutRef.current = 0;
+      }
+      if (currentBoardTabId) {
+        setBoardZoom(syncedBoardZoom);
+      }
+      return;
+    }
+
+    if (activeTab?.type === "pdf") {
+      return;
+    }
+
+    if (!interactive) {
+      pendingInteractiveBoardZoomRef.current = null;
+      setBoardZoom(syncedBoardZoom);
+      return;
+    }
+
+    const pendingZoom = pendingInteractiveBoardZoomRef.current;
+    if (typeof pendingZoom === "number") {
+      if (Math.abs(syncedBoardZoom - pendingZoom) <= 0.001) {
+        pendingInteractiveBoardZoomRef.current = null;
+      } else {
+        return;
+      }
+    }
+
+    setBoardZoom((current) =>
+      Math.abs((Number(current) || syncedBoardZoom) - syncedBoardZoom) <= 0.001
+        ? current
+        : syncedBoardZoom,
+    );
+  }, [activeTab?.id, activeTab?.type, interactive, syncedBoardZoom]);
 
   useEffect(() => {
     if (activeTab?.type === "pdf") {
@@ -6458,7 +6756,7 @@ const WhiteboardTile = ({
 
       event.preventDefault();
       const zoomDelta = event.deltaY > 0 ? -0.08 : 0.08;
-      scheduleZoom(activePdfZoom + zoomDelta);
+      scheduleZoom(livePdfZoomRef.current + zoomDelta);
     };
 
     const handleTouchStart = (event) => {
@@ -6536,7 +6834,7 @@ const WhiteboardTile = ({
       viewport.removeEventListener("touchend", handleTouchEnd);
       viewport.removeEventListener("touchcancel", handleTouchEnd);
     };
-  }, [activePdfZoom, activeTab?.id, activeTab?.type, handlePdfZoomChange]);
+  }, [activeTab?.id, activeTab?.type, handlePdfZoomChange]);
 
   useEffect(() => {
     const viewport = pdfViewportRef.current;
@@ -6609,7 +6907,7 @@ const WhiteboardTile = ({
 
       event.preventDefault();
       const zoomDelta = event.deltaY > 0 ? -0.08 : 0.08;
-      scheduleZoom(activeBoardZoom + zoomDelta, {
+      scheduleZoom(liveBoardZoomRef.current + zoomDelta, {
         clientX: event.clientX,
         clientY: event.clientY,
       });
@@ -6711,7 +7009,6 @@ const WhiteboardTile = ({
     };
   }, [
     activeBoardRenderScale,
-    activeBoardZoom,
     activeTab?.type,
     getBoardViewportAnchor,
     handleBoardZoomChange,
@@ -7510,25 +7807,25 @@ const WhiteboardTile = ({
   useHotkeys(
     "-",
     () => {
-      handleWorkspaceZoomChange(activeWorkspaceZoom - 0.1);
+      handleWorkspaceZoomStep(-0.1);
     },
     {
       enabled: interactive && !isPdfLibraryOpen,
       preventDefault: true,
     },
-    [activeWorkspaceZoom, handleWorkspaceZoomChange, interactive, isPdfLibraryOpen],
+    [handleWorkspaceZoomStep, interactive, isPdfLibraryOpen],
   );
 
   useHotkeys(
     "+,=",
     () => {
-      handleWorkspaceZoomChange(activeWorkspaceZoom + 0.1);
+      handleWorkspaceZoomStep(0.1);
     },
     {
       enabled: interactive && !isPdfLibraryOpen,
       preventDefault: true,
     },
-    [activeWorkspaceZoom, handleWorkspaceZoomChange, interactive, isPdfLibraryOpen],
+    [handleWorkspaceZoomStep, interactive, isPdfLibraryOpen],
   );
 
   useHotkeys(
@@ -7683,7 +7980,24 @@ const WhiteboardTile = ({
 
         {!compact ? <WorkspaceDivider /> : null}
 
-        <WorkspaceBody ref={workspaceBodyRef} $compact={compact}>
+        <WorkspaceBody
+          ref={workspaceBodyRef}
+          $compact={compact}
+          onPointerMove={handleWorkspacePointerMove}
+          onPointerLeave={handleWorkspacePointerLeave}
+        >
+          {remoteCursor?.peerId && !interactive ? (
+            <RemoteCursorLayer>
+              <RemoteCursorWrap $x={remoteCursor.x} $y={remoteCursor.y}>
+                <RemoteCursorGlyph>
+                  <MousePointer2 size={18} strokeWidth={2.25} />
+                </RemoteCursorGlyph>
+                <RemoteCursorLabel>
+                  {remoteCursor.displayName || t("groupCall.guest")}
+                </RemoteCursorLabel>
+              </RemoteCursorWrap>
+            </RemoteCursorLayer>
+          ) : null}
           {shouldShowToolbar ? (
             <FloatingTopToolbar onClick={(event) => event.stopPropagation()}>
               <Toolbar>
@@ -8674,7 +8988,7 @@ const WhiteboardTile = ({
               <FloatingGroup>
                 <ToolButton
                   type="button"
-                  onClick={() => handleWorkspaceZoomChange(activeWorkspaceZoom - 0.1)}
+                  onClick={() => handleWorkspaceZoomStep(-0.1)}
                   aria-label={t("groupCall.whiteboard.zoomOut")}
                   title={zoomOutTitle}
                 >
@@ -8683,7 +8997,7 @@ const WhiteboardTile = ({
                 <FloatingZoomValue>{Math.round(activeWorkspaceZoom * 100)}%</FloatingZoomValue>
                 <ToolButton
                   type="button"
-                  onClick={() => handleWorkspaceZoomChange(activeWorkspaceZoom + 0.1)}
+                  onClick={() => handleWorkspaceZoomStep(0.1)}
                   aria-label={t("groupCall.whiteboard.zoomIn")}
                   title={zoomInTitle}
                 >
