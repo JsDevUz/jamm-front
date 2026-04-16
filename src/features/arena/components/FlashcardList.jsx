@@ -742,15 +742,15 @@ const ClassicTopBar = styled.div`
   right: 0;
   z-index: 10;
   display: grid;
-  grid-template-columns: 52px 1fr 52px;
+  grid-template-columns: auto 1fr auto;
   align-items: center;
-  gap: 12px;
-  padding: 10px 18px;
-  min-height: 64px;
+  gap: 16px;
+  padding: 16px 24px;
+  min-height: 72px;
 
   @media (max-width: 768px) {
-    padding: calc(10px + env(safe-area-inset-top, 0px)) 18px 10px;
-    min-height: calc(64px + env(safe-area-inset-top, 0px));
+    padding: calc(12px + env(safe-area-inset-top, 0px)) 20px 12px;
+    min-height: calc(68px + env(safe-area-inset-top, 0px));
   }
 `;
 
@@ -870,11 +870,15 @@ const ClassicCardStage = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: clamp(16px, 2vw, 24px);
+  // padding: 24px 20px 32px;
   margin: 0 auto;
   perspective: 1800px;
   perspective-origin: center center;
-  overflow: hidden;
+  overflow: visible;
+
+  @media (max-width: 768px) {
+    padding: 20px 16px 40px;
+  }
 `;
 
 const ClassicGhostCard = styled.div`
@@ -897,13 +901,13 @@ const ClassicStackCard = styled.div`
   position: absolute;
   top: 50%;
   left: 50%;
-  width: 400px;
-  height: 600px;
-  max-height: 100%;
-  max-width: calc(100% - 32px);
-  border-radius: 44px;
-  background: #232d3e;
-  border: 1px solid rgba(118, 133, 166, 0.24);
+  width: min(360px, calc(100% - 48px));
+  height: min(480px, calc(100% - 48px));
+  max-height: min(520px, calc(100% - 48px));
+  max-width: min(380px, calc(100% - 48px));
+  border-radius: 32px;
+  background: linear-gradient(145deg, #2a3447 0%, #232d3e 100%);
+  border: 1px solid rgba(118, 133, 166, 0.2);
   transform: translate(-50%, -50%)
              translate3d(${(props) => props.$offsetX || 0}px, ${(props) => props.$offsetY || 0}px, -100px)
              rotate(${(props) => props.$rotate || 0}deg)
@@ -914,11 +918,12 @@ const ClassicStackCard = styled.div`
   transition:
     transform 0.48s cubic-bezier(0.22, 1, 0.36, 1),
     opacity 0.36s ease;
-  box-shadow: none;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.24);
 
   @media (max-width: 768px) {
-    width: min(400px, calc(100% - 32px));
-    height: min(600px, calc(100% - 32px));
+    width: min(340px, calc(100% - 40px));
+    height: min(440px, calc(100% - 40px));
+    border-radius: 28px;
   }
 `;
 
@@ -933,11 +938,13 @@ const ClassicNextPreviewCard = styled.div`
   position: absolute;
   top: 50%;
   left: 50%;
-  width: 400px;
-  height: 600px;
-  max-height: 100%;
-  max-width: calc(100% - 32px);
-  ${classicCardSurfaceCss};
+  width: min(360px, calc(100% - 48px));
+  height: min(480px, calc(100% - 48px));
+  max-height: min(520px, calc(100% - 48px));
+  max-width: min(380px, calc(100% - 48px));
+  border-radius: 32px;
+  background: linear-gradient(145deg, #2a3447 0%, #232d3e 100%);
+  border: 1px solid rgba(118, 133, 166, 0.24);
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -955,38 +962,44 @@ const ClassicNextPreviewCard = styled.div`
   transition:
     transform 0.48s cubic-bezier(0.22, 1, 0.36, 1),
     opacity 0.36s ease;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.24);
 
   @media (max-width: 768px) {
-    width: min(400px, calc(100% - 32px));
-    height: min(600px, calc(100% - 32px));
+    width: min(340px, calc(100% - 40px));
+    height: min(440px, calc(100% - 40px));
+    border-radius: 28px;
     padding: 16px;
   }
 `;
 
 const ClassicNextPreviewWord = styled.div`
   max-width: 100%;
-  font-size: clamp(38px, 7.2vw, 72px);
-  line-height: 1.02;
+  font-size: clamp(32px, 6vw, 56px);
+  line-height: 1.08;
   font-weight: 700;
   color: #f4f6fa;
   text-align: center;
   word-break: break-word;
-  letter-spacing: -0.03em;
+  letter-spacing: -0.02em;
+  opacity: 0.85;
 `;
 
 const ClassicSwipeCard = styled.div`
   position: absolute;
   top: 50%;
   left: 50%;
-  width: 400px;
-  height: 600px;
-  max-height: 100%;
-  max-width: calc(100% - 32px);
-  border-radius: 44px;
+  width: min(360px, calc(100% - 48px));
+  height: min(480px, calc(100% - 48px));
+  max-height: min(520px, calc(100% - 48px));
+  max-width: min(380px, calc(100% - 48px));
+  border-radius: 32px;
   cursor: grab;
   transform-style: preserve-3d;
   will-change: transform, opacity;
   backface-visibility: hidden;
+  background: linear-gradient(145deg, #2a3447 0%, #232d3e 100%);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.32);
+  border: 1px solid rgba(118, 133, 166, 0.24);
 
   /* Transform – asosiy harakatlar uchun */
   transform: ${(props) => {
@@ -1037,8 +1050,9 @@ const ClassicSwipeCard = styled.div`
     props.$exiting && props.$exitDirection === "left" ? 1 : 6};
 
   @media (max-width: 768px) {
-    width: min(400px, calc(100% - 32px));
-    height: min(600px, calc(100% - 32px));
+    width: min(340px, calc(100% - 40px));
+    height: min(440px, calc(100% - 40px));
+    border-radius: 28px;
   }
 `;
 const ClassicOutgoingCard = styled(ClassicSwipeCard)`
@@ -1058,11 +1072,18 @@ const ClassicFlipLayer = styled.div`
   transform-style: preserve-3d;
   -webkit-transform-style: preserve-3d;
   will-change: transform;
-  padding: 24px 20px 24px;
-  ${classicCardSurfaceCss};
+  padding: 20px 18px 24px;
+  border-radius: 32px;
+  background: linear-gradient(145deg, #2a3447 0%, #232d3e 100%);
   transition: transform 0.34s cubic-bezier(0.22, 1, 0.36, 1);
   transform: rotateY(${(props) => (props.$flipped ? 180 : 0)}deg) translateZ(0);
-  border-color: rgba(118, 133, 166, 0.24);
+  border: 1px solid rgba(118, 133, 166, 0.24);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+
+  @media (max-width: 768px) {
+    border-radius: 28px;
+    padding: 18px 16px 20px;
+  }
 `;
 
 const ClassicCardFace = styled.div`
@@ -1076,9 +1097,13 @@ const ClassicCardFace = styled.div`
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
   transform-style: preserve-3d;
-  padding: 20px;
+  padding: 16px 18px 20px;
   -webkit-transform-style: preserve-3d;
   overflow: hidden;
+
+  @media (max-width: 768px) {
+    padding: 14px 16px 18px;
+  }
 `;
 
 const ClassicCardFront = styled(ClassicCardFace)`
@@ -1093,16 +1118,24 @@ const ClassicCardToolbar = styled.div`
   display: flex;
   align-items: center;
   justify-content: flex-start;
-  gap: 12px;
+  gap: 10px;
   width: auto;
   color: color-mix(in srgb, var(--text-color) 92%, transparent);
   position: absolute;
-  top: 20px;
-  left: 18px;
+  top: 16px;
+  left: 16px;
   z-index: 4;
   transform: translateZ(8px);
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
+  padding: 4px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.12);
+
+  @media (max-width: 768px) {
+    top: 14px;
+    left: 14px;
+  }
 `;
 
 const ClassicCardToolbarSpacer = styled(ClassicCardToolbar)`
@@ -1116,20 +1149,22 @@ const ClassicCardToolbarSpacer = styled(ClassicCardToolbar)`
 `;
 
 const ClassicToolbarIcon = styled.button`
-  width: 40px;
-  height: 40px;
-  border-radius: 12px;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
   border: none;
   background: transparent;
-  color: rgba(244, 246, 250, 0.38);
+  color: rgba(244, 246, 250, 0.5);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   touch-action: manipulation;
+  transition: all 0.2s ease;
 
   &:hover {
-    background: color-mix(in srgb, var(--hover-color) 78%, transparent);
+    background: rgba(255, 255, 255, 0.1);
+    color: rgba(244, 246, 250, 0.8);
   }
 `;
 
@@ -1192,8 +1227,8 @@ const ClassicCardImage = styled.img`
 
 const ClassicCardWord = styled.div`
   max-width: 100%;
-  font-size: clamp(34px, 6.4vw, 64px);
-  line-height: 1.02;
+  font-size: clamp(42px, 7vw, 72px);
+  line-height: 1.08;
   font-weight: 700;
   color: #f4f6fa;
   text-align: center;
@@ -1204,33 +1239,42 @@ const ClassicCardWord = styled.div`
     filter 0.12s ease,
     opacity 0.12s ease,
     transform 0.36s cubic-bezier(0.22, 1, 0.36, 1);
-  text-shadow: none;
+  text-shadow: 0 2px 16px rgba(0, 0, 0, 0.2);
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
   transform: translate3d(0, ${(props) => props.$offsetY || "0px"}, 10px);
-  letter-spacing: -0.03em;
+  letter-spacing: -0.02em;
 `;
 
 const ClassicPromptHint = styled.div`
   position: absolute;
-  inset: 0;
+  bottom: 20px;
+  left: 0;
+  right: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: rgba(197, 204, 219, 0.58);
-  font-size: clamp(14px, 1.75vw, 20px);
-  letter-spacing: 0.2em;
+  color: rgba(197, 204, 219, 0.65);
+  font-size: clamp(12px, 1.1vw, 13px);
+  letter-spacing: 0.15em;
   text-transform: uppercase;
-  font-weight: 500;
+  font-weight: 600;
   opacity: ${(props) => (props.$visible ? 1 : 0)};
-  filter: blur(${(props) => (props.$visible ? "0px" : "8px")});
-  transform: translateY(${(props) => (props.$visible ? "0" : "-10px")})
+  filter: blur(${(props) => (props.$visible ? "0px" : "6px")});
+  transform: translateY(${(props) => (props.$visible ? "0" : "8px")})
     scale(${(props) => (props.$visible ? 1 : 0.96)});
   transition:
-    opacity 0.36s ease,
-    filter 0.4s ease,
-    transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+    opacity 0.32s ease,
+    filter 0.35s ease,
+    transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
   pointer-events: none;
+  padding: 0 20px;
+  text-align: center;
+
+  @media (max-width: 768px) {
+    bottom: 18px;
+    font-size: 11px;
+  }
 `;
 
 const ClassicAnswerPanel = styled.div`
@@ -1308,40 +1352,64 @@ const ClassicBottomRow = styled.div`
   width: 100%;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-top: 12px;
-  padding: 0 22px;
+  justify-content: center;
+  gap: 16px;
+  margin-top: auto;
+  padding: 16px 24px 20px;
   flex-shrink: 0;
+
+  @media (max-width: 768px) {
+    padding: 14px 20px 16px;
+    gap: 14px;
+  }
 `;
 
 const ClassicGhostAction = styled.button`
-  width: 52px;
-  height: 52px;
-  border-radius: 16px;
-  border: 1px solid color-mix(in srgb, var(--border-color) 78%, transparent);
-  background: color-mix(in srgb, var(--secondary-color) 84%, transparent);
-  color: color-mix(in srgb, var(--text-color) 92%, transparent);
+  width: 56px;
+  height: 56px;
+  border-radius: 18px;
+  border: 1px solid rgba(118, 133, 166, 0.25);
+  background: rgba(35, 45, 62, 0.8);
+  color: rgba(244, 246, 250, 0.85);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
+  transition: all 0.2s ease;
+  backdrop-filter: blur(8px);
 
   &:hover {
-    background: color-mix(in srgb, var(--hover-color) 78%, transparent);
+    background: rgba(42, 52, 71, 0.95);
+    border-color: rgba(118, 133, 166, 0.4);
+    transform: translateY(-2px);
+  }
+
+  @media (max-width: 768px) {
+    width: 52px;
+    height: 52px;
+    border-radius: 16px;
   }
 `;
 
 const ClassicPrimaryAction = styled(ClassicGhostAction)`
-  width: 58px;
-  height: 58px;
-  border-radius: 18px;
-  background: var(--primary-color);
-  border-color: color-mix(in srgb, var(--primary-color) 78%, transparent);
+  width: 64px;
+  height: 64px;
+  border-radius: 20px;
+  background: linear-gradient(135deg, var(--primary-color) 0%, color-mix(in srgb, var(--primary-color) 85%, black) 100%);
+  border: none;
   color: white;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
 
   &:hover {
-    background: color-mix(in srgb, var(--primary-color) 88%, white 12%);
+    background: linear-gradient(135deg, color-mix(in srgb, var(--primary-color) 90%, white) 0%, var(--primary-color) 100%);
+    transform: translateY(-2px) scale(1.02);
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.3);
+  }
+
+  @media (max-width: 768px) {
+    width: 58px;
+    height: 58px;
+    border-radius: 18px;
   }
 `;
 
@@ -2351,10 +2419,10 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
     const cappedDepth = Math.min(depth, 5);
     const layoutMap = {
       1: { offsetX: 0, offsetY: 0, rotate: 0, scale: 1, opacity: 1, zIndex: 5 },
-      2: { offsetX: 42, offsetY: 26, rotate: -7.5, scale: 0.998, opacity: 1, zIndex: 4 },
-      3: { offsetX: -34, offsetY: 54, rotate: 7.8, scale: 0.998, opacity: 1, zIndex: 3 },
-      4: { offsetX: 18, offsetY: -28, rotate: -9.2, scale: 0.996, opacity: 1, zIndex: 2 },
-      5: { offsetX: 58, offsetY: 74, rotate: -5.2, scale: 0.99, opacity: 1, zIndex: 1 },
+      2: { offsetX: 18, offsetY: 12, rotate: -4, scale: 0.998, opacity: 1, zIndex: 4 },
+      3: { offsetX: -14, offsetY: 22, rotate: 4.5, scale: 0.998, opacity: 1, zIndex: 3 },
+      4: { offsetX: 8, offsetY: -12, rotate: -5, scale: 0.996, opacity: 1, zIndex: 2 },
+      5: { offsetX: 24, offsetY: 30, rotate: -3, scale: 0.99, opacity: 1, zIndex: 1 },
     };
 
     return layoutMap[cappedDepth] || layoutMap[5];

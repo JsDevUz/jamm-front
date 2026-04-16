@@ -464,6 +464,45 @@ const normalizeWhiteboardCursor = (rawCursor) => {
   };
 };
 
+const areWhiteboardPointsEqual = (leftPoint, rightPoint) =>
+  Boolean(leftPoint) &&
+  Boolean(rightPoint) &&
+  Number(leftPoint.x) === Number(rightPoint.x) &&
+  Number(leftPoint.y) === Number(rightPoint.y);
+
+const areWhiteboardPointArraysEqual = (leftPoints, rightPoints) => {
+  if (!Array.isArray(leftPoints) || !Array.isArray(rightPoints)) {
+    return false;
+  }
+
+  if (leftPoints.length !== rightPoints.length) {
+    return false;
+  }
+
+  return leftPoints.every((point, index) =>
+    areWhiteboardPointsEqual(point, rightPoints[index]),
+  );
+};
+
+const shouldIgnoreIncomingWhiteboardEvent = (payload, localPeerId) => {
+  const normalizedLocalPeerId =
+    typeof localPeerId === "string" ? localPeerId.trim() : "";
+  if (!normalizedLocalPeerId || !payload || typeof payload !== "object") {
+    return false;
+  }
+
+  const candidatePeerIds = [
+    payload.peerId,
+    payload.senderId,
+    payload.ownerPeerId,
+    payload.sourcePeerId,
+  ]
+    .map((value) => (typeof value === "string" ? value.trim() : ""))
+    .filter(Boolean);
+
+  return candidatePeerIds.includes(normalizedLocalPeerId);
+};
+
 const clampUnitValue = (value) => {
   const nextValue = Number(value);
   if (!Number.isFinite(nextValue)) {
@@ -1084,6 +1123,34 @@ const upsertWhiteboardStrokeInState = (state, { tabId, pageNumber, stroke }) => 
 const appendWhiteboardStrokePointsInState = (state, { tabId, pageNumber, strokeId, points }) => {
   const targetTabId = resolveWhiteboardTargetTabId(state, tabId);
 
+  const appendPointsToStroke = (stroke) => {
+    if (stroke.id !== strokeId) {
+      return stroke;
+    }
+
+    const existingPoints = Array.isArray(stroke.points) ? stroke.points : [];
+    const nextPoints = Array.isArray(points) ? points : [];
+
+    if (nextPoints.length === 0) {
+      return stroke;
+    }
+
+    if (existingPoints.length >= nextPoints.length) {
+      const existingTail = existingPoints.slice(existingPoints.length - nextPoints.length);
+      if (areWhiteboardPointArraysEqual(existingTail, nextPoints)) {
+        return stroke;
+      }
+    }
+
+    return {
+      ...stroke,
+      points: [...existingPoints, ...nextPoints].slice(
+        0,
+        WHITEBOARD_MAX_POINTS_PER_STROKE,
+      ),
+    };
+  };
+
   return {
     ...updateWhiteboardTabById(state, targetTabId, (tab) => {
       if (tab.type === "pdf") {
@@ -1095,17 +1162,7 @@ const appendWhiteboardStrokePointsInState = (state, { tabId, pageNumber, strokeI
               ? page
               : {
                   ...page,
-                  strokes: page.strokes.map((stroke) =>
-                    stroke.id !== strokeId
-                      ? stroke
-                      : {
-                          ...stroke,
-                          points: [...stroke.points, ...points].slice(
-                            0,
-                            WHITEBOARD_MAX_POINTS_PER_STROKE,
-                          ),
-                        },
-                  ),
+                  strokes: page.strokes.map(appendPointsToStroke),
                 },
           ),
         };
@@ -1113,17 +1170,7 @@ const appendWhiteboardStrokePointsInState = (state, { tabId, pageNumber, strokeI
 
       return {
         ...tab,
-        strokes: tab.strokes.map((stroke) =>
-          stroke.id !== strokeId
-            ? stroke
-            : {
-                ...stroke,
-                points: [...stroke.points, ...points].slice(
-                  0,
-                  WHITEBOARD_MAX_POINTS_PER_STROKE,
-                ),
-              },
-        ),
+        strokes: tab.strokes.map(appendPointsToStroke),
       };
     }),
     isActive: true,
@@ -4218,6 +4265,10 @@ export function useWebRTC({
         });
 
         socket.on("whiteboard-started", (payload) => {
+          if (shouldIgnoreIncomingWhiteboardEvent(payload, socket.id)) {
+            return;
+          }
+
           commitWhiteboardState((prev) => ({
             ...prev,
             isActive: true,
@@ -4229,17 +4280,27 @@ export function useWebRTC({
           }));
         });
 
-        socket.on("whiteboard-stopped", ({ ownerPeerId }) => {
+        socket.on("whiteboard-stopped", (payload) => {
+          if (shouldIgnoreIncomingWhiteboardEvent(payload, socket.id)) {
+            return;
+          }
+
           commitWhiteboardCursor(null);
           commitWhiteboardState((prev) => ({
             ...prev,
             isActive: false,
             ownerPeerId:
-              typeof ownerPeerId === "string" ? ownerPeerId : prev.ownerPeerId,
+              typeof payload?.ownerPeerId === "string"
+                ? payload.ownerPeerId
+                : prev.ownerPeerId,
           }));
         });
 
-        socket.on("whiteboard-cleared", () => {
+        socket.on("whiteboard-cleared", (payload) => {
+          if (shouldIgnoreIncomingWhiteboardEvent(payload, socket.id)) {
+            return;
+          }
+
           commitWhiteboardState((prev) =>
             clearWhiteboardTargetInState(prev, {
               tabId: prev.activeTabId,
@@ -4249,6 +4310,10 @@ export function useWebRTC({
         });
 
         socket.on("whiteboard-cursor", (payload) => {
+          if (shouldIgnoreIncomingWhiteboardEvent(payload, socket.id)) {
+            return;
+          }
+
           const nextCursor = normalizeWhiteboardCursor(payload);
           if (!nextCursor) {
             return;
@@ -4272,120 +4337,123 @@ export function useWebRTC({
           );
         });
 
-        socket.on("whiteboard-stroke-started", ({ tabId, pageNumber, stroke }) => {
-          const normalizedStroke = normalizeWhiteboardStroke(stroke);
+        socket.on("whiteboard-stroke-started", (payload) => {
+          if (shouldIgnoreIncomingWhiteboardEvent(payload, socket.id)) {
+            return;
+          }
+
+          const normalizedStroke = normalizeWhiteboardStroke(payload?.stroke);
           if (!normalizedStroke) {
             return;
           }
 
           commitWhiteboardState((prev) =>
             upsertWhiteboardStrokeInState(prev, {
-              tabId,
-              pageNumber,
+              tabId: payload?.tabId,
+              pageNumber: payload?.pageNumber,
               stroke: normalizedStroke,
             }),
           );
         });
 
-        socket.on("whiteboard-stroke-appended", ({ tabId, pageNumber, strokeId, points }) => {
-          if (typeof strokeId !== "string" || !strokeId.trim()) {
+        socket.on("whiteboard-stroke-appended", (payload) => {
+          if (shouldIgnoreIncomingWhiteboardEvent(payload, socket.id)) {
             return;
           }
 
-          const normalizedPoints = normalizeWhiteboardPoints(points);
+          if (typeof payload?.strokeId !== "string" || !payload.strokeId.trim()) {
+            return;
+          }
+
+          const normalizedPoints = normalizeWhiteboardPoints(payload?.points);
           if (normalizedPoints.length === 0) {
             return;
           }
 
           commitWhiteboardState((prev) =>
             appendWhiteboardStrokePointsInState(prev, {
-              tabId,
-              pageNumber,
-              strokeId,
+              tabId: payload?.tabId,
+              pageNumber: payload?.pageNumber,
+              strokeId: payload.strokeId,
               points: normalizedPoints,
             }),
           );
         });
 
-        socket.on("whiteboard-stroke-removed", ({ tabId, pageNumber, strokeId }) => {
-          if (typeof strokeId !== "string" || !strokeId.trim()) {
+        socket.on("whiteboard-stroke-removed", (payload) => {
+          if (shouldIgnoreIncomingWhiteboardEvent(payload, socket.id)) {
+            return;
+          }
+
+          if (typeof payload?.strokeId !== "string" || !payload.strokeId.trim()) {
             return;
           }
 
           commitWhiteboardState((prev) =>
             removeWhiteboardStrokeFromState(prev, {
-              tabId,
-              pageNumber,
-              strokeId,
+              tabId: payload?.tabId,
+              pageNumber: payload?.pageNumber,
+              strokeId: payload.strokeId,
             }),
           );
         });
 
-        socket.on(
-          "whiteboard-stroke-updated",
-          ({
-            tabId,
-            pageNumber,
-            strokeId,
-            point,
-            points,
-            text,
-            color,
-            size,
-            fillColor,
-            fontFamily,
-            textSize,
-            textAlign,
-            fontPixelSize,
-            edgeStyle,
-            rotation,
-          }) => {
-            if (typeof strokeId !== "string" || !strokeId.trim()) {
-              return;
-            }
+        socket.on("whiteboard-stroke-updated", (payload) => {
+          if (shouldIgnoreIncomingWhiteboardEvent(payload, socket.id)) {
+            return;
+          }
 
-            commitWhiteboardState((prev) =>
-              updateWhiteboardStrokeInState(prev, {
-                tabId,
-                pageNumber,
-                strokeId,
-                point: normalizeWhiteboardPoint(point),
-                points: normalizeWhiteboardPoints(points, WHITEBOARD_MAX_POINTS_PER_STROKE),
-                text: typeof text === "string" ? text.slice(0, WHITEBOARD_MAX_TEXT_CHARS) : undefined,
-                color,
-                size: typeof size === "number" ? size : undefined,
-                fillColor:
-                  typeof fillColor === "string"
-                    ? normalizeWhiteboardFillColor(fillColor)
-                    : undefined,
-                fontFamily:
-                  typeof fontFamily === "string"
-                    ? normalizeWhiteboardTextFontFamily(fontFamily)
-                    : undefined,
-                textSize:
-                  typeof textSize === "string"
-                    ? normalizeWhiteboardTextSize(textSize)
-                    : undefined,
-                textAlign:
-                  typeof textAlign === "string"
-                    ? normalizeWhiteboardTextAlign(textAlign)
-                    : undefined,
-                fontPixelSize:
-                  typeof fontPixelSize === "number"
-                    ? normalizeWhiteboardFontPixelSize(fontPixelSize)
-                    : undefined,
-                edgeStyle:
-                  typeof edgeStyle === "string"
-                    ? normalizeWhiteboardShapeEdge(edgeStyle)
-                    : undefined,
-                rotation:
-                  typeof rotation === "number"
-                    ? normalizeWhiteboardRotation(rotation)
-                    : undefined,
-              }),
-            );
-          },
-        );
+          if (typeof payload?.strokeId !== "string" || !payload.strokeId.trim()) {
+            return;
+          }
+
+          commitWhiteboardState((prev) =>
+            updateWhiteboardStrokeInState(prev, {
+              tabId: payload?.tabId,
+              pageNumber: payload?.pageNumber,
+              strokeId: payload.strokeId,
+              point: normalizeWhiteboardPoint(payload?.point),
+              points: normalizeWhiteboardPoints(
+                payload?.points,
+                WHITEBOARD_MAX_POINTS_PER_STROKE,
+              ),
+              text:
+                typeof payload?.text === "string"
+                  ? payload.text.slice(0, WHITEBOARD_MAX_TEXT_CHARS)
+                  : undefined,
+              color: payload?.color,
+              size: typeof payload?.size === "number" ? payload.size : undefined,
+              fillColor:
+                typeof payload?.fillColor === "string"
+                  ? normalizeWhiteboardFillColor(payload.fillColor)
+                  : undefined,
+              fontFamily:
+                typeof payload?.fontFamily === "string"
+                  ? normalizeWhiteboardTextFontFamily(payload.fontFamily)
+                  : undefined,
+              textSize:
+                typeof payload?.textSize === "string"
+                  ? normalizeWhiteboardTextSize(payload.textSize)
+                  : undefined,
+              textAlign:
+                typeof payload?.textAlign === "string"
+                  ? normalizeWhiteboardTextAlign(payload.textAlign)
+                  : undefined,
+              fontPixelSize:
+                typeof payload?.fontPixelSize === "number"
+                  ? normalizeWhiteboardFontPixelSize(payload.fontPixelSize)
+                  : undefined,
+              edgeStyle:
+                typeof payload?.edgeStyle === "string"
+                  ? normalizeWhiteboardShapeEdge(payload.edgeStyle)
+                  : undefined,
+              rotation:
+                typeof payload?.rotation === "number"
+                  ? normalizeWhiteboardRotation(payload.rotation)
+                  : undefined,
+            }),
+          );
+        });
 
         // Handle full whiteboard state sync (includes PDF tabs, library updates)
         socket.on("whiteboard-state", (nextState) => {
@@ -5217,6 +5285,7 @@ export function useWebRTC({
 
     socketRef.current.emit(nextActive ? "whiteboard-start" : "whiteboard-stop", {
       roomId,
+      senderId: socketRef.current.id,
     });
 
     return true;
@@ -5238,7 +5307,9 @@ export function useWebRTC({
         pageNumber: 1,
       }),
     );
-    socketRef.current.emit("whiteboard-clear", { roomId, tabId: activeTabId });
+    socketRef.current.emit("whiteboard-clear", { roomId,
+      senderId: socketRef.current.id, 
+      tabId: activeTabId });
     return true;
   }, [commitWhiteboardState, isCreator, roomId]);
 
@@ -5262,6 +5333,7 @@ export function useWebRTC({
       socketRef.current.emit("whiteboard-clear", {
         roomId,
         tabId: targetTabId,
+          senderId: socketRef.current.id, 
         pageNumber,
       });
       return true;
@@ -5594,6 +5666,7 @@ export function useWebRTC({
       }
 
       const nextCursor = normalizeWhiteboardCursor({
+        senderId: socketRef.current.id,
         peerId: socketRef.current.id || whiteboardStateRef.current.ownerPeerId || "whiteboard-owner",
         displayName: displayName || whiteboardStateRef.current.ownerDisplayName || "Host",
         x,
@@ -5695,6 +5768,7 @@ export function useWebRTC({
       socketRef.current.emit("whiteboard-stroke-start", {
         roomId,
         tabId: targetTabId,
+        senderId: socketRef.current.id,   
         pageNumber,
         strokeId: stroke.id,
         tool: stroke.tool,
@@ -5747,6 +5821,7 @@ export function useWebRTC({
         roomId,
         tabId: targetTabId,
         pageNumber,
+        senderId: socketRef.current.id, 
         strokeId,
         points: normalizedPoints,
       });
@@ -5782,6 +5857,7 @@ export function useWebRTC({
         roomId,
         tabId: targetTabId,
         pageNumber,
+         senderId: socketRef.current.id, 
         strokeId: strokeId.trim(),
       });
       return true;
@@ -5879,6 +5955,7 @@ export function useWebRTC({
         roomId,
         tabId: targetTabId,
         pageNumber,
+          senderId: socketRef.current.id,
         strokeId: strokeId.trim(),
         point: normalizedPoint || undefined,
         points: normalizedPoints,

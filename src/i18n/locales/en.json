@@ -25,6 +25,7 @@
     "copy": "Copy"
   },
   "navigation": {
+    "home": "Home",
     "feed": "Posts",
     "articles": "Articles",
     "chats": "Chats",
@@ -1113,13 +1114,34 @@
       "premium": "Premium"
     },
     "sections": {
-      "posts": { "title": "Posts", "description": "Daily post and comment limits." },
-      "articles": { "title": "Articles", "description": "Article creation and content capacity." },
-      "groups": { "title": "Groups and chat", "description": "Group and messaging limits." },
-      "meets": { "title": "Video calls", "description": "Meet creation and participant capacity." },
-      "courses": { "title": "Courses and lessons", "description": "Lesson media, tests, and homework limits." },
-      "arena": { "title": "Arena", "description": "Tests, flashcards, and sentence-builder limits." },
-      "profile": { "title": "Profile", "description": "Profile field and account-related limits." }
+      "posts": {
+        "title": "Posts",
+        "description": "Daily post and comment limits."
+      },
+      "articles": {
+        "title": "Articles",
+        "description": "Article creation and content capacity."
+      },
+      "groups": {
+        "title": "Groups and chat",
+        "description": "Group and messaging limits."
+      },
+      "meets": {
+        "title": "Video calls",
+        "description": "Meet creation and participant capacity."
+      },
+      "courses": {
+        "title": "Courses and lessons",
+        "description": "Lesson media, tests, and homework limits."
+      },
+      "arena": {
+        "title": "Arena",
+        "description": "Tests, flashcards, and sentence-builder limits."
+      },
+      "profile": {
+        "title": "Profile",
+        "description": "Profile field and account-related limits."
+      }
     },
     "items": {
       "postsPerDay": "Posts per day",

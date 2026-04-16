@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import styled, { keyframes } from "styled-components";
 import { useNavigate, useParams } from "react-router-dom";
 import { getMeetById, saveMeet } from "../utils/meetStore";
-import { Loader, Mic, MicOff, Video, VideoOff } from "lucide-react";
+import { Loader, Mic, MicOff, Video, VideoOff, VideoIcon } from "lucide-react";
 import useAuthStore from "../store/authStore";
 import useMeetCallStore from "../store/meetCallStore";
 
@@ -40,6 +40,10 @@ const Card = styled.div`
 const Logo = styled.div`
   font-size: 40px;
   margin-bottom: 12px;
+  color: #7289da;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 `;
 const Title = styled.h1`
   color: #fff;
@@ -97,6 +101,9 @@ const JoinBtn = styled.button`
   font-weight: 700;
   cursor: pointer;
   transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   &:hover {
     background: #677bc4;
   }
@@ -297,7 +304,7 @@ const JoinCallPage = () => {
   return (
     <Page>
       <Card>
-        <Logo>📹</Logo>
+        <Logo><VideoIcon size={48} strokeWidth={1.5} /></Logo>
         <Title>Video Callga qo'shilish</Title>
         <Sub>Siz quyidagi callga taklif qilindingiz:</Sub>
         <RoomIdBox>{roomId}</RoomIdBox>
@@ -336,7 +343,7 @@ const JoinCallPage = () => {
           </div>
         </MediaControls>
         {error && <Err>{error}</Err>}
-        <JoinBtn onClick={handleJoin}>🎥 Callga kirish</JoinBtn>
+        <JoinBtn onClick={handleJoin}><Video style={{marginRight:'10px'}} size={18} /> Callga kirish</JoinBtn>
       </Card>
     </Page>
   );

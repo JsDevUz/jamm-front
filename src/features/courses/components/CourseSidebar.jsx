@@ -20,7 +20,7 @@ import CreateCourseDialog from "./CreateCourseDialog";
 import ConfirmDialog from "../../../shared/ui/dialogs/ConfirmDialog";
 import SectionHeader from "../../../shared/ui/navigation/SectionHeader";
 
-const DEFAULT_COURSE_GRADIENT = "linear-gradient(135deg, rgb(240, 147, 251), rgb(245, 87, 108))";
+const DEFAULT_COURSE_GRADIENT = "var(--background-color)";
 
 const getCourseGradientCss = (gradient) => {
   const matches = String(gradient || "").match(
@@ -161,7 +161,7 @@ const CourseThumbnailFallback = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
-  background: ${(props) => props.$gradient || DEFAULT_COURSE_GRADIENT};
+  background: ${(props) => DEFAULT_COURSE_GRADIENT};
   color: white;
   font-weight: 700;
   font-size: 18px;

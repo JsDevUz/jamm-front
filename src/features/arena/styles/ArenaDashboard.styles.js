@@ -5,6 +5,7 @@ export const ArenaContainer = styled.div`
   flex-direction: column;
   height: 100vh;
   overflow-y: auto;
+  padding: 32px 10px;
   background-color: var(--background-color);
 `;
 
@@ -12,7 +13,7 @@ export const ContentArea = styled.div`
   width: 100%;
   max-width: 1200px;
   margin: 0 auto;
-  padding: 32px;
+  padding: ${(props) => (props.$hasSidebar ? "32px" : "0px")};
 `;
 
 export const EmptyState = styled.div`

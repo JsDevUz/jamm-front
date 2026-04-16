@@ -3064,7 +3064,7 @@ const PdfPickerPageCard = ({ pdfDocument, pageNumber, active = false, onClick })
         scale: 1,
         rotation: resolvePdfPageRotation(page),
       });
-      const scale = targetWidth / Math.max(1, baseViewport.width);
+      const scale = Math.max(0.01, targetWidth / Math.max(1, baseViewport.width));
       const viewport = page.getViewport({
         scale,
         rotation: resolvePdfPageRotation(page),
@@ -6035,7 +6035,7 @@ const WhiteboardTile = ({
           }
           const rotation = resolvePdfPageRotation(page);
           const baseViewport = page.getViewport({ scale: 1, rotation });
-          const scale = activePdfRenderWidth / baseViewport.width;
+          const scale = Math.max(0.01, activePdfRenderWidth / baseViewport.width);
           const viewport = page.getViewport({ scale, rotation });
           const isMobilePdfClient = isMobilePdfBrowser();
           const ratio = isMobilePdfClient
@@ -6078,10 +6078,10 @@ const WhiteboardTile = ({
                   Math.max(1, viewport.width, viewport.height),
               ),
             );
-            canvas.width = Math.max(1, Math.floor(viewport.width * mobileRasterRatio));
-            canvas.height = Math.max(1, Math.floor(viewport.height * mobileRasterRatio));
-            canvas.style.width = `${viewport.width}px`;
-            canvas.style.height = `${viewport.height}px`;
+            canvas.width = Math.max(1, Math.floor(Math.max(1, viewport.width) * mobileRasterRatio));
+            canvas.height = Math.max(1, Math.floor(Math.max(1, viewport.height) * mobileRasterRatio));
+            canvas.style.width = `${Math.max(1, viewport.width)}px`;
+            canvas.style.height = `${Math.max(1, viewport.height)}px`;
             context.setTransform(mobileRasterRatio, 0, 0, mobileRasterRatio, 0, 0);
             context.clearRect(0, 0, canvas.width, canvas.height);
 
@@ -6155,8 +6155,8 @@ const WhiteboardTile = ({
             continue;
           }
 
-          renderCanvas.width = Math.max(1, Math.floor(rasterViewport.width * ratio));
-          renderCanvas.height = Math.max(1, Math.floor(rasterViewport.height * ratio));
+          renderCanvas.width = Math.max(1, Math.floor(Math.max(1, rasterViewport.width) * ratio));
+          renderCanvas.height = Math.max(1, Math.floor(Math.max(1, rasterViewport.height) * ratio));
           renderContext.setTransform(ratio, 0, 0, ratio, 0, 0);
 
           const renderIntoCanvas = async () => {

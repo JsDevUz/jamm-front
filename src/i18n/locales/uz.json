@@ -25,6 +25,7 @@
     "copy": "Nusxalash"
   },
   "navigation": {
+    "home": "Bosh sahifa",
     "feed": "Gurunglar",
     "articles": "Maqolalar",
     "chats": "Chatlar",
@@ -350,8 +351,7 @@
         "fileTooLarge": "{{type}} fayli maksimal {{size}}MB bo'lishi kerak"
       },
       "assignmentLabel": "{{index}}-vazifa",
-      "emptyAssignments": "Hali vazifalar qo'shilmagan"
-      ,
+      "emptyAssignments": "Hali vazifalar qo'shilmagan",
       "collapse": "Uyga vazifani yopish",
       "expand": "Uyga vazifani ochish"
     },
@@ -1114,13 +1114,34 @@
       "premium": "Premium"
     },
     "sections": {
-      "posts": { "title": "Gurunglar", "description": "Kunlik post va komment limitlari." },
-      "articles": { "title": "Maqolalar", "description": "Maqola yaratish va kontent sig'imi." },
-      "groups": { "title": "Guruhlar va chat", "description": "Guruhlar va xabar limitlari." },
-      "meets": { "title": "Video qo'ng'iroqlar", "description": "Meet yaratish va qatnashchi sig'imi." },
-      "courses": { "title": "Kurslar va darslar", "description": "Lesson media, test va homework limitlari." },
-      "arena": { "title": "Arena", "description": "Test, lug'at va gap tuzish limitlari." },
-      "profile": { "title": "Profil", "description": "Profil maydonlari va umumiy foydalanuvchi limitlari." }
+      "posts": {
+        "title": "Gurunglar",
+        "description": "Kunlik post va komment limitlari."
+      },
+      "articles": {
+        "title": "Maqolalar",
+        "description": "Maqola yaratish va kontent sig'imi."
+      },
+      "groups": {
+        "title": "Guruhlar va chat",
+        "description": "Guruhlar va xabar limitlari."
+      },
+      "meets": {
+        "title": "Video qo'ng'iroqlar",
+        "description": "Meet yaratish va qatnashchi sig'imi."
+      },
+      "courses": {
+        "title": "Kurslar va darslar",
+        "description": "Lesson media, test va homework limitlari."
+      },
+      "arena": {
+        "title": "Arena",
+        "description": "Test, lug'at va gap tuzish limitlari."
+      },
+      "profile": {
+        "title": "Profil",
+        "description": "Profil maydonlari va umumiy foydalanuvchi limitlari."
+      }
     },
     "items": {
       "postsPerDay": "Kuniga gurung",
