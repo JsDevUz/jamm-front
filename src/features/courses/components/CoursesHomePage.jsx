@@ -505,15 +505,21 @@ function getCourseHref(course, lessonSlug) {
   return lessonSlug ? `${base}/${lessonSlug}` : base;
 }
 
+function getEntityId(value) {
+  if (!value) return "";
+  if (typeof value === "string") return value;
+  return value._id || value.id || value.userId || "";
+}
+
 function getMemberStatus(course, userId) {
   if (!userId || !course) return "none";
-  if (String(course.createdBy || "") === String(userId)) {
+  if (String(getEntityId(course.createdBy || "")) === String(userId)) {
     return "owner";
   }
 
   const member = Array.isArray(course.members)
     ? course.members.find(
-        (item) => String(item?.userId || "") === String(userId),
+        (item) => String(getEntityId(item?.userId || item)) === String(userId),
       )
     : null;
 
@@ -539,6 +545,10 @@ function getLessonDurationSeconds(lesson) {
 }
 
 function hasLessonActivity(lesson) {
+  const hasAttendanceProgress =
+    Number(lesson?.selfAttendance?.progressPercent || 0) > 0 ||
+    lesson?.selfAttendance?.status === "present" ||
+    lesson?.selfAttendance?.status === "late";
   const hasHomeworkSubmission = Array.isArray(lesson?.homework?.assignments)
     ? lesson.homework.assignments.some((assignment) => Boolean(assignment?.selfSubmission))
     : false;
@@ -553,7 +563,7 @@ function hasLessonActivity(lesson) {
       })
     : false;
 
-  return hasHomeworkSubmission || hasLinkedTestProgress;
+  return hasAttendanceProgress || hasHomeworkSubmission || hasLinkedTestProgress;
 }
 
 function toContinueCard(course) {
@@ -593,7 +603,7 @@ function toContinueCard(course) {
   return {
     _id: course._id,
     urlSlug: course.urlSlug,
-    title: course.name,
+    title: course.name || course.title,
     category: course.category || "Course",
     gradient: course.gradient || "",
     thumbnailUrl: course.image || "",
@@ -616,7 +626,7 @@ function toRecommendedCard(course) {
   return {
     _id: course._id,
     urlSlug: course.urlSlug,
-    title: course.name,
+    title: course.name || course.title,
     category: course.category || "Course",
     gradient: course.gradient || "",
     thumbnailUrl: course.image || "",

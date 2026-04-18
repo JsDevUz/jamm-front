@@ -135,6 +135,28 @@ import {
   getYouTubeId,
 } from "../player/utils/coursePlayerUtils";
 
+function hasLessonActivity(lesson) {
+  const hasAttendanceProgress =
+    Number(lesson?.selfAttendance?.progressPercent || 0) > 0 ||
+    lesson?.selfAttendance?.status === "present" ||
+    lesson?.selfAttendance?.status === "late";
+  const hasHomeworkSubmission = Array.isArray(lesson?.homework?.assignments)
+    ? lesson.homework.assignments.some((assignment) => Boolean(assignment?.selfSubmission))
+    : false;
+  const hasLinkedTestProgress = Array.isArray(lesson?.linkedTests)
+    ? lesson.linkedTests.some((test) => {
+        const progress = test?.selfProgress;
+        return (
+          Number(progress?.attemptsCount || 0) > 0 ||
+          Number(progress?.percent || 0) > 0 ||
+          Boolean(progress?.completedAt)
+        );
+      })
+    : false;
+
+  return hasAttendanceProgress || hasHomeworkSubmission || hasLinkedTestProgress;
+}
+
 
 const CoursePlayer = ({
   courseId,
@@ -591,48 +613,6 @@ const CoursePlayer = ({
     }
   }, [course, initialLessonSlug]); // Intentionally not including activeLesson to avoid infinite loops if it changes via UI
 
-  useEffect(() => {
-    if (!course) return;
-    if (inlineMode) return;
-
-    const requestedLesson = initialLessonSlug
-      ? course.lessons.find(
-          (lesson) =>
-            lesson.urlSlug === initialLessonSlug ||
-            String(lesson._id) === initialLessonSlug ||
-            String(lesson.id) === initialLessonSlug,
-        )
-      : null;
-    const requestedLessonId =
-      requestedLesson?.urlSlug || requestedLesson?._id || requestedLesson?.id;
-    const currentLessonId =
-      currentLessonData?.urlSlug || currentLessonData?._id || currentLessonData?.id;
-
-    // On hard refresh, wait until the URL-selected lesson is applied to local state
-    // before writing a replacement URL. Otherwise we can bounce between lesson 1 and
-    // the requested lesson slug during hydration.
-    if (requestedLessonId && String(requestedLessonId) !== String(currentLessonId || "")) {
-      return;
-    }
-
-    const courseSlug = course.urlSlug || course._id || course.id;
-    const coursePath = `/courses/${courseSlug}`;
-    const lessonSlug =
-      currentLessonData?.urlSlug ||
-      currentLessonData?._id ||
-      currentLessonData?.id;
-
-    const nextPath = lessonSlug
-      ? `${coursePath}/${lessonSlug}`
-      : coursePath;
-
-    if (
-      window.location.pathname.startsWith(`${coursePath}/`) &&
-      window.location.pathname !== nextPath
-    ) {
-      navigate(nextPath, { replace: true });
-    }
-  }, [course, currentLessonData, initialLessonSlug, inlineMode, navigate]);
   const enrollStatus = enrollmentStatus;
   const canAccessLessons = isOwner || enrollStatus === "approved" || admin;
   const hasPassedRequiredTestsBeforeLesson = useCallback(
@@ -670,6 +650,30 @@ const CoursePlayer = ({
     [admin, canAccessLessons, hasPassedRequiredTestsBeforeLesson, isOwner],
   );
   const canAccessActiveLesson = canAccessLesson(activeLesson);
+  const resumeLessonIndex = useMemo(() => {
+    if (!course?.lessons?.length) return 0;
+
+    const progressRows = course.lessons.map((lesson, index) => ({
+      index,
+      lesson,
+      hasActivity: hasLessonActivity(lesson),
+      isUnlocked: canAccessLesson(index),
+    }));
+    const lastActiveIndex = progressRows.reduce(
+      (lastIndex, item) => (item.hasActivity ? item.index : lastIndex),
+      -1,
+    );
+    const resumeEntry =
+      progressRows.find(
+        (item) => item.isUnlocked && item.index > lastActiveIndex && !item.hasActivity,
+      ) ||
+      progressRows.find((item) => item.isUnlocked && item.hasActivity) ||
+      progressRows.find((item) => item.isUnlocked) ||
+      progressRows[0];
+
+    return Math.max(0, Number(resumeEntry?.index || 0));
+  }, [canAccessLesson, course?.lessons]);
+  const resumeLessonData = course?.lessons?.[resumeLessonIndex] || null;
 
   // Reset state when course changes
   useEffect(() => {
@@ -682,6 +686,69 @@ const CoursePlayer = ({
     setPlaybackUrl(null);
     setPlaybackStreamType("direct");
   }, [courseId]);
+
+  useEffect(() => {
+    if (!course || initialLessonSlug) return;
+    if (activeLesson === resumeLessonIndex) return;
+    setActiveLesson(resumeLessonIndex);
+  }, [activeLesson, course, initialLessonSlug, resumeLessonIndex]);
+
+  useEffect(() => {
+    if (!course) return;
+    if (inlineMode) return;
+
+    const requestedLesson = initialLessonSlug
+      ? course.lessons.find(
+          (lesson) =>
+            lesson.urlSlug === initialLessonSlug ||
+            String(lesson._id) === initialLessonSlug ||
+            String(lesson.id) === initialLessonSlug,
+        )
+      : null;
+    const requestedLessonId =
+      requestedLesson?.urlSlug || requestedLesson?._id || requestedLesson?.id;
+    const resumeLessonId =
+      resumeLessonData?.urlSlug || resumeLessonData?._id || resumeLessonData?.id;
+    const currentLessonId =
+      currentLessonData?.urlSlug || currentLessonData?._id || currentLessonData?.id;
+
+    // On hard refresh, wait until the URL-selected lesson is applied to local state
+    // before writing a replacement URL. Otherwise we can bounce between lesson 1 and
+    // the requested lesson slug during hydration.
+    if (requestedLessonId && String(requestedLessonId) !== String(currentLessonId || "")) {
+      return;
+    }
+
+    // When entering the course root without a lesson slug, wait until the
+    // resume lesson is selected locally before syncing the URL.
+    if (
+      !requestedLessonId &&
+      resumeLessonId &&
+      String(resumeLessonId) !== String(currentLessonId || "")
+    ) {
+      return;
+    }
+
+    const courseSlug = course.urlSlug || course._id || course.id;
+    const coursePath = `/courses/${courseSlug}`;
+    const lessonSlug =
+      currentLessonData?.urlSlug ||
+      currentLessonData?._id ||
+      currentLessonData?.id;
+
+    const nextPath = lessonSlug
+      ? `${coursePath}/${lessonSlug}`
+      : coursePath;
+
+    if (
+      (window.location.pathname === coursePath ||
+        window.location.pathname === `${coursePath}/` ||
+        window.location.pathname.startsWith(`${coursePath}/`)) &&
+      window.location.pathname !== nextPath
+    ) {
+      navigate(nextPath, { replace: true });
+    }
+  }, [course, currentLessonData, initialLessonSlug, inlineMode, navigate, resumeLessonData]);
 
   useEffect(() => {
     if (!lessonMediaItems.length) {
