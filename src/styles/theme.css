@@ -16,6 +16,9 @@
   --danger-color: #f04747;
   --input-color: #40444b;
   --placeholder-color: #72767d;
+  --scrollbar-track-color: #2f3136;
+  --scrollbar-thumb-color: #4f545c;
+  --scrollbar-thumb-hover-color: #6a7079;
 }
 
 /* Light Theme */
@@ -35,6 +38,9 @@
   --danger-color: #ed4245;
   --input-color: #ebedef;
   --placeholder-color: #747f8d;
+  --scrollbar-track-color: #eef1f4;
+  --scrollbar-thumb-color: #c6ccd5;
+  --scrollbar-thumb-hover-color: #aab3bf;
 }
 
 /* Dark Theme (Default) */
@@ -54,6 +60,9 @@
   --danger-color: #f04747;
   --input-color: #40444b;
   --placeholder-color: #72767d;
+  --scrollbar-track-color: #2f3136;
+  --scrollbar-thumb-color: #4f545c;
+  --scrollbar-thumb-hover-color: #6a7079;
 }
 
 /* Base styles that use CSS variables */

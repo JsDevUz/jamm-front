@@ -20,6 +20,13 @@ export const createCourse = async (payload) => {
   return data;
 };
 
+export const uploadCourseImage = async (file) => {
+  const formData = new FormData();
+  formData.append("file", file);
+  const { data } = await axiosInstance.post("/courses/upload-image", formData);
+  return data;
+};
+
 export const removeCourse = async (courseId) => {
   await axiosInstance.delete(`/courses/${courseId}`);
 };
@@ -120,10 +127,18 @@ export const markOwnAttendance = async ({
   courseId,
   lessonId,
   progressPercent,
+  lastPositionSeconds,
+  lessonDurationSeconds,
+  watchIncrement,
 }) => {
   const { data } = await axiosInstance.post(
     `/courses/${courseId}/lessons/${lessonId}/attendance/self`,
-    { progressPercent },
+    {
+      progressPercent,
+      lastPositionSeconds,
+      lessonDurationSeconds,
+      watchIncrement,
+    },
   );
   return data;
 };

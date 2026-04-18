@@ -28,7 +28,6 @@ import {
 import {
   AssignmentTabButton,
   AssignmentTabs,
-  EmptyHomework,
   HomeworkActions,
   HomeworkBody,
   HomeworkButton,
@@ -240,6 +239,7 @@ const CoursePlayerHomeworkSection = ({
   const [selectedAssignmentId, setSelectedAssignmentId] = useState(null);
   const [isAssignmentEditorOpen, setIsAssignmentEditorOpen] = useState(false);
   const [isStudentSectionOpen, setIsStudentSectionOpen] = useState(false);
+  const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [deadline, setDeadline] = useState("");
@@ -311,6 +311,7 @@ const CoursePlayerHomeworkSection = ({
 
   useEffect(() => {
     if (!selectedAssignment) {
+      setIsSubmitModalOpen(false);
       setTitle("");
       setDescription("");
       setDeadline("");
@@ -503,6 +504,21 @@ const CoursePlayerHomeworkSection = ({
     setSubmissionFile(null);
   };
 
+  const handleCancelAssignmentEditor = () => {
+    if (!selectedAssignment?.assignmentId?.startsWith?.("draft-")) {
+      setIsAssignmentEditorOpen(false);
+      return;
+    }
+
+    setHomeworkData((prev) => ({
+      assignments: (prev?.assignments || []).filter(
+        (assignment) => assignment.assignmentId !== selectedAssignment.assignmentId,
+      ),
+    }));
+    setSelectedAssignmentId(assignments[0]?.assignmentId || null);
+    setIsAssignmentEditorOpen(false);
+  };
+
   const handleSaveHomework = async () => {
     const data = await upsertLessonHomework(courseId, lessonId, {
       assignmentId: selectedAssignment?.assignmentId || undefined,
@@ -625,9 +641,13 @@ const CoursePlayerHomeworkSection = ({
     });
     setHomeworkData(data);
     setSelectedAssignmentId(selectedAssignment.assignmentId);
+    setIsSubmitModalOpen(false);
   };
 
-  const handleReview = async (userId, status) => {
+  const handleReview = async (submission, status) => {
+    const userId = submission?.userId;
+    if (!userId) return;
+
     const data = await reviewLessonHomework(
       courseId,
       lessonId,
@@ -637,9 +657,12 @@ const CoursePlayerHomeworkSection = ({
         status,
         score:
           reviewScore[userId] === "" || reviewScore[userId] === undefined
-            ? null
+            ? submission?.score ?? null
             : Number(reviewScore[userId]),
-        feedback: reviewFeedback[userId] || "",
+        feedback:
+          reviewFeedback[userId] === undefined
+            ? submission?.feedback || ""
+            : reviewFeedback[userId] || "",
       },
     );
     setHomeworkData(data);
@@ -664,104 +687,450 @@ const CoursePlayerHomeworkSection = ({
       </AssignmentTabs>
     ) : null;
 
-  return (
-    <HomeworkSection>
-      <HomeworkHeader>
-        <div>
-          <HomeworkTitle>{t("coursePlayer.homework.title")}</HomeworkTitle>
-          <HomeworkHint>
-            {loading
-              ? t("common.loading")
-              : admin
-                ? t("coursePlayer.homework.adminHint")
-                : t("coursePlayer.homework.studentHint")}
-          </HomeworkHint>
-        </div>
-        {!admin && showCollapseToggle ? (
-          <HomeworkButton
-            type="button"
-            onClick={() => setIsStudentSectionOpen((prev) => !prev)}
-            aria-label={
-              isStudentSectionOpen
-                ? t("coursePlayer.homework.collapse")
-                : t("coursePlayer.homework.expand")
-            }
-            title={
-              isStudentSectionOpen
-                ? t("coursePlayer.homework.collapse")
-                : t("coursePlayer.homework.expand")
-            }
-          >
-            {isStudentSectionOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+  if (!loading && !assignments.length && !admin) return null;
+
+  const renderAdminAssignmentEditor = () => (
+    <HomeworkCard>
+      <HomeworkTitle>
+        {selectedAssignment?.assignmentId
+          ? t("coursePlayer.homework.editDialogTitle")
+          : t("coursePlayer.homework.createDialogTitle")}
+      </HomeworkTitle>
+      <HomeworkHint>{t("coursePlayer.homework.dialogSubtitle")}</HomeworkHint>
+
+      <HomeworkForm>
+        <HomeworkField>
+          <HomeworkFieldLabel>{t("coursePlayer.homework.fields.title")}</HomeworkFieldLabel>
+          <HomeworkInput
+            value={title}
+            onChange={(event) => setTitle(event.target.value)}
+            placeholder={t("coursePlayer.homework.fields.title")}
+          />
+        </HomeworkField>
+
+        <HomeworkField>
+          <HomeworkFieldLabel>
+            {t("coursePlayer.homework.fields.description")}
+          </HomeworkFieldLabel>
+          <HomeworkTextarea
+            value={description}
+            onChange={(event) => setDescription(event.target.value)}
+            placeholder={t("coursePlayer.homework.fields.description")}
+          />
+        </HomeworkField>
+
+        <HomeworkFieldRow>
+          <HomeworkField>
+            <HomeworkFieldLabel>{t("coursePlayer.homework.typeLabel")}</HomeworkFieldLabel>
+            <HomeworkSelect
+              value={homeworkType}
+              onChange={(event) => setHomeworkType(event.target.value)}
+            >
+              {typeOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </HomeworkSelect>
+          </HomeworkField>
+
+          <HomeworkField>
+            <HomeworkFieldLabel>{t("coursePlayer.homework.deadline")}</HomeworkFieldLabel>
+            <HomeworkInput
+              type="datetime-local"
+              value={deadline}
+              onChange={(event) => setDeadline(event.target.value)}
+            />
+          </HomeworkField>
+        </HomeworkFieldRow>
+
+        <HomeworkField>
+          <HomeworkFieldLabel>{t("coursePlayer.homework.maxScore")}</HomeworkFieldLabel>
+          <HomeworkInput
+            type="number"
+            min="0"
+            max="100"
+            value={maxScore}
+            onChange={(event) => setMaxScore(event.target.value)}
+          />
+        </HomeworkField>
+      </HomeworkForm>
+
+      <HomeworkActions>
+        {selectedAssignment ? (
+          <HomeworkButton type="button" onClick={handleDeleteAssignment}>
+            <Trash2 size={14} />
+            {t("coursePlayer.homework.delete")}
           </HomeworkButton>
         ) : null}
-      </HomeworkHeader>
+        <HomeworkButton
+          type="button"
+          onClick={handleCancelAssignmentEditor}
+        >
+          {t("common.cancel")}
+        </HomeworkButton>
+        <HomeworkButton
+          type="button"
+          $primary
+          disabled={!title.trim()}
+          onClick={handleSaveHomework}
+        >
+          {t("coursePlayer.homework.save")}
+        </HomeworkButton>
+      </HomeworkActions>
+    </HomeworkCard>
+  );
 
-      {!admin && !(forceExpanded || isStudentSectionOpen) ? null : renderAssignmentTabs()}
+  const renderAdminAssignmentSummary = () =>
+    selectedAssignment ? (
+      <HomeworkCard>
+        <HomeworkTitle>{selectedAssignment.title}</HomeworkTitle>
+        <HomeworkBody>{selectedAssignment.description}</HomeworkBody>
+        <HomeworkMeta>
+          <span>
+            {t("coursePlayer.homework.typeLabel")}:{" "}
+            {t(`coursePlayer.homework.types.${selectedAssignment.type || "text"}`)}
+          </span>
+          <span>
+            {t("coursePlayer.homework.deadline")}:{" "}
+            {selectedAssignment.deadline
+              ? new Date(selectedAssignment.deadline).toLocaleDateString()
+              : t("coursePlayer.homework.noDeadline")}
+          </span>
+          <span>
+            {t("coursePlayer.homework.maxScore")}: {selectedAssignment.maxScore}
+          </span>
+          <span>
+            {t("coursePlayer.homework.submissions")}:{" "}
+            {selectedAssignment.submissionCount || selectedAssignment.submissions?.length || 0}
+          </span>
+        </HomeworkMeta>
+        <HomeworkActions>
+          <HomeworkButton
+            type="button"
+            onClick={() => setIsAssignmentEditorOpen(true)}
+          >
+            <Edit2 size={14} />
+            {t("common.edit")}
+          </HomeworkButton>
+          <HomeworkButton type="button" onClick={handleDeleteAssignment}>
+            <Trash2 size={14} />
+            {t("coursePlayer.homework.delete")}
+          </HomeworkButton>
+        </HomeworkActions>
+      </HomeworkCard>
+    ) : (
+      <HomeworkCard>
+        <HomeworkHint>{t("coursePlayer.homework.emptyAssignments")}</HomeworkHint>
+      </HomeworkCard>
+    );
 
-      {admin ? (
+  const renderAdminSubmissions = () => {
+    if (!selectedAssignment) return null;
+
+    const submissions = Array.isArray(selectedAssignment.submissions)
+      ? selectedAssignment.submissions
+      : [];
+
+    return (
+      <HomeworkCard>
+        <HomeworkTitle>{t("coursePlayer.homework.submissions")}</HomeworkTitle>
+        {!submissions.length ? (
+          <HomeworkHint>{t("coursePlayer.homework.emptySubmissions")}</HomeworkHint>
+        ) : (
+          <SubmissionList>
+            {submissions.map((submission) => {
+              const submissionUserId = String(submission.userId || "");
+              const nextScore =
+                reviewScore[submissionUserId] ?? submission.score ?? "";
+              const nextFeedback =
+                reviewFeedback[submissionUserId] ?? submission.feedback ?? "";
+
+              return (
+                <SubmissionRow key={submissionUserId || submission.submittedAt}>
+                  <SubmissionHeader>
+                    <div>
+                      <SubmissionName>
+                        {submission.userName || t("common.userFallback")}
+                      </SubmissionName>
+                      <HomeworkFileMeta>
+                        {submission.submittedAt
+                          ? new Date(submission.submittedAt).toLocaleString()
+                          : t("common.loading")}
+                      </HomeworkFileMeta>
+                    </div>
+                    <SubmissionStatus $status={submission.status}>
+                      {t(`coursePlayer.homework.status.${submission.status}`)}
+                    </SubmissionStatus>
+                  </SubmissionHeader>
+
+                  {submission.text ? (
+                    <SubmissionText>{submission.text}</SubmissionText>
+                  ) : null}
+
+                  {submission.link ? (
+                    <SubmissionLink
+                      href={submission.link}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      {submission.link}
+                    </SubmissionLink>
+                  ) : null}
+
+                  {submission.fileUrl ? (
+                    <>
+                      <SubmissionLink
+                        href={submission.fileUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        {submission.fileName || t("coursePlayer.homework.fileUploaded")}
+                      </SubmissionLink>
+                      <SubmissionFileMeta>
+                        {formatFileSize(submission.fileSize || 0)}
+                      </SubmissionFileMeta>
+                      {renderSubmissionPreview(
+                        submission,
+                        selectedAssignment.type || "text",
+                        selectedAssignment.assignmentId,
+                      )}
+                    </>
+                  ) : null}
+
+                  <HomeworkFieldRow>
+                    <HomeworkField>
+                      <HomeworkFieldLabel>
+                        {t("coursePlayer.homework.fields.score")}
+                      </HomeworkFieldLabel>
+                      <HomeworkInput
+                        type="number"
+                        min="0"
+                        max={selectedAssignment.maxScore || 100}
+                        value={nextScore}
+                        onChange={(event) =>
+                          setReviewScore((prev) => ({
+                            ...prev,
+                            [submissionUserId]: event.target.value,
+                          }))
+                        }
+                      />
+                    </HomeworkField>
+
+                    <HomeworkField>
+                      <HomeworkFieldLabel>
+                        {t("coursePlayer.homework.fields.feedback")}
+                      </HomeworkFieldLabel>
+                      <HomeworkTextarea
+                        value={nextFeedback}
+                        onChange={(event) =>
+                          setReviewFeedback((prev) => ({
+                            ...prev,
+                            [submissionUserId]: event.target.value,
+                          }))
+                        }
+                        placeholder={t("coursePlayer.homework.fields.feedback")}
+                      />
+                    </HomeworkField>
+                  </HomeworkFieldRow>
+
+                  <HomeworkActions>
+                    <HomeworkButton
+                      type="button"
+                      onClick={() => handleReview(submission, "needs_revision")}
+                    >
+                      {t("coursePlayer.homework.needsRevision")}
+                    </HomeworkButton>
+                    <HomeworkButton
+                      type="button"
+                      $primary
+                      onClick={() => handleReview(submission, "reviewed")}
+                    >
+                      {t("coursePlayer.homework.review")}
+                    </HomeworkButton>
+                  </HomeworkActions>
+                </SubmissionRow>
+              );
+            })}
+          </SubmissionList>
+        )}
+      </HomeworkCard>
+    );
+  };
+
+  const renderStudentSubmissionForm = () => (
+    <>
+      {selectedAssignment.selfSubmission ? (
         <>
-          <HomeworkActions>
-            <HomeworkButton
-              type="button"
-              $primary
-              $iconOnly
-              onClick={handleCreateAssignment}
-              disabled={!canAddMoreAssignments}
-              aria-label={t("coursePlayer.homework.addAnother")}
-              title={t("coursePlayer.homework.addAnother")}
+          <HomeworkMeta>
+            <span>
+              {t("coursePlayer.homework.statusLabel")}:{" "}
+              {t(
+                `coursePlayer.homework.status.${selectedAssignment.selfSubmission.status}`,
+              )}
+            </span>
+            <span>
+              {t("coursePlayer.homework.scoreLabel")}:{" "}
+              {selectedAssignment.selfSubmission.score ?? "-"}
+            </span>
+          </HomeworkMeta>
+          {selectedAssignment.selfSubmission.text ? (
+            <HomeworkBody>{selectedAssignment.selfSubmission.text}</HomeworkBody>
+          ) : null}
+          {selectedAssignment.selfSubmission.link ? (
+            <SubmissionLink
+              href={selectedAssignment.selfSubmission.link}
+              target="_blank"
+              rel="noreferrer"
             >
-              <Plus size={14} />
-            </HomeworkButton>
-            {selectedAssignment ? (
-              <HomeworkButton
-                type="button"
-                $iconOnly
-                onClick={() => setIsAssignmentEditorOpen((prev) => !prev)}
-                aria-label={isAssignmentEditorOpen ? t("common.cancel") : t("common.edit")}
-                title={isAssignmentEditorOpen ? t("common.cancel") : t("common.edit")}
-              >
-                {isAssignmentEditorOpen ? <X size={14} /> : <Edit2 size={14} />}
-              </HomeworkButton>
-            ) : null}
-            {selectedAssignment ? (
-              <HomeworkButton
-                type="button"
-                $iconOnly
-                onClick={handleDeleteAssignment}
-                aria-label={t("coursePlayer.homework.delete")}
-                title={t("coursePlayer.homework.delete")}
-              >
-                <Trash2 size={14} />
-              </HomeworkButton>
-            ) : null}
-          </HomeworkActions>
-
-          {loading ? (
-            <HomeworkCard>
-              <SkeletonRow gap="10px" mb="0">
-                <SkeletonCircle size="30px" />
-                <Skeleton width="36%" height="14px" borderRadius="8px" mb="0" />
-              </SkeletonRow>
-              <Skeleton width="100%" height="42px" borderRadius="10px" />
-              <Skeleton width="100%" height="68px" borderRadius="10px" />
-              <SkeletonRow gap="8px" mb="0">
-                <Skeleton width="50%" height="38px" borderRadius="10px" mb="0" />
-                <Skeleton width="50%" height="38px" borderRadius="10px" mb="0" />
-              </SkeletonRow>
-            </HomeworkCard>
-          ) : !selectedAssignment && !isAssignmentEditorOpen ? (
-            <EmptyHomework>{t("coursePlayer.homework.emptyAssignments")}</EmptyHomework>
+              {selectedAssignment.selfSubmission.link}
+            </SubmissionLink>
           ) : null}
-          {!canAddMoreAssignments ? (
+          {selectedAssignment.selfSubmission.fileUrl ? (
+            <>
+              <SubmissionLink
+                href={selectedAssignment.selfSubmission.fileUrl}
+                target="_blank"
+                rel="noreferrer"
+              >
+                {selectedAssignment.selfSubmission.fileName ||
+                  t("coursePlayer.homework.fileUploaded")}
+              </SubmissionLink>
+              <SubmissionFileMeta>
+                {formatFileSize(
+                  selectedAssignment.selfSubmission.fileSize || 0,
+                )}
+              </SubmissionFileMeta>
+              {renderSubmissionPreview(
+                selectedAssignment.selfSubmission,
+                selectedAssignment.type || "text",
+                selectedAssignment.assignmentId,
+              )}
+            </>
+          ) : null}
+        </>
+      ) : null}
+      {selectedAssignment.selfSubmission?.feedback ? (
+        <HomeworkBody>{selectedAssignment.selfSubmission.feedback}</HomeworkBody>
+      ) : null}
+
+      {!hasLockedSubmission ? (
+        <>
+          {selectedAssignment.type === "text" ? (
+            <HomeworkTextarea
+              value={submissionText}
+              placeholder={t("coursePlayer.homework.fields.answer")}
+              onChange={(event) => setSubmissionText(event.target.value)}
+            />
+          ) : (
+            <>
+              {!submissionFile && !existingSubmissionFile ? (
+                <HomeworkFileLabel>
+                  <Upload size={18} />
+                  <span>{t("coursePlayer.homework.fields.file")}</span>
+                  <HomeworkFileMeta>
+                    {t("coursePlayer.homework.fileHint", {
+                      type: t(`coursePlayer.homework.types.${currentHomeworkType}`),
+                      size: currentHomeworkFileLimitMb,
+                    })}
+                  </HomeworkFileMeta>
+                  <HomeworkFileInput
+                    ref={fileInputRef}
+                    type="file"
+                    accept={
+                      currentHomeworkType === "audio"
+                        ? "audio/*"
+                        : currentHomeworkType === "video"
+                          ? "video/*"
+                          : currentHomeworkType === "pdf"
+                            ? "application/pdf"
+                            : "image/*"
+                    }
+                    onChange={handleFileChange}
+                  />
+                </HomeworkFileLabel>
+              ) : (
+                <SubmissionFileMeta>
+                  {(submissionFile?.name || existingSubmissionFile?.fileName) ??
+                    t("coursePlayer.homework.fileUploaded")}
+                  {" • "}
+                  {formatFileSize(
+                    submissionFile?.size || existingSubmissionFile?.fileSize || 0,
+                  )}
+                </SubmissionFileMeta>
+              )}
+              <HomeworkInput
+                value={submissionText}
+                placeholder={t("coursePlayer.homework.fields.note")}
+                onChange={(event) => setSubmissionText(event.target.value)}
+              />
+            </>
+          )}
+
+          <HomeworkInput
+            value={submissionLink}
+            placeholder={t("coursePlayer.homework.fields.link")}
+            onChange={(event) => setSubmissionLink(event.target.value)}
+          />
+        </>
+      ) : (
+        <HomeworkHint>
+          {t("coursePlayer.homework.alreadySubmitted")}
+        </HomeworkHint>
+      )}
+    </>
+  );
+
+  return (
+    <>
+      <HomeworkSection>
+        <HomeworkHeader>
+          <div>
+            <HomeworkTitle>{t("coursePlayer.homework.title")}</HomeworkTitle>
             <HomeworkHint>
-              {t("coursePlayer.homework.errors.limitReached", {
-                count: homeworkAssignmentLimit,
-              })}
+              {loading
+                ? t("common.loading")
+                : admin
+                  ? t("coursePlayer.homework.adminHint")
+                  : t("coursePlayer.homework.studentHint")}
             </HomeworkHint>
+          </div>
+          {admin ? (
+            <HomeworkActions>
+              <HomeworkButton
+                type="button"
+                disabled={!canAddMoreAssignments}
+                onClick={handleCreateAssignment}
+              >
+                <Plus size={14} />
+                {t("coursePlayer.homework.addAnother")}
+              </HomeworkButton>
+              {selectedAssignment ? (
+                <HomeworkButton
+                  type="button"
+                  onClick={() => setIsAssignmentEditorOpen((prev) => !prev)}
+                >
+                  <Edit2 size={14} />
+                  {t("common.edit")}
+                </HomeworkButton>
+              ) : null}
+            </HomeworkActions>
           ) : null}
+        </HomeworkHeader>
 
-          {selectedAssignment ? (
+        {admin || forceExpanded || isStudentSectionOpen ? renderAssignmentTabs() : null}
+
+        {admin ? (
+          <>
+            {isAssignmentEditorOpen
+              ? renderAdminAssignmentEditor()
+              : renderAdminAssignmentSummary()}
+            {renderAdminSubmissions()}
+          </>
+        ) : null}
+
+        {admin ? null : !(forceExpanded || isStudentSectionOpen) ? null : assignments.length ? (
+          selectedAssignment ? (
             <>
               <HomeworkCard>
                 <HomeworkTitle>{selectedAssignment.title}</HomeworkTitle>
@@ -774,385 +1143,95 @@ const CoursePlayerHomeworkSection = ({
                   <span>
                     {t("coursePlayer.homework.deadline")}:{" "}
                     {selectedAssignment.deadline
-                      ? new Date(selectedAssignment.deadline).toLocaleString()
+                      ? new Date(selectedAssignment.deadline).toLocaleDateString()
                       : t("coursePlayer.homework.noDeadline")}
                   </span>
                   <span>
                     {t("coursePlayer.homework.maxScore")}: {selectedAssignment.maxScore}
                   </span>
-                  <span>
-                    {t("coursePlayer.homework.submissions")}:{" "}
-                    {selectedAssignment.submissionCount || 0}
-                  </span>
                 </HomeworkMeta>
+                <HomeworkActions>
+                  <HomeworkButton
+                    type="button"
+                    $primary
+                    onClick={() => setIsSubmitModalOpen(true)}
+                  >
+                    {canResubmit
+                      ? t("coursePlayer.homework.resubmit")
+                      : t("coursePlayer.homework.submit")}
+                  </HomeworkButton>
+                </HomeworkActions>
               </HomeworkCard>
 
-              {selectedAssignment.submissions?.length ? (
-                <SubmissionList>
-                  {selectedAssignment.submissions.map((submission) => (
-                    <SubmissionRow key={String(submission.userId)}>
-                      <SubmissionHeader>
-                        <SubmissionName>{submission.userName}</SubmissionName>
-                        <SubmissionStatus $status={submission.status}>
-                          {t(`coursePlayer.homework.status.${submission.status}`)}
-                        </SubmissionStatus>
-                      </SubmissionHeader>
-                      {submission.text ? (
-                        <SubmissionText>{submission.text}</SubmissionText>
-                      ) : null}
-                      {submission.link ? (
-                        <SubmissionLink
-                          href={submission.link}
-                          target="_blank"
-                          rel="noreferrer"
-                        >
-                          {submission.link}
-                        </SubmissionLink>
-                      ) : null}
-                      {submission.fileUrl ? (
-                        <>
-                          <SubmissionLink
-                            href={submission.fileUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                          >
-                            {submission.fileName || t("coursePlayer.homework.fileUploaded")}
-                          </SubmissionLink>
-                          <SubmissionFileMeta>
-                            {formatFileSize(submission.fileSize || 0)}
-                          </SubmissionFileMeta>
-                          {renderSubmissionPreview(
-                            submission,
-                            selectedAssignment.type || "text",
-                            selectedAssignment.assignmentId,
-                          )}
-                        </>
-                      ) : null}
-                      {submission.status === "submitted" ? (
-                        <>
-                          <HomeworkInput
-                            type="number"
-                            min="0"
-                            max={selectedAssignment.maxScore || 100}
-                            value={reviewScore[submission.userId] ?? submission.score ?? ""}
-                            placeholder={t("coursePlayer.homework.fields.score")}
-                            onChange={(event) =>
-                              setReviewScore((prev) => ({
-                                ...prev,
-                                [submission.userId]: event.target.value,
-                              }))
-                            }
-                          />
-                          <HomeworkTextarea
-                            value={
-                              reviewFeedback[submission.userId] ??
-                              submission.feedback ??
-                              ""
-                            }
-                            placeholder={t("coursePlayer.homework.fields.feedback")}
-                            onChange={(event) =>
-                              setReviewFeedback((prev) => ({
-                                ...prev,
-                                [submission.userId]: event.target.value,
-                              }))
-                            }
-                          />
-                          <HomeworkActions>
-                            <HomeworkButton
-                              type="button"
-                              onClick={() =>
-                                handleReview(String(submission.userId), "needs_revision")
-                              }
-                            >
-                              {t("coursePlayer.homework.needsRevision")}
-                            </HomeworkButton>
-                            <HomeworkButton
-                              type="button"
-                              $primary
-                              onClick={() =>
-                                handleReview(String(submission.userId), "reviewed")
-                              }
-                            >
-                              {t("coursePlayer.homework.review")}
-                            </HomeworkButton>
-                          </HomeworkActions>
-                        </>
-                      ) : null}
-                    </SubmissionRow>
-                  ))}
-                </SubmissionList>
-              ) : (
-                <EmptyHomework>{t("coursePlayer.homework.emptySubmissions")}</EmptyHomework>
-              )}
-            </>
-          ) : null}
-        </>
-      ) : !(forceExpanded || isStudentSectionOpen) ? null : assignments.length ? (
-        selectedAssignment ? (
-          <>
-            <HomeworkCard>
-              <HomeworkTitle>{selectedAssignment.title}</HomeworkTitle>
-              <HomeworkBody>{selectedAssignment.description}</HomeworkBody>
-              <HomeworkMeta>
-                <span>
-                  {t("coursePlayer.homework.typeLabel")}:{" "}
-                  {t(`coursePlayer.homework.types.${selectedAssignment.type || "text"}`)}
-                </span>
-                <span>
-                  {t("coursePlayer.homework.deadline")}:{" "}
-                  {selectedAssignment.deadline
-                    ? new Date(selectedAssignment.deadline).toLocaleDateString()
-                    : t("coursePlayer.homework.noDeadline")}
-                </span>
-                <span>
-                  {t("coursePlayer.homework.maxScore")}: {selectedAssignment.maxScore}
-                </span>
-              </HomeworkMeta>
-            </HomeworkCard>
-
-            <HomeworkCard>
               {selectedAssignment.selfSubmission ? (
-                <>
-                  <HomeworkMeta>
-                    <span>
-                      {t("coursePlayer.homework.statusLabel")}:{" "}
-                      {t(
-                        `coursePlayer.homework.status.${selectedAssignment.selfSubmission.status}`,
-                      )}
-                    </span>
-                    <span>
-                      {t("coursePlayer.homework.scoreLabel")}:{" "}
-                      {selectedAssignment.selfSubmission.score ?? "-"}
-                    </span>
-                  </HomeworkMeta>
-                  {selectedAssignment.selfSubmission.text ? (
-                    <HomeworkBody>{selectedAssignment.selfSubmission.text}</HomeworkBody>
+                <HomeworkCard>
+                  <HomeworkTitle>
+                    {t("coursePlayer.homework.submit")}
+                  </HomeworkTitle>
+                  {selectedAssignment.selfSubmission?.feedback ? (
+                    <HomeworkBody>{selectedAssignment.selfSubmission.feedback}</HomeworkBody>
                   ) : null}
-                  {selectedAssignment.selfSubmission.link ? (
-                    <SubmissionLink
-                      href={selectedAssignment.selfSubmission.link}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      {selectedAssignment.selfSubmission.link}
-                    </SubmissionLink>
-                  ) : null}
-                  {selectedAssignment.selfSubmission.fileUrl ? (
-                    <>
-                      <SubmissionLink
-                        href={selectedAssignment.selfSubmission.fileUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        {selectedAssignment.selfSubmission.fileName ||
-                          t("coursePlayer.homework.fileUploaded")}
-                      </SubmissionLink>
-                      <SubmissionFileMeta>
-                        {formatFileSize(
-                          selectedAssignment.selfSubmission.fileSize || 0,
-                        )}
-                      </SubmissionFileMeta>
-                      {renderSubmissionPreview(
-                        selectedAssignment.selfSubmission,
-                        selectedAssignment.type || "text",
-                        selectedAssignment.assignmentId,
-                      )}
-                    </>
-                  ) : null}
-                </>
+                  {renderStudentSubmissionForm()}
+                </HomeworkCard>
               ) : null}
-              {selectedAssignment.selfSubmission?.feedback ? (
-                <HomeworkBody>{selectedAssignment.selfSubmission.feedback}</HomeworkBody>
-              ) : null}
+            </>
+          ) : null
+        ) : null}
+      </HomeworkSection>
 
-              {!hasLockedSubmission ? (
-                <>
-                  {selectedAssignment.type === "text" ? (
-                    <HomeworkTextarea
-                      value={submissionText}
-                      placeholder={t("coursePlayer.homework.fields.answer")}
-                      onChange={(event) => setSubmissionText(event.target.value)}
-                    />
-                  ) : (
-                    <>
-                      {!submissionFile && !existingSubmissionFile ? (
-                        <HomeworkFileLabel>
-                          <Upload size={18} />
-                          <span>{t("coursePlayer.homework.fields.file")}</span>
-                          <HomeworkFileMeta>
-                            {t("coursePlayer.homework.fileHint", {
-                              type: t(`coursePlayer.homework.types.${currentHomeworkType}`),
-                              size: currentHomeworkFileLimitMb,
-                            })}
-                          </HomeworkFileMeta>
-                          <HomeworkFileInput
-                            ref={fileInputRef}
-                            type="file"
-                            accept={
-                              currentHomeworkType === "audio"
-                                ? "audio/*"
-                                : currentHomeworkType === "video"
-                                  ? "video/*"
-                                  : currentHomeworkType === "pdf"
-                                    ? "application/pdf"
-                                    : "image/*"
-                            }
-                            onChange={handleFileChange}
-                          />
-                        </HomeworkFileLabel>
-                      ) : (
-                        <SubmissionFileMeta>
-                          {(submissionFile?.name || existingSubmissionFile?.fileName) ??
-                            t("coursePlayer.homework.fileUploaded")}
-                          {" • "}
-                          {formatFileSize(
-                            submissionFile?.size || existingSubmissionFile?.fileSize || 0,
-                          )}
-                        </SubmissionFileMeta>
-                      )}
-                      <HomeworkInput
-                        value={submissionText}
-                        placeholder={t("coursePlayer.homework.fields.note")}
-                        onChange={(event) => setSubmissionText(event.target.value)}
-                      />
-                    </>
-                  )}
-
-                  <HomeworkInput
-                    value={submissionLink}
-                    placeholder={t("coursePlayer.homework.fields.link")}
-                    onChange={(event) => setSubmissionLink(event.target.value)}
-                  />
-
-                  <HomeworkActions>
-                    <HomeworkButton
-                      type="button"
-                      $primary
-                      disabled={!canSubmitStudentHomework || isUploading}
-                      onClick={handleSubmitHomework}
-                    >
-                      {isUploading
-                        ? t("coursePlayer.homework.uploading")
-                        : canResubmit
-                          ? t("coursePlayer.homework.resubmit")
-                          : t("coursePlayer.homework.submit")}
-                    </HomeworkButton>
-                  </HomeworkActions>
-                </>
-              ) : (
-                <HomeworkHint>
-                  {t("coursePlayer.homework.alreadySubmitted")}
-                </HomeworkHint>
-              )}
-            </HomeworkCard>
-          </>
-        ) : (
-          <EmptyHomework>{t("coursePlayer.homework.emptyAssignments")}</EmptyHomework>
-        )
-      ) : (
-        <EmptyHomework>{t("coursePlayer.homework.disabledStudent")}</EmptyHomework>
-      )}
-
-      {admin && isAssignmentEditorOpen ? (
-        <ModalOverlay onClick={() => setIsAssignmentEditorOpen(false)} $zIndex={10030}>
+      {!admin && selectedAssignment && isSubmitModalOpen ? (
+        <ModalOverlay onClick={() => setIsSubmitModalOpen(false)}>
           <ModalPanel
+            $width="min(100%, 760px)"
+            $maxHeight="90vh"
             onClick={(event) => event.stopPropagation()}
-            $width="min(100%, 560px)"
-            $maxHeight="88vh"
           >
-            <ModalHeader $padding="14px 16px">
+            <ModalHeader>
               <ModalTitleBlock>
-                <ModalTitle>
-                  {selectedAssignment?.title
-                    ? t("coursePlayer.homework.editDialogTitle")
-                    : t("coursePlayer.homework.createDialogTitle")}
-                </ModalTitle>
-                <ModalSubtitle>{t("coursePlayer.homework.dialogSubtitle")}</ModalSubtitle>
+                <ModalTitle>{selectedAssignment.title}</ModalTitle>
+                <ModalSubtitle>
+                  {t(`coursePlayer.homework.types.${selectedAssignment.type || "text"}`)}
+                </ModalSubtitle>
               </ModalTitleBlock>
-              <ModalCloseButton onClick={() => setIsAssignmentEditorOpen(false)}>
-                <X size={16} />
+              <ModalCloseButton
+                type="button"
+                onClick={() => setIsSubmitModalOpen(false)}
+                aria-label="Close"
+              >
+                <X size={18} />
               </ModalCloseButton>
             </ModalHeader>
-            <ModalBody $padding="14px 16px 16px">
+            <ModalBody $padding="18px">
               <HomeworkForm>
-                <HomeworkField>
-                  <HomeworkFieldLabel>
-                    {t("coursePlayer.homework.fields.title")}
-                  </HomeworkFieldLabel>
-                  <HomeworkInput
-                    value={title}
-                    placeholder={t("coursePlayer.homework.fields.title")}
-                    onChange={(event) => setTitle(event.target.value)}
-                  />
-                </HomeworkField>
-                <HomeworkField>
-                  <HomeworkFieldLabel>
-                    {t("coursePlayer.homework.fields.description")}
-                  </HomeworkFieldLabel>
-                  <HomeworkTextarea
-                    value={description}
-                    placeholder={t("coursePlayer.homework.fields.description")}
-                    onChange={(event) => setDescription(event.target.value)}
-                  />
-                </HomeworkField>
-                <HomeworkFieldRow>
-                  <HomeworkField>
-                    <HomeworkFieldLabel>
-                      {t("coursePlayer.homework.typeLabel")}
-                    </HomeworkFieldLabel>
-                    <HomeworkSelect
-                      value={homeworkType}
-                      onChange={(event) => setHomeworkType(event.target.value)}
-                    >
-                      {typeOptions.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </HomeworkSelect>
-                  </HomeworkField>
-                  <HomeworkField>
-                    <HomeworkFieldLabel>
-                      {t("coursePlayer.homework.deadline")}
-                    </HomeworkFieldLabel>
-                    <HomeworkInput
-                      type="datetime-local"
-                      value={deadline}
-                      onChange={(event) => setDeadline(event.target.value)}
-                    />
-                  </HomeworkField>
-                </HomeworkFieldRow>
-                <HomeworkFieldRow>
-                  <HomeworkField>
-                    <HomeworkFieldLabel>
-                      {t("coursePlayer.homework.maxScore")}
-                    </HomeworkFieldLabel>
-                    <HomeworkInput
-                      type="number"
-                      min="1"
-                      max="100"
-                      value={maxScore}
-                      onChange={(event) => setMaxScore(event.target.value)}
-                    />
-                  </HomeworkField>
-                </HomeworkFieldRow>
+                {renderStudentSubmissionForm()}
               </HomeworkForm>
             </ModalBody>
-            <ModalFooter $padding="12px 16px">
-              <DialogActionButton
-                $variant="ghost"
-                onClick={() => setIsAssignmentEditorOpen(false)}
-              >
-                {t("common.cancel")}
-              </DialogActionButton>
-              <DialogActionButton onClick={handleSaveHomework}>
-                {t("coursePlayer.homework.save")}
-              </DialogActionButton>
-            </ModalFooter>
+            {!hasLockedSubmission ? (
+              <ModalFooter>
+                <DialogActionButton
+                  type="button"
+                  $variant="ghost"
+                  onClick={() => setIsSubmitModalOpen(false)}
+                >
+                  {t("common.cancel")}
+                </DialogActionButton>
+                <DialogActionButton
+                  type="button"
+                  disabled={!canSubmitStudentHomework || isUploading}
+                  onClick={handleSubmitHomework}
+                >
+                  {isUploading
+                    ? t("coursePlayer.homework.uploading")
+                    : canResubmit
+                      ? t("coursePlayer.homework.resubmit")
+                      : t("coursePlayer.homework.submit")}
+                </DialogActionButton>
+              </ModalFooter>
+            ) : null}
           </ModalPanel>
         </ModalOverlay>
       ) : null}
-    </HomeworkSection>
+    </>
   );
 };
 

@@ -47,7 +47,7 @@ export const ModalPanel = styled.div`
   min-height: 0;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow: ${(props) => props.$overflow || "hidden"};
   background: ${(props) => props.$glass ? "var(--secondary-color-with-opacity)": "var(--secondary-color)"};
   backdrop-filter: ${(props) => props.$glass ? "blur(5px) saturate(150%)": "none"};
   border: 1px solid var(--border-color);

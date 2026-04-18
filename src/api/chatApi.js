@@ -121,3 +121,22 @@ export const leaveChat = async (chatId) => {
   const { data } = await axiosInstance.post(`/chats/${chatId}/leave`);
   return data;
 };
+
+// --- E2EE ---
+
+export const getE2EStatus = async (chatId) => {
+  const { data } = await axiosInstance.get(`/chats/${chatId}/e2e`);
+  return data;
+};
+
+export const registerE2EPublicKey = async (chatId, publicKey) => {
+  const { data } = await axiosInstance.post(`/chats/${chatId}/e2e/key`, {
+    publicKey,
+  });
+  return data;
+};
+
+export const disableE2E = async (chatId) => {
+  const { data } = await axiosInstance.delete(`/chats/${chatId}/e2e`);
+  return data;
+};

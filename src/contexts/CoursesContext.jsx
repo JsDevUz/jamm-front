@@ -115,6 +115,7 @@ export const CoursesProvider = ({ children }) => {
     socketRef.current.on("member_rejected", handleEvent);
     socketRef.current.on("member_approved_broadcast", handleEvent);
     socketRef.current.on("member_rejected_broadcast", handleEvent);
+    socketRef.current.on("lesson_attendance_updated", handleEvent);
 
     return () => {
       if (socketRef.current) {
@@ -136,16 +137,9 @@ export const CoursesProvider = ({ children }) => {
   }, []);
 
   const createCourse = useCallback(
-    async (name, description, image, category, price, accessType) => {
+    async (payload) => {
       try {
-        const data = await coursesApi.createCourse({
-          name,
-          description,
-          image,
-          category,
-          price,
-          accessType,
-        });
+        const data = await coursesApi.createCourse(payload);
         await fetchCourses();
         return data._id;
       } catch (err) {
@@ -447,19 +441,52 @@ export const CoursesProvider = ({ children }) => {
   }, []);
 
   const markOwnAttendance = useCallback(
-    async (courseId, lessonId, progressPercent) => {
+    async (courseId, lessonId, progressPercent, extra = {}) => {
       try {
-        return await coursesApi.markOwnAttendance({
+        const result = await coursesApi.markOwnAttendance({
           courseId,
           lessonId,
           progressPercent,
+          ...extra,
         });
+
+        // Optimistically update selfAttendance in local state so progress
+        // bars reflect the change immediately without waiting for a socket refetch.
+        if (progressPercent > 0) {
+          setCourses((prev) =>
+            prev.map((course) => {
+              const matches =
+                String(course._id || course.id) === String(courseId) ||
+                String(course.urlSlug || "") === String(courseId);
+              if (!matches) return course;
+              return {
+                ...course,
+                lessons: (course.lessons || []).map((lesson) => {
+                  const lessonMatches =
+                    String(lesson._id || lesson.id || lesson.urlSlug) === String(lessonId);
+                  if (!lessonMatches) return lesson;
+                  const prevPercent = Number(lesson.selfAttendance?.progressPercent || 0);
+                  const nextPercent = Math.max(progressPercent, prevPercent);
+                  return {
+                    ...lesson,
+                    selfAttendance: {
+                      progressPercent: nextPercent,
+                      status: nextPercent >= 70 ? "present" : nextPercent > 0 ? "late" : "absent",
+                    },
+                  };
+                }),
+              };
+            }),
+          );
+        }
+
+        return result;
       } catch (err) {
         console.error("Error marking own attendance:", err);
         throw err;
       }
     },
-    [],
+    [authUser],
   );
 
   const setLessonAttendanceStatus = useCallback(
@@ -675,6 +702,23 @@ export const CoursesProvider = ({ children }) => {
     }
   }, []);
 
+  const patchCourseLesson = useCallback((courseId, lessonId, lessonPatcher) => {
+    setCourses((prev) =>
+      prev.map((course) => {
+        const cId = String(course._id || course.id || "");
+        if (cId !== String(courseId || "")) return course;
+        return {
+          ...course,
+          lessons: (course.lessons || []).map((lesson) => {
+            const lId = String(lesson._id || lesson.id || lesson.urlSlug || "");
+            if (lId !== String(lessonId || "")) return lesson;
+            return lessonPatcher(lesson);
+          }),
+        };
+      }),
+    );
+  }, []);
+
   const setLessonOralAssessment = useCallback(
     async (courseId, lessonId, userId, payload) => {
       try {
@@ -765,6 +809,7 @@ export const CoursesProvider = ({ children }) => {
     deleteLessonMaterial,
     getLessonGrading,
     setLessonOralAssessment,
+    patchCourseLesson,
     isAdmin,
     isEnrolled,
     loading,

@@ -3,6 +3,7 @@ export const APP_LIMITS = {
   postCommentsPerPost: { ordinary: 5, premium: 10 },
   postImagesPerPost: { ordinary: 0, premium: 3 },
   postImageBytes: 5 * 1024 * 1024,
+  courseImageBytes: 5 * 1024 * 1024,
   articlesPerUser: { ordinary: 10, premium: 30 },
   articleCommentsPerArticle: { ordinary: 5, premium: 10 },
   articleImagesPerArticle: { ordinary: 2, premium: 5 },
@@ -13,7 +14,7 @@ export const APP_LIMITS = {
   meetParticipants: { ordinary: 10, premium: 40 },
   coursesCreated: { ordinary: 2, premium: 6 },
   lessonsPerCourse: { ordinary: 10, premium: 30 },
-  lessonVideosPerLesson: { ordinary: 1, premium: 3 },
+  lessonVideosPerLesson: { ordinary: 3, premium: 3 },
   testsCreated: { ordinary: 30, premium: 100 },
   testShareLinksPerTest: { ordinary: 2, premium: 4 },
   testsPerDeck: { ordinary: 30, premium: 50 },
@@ -65,7 +66,7 @@ export const APP_LIMITS = {
   postWords: 100,
   lessonMediaBytes: 200 * 1024 * 1024,
   lessonHomeworkPerLesson: {
-    ordinary: 1,
+    ordinary: 3,
     premium: 3,
   },
   lessonTestsPerLesson: {

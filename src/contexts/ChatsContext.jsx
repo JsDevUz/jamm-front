@@ -4,6 +4,7 @@ import React, {
   useState,
   useEffect,
   useCallback,
+  useRef,
 } from "react";
 import { io } from "socket.io-client";
 import useAuthStore from "../store/authStore";
@@ -13,6 +14,18 @@ import dayjs from "dayjs";
 import { buildSocketNamespaceUrl } from "../config/env";
 import { showDesktopChatNotification } from "../utils/desktopNotifications";
 import { normalizeReadByIds } from "../features/chats/chat-area/utils/chatAreaMessageUtils";
+import {
+  generateAndStoreKeyPair,
+  loadStoredKeyPair,
+  exportPublicKeyBase64,
+  importPublicKeyFromBase64,
+  deriveSharedKey,
+  clearDerivedKey,
+  clearStoredKeyPair,
+  encryptMessage as e2eEncrypt,
+  decryptMessage as e2eDecrypt,
+  isE2EEnvelope,
+} from "../utils/e2eCrypto";
 
 const ChatsContext = createContext();
 const deliveredNotificationKeys = new Set();
@@ -78,6 +91,26 @@ export const ChatsProvider = ({ children }) => {
   const [chatReconnectKey, setChatReconnectKey] = useState(0);
   const [typingUsers, setTypingUsers] = useState({});
   const [previewChat, setPreviewChat] = useState(null);
+
+  // E2EE state: chatId → { isE2EEnabled, e2ePublicKeys }
+  const [e2eState, setE2EState] = useState({});
+  // My own key pair (loaded from IndexedDB once)
+  const myKeyPairRef = useRef(null);
+
+  // Load (or generate) E2EE key pair once per authenticated session
+  useEffect(() => {
+    const currentUserId = authUser?._id || authUser?.id;
+    if (!currentUserId) {
+      myKeyPairRef.current = null;
+      return;
+    }
+    loadStoredKeyPair().then((kp) => {
+      if (kp) {
+        myKeyPairRef.current = kp;
+      }
+      // Key pair is generated lazily in enableE2E() when user first activates E2EE
+    });
+  }, [authUser?._id, authUser?.id]);
 
   useEffect(() => {
     const currentUserId = authUser?._id || authUser?.id;
@@ -272,11 +305,21 @@ export const ChatsProvider = ({ children }) => {
       }
     };
 
+    const handleE2EUpdated = ({ chatId, isE2EEnabled, e2ePublicKeys }) => {
+      setE2EState((prev) => ({
+        ...prev,
+        [chatId]: { isE2EEnabled, e2ePublicKeys: e2ePublicKeys || {} },
+      }));
+      // Invalidate cached derived key so it's re-derived with new public key
+      clearDerivedKey(chatId);
+    };
+
     chatSocket.on("message_new", handleGlobalNewMessage);
     chatSocket.on("messages_read", handleGlobalMessagesRead);
     chatSocket.on("chat_updated", handleChatUpdated);
     chatSocket.on("user_typing", handleUserTyping);
     chatSocket.on("chat_deleted", handleChatDeleted);
+    chatSocket.on("chat_e2e_updated", handleE2EUpdated);
 
     return () => {
       chatSocket.off("message_new");
@@ -284,6 +327,7 @@ export const ChatsProvider = ({ children }) => {
       chatSocket.off("chat_updated");
       chatSocket.off("user_typing");
       chatSocket.off("chat_deleted");
+      chatSocket.off("chat_e2e_updated");
     };
   }, [chatSocket, selectedChatId]);
 
@@ -320,6 +364,49 @@ export const ChatsProvider = ({ children }) => {
       chatSocket.emit(isTyping ? "typing_start" : "typing_stop", { chatId });
     },
     [chatSocket],
+  );
+
+  /**
+   * Get or derive the AES shared key for the given chat.
+   * Returns null if E2EE is not active or keys are missing.
+   */
+  const getSharedKeyForChat = useCallback(
+    async (chatId) => {
+      const state = e2eState[chatId];
+      if (!state?.isE2EEnabled) return null;
+
+      const myKP = myKeyPairRef.current;
+      if (!myKP) return null;
+
+      const currentUser = useAuthStore.getState().user || {};
+      const myId = String(currentUser._id || currentUser.id);
+      const keys = state.e2ePublicKeys || {};
+      const theirKey = Object.entries(keys).find(([id]) => id !== myId)?.[1];
+      if (!theirKey) return null;
+
+      try {
+        const theirCryptoKey = await importPublicKeyFromBase64(theirKey);
+        return deriveSharedKey(chatId, myKP.privateKey, theirCryptoKey);
+      } catch {
+        return null;
+      }
+    },
+    [e2eState],
+  );
+
+  /**
+   * Decrypt a single message content string if it is an E2E envelope.
+   * Falls back to returning the original content if decryption fails.
+   */
+  const decryptContent = useCallback(
+    async (chatId, content) => {
+      if (!isE2EEnvelope(content)) return content;
+      const sharedKey = await getSharedKeyForChat(chatId);
+      if (!sharedKey) return content; // can't decrypt yet
+      const plaintext = await e2eDecrypt(content, sharedKey);
+      return plaintext ?? content;
+    },
+    [getSharedKeyForChat],
   );
 
   const fetchChats = useCallback(async (page = 1) => {
@@ -475,51 +562,78 @@ export const ChatsProvider = ({ children }) => {
     setChats((prev) => prev.filter((c) => c.id !== chatId));
   };
 
-  const fetchMessages = useCallback(async (chatId, before = null) => {
-    if (!chatId) return { data: [], hasMore: false, nextCursor: null };
-    const res = await chatApi.fetchMessages(chatId, before);
-    return {
-      data: (res.data || []).map((msg) => ({
-        id: msg._id,
-        user: msg.senderId?.nickname || msg.senderId?.username,
-        senderId: msg.senderId?._id || msg.senderId,
-        avatar:
-          msg.senderId?.avatar ||
-          (msg.senderId?.nickname || msg.senderId?.username)?.charAt(0) ||
-          "U",
-        username: msg.senderId?.username,
-        premiumStatus: msg.senderId?.premiumStatus,
-        selectedProfileDecorationId: msg.senderId?.selectedProfileDecorationId,
-        customProfileDecorationImage:
-          msg.senderId?.customProfileDecorationImage,
-        isOfficialProfile: msg.senderId?.isOfficialProfile,
-        officialBadgeKey: msg.senderId?.officialBadgeKey,
-        officialBadgeLabel: msg.senderId?.officialBadgeLabel,
-        content: msg.content,
-        timestamp: dayjs(msg.createdAt).format("HH:mm"),
-        date: dayjs(msg.createdAt).format("YYYY-MM-DD"),
-        createdAt: msg.createdAt,
-        edited: msg.isEdited,
-        isDeleted: msg.isDeleted,
-        replayTo: msg.replayTo
-          ? {
-              id: msg.replayTo._id,
-              user:
-                msg.replayTo.senderId?.nickname ||
-                msg.replayTo.senderId?.username,
-              content: msg.replayTo.content,
-            }
-          : null,
+  const fetchMessages = useCallback(
+    async (chatId, before = null) => {
+      if (!chatId) return { data: [], hasMore: false, nextCursor: null };
+      const res = await chatApi.fetchMessages(chatId, before);
 
-        readBy: normalizeReadByIds(msg.readBy),
-      })),
-      hasMore: Boolean(res.hasMore),
-      nextCursor: res.nextCursor || null,
-    };
-  }, []);
+      const mapped = await Promise.all(
+        (res.data || []).map(async (msg) => {
+          const rawContent = msg.content;
+          const content = await decryptContent(chatId, rawContent);
+          const replayToContent = msg.replayTo?.content
+            ? await decryptContent(chatId, msg.replayTo.content)
+            : null;
+
+          return {
+            id: msg._id,
+            user: msg.senderId?.nickname || msg.senderId?.username,
+            senderId: msg.senderId?._id || msg.senderId,
+            avatar:
+              msg.senderId?.avatar ||
+              (msg.senderId?.nickname || msg.senderId?.username)?.charAt(0) ||
+              "U",
+            username: msg.senderId?.username,
+            premiumStatus: msg.senderId?.premiumStatus,
+            selectedProfileDecorationId:
+              msg.senderId?.selectedProfileDecorationId,
+            customProfileDecorationImage:
+              msg.senderId?.customProfileDecorationImage,
+            isOfficialProfile: msg.senderId?.isOfficialProfile,
+            officialBadgeKey: msg.senderId?.officialBadgeKey,
+            officialBadgeLabel: msg.senderId?.officialBadgeLabel,
+            content,
+            timestamp: dayjs(msg.createdAt).format("HH:mm"),
+            date: dayjs(msg.createdAt).format("YYYY-MM-DD"),
+            createdAt: msg.createdAt,
+            edited: msg.isEdited,
+            isDeleted: msg.isDeleted,
+            replayTo: msg.replayTo
+              ? {
+                  id: msg.replayTo._id,
+                  user:
+                    msg.replayTo.senderId?.nickname ||
+                    msg.replayTo.senderId?.username,
+                  content: replayToContent,
+                }
+              : null,
+            readBy: normalizeReadByIds(msg.readBy),
+          };
+        }),
+      );
+
+      return {
+        data: mapped,
+        hasMore: Boolean(res.hasMore),
+        nextCursor: res.nextCursor || null,
+      };
+    },
+    [decryptContent],
+  );
 
   const sendMessage = useCallback(async (chatId, content, replayToId) => {
-    const msg = await chatApi.sendMessage({ chatId, content, replayToId });
+    // If E2EE is active for this chat, encrypt before sending
+    let outgoingContent = content;
+    const sharedKey = await getSharedKeyForChat(chatId);
+    if (sharedKey) {
+      outgoingContent = await e2eEncrypt(content, sharedKey);
+    }
+
+    const msg = await chatApi.sendMessage({
+      chatId,
+      content: outgoingContent,
+      replayToId,
+    });
     return {
       id: msg._id,
       user: msg.senderId?.nickname || msg.senderId?.username,
@@ -535,7 +649,8 @@ export const ChatsProvider = ({ children }) => {
       isOfficialProfile: msg.senderId?.isOfficialProfile,
       officialBadgeKey: msg.senderId?.officialBadgeKey,
       officialBadgeLabel: msg.senderId?.officialBadgeLabel,
-      content: msg.content,
+      // For E2E: server echoes the ciphertext back; we already know the plaintext
+      content: sharedKey ? content : msg.content,
       timestamp: dayjs(msg.createdAt).format("HH:mm"),
       date: dayjs(msg.createdAt).format("YYYY-MM-DD"),
       createdAt: msg.createdAt,
@@ -553,7 +668,7 @@ export const ChatsProvider = ({ children }) => {
       }
         : null,
     };
-  }, []);
+  }, [getSharedKeyForChat]);
 
   const editMessage = useCallback(async (messageId, content) => {
     const msg = await chatApi.editMessage({ messageId, content });
@@ -636,6 +751,71 @@ export const ChatsProvider = ({ children }) => {
       return null;
     }
   };
+
+  /**
+   * Enable E2EE for the given private chat.
+   * Generates a key pair if not already done, registers the public key with the server.
+   * When the other participant does the same, the server activates E2EE automatically.
+   */
+  const enableE2E = useCallback(
+    async (chatId) => {
+      // Generate key pair if not yet created
+      if (!myKeyPairRef.current) {
+        myKeyPairRef.current = await generateAndStoreKeyPair();
+      }
+
+      const publicKeyBase64 = await exportPublicKeyBase64();
+      if (!publicKeyBase64) throw new Error("E2E kalit generatsiya qilinmadi");
+
+      const result = await chatApi.registerE2EPublicKey(chatId, publicKeyBase64);
+
+      // Fetch current E2E status to get the other participant's key
+      const status = await chatApi.getE2EStatus(chatId);
+      setE2EState((prev) => ({
+        ...prev,
+        [chatId]: {
+          isE2EEnabled: status.isE2EEnabled,
+          e2ePublicKeys: status.e2ePublicKeys || {},
+        },
+      }));
+      clearDerivedKey(chatId);
+
+      return result;
+    },
+    [],
+  );
+
+  /**
+   * Disable E2EE for a chat and clear local crypto state.
+   */
+  const disableE2E = useCallback(async (chatId) => {
+    await chatApi.disableE2E(chatId);
+    setE2EState((prev) => {
+      const next = { ...prev };
+      delete next[chatId];
+      return next;
+    });
+    clearDerivedKey(chatId);
+  }, []);
+
+  /**
+   * Load E2E status from server for the given chat (e.g., on chat open).
+   */
+  const loadE2EStatus = useCallback(async (chatId) => {
+    if (!chatId) return;
+    try {
+      const status = await chatApi.getE2EStatus(chatId);
+      setE2EState((prev) => ({
+        ...prev,
+        [chatId]: {
+          isE2EEnabled: status.isE2EEnabled,
+          e2ePublicKeys: status.e2ePublicKeys || {},
+        },
+      }));
+    } catch {
+      // not a private chat or network error — silently ignore
+    }
+  }, []);
 
   const getAllUsers = useCallback(async () => {
     try {
@@ -721,6 +901,12 @@ export const ChatsProvider = ({ children }) => {
     },
     previewChat,
     setPreviewChat,
+    // E2EE
+    e2eState,
+    enableE2E,
+    disableE2E,
+    loadE2EStatus,
+    decryptContent,
   };
 
   return (

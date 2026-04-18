@@ -8,6 +8,7 @@ const JoinCallPage = lazy(() => import("../../pages/JoinCallPage"));
 const LandingPage = lazy(() => import("../../pages/LandingPage"));
 const AppWrapper = lazy(() => import("./AppWrapper"));
 const SlugResolver = lazy(() => import("./SlugResolver"));
+const TeacherPage = lazy(() => import("../../pages/TeacherPage"));
 
 // Public-only route component - redirects authenticated users to chats
 const PublicRoute = ({ children }) => {
@@ -82,7 +83,15 @@ export default function AppRoutes() {
           path="/home"
           element={
             <ProtectedRoute>
-              <Navigate to="/chats" replace />
+              <AppWrapper forcedNav="home" />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/teacher"
+          element={
+            <ProtectedRoute>
+              <TeacherPage />
             </ProtectedRoute>
           }
         />

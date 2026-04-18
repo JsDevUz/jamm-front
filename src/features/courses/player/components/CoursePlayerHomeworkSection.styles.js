@@ -1,7 +1,8 @@
 import styled from "styled-components";
 
 export const HomeworkSection = styled.div`
-  padding: 18px 24px 24px;
+  padding: 8px 0 0;
+  margin: 4px 16px;
 `;
 
 export const HomeworkHeader = styled.div`
@@ -9,13 +10,13 @@ export const HomeworkHeader = styled.div`
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 14px;
+  margin-bottom: 8px;
 `;
 
 export const HomeworkTitle = styled.h3`
   font-size: 16px;
   font-weight: 700;
-  margin-bottom: 10px;
+  margin-bottom: 6px;
   color: var(--text-color);
 `;
 
@@ -25,13 +26,13 @@ export const HomeworkHint = styled.div`
 `;
 
 export const HomeworkCard = styled.div`
-  padding: 14px;
+  padding: 8px;
   border: 1px solid var(--border-color);
   border-radius: 12px;
-  background: var(--input-color);
+  background: transparent;
   display: grid;
-  gap: 10px;
-  margin-bottom: 14px;
+  gap: 8px;
+  margin-bottom: 10px;
 `;
 
 export const HomeworkMeta = styled.div`
@@ -46,7 +47,7 @@ export const AssignmentTabs = styled.div`
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
-  margin-bottom: 12px;
+  margin-bottom: 8px;
 `;
 
 export const AssignmentTabButton = styled.button`

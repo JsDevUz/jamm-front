@@ -6,14 +6,10 @@ import {
 export const PlayerContainer = styled.div`
   flex: 1;
   display: flex;
+  flex-direction: column;
   height: 100vh;
   background-color: var(--background-color);
-  overflow: hidden;
-
-  @media (max-width: 1300px) {
-    flex-direction: column;
-    overflow-y: auto;
-  }
+  overflow-y: auto;
 
   @media (max-width: 768px) {
     ${mobileFullscreenPane};
@@ -37,12 +33,6 @@ export const VideoSection = styled.div`
   display: flex;
   flex-direction: column;
   min-width: 0;
-  overflow-y: auto;
-
-  @media (max-width: 1300px) {
-    flex: none;
-    overflow: visible;
-  }
 
   @media (max-width: 768px) {
     padding-top: env(safe-area-inset-top, 0px);
@@ -1211,26 +1201,126 @@ export const PendingMembersEmptyText = styled.div`
   padding: 8px 0;
 `;
 
-export const LessonTabsBar = styled.div`
+export const PlayerTabsBar = styled.div`
   display: flex;
-  gap: 8px;
-  padding: 0 24px 16px;
+  flex-shrink: 0;
   border-bottom: 1px solid var(--border-color);
 `;
 
-export const LessonTabButton = styled.button`
-  padding: 8px 12px;
-  border: 1px solid
-    ${(props) =>
-      props.$active ? "var(--primary-color)" : "var(--border-color)"};
-  border-radius: 999px;
-  background: ${(props) =>
-    props.$active
-      ? "color-mix(in srgb, var(--primary-color) 12%, transparent)"
-      : "var(--input-color)"};
+export const PlayerTab = styled.button`
+  flex: 1;
+  appearance: none;
+  padding: 12px 0;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid
+    ${(props) => (props.$active ? "var(--primary-color)" : "transparent")};
   color: ${(props) =>
-    props.$active ? "var(--primary-color)" : "var(--text-secondary-color)"};
+    props.$active ? "var(--primary-color)" : "var(--text-muted-color)"};
   font-size: 13px;
-  font-weight: 600;
+  font-weight: ${(props) => (props.$active ? "700" : "500")};
   cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+  white-space: nowrap;
+
+  &:hover {
+    color: var(--text-color);
+  }
+`;
+
+export const PlayerTabContent = styled.div`
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+`;
+
+export const CourseInfoCard = styled.div`
+  padding: 20px 24px;
+  display: grid;
+  gap: 14px;
+`;
+
+export const CourseInfoTitle = styled.h2`
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text-color);
+  line-height: 1.4;
+  margin: 0;
+`;
+
+export const CourseInfoDescription = styled.p`
+  font-size: 14px;
+  color: var(--text-muted-color);
+  line-height: 1.6;
+  margin: 0;
+  white-space: pre-wrap;
+`;
+
+export const CourseInfoMeta = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+`;
+
+export const CourseInfoMetaItem = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text-muted-color);
+`;
+
+export const ShareRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 24px;
+  border-top: 1px solid var(--border-color);
+`;
+
+export const ShareLabel = styled.span`
+  font-size: 13px;
+  color: var(--text-muted-color);
+  flex: 1;
+`;
+
+export const ShareButton = styled.button`
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--secondary-color);
+  color: var(--text-color);
+  font-size: 13px;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--hover-color);
+  }
+`;
+
+export const NotesArea = styled.textarea`
+  width: 100%;
+  min-height: 140px;
+  padding: 12px 14px;
+  background: var(--input-color);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  color: var(--text-color);
+  font-size: 14px;
+  line-height: 1.6;
+  resize: vertical;
+  outline: none;
+  font-family: inherit;
+  box-sizing: border-box;
+
+  &:focus {
+    border-color: var(--primary-color);
+  }
+
+  &::placeholder {
+    color: var(--text-muted-color);
+  }
 `;

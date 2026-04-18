@@ -1,17 +1,17 @@
 import styled from "styled-components";
 
 export const MaterialsSection = styled.div`
-  margin: ${(props) => (props.$admin ? "5px 8px" : "5px 0")};
+  margin: ${(props) => (props.$admin ? "5px 8px" : "10px 16px 0")};
   border-radius: ${(props) => (props.$admin ? "12px" : "0")};
   border: ${(props) => (props.$admin ? "1px solid var(--border-color)" : "none")};
-  padding: 14px;
-  background: var(--secondary-color);
+  padding: ${(props) => (props.$admin ? "14px" : "0")};
+  background: ${(props) => (props.$admin ? "var(--secondary-color)" : "transparent")};
   display: grid;
-  gap: 12px;
+  gap: 8px;
 
   @media (max-width: 768px) {
-    padding: 12px;
-    border-radius: 12px;
+    padding: ${(props) => (props.$admin ? "12px" : "0")};
+    border-radius: ${(props) => (props.$admin ? "12px" : "0")};
   }
 `;
 
@@ -68,15 +68,20 @@ export const MaterialsList = styled.div`
   gap: 8px;
 `;
 
+export const MaterialsViewer = styled.div`
+  display: grid;
+  gap: 10px;
+`;
+
 export const MaterialCard = styled.div`
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  padding: 10px 12px;
+  padding: 8px;
   border: 1px solid var(--border-color);
   border-radius: 10px;
-  background: var(--input-color);
+  background: transparent;
 `;
 
 export const MaterialMeta = styled.div`
@@ -114,12 +119,24 @@ export const MaterialLink = styled.a`
 `;
 
 export const EmptyMaterials = styled.div`
-  padding: 14px;
-  border: 1px dashed var(--border-color);
-  border-radius: 10px;
+  padding: 2px 0 0;
+  border: none;
+  border-radius: 0;
   color: var(--text-muted-color);
   font-size: 13px;
-  text-align: center;
+  text-align: left;
+`;
+
+export const MaterialPreviewFrame = styled.iframe`
+  width: 100%;
+  min-height: 520px;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  background: white;
+
+  @media (max-width: 768px) {
+    min-height: 420px;
+  }
 `;
 
 export const MaterialField = styled.div`
@@ -156,4 +173,39 @@ export const MaterialFileInput = styled.input`
   background: var(--input-color);
   color: var(--text-color);
   outline: none;
+`;
+
+export const MaterialForm = styled.div`
+  display: grid;
+  gap: 10px;
+`;
+
+export const MaterialButtonRow = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+`;
+
+export const MaterialButton = styled.button`
+  padding: ${(props) => (props.$iconOnly ? "8px" : "9px 12px")};
+  min-width: ${(props) => (props.$iconOnly ? "34px" : "auto")};
+  min-height: ${(props) => (props.$iconOnly ? "34px" : "auto")};
+  border-radius: 10px;
+  border: 1px solid
+    ${(props) => (props.$primary ? "var(--primary-color)" : "var(--border-color)")};
+  background: ${(props) => (props.$primary ? "var(--primary-color)" : "var(--secondary-color)")};
+  color: ${(props) => (props.$primary ? "white" : "var(--text-color)")};
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+
+  &:disabled {
+    opacity: 0.56;
+    cursor: not-allowed;
+  }
 `;

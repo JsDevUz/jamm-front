@@ -58,19 +58,26 @@ input {
 
 ::-webkit-scrollbar {
   width: 8px;
+  height: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #2f3136;
+  background: var(--scrollbar-track-color);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #202225;
-  border-radius: 4px;
+  background: var(--scrollbar-thumb-color);
+  border-radius: 999px;
+  border: 2px solid var(--scrollbar-track-color);
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #40444b;
+  background: var(--scrollbar-thumb-hover-color);
+}
+
+* {
+  scrollbar-color: var(--scrollbar-thumb-color) var(--scrollbar-track-color);
+  scrollbar-width: thin;
 }
 
 @media (max-width: 700px) {

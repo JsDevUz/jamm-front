@@ -3,6 +3,7 @@ import React, {
   useContext,
   useState,
   useEffect,
+  useRef,
   useCallback,
 } from "react";
 import { usePresence } from "./PresenceContext";
@@ -22,6 +23,7 @@ export const CallProvider = ({ children }) => {
   const [incomingCall, setIncomingCall] = useState(null); // { fromUser, roomId, callType }
   const [outgoingCall, setOutgoingCall] = useState(null); // { targetUser, roomId, callType }
   const [activeCall, setActiveCall] = useState(null); // { roomId, callType, remoteUser }
+  const outgoingCallTimeoutRef = useRef(null);
 
   // 1. Signal listeners
   useEffect(() => {
@@ -84,6 +86,35 @@ export const CallProvider = ({ children }) => {
       socket.off("call:cancelled", handleCancelled);
     };
   }, [socket, activeCall, outgoingCall, incomingCall]);
+
+  // Auto-cancel outgoing call after 60 seconds of ringing
+  useEffect(() => {
+    if (!outgoingCall) {
+      if (outgoingCallTimeoutRef.current) {
+        clearTimeout(outgoingCallTimeoutRef.current);
+        outgoingCallTimeoutRef.current = null;
+      }
+      return;
+    }
+
+    outgoingCallTimeoutRef.current = setTimeout(() => {
+      if (socket && outgoingCall) {
+        socket.emit("call:cancel", {
+          toUserId: outgoingCall.targetUser._id,
+          roomId: outgoingCall.roomId,
+        });
+      }
+      setOutgoingCall(null);
+      toast(i18n.t("privateCall.noAnswer"));
+    }, 60000);
+
+    return () => {
+      if (outgoingCallTimeoutRef.current) {
+        clearTimeout(outgoingCallTimeoutRef.current);
+        outgoingCallTimeoutRef.current = null;
+      }
+    };
+  }, [outgoingCall, socket]);
 
   // 2. Actions
   const startPrivateCall = useCallback(

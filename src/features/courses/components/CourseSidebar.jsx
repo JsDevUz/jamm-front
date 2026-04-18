@@ -1,13 +1,10 @@
 import React, { useState } from "react";
-import { Trans, useTranslation } from "react-i18next";
+import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate } from "react-router-dom";
 import styled from "styled-components";
 import {
-  Users,
   Lock,
   CheckCircle,
-  Clock,
-  Trash2,
   BookOpen,
   Swords,
   Layers,
@@ -17,7 +14,6 @@ import {
 import { useCourses } from "../../../contexts/CoursesContext";
 import InfiniteScroll from "react-infinite-scroll-component";
 import CreateCourseDialog from "./CreateCourseDialog";
-import ConfirmDialog from "../../../shared/ui/dialogs/ConfirmDialog";
 import SectionHeader from "../../../shared/ui/navigation/SectionHeader";
 
 const DEFAULT_COURSE_GRADIENT = "var(--background-color)";
@@ -197,21 +193,41 @@ const CourseMeta = styled.div`
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 8px;
+  gap: 6px;
   flex-shrink: 0;
+  min-width: 48px;
 `;
 
-const MemberCount = styled.div`
+const CourseProgressWrap = styled.div`
   display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 11px;
-  color: var(--text-muted-color);
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+  width: 48px;
 `;
 
-const LessonCount = styled.div`
-  font-size: 11px;
-  color: var(--text-muted-color);
+const CourseProgressBar = styled.div`
+  width: 100%;
+  height: 3px;
+  background: var(--input-color);
+  border-radius: 999px;
+  overflow: hidden;
+`;
+
+const CourseProgressFill = styled.div`
+  height: 100%;
+  border-radius: 999px;
+  background: ${(props) =>
+    props.$done ? "var(--success-color)" : "var(--primary-color)"};
+  width: ${(props) => Math.min(100, Math.max(0, props.$percent || 0))}%;
+  transition: width 0.3s ease;
+`;
+
+const CourseProgressLabel = styled.div`
+  font-size: 10px;
+  font-weight: 600;
+  color: ${(props) =>
+    props.$done ? "var(--success-color)" : "var(--text-muted-color)"};
 `;
 
 const StatusBadge = styled.div`
@@ -276,11 +292,10 @@ const CourseSidebar = ({
     loading,
     coursesPage,
     coursesHasMore,
-    isAdmin,
     isEnrolled,
-    removeCourse,
     fetchCourses,
     ensureCoursesLoaded,
+    currentUser,
   } = useCourses();
 
   React.useEffect(() => {
@@ -289,8 +304,39 @@ const CourseSidebar = ({
     }
   }, [ensureCoursesLoaded, viewMode]);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const [courseToDelete, setCourseToDelete] = useState(null);
-  const [isDeleting, setIsDeleting] = useState(false);
+
+  const getCurrentUserId = (user) => {
+    if (!user) return null;
+    return user._id || user.id || null;
+  };
+
+  const getCourseProgress = (course) => {
+    const userId = getCurrentUserId(currentUser);
+    const lessons = course.lessons || [];
+    const total = lessons.filter((l) => l.status !== "draft").length;
+    if (!total) return { percent: 0, watched: 0, total: 0, done: false };
+
+    let totalPercent = 0;
+    let watchedCount = 0;
+
+    lessons.forEach((lesson) => {
+      if (lesson.status === "draft") return;
+      let p = 0;
+      if (lesson.selfAttendance) {
+        p = Math.min(100, Math.max(0, Number(lesson.selfAttendance.progressPercent || 0)));
+      } else if (userId && Array.isArray(lesson.attendance)) {
+        const record = lesson.attendance.find(
+          (r) => String(r.userId?._id || r.userId || r) === String(userId),
+        );
+        p = Math.min(100, Math.max(0, Number(record?.progressPercent || 0)));
+      }
+      totalPercent += p;
+      if (p >= 70) watchedCount += 1;
+    });
+
+    const avg = total ? Math.round(totalPercent / total) : 0;
+    return { percent: avg, watched: watchedCount, total, done: watchedCount === total && total > 0 };
+  };
   const arenaItems = React.useMemo(
     () => [
       {
@@ -348,46 +394,11 @@ const CourseSidebar = ({
     [courses, isEnrolled],
   );
 
-  const getStatusLabel = (courseId) => {
-    const status = isEnrolled(courseId);
-    switch (status) {
-      case "admin":
-        return { text: t("courseSidebar.status.admin"), icon: null };
-      case "approved":
-        return { text: t("courseSidebar.status.approved"), icon: null };
-      case "pending":
-        return { text: t("courseSidebar.status.pending"), icon: null };
-      default:
-        return null;
-    }
-  };
-
   const handleSelectCourse = (course) => {
     onSelectCourse(course._id);
 
     const slug = course.urlSlug || course._id;
     navigate(`/courses/${slug}`);
-  };
-
-  const handleDeleteConfirm = async () => {
-    if (!courseToDelete) return;
-    try {
-      setIsDeleting(true);
-      await removeCourse(courseToDelete._id);
-      if (
-        selectedCourse === courseToDelete._id ||
-        selectedCourse === courseToDelete.urlSlug
-      ) {
-        onSelectCourse(null);
-        navigate("/courses", { replace: true });
-      }
-      setCourseToDelete(null);
-    } catch (err) {
-      console.error(err);
-      toast.error(t("courseSidebar.deleteError"));
-    } finally {
-      setIsDeleting(false);
-    }
   };
 
   return (
@@ -514,14 +525,9 @@ const CourseSidebar = ({
                   }}
                 >
                   {filteredCourses.map((course) => {
-                    const statusInfo = getStatusLabel(course._id);
-                    const totalMembers =
-                      course.membersCount ??
-                      (course.members || []).filter(
-                        (m) => m.status === "approved",
-                      ).length;
                     const lessonCount =
                       course.lessonCount ?? (course.lessons || []).length;
+                    const progress = getCourseProgress(course);
                     return (
                       <CourseItem
                         key={course._id}
@@ -550,50 +556,26 @@ const CourseSidebar = ({
                                   count: lessonCount,
                                 })
                               : t("courseSidebar.noLessons")}
-                            {statusInfo && (
-                              <StatusBadge status={isEnrolled(course._id)}>
-                                {statusInfo.icon}
-                                {statusInfo.text}
-                              </StatusBadge>
-                            )}
                           </CourseDescription>
                         </CourseInfo>
-                        <CourseMeta>
-                          <MemberCount>
-                            <Users size={12} />
-                            {totalMembers}
-                          </MemberCount>
-                          {isAdmin(course._id) && (
-                            <div
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setCourseToDelete(course);
-                              }}
-                              style={{
-                                color: "var(--text-muted-color)",
-                                cursor: "pointer",
-                                padding: "2px",
-                                borderRadius: "4px",
-                                display: "flex",
-                              }}
-                              onMouseOver={(e) => {
-                                e.currentTarget.style.color =
-                                  "var(--danger-color)";
-                                e.currentTarget.style.backgroundColor =
-                                  "rgba(239, 68, 68, 0.1)";
-                              }}
-                              onMouseOut={(e) => {
-                                e.currentTarget.style.color =
-                                  "var(--text-muted-color)";
-                                e.currentTarget.style.backgroundColor =
-                                  "transparent";
-                              }}
-                              title={t("courseSidebar.deleteAction")}
-                            >
-                              <Trash2 size={14} />
-                            </div>
-                          )}
-                        </CourseMeta>
+                        {progress.total > 0 && (
+                          <CourseMeta>
+                            <CourseProgressWrap>
+                              <CourseProgressLabel $done={progress.done}>
+                                {progress.done ? (
+                                  <CheckCircle size={10} style={{ display: "inline", marginRight: 2 }} />
+                                ) : null}
+                                {progress.percent}%
+                              </CourseProgressLabel>
+                              <CourseProgressBar>
+                                <CourseProgressFill $percent={progress.percent} $done={progress.done} />
+                              </CourseProgressBar>
+                              <CourseProgressLabel $done={false} style={{ color: "var(--text-muted-color)", fontWeight: 400 }}>
+                                {progress.watched}/{progress.total}
+                              </CourseProgressLabel>
+                            </CourseProgressWrap>
+                          </CourseMeta>
+                        )}
                       </CourseItem>
                     );
                   })}
@@ -616,26 +598,6 @@ const CourseSidebar = ({
         onOpenPremium={onOpenPremium}
       />
 
-      <ConfirmDialog
-        isOpen={!!courseToDelete}
-        onClose={() => setCourseToDelete(null)}
-        title={t("courseSidebar.deleteTitle")}
-        description={
-          <Trans
-            i18nKey="courseSidebar.deleteDescription"
-            values={{ name: courseToDelete?.name || "" }}
-            components={{ bold: <b /> }}
-          />
-        }
-        confirmText={
-          isDeleting
-            ? t("courseSidebar.deleteConfirmLoading")
-            : t("courseSidebar.deleteConfirm")
-        }
-        cancelText={t("courseSidebar.deleteCancel")}
-        onConfirm={handleDeleteConfirm}
-        isDanger={true}
-      />
     </>
   );
 };

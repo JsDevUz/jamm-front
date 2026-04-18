@@ -301,6 +301,8 @@ const CoursePlayerLessonTestsSection = ({
   );
   const canAddLinkedTest = items.length < linkedTestLimit;
 
+  if (!loading && !items.length && !adminMode) return null;
+
   return (
     <>
       <SectionWrap>
@@ -354,7 +356,7 @@ const CoursePlayerLessonTestsSection = ({
             <SkeletonCard />
             <SkeletonCard />
           </List>
-        ) : items.length ? (
+        ) : !adminMode && !items.length ? null : items.length ? (
           <List>
             {items.map((item) => (
               <Card key={item.linkedTestId}>
@@ -591,6 +593,7 @@ const CoursePlayerLessonTestsSection = ({
           $zIndex={10035}
         >
           <ModalPanel
+          $overflow="auto"
             onClick={(event) => event.stopPropagation()}
             $width="min(100%, 920px)"
             $mobileFull
@@ -618,6 +621,8 @@ const CoursePlayerLessonTestsSection = ({
           $zIndex={10035}
         >
           <ModalPanel
+          $overflow="auto"
+
             onClick={(event) => event.stopPropagation()}
             $width="min(100%, 920px)"
             $mobileFull

@@ -16,6 +16,17 @@ const TURN_URLS = import.meta.env.VITE_TURN_URLS
   ? import.meta.env.VITE_TURN_URLS.split(",").map((item) => item.trim())
   : [];
 
+if (TURN_URLS.length > 0) {
+  const hasCreds =
+    import.meta.env.VITE_TURN_USERNAME && import.meta.env.VITE_TURN_CREDENTIAL;
+  if (!hasCreds) {
+    console.warn(
+      "[useWebRTC] VITE_TURN_URLS is set but VITE_TURN_USERNAME / VITE_TURN_CREDENTIAL are missing. " +
+        "TURN server will likely reject unauthenticated requests.",
+    );
+  }
+}
+
 const buildFallbackIceConfig = () => ({
   iceServers: [
     { urls: "stun:stun.l.google.com:19302" },
@@ -435,6 +446,7 @@ const createInitialWhiteboardState = () => ({
   activeTabId: WHITEBOARD_BOARD_TAB_ID,
   tabs: [createWhiteboardBoardTab()],
   pdfLibrary: [],
+  updatedAt: 0,
 });
 
 const normalizeWhiteboardCursor = (rawCursor) => {
@@ -458,8 +470,8 @@ const normalizeWhiteboardCursor = (rawCursor) => {
     peerId,
     displayName:
       typeof rawCursor.displayName === "string" ? rawCursor.displayName.trim().slice(0, 60) : "",
-    x: Math.min(1, Math.max(0, x)),
-    y: Math.min(1, Math.max(0, y)),
+    x: Math.min(WHITEBOARD_BOARD_POINT_MAX, Math.max(WHITEBOARD_BOARD_POINT_MIN, x)),
+    y: Math.min(WHITEBOARD_BOARD_POINT_MAX, Math.max(WHITEBOARD_BOARD_POINT_MIN, y)),
     updatedAt: Number(rawCursor.updatedAt) || Date.now(),
   };
 };
@@ -1006,6 +1018,7 @@ const normalizeWhiteboardState = (rawState) => ({
     .map((item) => normalizeWhiteboardPdfLibraryItem(item))
     .filter(Boolean)
     .sort((left, right) => right.createdAt - left.createdAt),
+  updatedAt: typeof rawState?.updatedAt === "number" ? rawState.updatedAt : 0,
 });
 
 const mergeWhiteboardTabsWithPreservedSelections = (nextState, prevState) => {
@@ -1142,12 +1155,13 @@ const appendWhiteboardStrokePointsInState = (state, { tabId, pageNumber, strokeI
       }
     }
 
+    if (existingPoints.length >= WHITEBOARD_MAX_POINTS_PER_STROKE) {
+      return stroke;
+    }
+    const remaining = WHITEBOARD_MAX_POINTS_PER_STROKE - existingPoints.length;
     return {
       ...stroke,
-      points: [...existingPoints, ...nextPoints].slice(
-        0,
-        WHITEBOARD_MAX_POINTS_PER_STROKE,
-      ),
+      points: existingPoints.concat(nextPoints.slice(0, remaining)),
     };
   };
 
@@ -1599,6 +1613,8 @@ export function useWebRTC({
 }) {
   const currentUser = useAuthStore((state) => state.user);
   const socketRef = useRef(null);
+  // Stores cleanup functions for socket event listeners registered in start()
+  const socketDetachRef = useRef(null);
   const localStreamRef = useRef(null);
   const peerConnectionsRef = useRef({});
   const iceConfigRef = useRef(buildFallbackIceConfig());
@@ -1644,6 +1660,8 @@ export function useWebRTC({
   const [videoInputCount, setVideoInputCount] = useState(0);
   const screenStreamRef = useRef(null);
   const screenShareAbortControllerRef = useRef(null);
+  // Guard against onended + interval both calling toggleScreenShare concurrently
+  const screenShareStoppingRef = useRef(false);
   const remoteStreamsRef = useRef([]);
   const compositeRemoteStreamsRef = useRef({});
   const knownStreamsRef = useRef({});
@@ -1661,6 +1679,7 @@ export function useWebRTC({
   const statsIntervalRef = useRef(null);
   const iceRestartAttemptsRef = useRef({});
   const mediaStateSyncIntervalRef = useRef(null);
+  const lastEmittedMediaStateRef = useRef(null);
   const qualityProfileRef = useRef(CALL_QUALITY_PROFILES.balanced);
   const cameraFacingModeRef = useRef("user");
   const whiteboardStateRef = useRef(createInitialWhiteboardState());
@@ -1998,6 +2017,8 @@ export function useWebRTC({
   const resetWhiteboardState = useCallback(() => {
     const nextState = createInitialWhiteboardState();
     whiteboardStateRef.current = nextState;
+    lastWhiteboardUpdatedAtRef.current = 0;
+    storedPdfLibraryRef.current = [];
     setWhiteboardState(nextState);
   }, []);
 
@@ -2843,7 +2864,7 @@ export function useWebRTC({
   }, [clearPeerDisconnectTimeout]);
 
   const emitLocalMediaState = useCallback((overrides = {}) => {
-    if (!socketRef.current || !roomId) {
+    if (!socketRef.current?.connected || !roomId) {
       return;
     }
 
@@ -2858,6 +2879,13 @@ export function useWebRTC({
       videoMuted: !videoTrack || videoTrack.enabled === false,
       ...overrides,
     };
+
+    const stateKey = `${payload.hasAudio}|${payload.hasVideo}|${payload.audioMuted}|${payload.videoMuted}`;
+    const hasOverrides = Object.keys(overrides).length > 0;
+    if (!hasOverrides && lastEmittedMediaStateRef.current === stateKey) {
+      return;
+    }
+    lastEmittedMediaStateRef.current = stateKey;
 
     socketRef.current.emit("media-state-changed", {
       roomId: payload.roomId,
@@ -3680,7 +3708,7 @@ export function useWebRTC({
       };
 
       pc.onicecandidate = (e) => {
-        if (e.candidate && socketRef.current) {
+        if (e.candidate && socketRef.current?.connected) {
           socketRef.current.emit("ice-candidate", {
             targetId: peerId,
             candidate: e.candidate,
@@ -3723,7 +3751,7 @@ export function useWebRTC({
         if (pc.connectionState === "failed") {
           // Attempt reconnection with new offer
           const attempts = iceRestartAttemptsRef.current[peerId] || 0;
-          if (attempts < 3 && socketRef.current) {
+          if (attempts < 3 && socketRef.current?.connected) {
             iceRestartAttemptsRef.current[peerId] = attempts + 1;
             try {
               // Create new offer with ICE restart
@@ -3802,7 +3830,7 @@ export function useWebRTC({
       };
 
       pc.onicecandidate = (event) => {
-        if (event.candidate && socketRef.current) {
+        if (event.candidate && socketRef.current?.connected) {
           socketRef.current.emit("screen-ice-candidate", {
             targetId: peerId,
             candidate: event.candidate,
@@ -3870,8 +3898,20 @@ export function useWebRTC({
 
   const attachSignalingListeners = useCallback(
     (socket) => {
+      // Track all registered handlers so we can remove them on cleanup
+      const registeredHandlers = [];
+      const on = (event, handler) => {
+        socket.on(event, handler);
+        registeredHandlers.push([event, handler]);
+      };
+      const detachAll = () => {
+        registeredHandlers.forEach(([event, handler]) => socket.off(event, handler));
+        registeredHandlers.length = 0;
+      };
+      return detachAll;
+
       if (!shouldUseLiveKit) {
-        socket.on("offer", async ({ senderId, sdp }) => {
+        on("offer", async ({ senderId, sdp }) => {
           removedPeerIdsRef.current.delete(senderId);
           let pc = peerConnectionsRef.current[senderId];
           if (!pc) {
@@ -3914,7 +3954,7 @@ export function useWebRTC({
           socket.emit("answer", { targetId: senderId, sdp: answer });
         });
 
-        socket.on("answer", async ({ senderId, sdp }) => {
+        on("answer", async ({ senderId, sdp }) => {
           if (removedPeerIdsRef.current.has(senderId)) {
             return;
           }
@@ -3937,7 +3977,7 @@ export function useWebRTC({
           }
         });
 
-        socket.on("ice-candidate", async ({ senderId, candidate }) => {
+        on("ice-candidate", async ({ senderId, candidate }) => {
           if (removedPeerIdsRef.current.has(senderId)) {
             return;
           }
@@ -3955,8 +3995,12 @@ export function useWebRTC({
         });
       }
 
-      socket.on("peer-joined", async ({ peerId, displayName: peerName }) => {
+      on("peer-joined", async ({ peerId, displayName: peerName }) => {
         removedPeerIdsRef.current.delete(peerId);
+        // Cancel any pending disconnect timeout so a quick rejoin doesn't
+        // trigger stale cleanup after the peer has already reconnected
+        clearPeerDisconnectTimeout(peerId);
+        clearPeerDisconnectTimeout(peerId, true);
         if (peerName) {
           syncRemotePeerDisplayName(peerId, peerName);
         }
@@ -3984,7 +4028,7 @@ export function useWebRTC({
         }
       });
 
-      socket.on("existing-peers", async ({ peers }) => {
+      on("existing-peers", async ({ peers }) => {
         (peers || []).forEach((peer) => {
           if (peer?.peerId && peer?.displayName) {
             removedPeerIdsRef.current.delete(peer.peerId);
@@ -4011,11 +4055,11 @@ export function useWebRTC({
         }
       });
 
-      socket.on("peer-left", ({ peerId }) => {
+      on("peer-left", ({ peerId }) => {
         removeRemoteStream(peerId);
       });
 
-      socket.on(
+      on(
         "media-state-changed",
         ({ peerId, hasAudio, hasVideo, audioMuted, videoMuted }) => {
           if (typeof peerId !== "string" || !peerId.trim()) {
@@ -4050,7 +4094,7 @@ export function useWebRTC({
       );
 
       if (!shouldUseLiveKit) {
-        socket.on("screen-offer", async ({ senderId, sdp }) => {
+        on("screen-offer", async ({ senderId, sdp }) => {
           removedPeerIdsRef.current.delete(senderId);
           const peerName = knownPeerNamesRef.current[senderId] || senderId;
           const pc = createScreenPeerConnection(senderId, peerName);
@@ -4061,7 +4105,7 @@ export function useWebRTC({
           socket.emit("screen-answer", { targetId: senderId, sdp: answer });
         });
 
-        socket.on("screen-answer", async ({ senderId, sdp }) => {
+        on("screen-answer", async ({ senderId, sdp }) => {
           if (removedPeerIdsRef.current.has(senderId)) {
             return;
           }
@@ -4074,7 +4118,7 @@ export function useWebRTC({
           await flushScreenCandidateQueue(senderId);
         });
 
-        socket.on("screen-ice-candidate", async ({ senderId, candidate }) => {
+        on("screen-ice-candidate", async ({ senderId, candidate }) => {
           if (removedPeerIdsRef.current.has(senderId)) {
             return;
           }
@@ -4093,6 +4137,7 @@ export function useWebRTC({
       }
     },
     [
+      clearPeerDisconnectTimeout,
       connectLivekitRoom,
       createPeerConnection,
       createScreenPeerConnection,
@@ -4171,15 +4216,40 @@ export function useWebRTC({
         const socket = io(`${SIGNAL_URL}/video`, {
           transports: ["websocket"],
           withCredentials: true,
+          reconnection: true,
+          reconnectionAttempts: 5,
+          reconnectionDelay: 2000,
+          reconnectionDelayMax: 10000,
         });
         socketRef.current = socket;
 
         // 3. Attach signaling
-        attachSignalingListeners(socket);
+        const detachSignaling = attachSignalingListeners(socket);
+
+        // Track all remaining socket.on() calls so they can be removed on cleanup
+        const mainHandlers = [];
+        const reg = (event, handler) => {
+          socket.on(event, handler);
+          mainHandlers.push([event, handler]);
+        };
+        const detachMain = () => {
+          mainHandlers.forEach(([event, handler]) => socket.off(event, handler));
+          mainHandlers.length = 0;
+        };
+        socketDetachRef.current = () => {
+          detachSignaling?.();
+          detachMain();
+        };
+
+        // Re-attach signaling listeners after socket reconnects
+        reg("reconnect", () => {
+          detachSignaling?.();
+          attachSignalingListeners(socket);
+        });
 
         // 4. Creator: knock-request listener
         if (isCreator) {
-          socket.on("knock-request", ({ peerId, displayName: guestName }) => {
+          reg("knock-request", ({ peerId, displayName: guestName }) => {
             let didAddNewRequest = false;
             setKnockRequests((prev) => {
               const existingIndex = prev.findIndex((item) => item.peerId === peerId);
@@ -4204,11 +4274,11 @@ export function useWebRTC({
 
         // 5. Guest: approval / rejection listeners
         if (!isCreator) {
-          socket.on("waiting-for-approval", () => {
+          reg("waiting-for-approval", () => {
             setJoinStatus("waiting");
           });
 
-          socket.on("knock-approved", ({ mediaLocked }) => {
+          reg("knock-approved", ({ mediaLocked }) => {
             setJoinStatus("joined");
             // Safety fallback: older backend may still send a locked flag.
             if (mediaLocked) {
@@ -4222,14 +4292,14 @@ export function useWebRTC({
             setCamLocked(false);
           });
 
-          socket.on("knock-rejected", ({ reason }) => {
+          reg("knock-rejected", ({ reason }) => {
             setJoinStatus("rejected");
             setError(reason || "Rad etildi");
           });
         }
 
         // 5b. Listen for room-info (title, isPrivate, creatorUserId) from server
-        socket.on("room-info", ({ title, isPrivate: nextIsPrivate, creatorUserId }) => {
+        reg("room-info", ({ title, isPrivate: nextIsPrivate, creatorUserId }) => {
           if (title) setRoomTitle(title);
           if (typeof nextIsPrivate === "boolean") {
             setRoomIsPrivate(nextIsPrivate);
@@ -4239,32 +4309,7 @@ export function useWebRTC({
           }
         });
 
-        socket.on("waiting-for-approval", () => {
-          setJoinStatus("waiting");
-          const nextUpdatedAt = Number(nextState?.updatedAt || 0);
-          if (nextUpdatedAt > 0 && nextUpdatedAt < (lastWhiteboardUpdatedAtRef.current || 0)) {
-            return;
-          }
-          const mergedState = {
-            ...mergeWhiteboardTabsWithPreservedSelections(
-              nextState,
-              whiteboardStateRef.current,
-            ),
-            pdfLibrary: mergeWhiteboardPdfLibraryItems(
-              nextState.pdfLibrary,
-              storedPdfLibraryRef.current,
-            ),
-          };
-          storedPdfLibraryRef.current = mergedState.pdfLibrary;
-          lastWhiteboardUpdatedAtRef.current = Math.max(
-            lastWhiteboardUpdatedAtRef.current || 0,
-            Number(mergedState?.updatedAt || 0),
-          );
-          whiteboardStateRef.current = mergedState;
-          setWhiteboardState(mergedState);
-        });
-
-        socket.on("whiteboard-started", (payload) => {
+        reg("whiteboard-started", (payload) => {
           if (shouldIgnoreIncomingWhiteboardEvent(payload, socket.id)) {
             return;
           }
@@ -4280,7 +4325,7 @@ export function useWebRTC({
           }));
         });
 
-        socket.on("whiteboard-stopped", (payload) => {
+        reg("whiteboard-stopped", (payload) => {
           if (shouldIgnoreIncomingWhiteboardEvent(payload, socket.id)) {
             return;
           }
@@ -4296,7 +4341,7 @@ export function useWebRTC({
           }));
         });
 
-        socket.on("whiteboard-cleared", (payload) => {
+        reg("whiteboard-cleared", (payload) => {
           if (shouldIgnoreIncomingWhiteboardEvent(payload, socket.id)) {
             return;
           }
@@ -4309,7 +4354,7 @@ export function useWebRTC({
           );
         });
 
-        socket.on("whiteboard-cursor", (payload) => {
+        reg("whiteboard-cursor", (payload) => {
           if (shouldIgnoreIncomingWhiteboardEvent(payload, socket.id)) {
             return;
           }
@@ -4322,7 +4367,7 @@ export function useWebRTC({
           commitWhiteboardCursor(nextCursor);
         });
 
-        socket.on("whiteboard-cursor-clear", ({ peerId }) => {
+        reg("whiteboard-cursor-clear", ({ peerId }) => {
           const normalizedPeerId =
             typeof peerId === "string" ? peerId.trim() : "";
           if (!normalizedPeerId) {
@@ -4337,7 +4382,7 @@ export function useWebRTC({
           );
         });
 
-        socket.on("whiteboard-stroke-started", (payload) => {
+        reg("whiteboard-stroke-started", (payload) => {
           if (shouldIgnoreIncomingWhiteboardEvent(payload, socket.id)) {
             return;
           }
@@ -4356,7 +4401,7 @@ export function useWebRTC({
           );
         });
 
-        socket.on("whiteboard-stroke-appended", (payload) => {
+        reg("whiteboard-stroke-appended", (payload) => {
           if (shouldIgnoreIncomingWhiteboardEvent(payload, socket.id)) {
             return;
           }
@@ -4380,7 +4425,7 @@ export function useWebRTC({
           );
         });
 
-        socket.on("whiteboard-stroke-removed", (payload) => {
+        reg("whiteboard-stroke-removed", (payload) => {
           if (shouldIgnoreIncomingWhiteboardEvent(payload, socket.id)) {
             return;
           }
@@ -4398,7 +4443,7 @@ export function useWebRTC({
           );
         });
 
-        socket.on("whiteboard-stroke-updated", (payload) => {
+        reg("whiteboard-stroke-updated", (payload) => {
           if (shouldIgnoreIncomingWhiteboardEvent(payload, socket.id)) {
             return;
           }
@@ -4456,7 +4501,7 @@ export function useWebRTC({
         });
 
         // Handle full whiteboard state sync (includes PDF tabs, library updates)
-        socket.on("whiteboard-state", (nextState) => {
+        reg("whiteboard-state", (nextState) => {
           const nextUpdatedAt = Number(nextState?.updatedAt || 0);
           if (nextUpdatedAt > 0 && nextUpdatedAt < (lastWhiteboardUpdatedAtRef.current || 0)) {
             return;
@@ -4486,42 +4531,42 @@ export function useWebRTC({
         });
 
         // 5d. Screen share signals from peers
-        socket.on("screen-share-stopped", ({ peerId: sharerPeerId }) => {
+        reg("screen-share-stopped", ({ peerId: sharerPeerId }) => {
           removeRemoteScreenStream(sharerPeerId);
         });
 
         // 5e. Recording signals from peers
-        socket.on("recording-started", () => setRemoteIsRecording(true));
-        socket.on("recording-stopped", () => setRemoteIsRecording(false));
+        reg("recording-started", () => setRemoteIsRecording(true));
+        reg("recording-stopped", () => setRemoteIsRecording(false));
 
         // 5f. Kicked signal
-        socket.on("kicked", () => {
+        reg("kicked", () => {
           setError("Siz yaratuvchi tomonidan chiqarib yuborildingiz");
           setJoinStatus("rejected");
           leaveCall();
         });
 
         // 5g. Creator media control signals
-        socket.on("force-mute-mic", () => {
+        reg("force-mute-mic", () => {
           setMicLocked(true);
           void disableLocalAudioTrack();
         });
-        socket.on("force-mute-cam", () => {
+        reg("force-mute-cam", () => {
           setCamLocked(true);
           void disableLocalVideoTrack();
         });
-        socket.on("allow-mic", () => {
+        reg("allow-mic", () => {
           setMicLocked(false);
         });
-        socket.on("allow-cam", () => {
+        reg("allow-cam", () => {
           setCamLocked(false);
         });
 
         // 5h. Hand raise signals
-        socket.on("hand-raised", ({ peerId: pid }) => {
+        reg("hand-raised", ({ peerId: pid }) => {
           setRaisedHands((prev) => new Set([...prev, pid]));
         });
-        socket.on("hand-lowered", ({ peerId: pid }) => {
+        reg("hand-lowered", ({ peerId: pid }) => {
           setRaisedHands((prev) => {
             const s = new Set(prev);
             s.delete(pid);
@@ -4530,7 +4575,7 @@ export function useWebRTC({
         });
 
         // 5i. Server-side error (e.g. premium limit, auth failed)
-        socket.on("error", ({ message }) => {
+        reg("error", ({ message }) => {
           if (!isMounted) return;
 
           // If Room not found and we are a guest, we have retry logic below
@@ -4542,7 +4587,7 @@ export function useWebRTC({
           setJoinStatus("idle");
         });
 
-        socket.on("connect_error", (err) => {
+        reg("connect_error", (err) => {
           if (isMounted) {
             setError("Serverga ulanib bo'lmadi: " + err.message);
             setJoinStatus("idle");
@@ -4626,13 +4671,23 @@ export function useWebRTC({
               }
             }
           };
-          socket.on("error", handleRoomError);
+          reg("error", handleRoomError);
           join();
         }
       } catch (err) {
         console.error("[useWebRTC]", err);
         if (isMounted) {
-          setError(err.message || "Kamera/mikrofonga ruxsat berilmadi");
+          let userMessage = "Kamera/mikrofonga ruxsat berilmadi";
+          if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
+            userMessage = "Kamera yoki mikrofon ruxsati rad etildi. Brauzer sozlamalarida ruxsat bering.";
+          } else if (err.name === "NotFoundError" || err.name === "DevicesNotFoundError") {
+            userMessage = "Kamera yoki mikrofon topilmadi. Qurilma ulangan-ligini tekshiring.";
+          } else if (err.name === "NotReadableError" || err.name === "TrackStartError") {
+            userMessage = "Kamera yoki mikrofon boshqa dastur tomonidan ishlatilmoqda.";
+          } else if (err.name === "OverconstrainedError") {
+            userMessage = "Kamera sozlamalari mos kelmadi. Pastroq sifatda urinib ko'ring.";
+          }
+          setError(userMessage);
           setJoinStatus("idle");
         }
       }
@@ -4647,10 +4702,23 @@ export function useWebRTC({
       Object.values(screenPeerConnectionsRef.current).forEach((pc) => pc.close());
       screenPeerConnectionsRef.current = {};
       screenCandidateQueuesRef.current = {};
+      candidateQueuesRef.current = {};
+      iceRestartAttemptsRef.current = {};
       negotiationTasksRef.current = {};
       makingOfferRef.current = {};
       ignoreOfferRef.current = {};
       settingRemoteAnswerPendingRef.current = {};
+      lastEmittedMediaStateRef.current = null;
+      // Stop local screen share tracks if still active
+      if (screenStreamRef.current) {
+        screenShareAbortControllerRef.current?.abort();
+        screenShareAbortControllerRef.current = null;
+        screenStreamRef.current.getTracks().forEach((t) => { t.onended = null; t.stop(); });
+        screenStreamRef.current = null;
+        setScreenStream(null);
+        setIsScreenSharing(false);
+        screenShareStoppingRef.current = false;
+      }
       if (localStreamRef.current) {
         localStreamRef.current.getTracks().forEach((t) => t.stop());
         localStreamRef.current = null;
@@ -4659,6 +4727,7 @@ export function useWebRTC({
       setRemoteStreams([]);
       setRemotePeerStates({});
       knownPeerNamesRef.current = {};
+      removedPeerIdsRef.current.clear();
       setNetworkQuality("good");
       setQualityProfile(CALL_QUALITY_PROFILES.balanced);
       qualityProfileRef.current = CALL_QUALITY_PROFILES.balanced;
@@ -4682,8 +4751,14 @@ export function useWebRTC({
         mediaStateSyncIntervalRef.current = null;
       }
       if (socketRef.current) {
+        socketDetachRef.current?.();
+        socketDetachRef.current = null;
         socketRef.current.emit("leave-room", { roomId });
-        socketRef.current.disconnect();
+        // Slight delay so the leave-room packet is sent before the socket closes
+        setTimeout(() => {
+          socketRef.current?.disconnect();
+          socketRef.current = null;
+        }, 100);
       }
     };
   }, [
@@ -4715,6 +4790,32 @@ export function useWebRTC({
 
     emitLocalMediaState();
   }, [emitLocalMediaState, isCamOn, isMicOn, joinStatus, localStream]);
+
+  // ─── Mobile background: pause video track when tab hidden ─────────────────────
+
+  useEffect(() => {
+    if (joinStatus !== "joined") return;
+
+    const handleVisibilityChange = () => {
+      const videoTrack = localStreamRef.current?.getVideoTracks?.()[0];
+      if (!videoTrack) return;
+
+      if (document.visibilityState === "hidden") {
+        // Disable video to save battery/bandwidth when backgrounded
+        videoTrack.enabled = false;
+        emitLocalMediaState();
+      } else {
+        // Restore video state when foregrounded
+        videoTrack.enabled = isCamOnRef.current;
+        emitLocalMediaState();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [joinStatus, emitLocalMediaState]);
 
   // ─── Creator: approve / reject ────────────────────────────────────────────────
 
@@ -5012,6 +5113,7 @@ export function useWebRTC({
     }
 
     if (isScreenSharing) {
+      screenShareStoppingRef.current = false; // reset guard for future toggles
       // Stop abort controller first
       if (screenShareAbortControllerRef.current) {
         screenShareAbortControllerRef.current.abort();
@@ -5081,6 +5183,12 @@ export function useWebRTC({
         let endedCount = 0;
         const totalTracks = tracks.length;
 
+        const triggerStop = () => {
+          if (screenShareStoppingRef.current) return;
+          screenShareStoppingRef.current = true;
+          toggleScreenShare();
+        };
+
         tracks.forEach((track) => {
           const originalOnEnded = track.onended;
           track.onended = () => {
@@ -5088,7 +5196,7 @@ export function useWebRTC({
             if (originalOnEnded) originalOnEnded();
             // When all tracks end, cleanup screen share
             if (endedCount >= totalTracks && isScreenSharing) {
-              toggleScreenShare();
+              triggerStop();
             }
           };
         });
@@ -5097,7 +5205,7 @@ export function useWebRTC({
         const checkTrackState = () => {
           const liveTracks = screen.getTracks().filter((t) => t.readyState === 'live');
           if (liveTracks.length === 0 && isScreenSharing) {
-            toggleScreenShare();
+            triggerStop();
           }
         };
 
@@ -5668,7 +5776,7 @@ export function useWebRTC({
       const nextCursor = normalizeWhiteboardCursor({
         senderId: socketRef.current.id,
         peerId: socketRef.current.id || whiteboardStateRef.current.ownerPeerId || "whiteboard-owner",
-        displayName: displayName || whiteboardStateRef.current.ownerDisplayName || "Host",
+        displayName: displayName || whiteboardStateRef.current.ownerDisplayName || "",
         x,
         y,
         updatedAt: Date.now(),

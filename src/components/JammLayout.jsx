@@ -65,6 +65,11 @@ const CourseSidebar = lazy(() =>
     default: module.CourseSidebar,
   })),
 );
+const CoursesHomePage = lazy(() =>
+  import("../features/courses/components").then((module) => ({
+    default: module.CoursesHomePage,
+  })),
+);
 const OnboardingModal = lazy(() => import("../app/components/OnboardingModal"));
 const PremiumUpgradeModal = lazy(
   () => import("../app/components/PremiumUpgradeModal"),
@@ -566,6 +571,7 @@ const JammLayout = ({
 
   // Preload maps for lazy components
   const preloaders = {
+    home: () => import("../features/courses/components"),
     feed: () => import("../features/posts/components"),
     chats: () =>
       Promise.all([
@@ -858,9 +864,11 @@ const JammLayout = ({
         />
       ) : null}
       <MainContent ref={mainContentRef}>
-        {selectedNav === "courses" ||
-        selectedNav === "arena" ||
-        selectedNav === "home" ? (
+        {selectedNav === "home" ? (
+          <LazyPane message="Kurslar yuklanmoqda...">
+            <CoursesHomePage />
+          </LazyPane>
+        ) : selectedNav === "courses" || selectedNav === "arena" ? (
           <>
             <LazyPane message="Kurslar yuklanmoqda...">
               <CourseSidebar
@@ -876,7 +884,6 @@ const JammLayout = ({
               />
             </LazyPane>
             {selectedNav === "arena" ||
-            selectedNav === "home" ||
             viewMode === "arena" ? (
               <>
                 {renderPaneDivider(true)}

@@ -8,34 +8,31 @@ import {
   Maximize,
   Minimize,
   Clock,
-  Eye,
   Heart,
   BookOpen,
   Video,
   UserPlus,
-  Shield,
   CheckCircle,
-  ChevronDown,
-  ChevronUp,
   ListVideo,
+  Lock,
   LogIn,
   AlertCircle,
   ArrowLeft,
   SkipBack,
   SkipForward,
+  Share2,
+  Users,
   X,
+  Shield,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { useCourses } from "../../../contexts/CoursesContext";
 import { useChats } from "../../../contexts/ChatsContext";
 import { useNavigate } from "react-router-dom";
-import AddLessonDialog from "./AddLessonDialog";
-import ConfirmDialog from "../../../shared/ui/dialogs/ConfirmDialog";
 import useAuthStore from "../../../store/authStore";
 import { getLessonPlaybackToken } from "../../../api/coursesApi";
 import { API_BASE_URL } from "../../../config/env";
 import { CoursePlayerProvider } from "../player/context/CoursePlayerContext";
-import CoursePlayerAdminPane from "../player/components/CoursePlayerAdminPane";
 import CoursePlayerHomeworkSection from "../player/components/CoursePlayerHomeworkSection";
 import CoursePlayerLessonTestsSection from "../player/components/CoursePlayerLessonTestsSection";
 import CoursePlayerMaterialsSection from "../player/components/CoursePlayerMaterialsSection";
@@ -62,14 +59,6 @@ import {
   LoadingOverlay,
   LessonDescriptionBody,
   LessonDescriptionCard,
-  LessonExtrasBadge,
-  LessonExtrasBadges,
-  LessonExtrasBody,
-  LessonExtrasCard,
-  LessonExtrasHeader,
-  LessonExtrasHeaderMeta,
-  LessonExtrasHint,
-  LessonExtrasTitle,
   LessonDescriptionHeader,
   LessonDescriptionTitle,
   LessonDescriptionToggle,
@@ -122,10 +111,21 @@ import {
   VideoSection,
   VideoTitle,
   VideoWrapper,
-  ViewCount,
   MainPlayButton,
   SeekControlButton,
   YouTubeIframe,
+  PlayerTabsBar,
+  PlayerTab,
+  PlayerTabContent,
+  CourseInfoCard,
+  CourseInfoTitle,
+  CourseInfoDescription,
+  CourseInfoMeta,
+  CourseInfoMetaItem,
+  ShareRow,
+  ShareLabel,
+  ShareButton,
+  NotesArea,
 } from "../player/styles/CoursePlayer.styles";
 import {
   formatCommentTime,
@@ -135,19 +135,13 @@ import {
   getYouTubeId,
 } from "../player/utils/coursePlayerUtils";
 
-const hasEnabledHomeworkAssignments = (homework) => {
-  if (Array.isArray(homework?.assignments)) {
-    return homework.assignments.some((assignment) => assignment?.enabled !== false);
-  }
 
-  if (Array.isArray(homework)) {
-    return homework.some((assignment) => assignment?.enabled !== false);
-  }
-
-  return false;
-};
-
-const CoursePlayer = ({ courseId, initialLessonSlug, onClose }) => {
+const CoursePlayer = ({
+  courseId,
+  initialLessonSlug,
+  onClose = () => {},
+  inlineMode = false,
+}) => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { createChat } = useChats();
@@ -157,15 +151,11 @@ const CoursePlayer = ({ courseId, initialLessonSlug, onClose }) => {
     isAdmin,
     isEnrolled,
     enrollInCourse,
-    updateLesson,
-    publishLesson,
     markOwnAttendance,
     approveUser,
     removeUser,
     incrementViews,
-    removeLesson,
     getLessonComments,
-    getLessonHomework,
     addComment,
     addReply,
     toggleLessonLike,
@@ -175,15 +165,10 @@ const CoursePlayer = ({ courseId, initialLessonSlug, onClose }) => {
 
   const [activeLesson, setActiveLesson] = useState(0);
   const [playlistCollapsed, setPlaylistCollapsed] = useState(false);
-  const [isAddLessonOpen, setIsAddLessonOpen] = useState(false);
-  const [editingLesson, setEditingLesson] = useState(null);
-  const [isAdminPanelOpen, setIsAdminPanelOpen] = useState(false);
   const [activeMediaIndex, setActiveMediaIndex] = useState(0);
   const [mediaDurations, setMediaDurations] = useState({});
   const [playbackRequested, setPlaybackRequested] = useState(false);
   const [descriptionExpanded, setDescriptionExpanded] = useState(false);
-  const [studentExtrasOpen, setStudentExtrasOpen] = useState(false);
-  const [hasHomeworkBadge, setHasHomeworkBadge] = useState(false);
   const [commentText, setCommentText] = useState("");
   const [showCommentInput, setShowCommentInput] = useState(false);
   const [replyingTo, setReplyingTo] = useState(null);
@@ -193,14 +178,24 @@ const CoursePlayer = ({ courseId, initialLessonSlug, onClose }) => {
   const [commentsPage, setCommentsPage] = useState(1);
   const [commentsHasMore, setCommentsHasMore] = useState(true);
   const [isLoadingComments, setIsLoadingComments] = useState(false);
-  const [lessonToDelete, setLessonToDelete] = useState(null);
-  const [isDeletingLesson, setIsDeletingLesson] = useState(false);
+  const [playerTab, setPlayerTab] = useState("materials");
+  const [notes, setNotes] = useState("");
   const clickActionTimerRef = useRef(null);
+  // Refs for attendance tracking — declared early so derived values below can write to them.
+  const overallCurrentTimeRef = useRef(0);
+  const totalLessonDurationRef = useRef(0);
+  const attendanceEligibleRef = useRef(false);
+  const currentLessonIdRef = useRef("");
+  const attendanceLastFlushedPercentRef = useRef({});
 
   // Video player state
   const videoRef = useRef(null);
   const videoWrapperRef = useRef(null);
   const hlsRef = useRef(null);
+  const hlsInitializingRef = useRef(false);
+  const hlsNonFatalErrorCountRef = useRef(0);
+  const loadedDurationKeysRef = useRef(new Set());
+  const playbackRequestSeqRef = useRef(0);
   const pendingSeekTimeRef = useRef(null);
   const shouldAutoplayNextMediaRef = useRef(false);
   const shouldAutoplayAfterLoadRef = useRef(false);
@@ -270,13 +265,7 @@ const CoursePlayer = ({ courseId, initialLessonSlug, onClose }) => {
   const lessons = course?.lessons || [];
   const currentLesson = lessons[activeLesson] || null;
   const currentLessonData = course?.lessons?.[activeLesson];
-  const hasLessonMaterials = Boolean(currentLessonData?.materials?.length);
   const hasLessonTests = Boolean(currentLessonData?.linkedTests?.length);
-  const hasHomeworkAssignments = hasEnabledHomeworkAssignments(
-    currentLessonData?.homework,
-  );
-  const hasLessonExtras =
-    hasLessonMaterials || hasLessonTests || hasHomeworkBadge;
   const lessonMediaItems =
     Array.isArray(currentLessonData?.mediaItems) && currentLessonData.mediaItems.length
       ? currentLessonData.mediaItems
@@ -356,43 +345,6 @@ const CoursePlayer = ({ courseId, initialLessonSlug, onClose }) => {
     }
   }, [course, currentLessonData]);
 
-  useEffect(() => {
-    let cancelled = false;
-
-    if (!lessonIdentifier || !courseId) {
-      setHasHomeworkBadge(false);
-      return undefined;
-    }
-
-    if (hasHomeworkAssignments) {
-      setHasHomeworkBadge(true);
-      return undefined;
-    }
-
-    const syncHomeworkBadge = async () => {
-      try {
-        const data = await getLessonHomework(courseId, lessonIdentifier);
-        if (!cancelled) {
-          setHasHomeworkBadge(Boolean(data?.assignments?.length));
-        }
-      } catch {
-        if (!cancelled) {
-          setHasHomeworkBadge(false);
-        }
-      }
-    };
-
-    syncHomeworkBadge();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    courseId,
-    getLessonHomework,
-    hasHomeworkAssignments,
-    lessonIdentifier,
-  ]);
 
   useEffect(() => {
     if (
@@ -414,7 +366,7 @@ const CoursePlayer = ({ courseId, initialLessonSlug, onClose }) => {
       await Promise.all(
         lessonMediaItems.map(async (item, index) => {
           const key = mediaKeys[index];
-          if (mediaDurations[key] > 0) return;
+          if (loadedDurationKeysRef.current.has(key)) return;
 
           try {
             const { streamUrl, streamType } = await getLessonPlaybackToken(
@@ -435,6 +387,7 @@ const CoursePlayer = ({ courseId, initialLessonSlug, onClose }) => {
             const saveDuration = () => {
               const nextDuration = Number(probeVideo.duration || 0);
               if (!cancelled && nextDuration > 0) {
+                loadedDurationKeysRef.current.add(key);
                 setMediaDurations((prev) => ({
                   ...prev,
                   [key]: nextDuration,
@@ -469,6 +422,7 @@ const CoursePlayer = ({ courseId, initialLessonSlug, onClose }) => {
                     data?.details?.totalduration || data?.details?.averagetargetduration || 0,
                   );
                   if (!cancelled && nextDuration > 0) {
+                    loadedDurationKeysRef.current.add(key);
                     setMediaDurations((prev) => ({
                       ...prev,
                       [key]: nextDuration,
@@ -511,7 +465,6 @@ const CoursePlayer = ({ courseId, initialLessonSlug, onClose }) => {
     getLessonPlaybackToken,
     lessonIdentifier,
     lessonMediaItems,
-    mediaDurations,
     mediaKeys,
     playbackRequested,
   ]);
@@ -556,6 +509,10 @@ const CoursePlayer = ({ courseId, initialLessonSlug, onClose }) => {
     [activeMediaIndex, playbackSegmentDurations],
   );
   const overallCurrentTime = elapsedBeforeCurrentMedia + currentTime;
+  overallCurrentTimeRef.current = overallCurrentTime;
+  totalLessonDurationRef.current = totalLessonDuration;
+  const _currentLessonId = currentLessonData?._id || currentLessonData?.id || currentLessonData?.urlSlug;
+  currentLessonIdRef.current = String(_currentLessonId || "");
   const overallProgressPercent = totalLessonDuration
     ? (overallCurrentTime / totalLessonDuration) * 100
     : duration
@@ -608,48 +565,16 @@ const CoursePlayer = ({ courseId, initialLessonSlug, onClose }) => {
   );
 
   useEffect(() => {
-    if (commentsExpanded) {
-      fetchComments(1);
-    }
-  }, [currentLesson?._id, commentsExpanded, fetchComments]);
+    fetchComments(1);
+  }, [currentLesson?._id, fetchComments]);
 
   const enrollmentStatus = isEnrolled(courseId);
   const admin = course ? isAdmin(courseId) : false;
+  // CoursePlayer is now strictly view-only; teacher content management lives in /teacher.
+  const playerAdmin = false;
   const currentUserId = getEntityId(currentUser);
   const ownerId = getEntityId(course?.createdBy);
   const isOwner = String(ownerId || "") === String(currentUserId || "");
-
-  const handleDeleteLessonConfirm = async () => {
-    if (!lessonToDelete) return;
-    try {
-      setIsDeletingLesson(true);
-      await removeLesson(courseId, lessonToDelete);
-      if (activeLesson >= course.lessons.length - 1 && activeLesson > 0) {
-        setActiveLesson(activeLesson - 1);
-      }
-      setLessonToDelete(null);
-    } catch (err) {
-      console.error(err);
-      toast.error(t("coursePlayer.errors.deleteLesson"));
-    } finally {
-      setIsDeletingLesson(false);
-    }
-  };
-
-  const closeLessonDialog = useCallback(() => {
-    setIsAddLessonOpen(false);
-    setEditingLesson(null);
-  }, []);
-
-  const openLessonCreator = useCallback(() => {
-    setEditingLesson(null);
-    setIsAddLessonOpen(true);
-  }, []);
-
-  const openLessonEditor = useCallback((lesson) => {
-    setEditingLesson(lesson);
-    setIsAddLessonOpen(true);
-  }, []);
 
   // React to initial URL parameter for direct lesson links
   useEffect(() => {
@@ -668,6 +593,27 @@ const CoursePlayer = ({ courseId, initialLessonSlug, onClose }) => {
 
   useEffect(() => {
     if (!course) return;
+    if (inlineMode) return;
+
+    const requestedLesson = initialLessonSlug
+      ? course.lessons.find(
+          (lesson) =>
+            lesson.urlSlug === initialLessonSlug ||
+            String(lesson._id) === initialLessonSlug ||
+            String(lesson.id) === initialLessonSlug,
+        )
+      : null;
+    const requestedLessonId =
+      requestedLesson?.urlSlug || requestedLesson?._id || requestedLesson?.id;
+    const currentLessonId =
+      currentLessonData?.urlSlug || currentLessonData?._id || currentLessonData?.id;
+
+    // On hard refresh, wait until the URL-selected lesson is applied to local state
+    // before writing a replacement URL. Otherwise we can bounce between lesson 1 and
+    // the requested lesson slug during hydration.
+    if (requestedLessonId && String(requestedLessonId) !== String(currentLessonId || "")) {
+      return;
+    }
 
     const courseSlug = course.urlSlug || course._id || course.id;
     const coursePath = `/courses/${courseSlug}`;
@@ -686,7 +632,7 @@ const CoursePlayer = ({ courseId, initialLessonSlug, onClose }) => {
     ) {
       navigate(nextPath, { replace: true });
     }
-  }, [course, currentLessonData, navigate]);
+  }, [course, currentLessonData, initialLessonSlug, inlineMode, navigate]);
   const enrollStatus = enrollmentStatus;
   const canAccessLessons = isOwner || enrollStatus === "approved" || admin;
   const hasPassedRequiredTestsBeforeLesson = useCallback(
@@ -701,7 +647,7 @@ const CoursePlayer = ({ courseId, initialLessonSlug, onClose }) => {
 
         const requiredTests = Array.isArray(previousLesson.linkedTests)
           ? previousLesson.linkedTests.filter(
-              (item) => item?.requiredToUnlock !== false,
+              (item) => Number(item?.minimumScore || 0) > 0,
             )
           : [];
 
@@ -729,7 +675,6 @@ const CoursePlayer = ({ courseId, initialLessonSlug, onClose }) => {
   useEffect(() => {
     setActiveLesson(0);
     setPlaylistCollapsed(false);
-    setIsAdminPanelOpen(false);
     setIsPlaying(false);
     setCurrentTime(0);
     setDuration(0);
@@ -764,6 +709,7 @@ const CoursePlayer = ({ courseId, initialLessonSlug, onClose }) => {
   const attendanceTrackedPercentRef = useRef({});
   const attendancePendingPercentRef = useRef({});
   const attendanceLastTimeRef = useRef({});
+  const attendanceSessionLoggedRef = useRef("");
 
   useEffect(() => {
     setIsPlaying(false);
@@ -777,8 +723,15 @@ const CoursePlayer = ({ courseId, initialLessonSlug, onClose }) => {
     const lessonId =
       currentLessonData?._id || currentLessonData?.id || currentLessonData?.urlSlug;
     if (lessonId) {
-      attendanceLastTimeRef.current[String(lessonId)] = 0;
+      const key = String(lessonId);
+      attendanceLastTimeRef.current[key] = 0;
+      // Reset per-session accumulated deltas so they don't carry over
+      // to the next session and inflate the total on the backend.
+      attendanceTrackedPercentRef.current[key] = 0;
+      attendancePendingPercentRef.current[key] = 0;
+      attendanceLastFlushedPercentRef.current[key] = 0;
     }
+    attendanceSessionLoggedRef.current = "";
   }, [activeLesson, courseId]);
 
   useEffect(() => {
@@ -804,25 +757,95 @@ const CoursePlayer = ({ courseId, initialLessonSlug, onClose }) => {
   ]);
 
   const flushOwnAttendance = useCallback(
-    async (lessonId, force = false) => {
+    async (
+      lessonId,
+      {
+        force = false,
+        lastPositionSeconds,
+        lessonDurationSeconds,
+        watchIncrement = 0,
+      } = {},
+    ) => {
       const lessonKey = String(lessonId || "");
       if (!lessonKey) return;
 
-      const pendingPercent = Number(attendancePendingPercentRef.current[lessonKey] || 0);
-      if (!pendingPercent || (!force && pendingPercent < 10)) return;
+      // Send the absolute tracked percent for this session (not a delta).
+      // Backend stores Math.max(existing, incoming) so re-watches don't inflate the total.
+      const trackedPercent = Math.min(
+        100,
+        Number(attendanceTrackedPercentRef.current[lessonKey] || 0),
+      );
+      const normalizedLastPosition = Number(lastPositionSeconds || 0);
+      const shouldSendPosition = normalizedLastPosition > 0;
+      const shouldSendWatchIncrement = Number(watchIncrement || 0) > 0;
+      const shouldSendProgress = trackedPercent > 0;
 
+      if (
+        !shouldSendProgress &&
+        !shouldSendPosition &&
+        !shouldSendWatchIncrement
+      ) {
+        return;
+      }
+
+      if (!force && trackedPercent < 10 && !shouldSendWatchIncrement) return;
+
+      // Reset pending accumulator — tracked stays so we can keep comparing.
       attendancePendingPercentRef.current[lessonKey] = 0;
 
       try {
-        await markOwnAttendance(courseId, lessonKey, Number(pendingPercent.toFixed(2)));
+        await markOwnAttendance(courseId, lessonKey, Number(trackedPercent.toFixed(2)), {
+          lastPositionSeconds: shouldSendPosition ? normalizedLastPosition : undefined,
+          lessonDurationSeconds:
+            Number(lessonDurationSeconds || 0) > 0
+              ? Number(lessonDurationSeconds)
+              : undefined,
+          watchIncrement: shouldSendWatchIncrement ? 1 : 0,
+        });
       } catch (error) {
         console.error(error);
-        attendancePendingPercentRef.current[lessonKey] =
-          Number(attendancePendingPercentRef.current[lessonKey] || 0) + pendingPercent;
       }
     },
     [courseId, markOwnAttendance],
   );
+
+  useEffect(() => {
+    const lessonId =
+      currentLessonData?._id || currentLessonData?.id || currentLessonData?.urlSlug;
+
+    if (
+      !lessonId ||
+      admin ||
+      enrollStatus !== "approved" ||
+      !currentLessonHasMedia ||
+      !canAccessLesson(activeLesson)
+    ) {
+      return;
+    }
+
+    const sessionKey = `${courseId}:${lessonId}`;
+    if (attendanceSessionLoggedRef.current === sessionKey) {
+      return;
+    }
+
+    attendanceSessionLoggedRef.current = sessionKey;
+    // Read current position from ref to avoid re-firing when time changes.
+    flushOwnAttendance(lessonId, {
+      force: true,
+      watchIncrement: 1,
+      lastPositionSeconds: overallCurrentTimeRef.current,
+      lessonDurationSeconds: totalLessonDurationRef.current,
+    });
+  }, [
+    activeLesson,
+    admin,
+    canAccessLesson,
+    courseId,
+    currentLessonData,
+    currentLessonHasMedia,
+    enrollStatus,
+    flushOwnAttendance,
+  ]);
 
   useEffect(() => {
     const lessonId =
@@ -855,75 +878,52 @@ const CoursePlayer = ({ courseId, initialLessonSlug, onClose }) => {
     incrementViews,
   ]);
 
-  useEffect(() => {
-    const lessonId =
-      currentLessonData?._id || currentLessonData?.id || currentLessonData?.urlSlug;
+  // Keep a ref so handleTimeUpdate can access flushOwnAttendance without stale closure.
+  const flushOwnAttendanceRef = useRef(flushOwnAttendance);
+  useEffect(() => { flushOwnAttendanceRef.current = flushOwnAttendance; }, [flushOwnAttendance]);
 
-    if (
-      !lessonId ||
-      admin ||
-      enrollStatus !== "approved" ||
-      !currentLessonHasMedia ||
-      !totalLessonDuration ||
-      !canAccessLesson(activeLesson)
-    ) {
+  // Sync eligibility flag — cheap effect, no time-varying deps.
+  useEffect(() => {
+    const lessonId = currentLessonData?._id || currentLessonData?.id || currentLessonData?.urlSlug;
+    attendanceEligibleRef.current =
+      Boolean(lessonId) &&
+      !admin &&
+      enrollStatus === "approved" &&
+      currentLessonHasMedia &&
+      Boolean(totalLessonDuration) &&
+      canAccessLesson(activeLesson);
+  }, [activeLesson, admin, canAccessLesson, currentLessonData, currentLessonHasMedia, enrollStatus, totalLessonDuration]);
+
+  // Flush when video pauses — fire only when isPlaying transitions to false.
+  const wasPLayingRef = useRef(false);
+  useEffect(() => {
+    if (isPlaying) {
+      wasPLayingRef.current = true;
       return;
     }
-
-    const lessonKey = String(lessonId);
-    const lastTrackedTime = Number(
-      attendanceLastTimeRef.current[lessonKey] ?? overallCurrentTime,
-    );
-    const timeDelta = overallCurrentTime - lastTrackedTime;
-    attendanceLastTimeRef.current[lessonKey] = overallCurrentTime;
-
-    if (!isPlaying || timeDelta <= 0 || timeDelta > 2.5) return;
-
-    const watchedPercentDelta = (timeDelta / totalLessonDuration) * 100;
-    if (watchedPercentDelta <= 0) return;
-
-    const nextTrackedPercent =
-      Number(attendanceTrackedPercentRef.current[lessonKey] || 0) +
-      watchedPercentDelta;
-    const nextPendingPercent =
-      Number(attendancePendingPercentRef.current[lessonKey] || 0) +
-      watchedPercentDelta;
-
-    attendanceTrackedPercentRef.current[lessonKey] = nextTrackedPercent;
-    attendancePendingPercentRef.current[lessonKey] = nextPendingPercent;
-
-    const crossedPresentThreshold =
-      nextTrackedPercent >= 70 && nextTrackedPercent - watchedPercentDelta < 70;
-
-    if (crossedPresentThreshold || nextPendingPercent >= 10) {
-      flushOwnAttendance(lessonKey, crossedPresentThreshold);
-    }
-  }, [
-    activeLesson,
-    admin,
-    canAccessLesson,
-    currentLessonData,
-    currentLessonHasMedia,
-    enrollStatus,
-    flushOwnAttendance,
-    isPlaying,
-    overallCurrentTime,
-    totalLessonDuration,
-  ]);
-
-  useEffect(() => {
+    if (!wasPLayingRef.current) return; // was already paused, skip
+    wasPLayingRef.current = false;
     const lessonId =
       currentLessonData?._id || currentLessonData?.id || currentLessonData?.urlSlug;
-    if (!lessonId || isPlaying) return;
-    flushOwnAttendance(lessonId, true);
+    if (!lessonId) return;
+    flushOwnAttendance(lessonId, {
+      force: true,
+      lastPositionSeconds: overallCurrentTimeRef.current,
+      lessonDurationSeconds: totalLessonDurationRef.current,
+    });
   }, [currentLessonData, flushOwnAttendance, isPlaying]);
 
+  // Flush on lesson unmount (lesson switch or component teardown).
   useEffect(() => {
     const lessonId =
       currentLessonData?._id || currentLessonData?.id || currentLessonData?.urlSlug;
     return () => {
       if (lessonId) {
-        flushOwnAttendance(lessonId, true);
+        flushOwnAttendance(lessonId, {
+          force: true,
+          lastPositionSeconds: overallCurrentTimeRef.current,
+          lessonDurationSeconds: totalLessonDurationRef.current,
+        });
       }
     };
   }, [currentLessonData, flushOwnAttendance]);
@@ -1039,11 +1039,91 @@ const CoursePlayer = ({ courseId, initialLessonSlug, onClose }) => {
         (video.buffered.end(video.buffered.length - 1) / video.duration) * 100,
       );
     }
+
+    // Progress tracking — runs every video frame but only sends network request
+    // when 10% accumulates or the 70% threshold is crossed. All reads come from
+    // refs so this callback never needs to be recreated.
+    if (!attendanceEligibleRef.current) return;
+    const lessonKey = currentLessonIdRef.current;
+    if (!lessonKey) return;
+    const now = overallCurrentTimeRef.current;
+    const totalDur = totalLessonDurationRef.current;
+    if (!totalDur) return;
+
+    const lastTrackedTime = Number(attendanceLastTimeRef.current[lessonKey] ?? now);
+    const timeDelta = now - lastTrackedTime;
+    attendanceLastTimeRef.current[lessonKey] = now;
+
+    if (timeDelta <= 0 || timeDelta > 2.5) return;
+
+    const watchedPercentDelta = (timeDelta / totalDur) * 100;
+    if (watchedPercentDelta <= 0) return;
+
+    const prevTrackedPercent = Number(attendanceTrackedPercentRef.current[lessonKey] || 0);
+    const nextTrackedPercent = Math.min(100, prevTrackedPercent + watchedPercentDelta);
+    attendanceTrackedPercentRef.current[lessonKey] = nextTrackedPercent;
+
+    const crossedPresentThreshold = nextTrackedPercent >= 70 && prevTrackedPercent < 70;
+
+    // Flush when crossing 70%, or every 10 absolute percentage points since last flush.
+    const lastFlushed = Number(attendanceLastFlushedPercentRef.current[lessonKey] || 0);
+    const crossedNextFlushPoint = Math.floor(nextTrackedPercent / 10) > Math.floor(lastFlushed / 10);
+
+    if (crossedPresentThreshold || crossedNextFlushPoint) {
+      attendanceLastFlushedPercentRef.current[lessonKey] = nextTrackedPercent;
+      flushOwnAttendanceRef.current(lessonKey, {
+        force: crossedPresentThreshold,
+        lastPositionSeconds: now,
+        lessonDurationSeconds: totalDur,
+      });
+    }
   }, []);
 
   const handleDuration = useCallback((duration) => {
     setDuration(duration);
   }, []);
+
+  const resetActiveMediaPlayback = useCallback(() => {
+    setIsPlaying(false);
+    setIsBuffering(false);
+    setPlaybackError(null);
+    setPlaybackUrl(null);
+    setPlaybackStreamType("direct");
+
+    if (hlsRef.current) {
+      hlsRef.current.destroy();
+      hlsRef.current = null;
+    }
+
+    const video = videoRef.current;
+    if (video) {
+      try {
+        video.pause();
+      } catch {}
+      video.removeAttribute("src");
+      video.load();
+    }
+  }, []);
+
+  const formatHlsPlaybackError = useCallback(
+    (data) => {
+      const detail = String(data?.details || "").trim();
+      const innerMessage = String(data?.error?.message || "").trim();
+      const reason = detail || innerMessage;
+
+      if (reason) {
+        return t("coursePlayer.errors.hlsPlaybackWithReason", {
+          reason,
+          defaultValue: `HLS videoni ishga tushirib bo'lmadi: ${reason}`,
+        });
+      }
+
+      return t("coursePlayer.errors.hlsPlayback", {
+        defaultValue: "HLS videoni ishga tushirishda xatolik yuz berdi.",
+      });
+    },
+    [t],
+  );
 
   const handleSeek = useCallback(
     (e) => {
@@ -1065,6 +1145,7 @@ const CoursePlayer = ({ courseId, initialLessonSlug, onClose }) => {
         if (targetTotalTime <= nextElapsed || index === segmentDurations.length - 1) {
           if (index !== activeMediaIndex) {
             shouldAutoplayNextMediaRef.current = isPlaying;
+            resetActiveMediaPlayback();
             setActiveMediaIndex(index);
             pendingSeekTimeRef.current = Math.max(0, targetTotalTime - elapsed);
             setCurrentTime(0);
@@ -1076,7 +1157,15 @@ const CoursePlayer = ({ courseId, initialLessonSlug, onClose }) => {
         elapsed = nextElapsed;
       }
     },
-    [activeMediaIndex, duration, lessonMediaItems.length, segmentDurations, totalLessonDuration],
+    [
+      activeMediaIndex,
+      duration,
+      isPlaying,
+      lessonMediaItems.length,
+      resetActiveMediaPlayback,
+      segmentDurations,
+      totalLessonDuration,
+    ],
   );
 
   const toggleMute = useCallback(() => {
@@ -1199,12 +1288,13 @@ const CoursePlayer = ({ courseId, initialLessonSlug, onClose }) => {
       shouldAutoplayNextMediaRef.current = isPlaying;
       pendingSeekTimeRef.current = 0;
       setCurrentTime(0);
+      resetActiveMediaPlayback();
       setActiveMediaIndex(index);
       setShowSettings(false);
       setShowControls(true);
       resetControlsHideTimer();
     },
-    [activeMediaIndex, isPlaying, resetControlsHideTimer],
+    [activeMediaIndex, isPlaying, resetActiveMediaPlayback, resetControlsHideTimer],
   );
 
   const renderSettingsContent = useCallback(
@@ -1353,46 +1443,26 @@ const CoursePlayer = ({ courseId, initialLessonSlug, onClose }) => {
     const lessonData = course.lessons[index];
     if (!lessonData) return;
 
-    if (admin && lessonData.status === "draft") {
-      openLessonEditor(lessonData);
-      return;
-    }
-
     setActiveLesson(index);
-    if (lessonData) {
+    setPlayerTab("materials");
+    if (!inlineMode && lessonData) {
       const lessonSlug = lessonData.urlSlug || lessonData._id || lessonData.id;
       const courseSlug = course.urlSlug || course._id || course.id;
       navigate(`/courses/${courseSlug}/${lessonSlug}`);
     }
   };
 
-  const handlePublishLesson = useCallback(
-    async (lesson) => {
-      const targetLessonId = lesson?._id || lesson?.id || lesson?.urlSlug;
-      if (!targetLessonId) return;
-
-      try {
-        await publishLesson(courseId, targetLessonId);
-      } catch (error) {
-        console.error(error);
-        toast.error(
-          error?.response?.data?.message || t("addLesson.publishError"),
-        );
-      }
-    },
-    [courseId, publishLesson, t],
-  );
-
   const playNextLesson = useCallback(() => {
     if (activeMediaIndex < lessonMediaItems.length - 1) {
       shouldAutoplayNextMediaRef.current = true;
+      resetActiveMediaPlayback();
       setActiveMediaIndex((prev) => prev + 1);
       return;
     }
     if (course && activeLesson < course.lessons.length - 1) {
       setActiveLesson((prev) => prev + 1);
     }
-  }, [activeLesson, activeMediaIndex, course, lessonMediaItems.length]);
+  }, [activeLesson, activeMediaIndex, course, lessonMediaItems.length, resetActiveMediaPlayback]);
 
   // Derived values needed for secure playback setup.
   const isHlsVideo =
@@ -1416,6 +1486,8 @@ const CoursePlayer = ({ courseId, initialLessonSlug, onClose }) => {
       return;
     }
     let cancelled = false;
+    const requestSeq = playbackRequestSeqRef.current + 1;
+    playbackRequestSeqRef.current = requestSeq;
     const preparePlayback = async () => {
       setIsLoadingVideo(true);
       setPlaybackUrl(null);
@@ -1427,7 +1499,13 @@ const CoursePlayer = ({ courseId, initialLessonSlug, onClose }) => {
           lessonIdentifier,
           currentMediaItem?.mediaId,
         );
-        if (cancelled || !streamUrl) return;
+        if (
+          cancelled ||
+          playbackRequestSeqRef.current !== requestSeq ||
+          !streamUrl
+        ) {
+          return;
+        }
 
         const absoluteStreamUrl = streamUrl.startsWith("http")
           ? streamUrl
@@ -1435,9 +1513,13 @@ const CoursePlayer = ({ courseId, initialLessonSlug, onClose }) => {
         setPlaybackStreamType(streamType || "direct");
         setPlaybackUrl(absoluteStreamUrl);
       } catch (err) {
-        if (!cancelled) setPlaybackError(t("coursePlayer.errors.playbackToken"));
+        if (!cancelled && playbackRequestSeqRef.current === requestSeq) {
+          setPlaybackError(t("coursePlayer.errors.playbackToken"));
+        }
       } finally {
-        if (!cancelled) setIsLoadingVideo(false);
+        if (!cancelled && playbackRequestSeqRef.current === requestSeq) {
+          setIsLoadingVideo(false);
+        }
       }
     };
 
@@ -1461,6 +1543,8 @@ const CoursePlayer = ({ courseId, initialLessonSlug, onClose }) => {
       hlsRef.current.destroy();
       hlsRef.current = null;
     }
+    hlsInitializingRef.current = false;
+    hlsNonFatalErrorCountRef.current = 0;
 
     const video = videoRef.current;
     if (!video || !playbackUrl || !isHlsVideo) return;
@@ -1469,6 +1553,7 @@ const CoursePlayer = ({ courseId, initialLessonSlug, onClose }) => {
 
     const attachHls = async () => {
       if (video.canPlayType("application/vnd.apple.mpegurl")) {
+        // Safari native HLS — set src directly
         video.src = playbackUrl;
         return;
       }
@@ -1498,6 +1583,13 @@ const CoursePlayer = ({ courseId, initialLessonSlug, onClose }) => {
       const hls = new Hls({
         enableWorker: true,
         lowLatencyMode: false,
+        // Retry config — be patient with Backblaze B2 latency spikes
+        manifestLoadingMaxRetry: 4,
+        manifestLoadingRetryDelay: 1000,
+        levelLoadingMaxRetry: 4,
+        levelLoadingRetryDelay: 1000,
+        fragLoadingMaxRetry: 6,
+        fragLoadingRetryDelay: 1000,
         loader: SegmentCacheFriendlyLoader,
         xhrSetup: (xhr, url) => {
           const requestUrl = String(url || "");
@@ -1518,20 +1610,43 @@ const CoursePlayer = ({ courseId, initialLessonSlug, onClose }) => {
           });
         },
       });
+
+      hlsInitializingRef.current = true;
       hlsRef.current = hls;
+
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        hlsInitializingRef.current = false;
         if (videoRef.current) {
-          videoRef.current.playbackRate = playbackSpeed;
+          videoRef.current.playbackRate = videoRef.current.playbackRate || 1;
         }
         attemptQueuedAutoplay();
       });
+
       hls.loadSource(playbackUrl);
       hls.attachMedia(video);
+
       hls.on(Hls.Events.ERROR, (_, data) => {
+        if (cancelled) return;
+
         if (data?.fatal) {
-          setPlaybackError(t("coursePlayer.errors.hlsPlayback"));
+          console.error("HLS fatal error:", data);
+          setIsBuffering(false);
+          setPlaybackError(formatHlsPlaybackError(data));
           hls.destroy();
           hlsRef.current = null;
+          hlsInitializingRef.current = false;
+          return;
+        }
+
+        // Track non-fatal errors — if too many accumulate, surface the error
+        hlsNonFatalErrorCountRef.current += 1;
+        if (hlsNonFatalErrorCountRef.current > 10) {
+          console.error("Too many HLS non-fatal errors:", data);
+          setIsBuffering(false);
+          setPlaybackError(formatHlsPlaybackError(data));
+          hls.destroy();
+          hlsRef.current = null;
+          hlsInitializingRef.current = false;
         }
       });
     };
@@ -1540,12 +1655,22 @@ const CoursePlayer = ({ courseId, initialLessonSlug, onClose }) => {
 
     return () => {
       cancelled = true;
+      hlsInitializingRef.current = false;
       if (hlsRef.current) {
         hlsRef.current.destroy();
         hlsRef.current = null;
       }
     };
-  }, [attemptQueuedAutoplay, isHlsVideo, playbackSpeed, playbackUrl, t]);
+  // playbackSpeed intentionally excluded — handled by a separate effect below
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [attemptQueuedAutoplay, formatHlsPlaybackError, isHlsVideo, playbackUrl, t]);
+
+  // Apply playbackSpeed changes to existing video/HLS without destroying HLS
+  useEffect(() => {
+    if (videoRef.current && playbackSpeed) {
+      videoRef.current.playbackRate = playbackSpeed;
+    }
+  }, [playbackSpeed]);
 
   useEffect(() => {
     if (
@@ -1613,7 +1738,7 @@ const CoursePlayer = ({ courseId, initialLessonSlug, onClose }) => {
   const coursePlayerContextValue = {
     addComment,
     addReply,
-    admin,
+    admin: playerAdmin,
     course,
     courseId,
     currentLessonData,
@@ -1629,15 +1754,10 @@ const CoursePlayer = ({ courseId, initialLessonSlug, onClose }) => {
     replyText,
     setCommentText,
     setCommentsExpanded,
-    setIsAddLessonOpen,
-    setLessonToDelete,
     setPlaylistCollapsed,
     setReplyText,
     setReplyingTo,
     setShowCommentInput,
-    openLessonCreator,
-    openLessonEditor,
-    handlePublishLesson,
     showCommentInput,
     commentsExpanded,
     commentsHasMore,
@@ -1737,7 +1857,7 @@ const CoursePlayer = ({ courseId, initialLessonSlug, onClose }) => {
                       }
                     }}
                     onError={(e) => {
-                      if (!isLoadingVideo)
+                      if (!isLoadingVideo && !hlsInitializingRef.current)
                         setPlaybackError(
                           t("coursePlayer.errors.playback"),
                         );
@@ -1889,10 +2009,6 @@ const CoursePlayer = ({ courseId, initialLessonSlug, onClose }) => {
                   })}
                 </VideoTitle>
                 <VideoMeta>
-                  <ViewCount>
-                    <Eye size={14} />
-                    {formatViews(currentLessonData.views)} {t("coursePlayer.meta.views")}
-                  </ViewCount>
                   <LikeButton
                     onClick={() =>
                       toggleLessonLike(courseId, currentLessonData._id)
@@ -1922,90 +2038,170 @@ const CoursePlayer = ({ courseId, initialLessonSlug, onClose }) => {
                 </VideoMeta>
               </VideoInfo>
 
-              {currentLessonData?.description ? (
-                <LessonDescriptionCard>
-                  <LessonDescriptionHeader>
-                    <LessonDescriptionTitle>
-                      {t("coursePlayer.description.title")}
-                    </LessonDescriptionTitle>
-                    {currentLessonData.description.length > 180 ? (
-                      <LessonDescriptionToggle
-                        type="button"
-                        onClick={() => setDescriptionExpanded((prev) => !prev)}
-                      >
-                        {descriptionExpanded
-                          ? t("coursePlayer.description.less")
-                          : t("coursePlayer.description.more")}
-                      </LessonDescriptionToggle>
-                    ) : null}
-                  </LessonDescriptionHeader>
-                  <LessonDescriptionBody $expanded={descriptionExpanded}>
-                    {currentLessonData.description}
-                  </LessonDescriptionBody>
-                </LessonDescriptionCard>
-              ) : null}
+              {/* Player tabs */}
+              <PlayerTabsBar>
+                <PlayerTab
+                  $active={playerTab === "materials"}
+                  onClick={() => setPlayerTab("materials")}
+                >
+                  {t("coursePlayer.tabs.materials")}
+                </PlayerTab>
+                <PlayerTab
+                  $active={playerTab === "comments"}
+                  onClick={() => {
+                    setPlayerTab("comments");
+                    setCommentsExpanded(true);
+                  }}
+                >
+                  {t("coursePlayer.tabs.comments")}
+                </PlayerTab>
+                <PlayerTab
+                  $active={playerTab === "more"}
+                  onClick={() => setPlayerTab("more")}
+                >
+                  {t("coursePlayer.tabs.more")}
+                </PlayerTab>
+              </PlayerTabsBar>
 
-              {!admin && hasLessonExtras ? (
-                <LessonExtrasCard>
-                  <LessonExtrasHeader
-                    type="button"
-                    onClick={() => setStudentExtrasOpen((prev) => !prev)}
-                  >
-                    <LessonExtrasHeaderMeta>
-                      <LessonExtrasTitle>
-                        {t("coursePlayer.extras.title")}
-                        {studentExtrasOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                      </LessonExtrasTitle>
-                      <LessonExtrasHint>
-                        {t("coursePlayer.extras.description")}
-                      </LessonExtrasHint>
-                    </LessonExtrasHeaderMeta>
-                    {!studentExtrasOpen ? (
-                    <LessonExtrasBadges>
-                      {!studentExtrasOpen && hasLessonMaterials ? (
-                        <LessonExtrasBadge>
-                          {t("coursePlayer.materials.title")}
-                        </LessonExtrasBadge>
-                      ) : null}
-                      {!studentExtrasOpen && hasLessonTests ? (
-                        <LessonExtrasBadge>
-                          {t("coursePlayer.lessonTests.title")}
-                        </LessonExtrasBadge>
-                      ) : null}
-                      {!studentExtrasOpen && hasHomeworkBadge ? (
-                        <LessonExtrasBadge>
-                          {t("coursePlayer.homework.title")}
-                        </LessonExtrasBadge>
-                      ) : null}
-                    </LessonExtrasBadges>
-                    ) : null}
-                  </LessonExtrasHeader>
-                  {studentExtrasOpen ? (
-                    <LessonExtrasBody>
-                      {hasLessonMaterials ? (
-                        <CoursePlayerMaterialsSection
-                          forceExpanded
-                          showCollapseToggle={false}
-                        />
-                      ) : null}
-                      {hasLessonTests ? (
-                        <CoursePlayerLessonTestsSection
-                          forceExpanded
-                          showCollapseToggle={false}
-                        />
-                      ) : null}
-                      <CoursePlayerHomeworkSection
-                        forceExpanded
-                        showCollapseToggle={false}
-                      />
-                    </LessonExtrasBody>
+              <PlayerTabContent>
+                {/* MATERIALS TAB */}
+                <div style={{ display: playerTab === "materials" ? "contents" : "none" }}>
+                  <CoursePlayerMaterialsSection />
+                  {hasLessonTests ? (
+                    <CoursePlayerLessonTestsSection
+                      forceExpanded
+                      showCollapseToggle={false}
+                    />
                   ) : null}
-                </LessonExtrasCard>
-              ) : null}
+                  <CoursePlayerHomeworkSection
+                    forceExpanded
+                    showCollapseToggle={false}
+                  />
+                </div>
 
-              {admin ? <CoursePlayerMaterialsSection /> : null}
+                {/* COMMENTS TAB */}
+                <div style={{ display: playerTab === "comments" ? "contents" : "none" }}>
+                  <CoursePlayerCommentsSection />
+                </div>
 
-              <CoursePlayerCommentsSection />
+                {/* MORE TAB */}
+                {playerTab === "more" && (
+                  <>
+                    <CompactEnrollmentSection>
+                      <EnrollmentInfo>
+                        <CreatorAvatar>
+                          {course?.createdBy?.avatar ? (
+                            <AvatarImage src={course.createdBy.avatar} alt="author" />
+                          ) : (
+                            (course?.createdBy?.name || course?.createdBy?.username || "?")
+                              .charAt(0)
+                              .toUpperCase()
+                          )}
+                        </CreatorAvatar>
+                        <CreatorMeta>
+                          <CreatorName>
+                            {course?.createdBy?.name ||
+                              course?.createdBy?.username ||
+                              t("coursePlayer.creator.author")}
+                          </CreatorName>
+                        </CreatorMeta>
+                      </EnrollmentInfo>
+                      <EnrollmentActions>
+                        {enrollStatus === "pending" ? (
+                          <EnrollmentActions>
+                            <RoundedEnrollButton $variant="pending">
+                              <Clock size={16} />
+                              {t("coursePlayer.actions.pending")}
+                            </RoundedEnrollButton>
+                            <RoundedEnrollButton
+                              $variant="admin"
+                              onClick={() => removeUser(courseId, currentUserId)}
+                            >
+                              {t("coursePlayer.actions.cancel")}
+                            </RoundedEnrollButton>
+                          </EnrollmentActions>
+                        ) : enrollStatus === "approved" || admin ? (
+                          <RoundedEnrollButton $variant="enrolled">
+                            <CheckCircle size={16} />
+                            {t("coursePlayer.actions.enrolled")}
+                          </RoundedEnrollButton>
+                        ) : course?.accessType === "paid" && enrollStatus === "none" ? (
+                          <RoundedEnrollButton
+                            $variant="enroll"
+                            onClick={async () => {
+                              try {
+                                await enrollInCourse(courseId);
+                                const chatRes = await createChat({ isGroup: false, memberIds: [ownerId] });
+                                if (chatRes) navigate(`/users/${chatRes?.jammId}`);
+                              } catch (err) {
+                                console.error(err);
+                                toast.error(t("coursePlayer.errors.chatCreate"));
+                              }
+                            }}
+                          >
+                            <UserPlus size={16} />
+                            {t("coursePlayer.actions.buy", { price: course?.price?.toLocaleString() || 0 })}
+                          </RoundedEnrollButton>
+                        ) : enrollStatus === "none" ? (
+                          <RoundedEnrollButton $variant="enroll" onClick={() => enrollInCourse(courseId)}>
+                            <UserPlus size={16} />
+                            {t("coursePlayer.actions.enroll")}{" "}
+                            {course?.price > 0 && `(${course.price})`}
+                          </RoundedEnrollButton>
+                        ) : null}
+                      </EnrollmentActions>
+                    </CompactEnrollmentSection>
+                    <CourseInfoCard>
+                      <CourseInfoTitle>{course.name}</CourseInfoTitle>
+                      {course.description ? (
+                        <CourseInfoDescription>{course.description}</CourseInfoDescription>
+                      ) : null}
+                      <CourseInfoMeta>
+                        <CourseInfoMetaItem>
+                          <Users size={14} />
+                          {t("coursePlayer.creator.students", {
+                            count: course?.members?.length || 0,
+                          })}
+                        </CourseInfoMetaItem>
+                        <CourseInfoMetaItem>
+                          <ListVideo size={14} />
+                          {course.lessons.length} {t("courseSidebar.lessons")}
+                        </CourseInfoMetaItem>
+                      </CourseInfoMeta>
+                      {currentLessonData?.description ? (
+                        <LessonDescriptionCard>
+                          <LessonDescriptionHeader>
+                            <LessonDescriptionTitle>
+                              {t("coursePlayer.description.title")}
+                            </LessonDescriptionTitle>
+                            {currentLessonData.description.length > 180 ? (
+                              <LessonDescriptionToggle
+                                type="button"
+                                onClick={() => setDescriptionExpanded((prev) => !prev)}
+                              >
+                                {descriptionExpanded
+                                  ? t("coursePlayer.description.less")
+                                  : t("coursePlayer.description.more")}
+                              </LessonDescriptionToggle>
+                            ) : null}
+                          </LessonDescriptionHeader>
+                          <LessonDescriptionBody $expanded={descriptionExpanded}>
+                            {currentLessonData.description}
+                          </LessonDescriptionBody>
+                        </LessonDescriptionCard>
+                      ) : null}
+                    </CourseInfoCard>
+                    <CourseInfoCard>
+                      <CourseInfoTitle>{t("coursePlayer.tabs.notes")}</CourseInfoTitle>
+                      <NotesArea
+                        placeholder={t("coursePlayer.tabs.notesPlaceholder")}
+                        value={notes}
+                        onChange={(e) => setNotes(e.target.value)}
+                      />
+                    </CourseInfoCard>
+                  </>
+                )}
+              </PlayerTabContent>
             </>
           ) : canAccessLesson(activeLesson) && currentLessonData ? (
             <LockedView>
@@ -2074,157 +2270,10 @@ const CoursePlayer = ({ courseId, initialLessonSlug, onClose }) => {
             </LockedView>
           )}
 
-          {/* YouTube-like Author & Enrollment Section */}
-          <CompactEnrollmentSection>
-            <EnrollmentInfo>
-              <CreatorAvatar>
-                {course?.createdBy?.avatar ? (
-                  <AvatarImage
-                    src={course.createdBy.avatar}
-                    alt="author"
-                  />
-                ) : (
-                  (
-                    course?.createdBy?.name ||
-                    course?.createdBy?.username ||
-                    "?"
-                  )
-                    .charAt(0)
-                    .toUpperCase()
-                )}
-              </CreatorAvatar>
-              <CreatorMeta>
-                <CreatorName>
-                  {course?.createdBy?.name ||
-                    course?.createdBy?.username ||
-                    t("coursePlayer.creator.author")}
-                </CreatorName>
-                <CreatorCount>
-                  {t("coursePlayer.creator.students", {
-                    count: course?.members?.length || 0,
-                  })}
-                </CreatorCount>
-              </CreatorMeta>
-            </EnrollmentInfo>
-
-            <EnrollmentActions>
-              {admin ? (
-                <RoundedEnrollButton
-                  $variant="admin"
-                  onClick={() => setIsAdminPanelOpen(true)}
-                >
-                  <Shield size={16} />
-                  {t("coursePlayer.actions.manage")}
-                </RoundedEnrollButton>
-              ) : enrollStatus === "pending" ? (
-                <EnrollmentActions>
-                  <RoundedEnrollButton $variant="pending">
-                    <Clock size={16} />
-                    {t("coursePlayer.actions.pending")}
-                  </RoundedEnrollButton>
-                  <RoundedEnrollButton
-                    $variant="admin"
-                    onClick={() => removeUser(courseId, currentUserId)}
-                  >
-                    {t("coursePlayer.actions.cancel")}
-                  </RoundedEnrollButton>
-                </EnrollmentActions>
-              ) : enrollStatus === "approved" ? (
-                <RoundedEnrollButton $variant="enrolled">
-                  <CheckCircle size={16} />
-                  {t("coursePlayer.actions.enrolled")}
-                </RoundedEnrollButton>
-              ) : course?.accessType === "paid" && enrollStatus === "none" ? (
-                <RoundedEnrollButton
-                  $variant="enroll"
-                  onClick={async () => {
-                    try {
-                      await enrollInCourse(courseId);
-                      const authorId = ownerId;
-                      const chatRes = await createChat({
-                        isGroup: false,
-                        memberIds: [authorId],
-                      });
-
-                      if (chatRes) {
-                        navigate(`/users/${chatRes?.jammId}`);
-                      }
-                    } catch (err) {
-                      console.error(err);
-                      toast.error(t("coursePlayer.errors.chatCreate"));
-                    }
-                  }}
-                >
-                  <UserPlus size={16} />
-                  {t("coursePlayer.actions.buy", {
-                    price: course?.price?.toLocaleString() || 0,
-                  })}
-                </RoundedEnrollButton>
-              ) : enrollStatus === "none" ? (
-                <RoundedEnrollButton
-                  $variant="enroll"
-                  onClick={() => enrollInCourse(courseId)}
-                >
-                  <UserPlus size={16} />
-                  {t("coursePlayer.actions.enroll")}{" "}
-                  {course?.price > 0 && `(${course.price})`}
-                </RoundedEnrollButton>
-              ) : null}
-            </EnrollmentActions>
-          </CompactEnrollmentSection>
-
         </VideoSection>
 
         <CoursePlayerPlaylistPanel />
       </PlayerContainer>
-
-      {admin ? (
-        <CoursePlayerAdminPane
-          isOpen={isAdminPanelOpen}
-          onClose={() => setIsAdminPanelOpen(false)}
-        />
-      ) : null}
-
-      <AddLessonDialog
-        isOpen={isAddLessonOpen}
-        onClose={closeLessonDialog}
-        courseId={courseId}
-        lesson={editingLesson}
-        onSaved={({ mode }) => {
-          if (mode === "create") {
-            setActiveLesson(course.lessons.length);
-          } else if (editingLesson) {
-            const editingLessonId =
-              editingLesson._id || editingLesson.id || editingLesson.urlSlug;
-            const lessonIndex = (course.lessons || []).findIndex(
-              (lessonItem) =>
-                String(
-                  lessonItem._id || lessonItem.id || lessonItem.urlSlug,
-                ) === String(editingLessonId),
-            );
-
-            if (lessonIndex >= 0) {
-              setActiveLesson(lessonIndex);
-            }
-          }
-          closeLessonDialog();
-        }}
-      />
-
-      <ConfirmDialog
-        isOpen={!!lessonToDelete}
-        onClose={() => setLessonToDelete(null)}
-        title={t("coursePlayer.deleteLesson.title")}
-        description={t("coursePlayer.deleteLesson.description")}
-        confirmText={
-          isDeletingLesson
-            ? t("coursePlayer.deleteLesson.confirmLoading")
-            : t("coursePlayer.deleteLesson.confirm")
-        }
-        cancelText={t("coursePlayer.deleteLesson.cancel")}
-        onConfirm={handleDeleteLessonConfirm}
-        isDanger={true}
-      />
 
       {isMobileViewport && showSettings ? (
         <MobileSettingsSheetOverlay onClick={() => setShowSettings(false)}>

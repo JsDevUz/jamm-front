@@ -1,22 +1,14 @@
 import styled from "styled-components";
 
 export const PlaylistPanel = styled.div`
-  width: 380px;
-  height: 100vh;
+  width: 100%;
+  height: auto;
   background-color: var(--secondary-color);
-  border-left: 1px solid var(--border-color);
+  border-top: 1px solid var(--border-color);
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
   overflow: hidden;
-
-  @media (max-width: 1300px) {
-    width: 100%;
-    height: auto;
-    border-left: none;
-    border-top: 1px solid var(--border-color);
-    flex: none;
-  }
 `;
 
 export const PlaylistHeader = styled.div`
@@ -87,30 +79,23 @@ export const AddLessonBtn = styled.button`
 `;
 
 export const PlaylistToggle = styled.button`
-  display: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   background: none;
   border: none;
   color: var(--text-secondary-color);
   cursor: pointer;
   padding: 4px;
-
-  @media (max-width: 1300px) {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
 `;
 
 export const LessonList = styled.div`
   flex: 1;
   overflow-y: auto;
   padding: 4px 0;
-
-  @media (max-width: 1300px) {
-    max-height: ${(props) => (props.$collapsed ? "0" : "500px")};
-    overflow: ${(props) => (props.$collapsed ? "hidden" : "auto")};
-    transition: max-height 0.3s ease;
-  }
+  max-height: ${(props) => (props.$collapsed ? "0" : "500px")};
+  overflow: ${(props) => (props.$collapsed ? "hidden" : "auto")};
+  transition: max-height 0.3s ease;
 `;
 
 export const EmptyLessons = styled.div`
@@ -167,8 +152,17 @@ export const LessonNumber = styled.div`
   font-weight: 600;
   flex-shrink: 0;
   background: ${(props) =>
-    props.$active ? "var(--primary-color)" : "var(--input-color)"};
-  color: ${(props) => (props.$active ? "white" : "var(--text-secondary-color)")};
+    props.$active
+      ? "var(--primary-color)"
+      : props.$done
+        ? "color-mix(in srgb, var(--success-color) 15%, transparent)"
+        : "var(--input-color)"};
+  color: ${(props) =>
+    props.$active
+      ? "white"
+      : props.$done
+        ? "var(--success-color)"
+        : "var(--text-secondary-color)"};
 `;
 
 export const LessonInfo = styled.div`
@@ -295,6 +289,38 @@ export const CopyLessonBtn = styled(DeleteLessonBtn)`
     background: #40444b;
     color: #72767d;
   }
+`;
+
+export const LessonProgressRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+`;
+
+export const LessonProgressBar = styled.div`
+  flex: 1;
+  height: 4px;
+  background: var(--input-color);
+  border-radius: 999px;
+  overflow: hidden;
+`;
+
+export const LessonProgressFill = styled.div`
+  height: 100%;
+  border-radius: 999px;
+  background: ${(props) => props.$done ? "var(--success-color)" : "var(--primary-color)"};
+  width: ${(props) => Math.min(100, Math.max(0, props.$percent || 0))}%;
+  transition: width 0.3s ease;
+`;
+
+export const LessonProgressPercent = styled.span`
+  font-size: 10px;
+  font-weight: 600;
+  color: ${(props) => props.$done ? "var(--success-color)" : "var(--text-muted-color)"};
+  flex-shrink: 0;
+  min-width: 28px;
+  text-align: right;
 `;
 
 export const CopyPlaylistBtn = styled.button`

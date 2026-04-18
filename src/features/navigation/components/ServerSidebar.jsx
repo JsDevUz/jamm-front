@@ -1,5 +1,5 @@
 import React from "react";
-import { MdArticle, MdSchool } from "react-icons/md";
+import { MdArticle, MdSchool, MdHome } from "react-icons/md";
 import { useTranslation } from "react-i18next";
 import { useChats } from "../../../contexts/ChatsContext";
 import useAuthStore from "../../../store/authStore";
@@ -23,6 +23,7 @@ import {
 } from "../styles/ServerSidebar.styles";
 
 const baseNavItems = [
+  { id: "home", icon: MdHome, labelKey: "navigation.home" },
   { id: "feed", icon: FeedSolidIcon, labelKey: "navigation.feed" },
   { id: "chats", icon: ChatsSolidIcon, labelKey: "navigation.chats" },
   { id: "articles", icon: MdArticle, labelKey: "navigation.articles" },

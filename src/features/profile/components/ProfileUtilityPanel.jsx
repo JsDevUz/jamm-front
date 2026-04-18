@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import styled from "styled-components";
 import {
   ArrowLeft,
@@ -6,9 +6,13 @@ import {
   Heart,
   Headphones,
   Lock,
+  Monitor,
   Palette,
   Shield,
+  Smartphone,
   Sparkles,
+  Tablet,
+  Trash2,
   Zap,
 } from "lucide-react";
 import toast from "react-hot-toast";
@@ -346,6 +350,95 @@ const SecurityStatus = styled(Badge)`
   min-width: 110px;
 `;
 
+const SessionsList = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+`;
+
+const SessionItem = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-top: 1px solid var(--border-color);
+
+  &:first-child {
+    border-top: none;
+  }
+`;
+
+const SessionIcon = styled.div`
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  border-radius: 10px;
+  background: ${(p) => p.$current ? "rgba(88,101,242,0.12)" : "var(--input-color)"};
+  border: 1px solid ${(p) => p.$current ? "var(--primary-color)" : "var(--border-color)"};
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: ${(p) => p.$current ? "var(--primary-color)" : "var(--text-muted-color)"};
+`;
+
+const SessionInfo = styled.div`
+  flex: 1;
+  min-width: 0;
+`;
+
+const SessionName = styled.div`
+  color: var(--text-color);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+`;
+
+const SessionCurrentBadge = styled.span`
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: rgba(88,101,242,0.12);
+  color: var(--primary-color);
+  white-space: nowrap;
+  flex-shrink: 0;
+`;
+
+const SessionMeta = styled.div`
+  color: var(--text-muted-color);
+  font-size: 11px;
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+`;
+
+const SessionDeleteBtn = styled.button`
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted-color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: ${(p) => (p.disabled ? 0.4 : 1)};
+  pointer-events: ${(p) => (p.disabled ? "none" : "auto")};
+
+  &:hover {
+    background: rgba(239, 68, 68, 0.1);
+    color: #ef4444;
+  }
+`;
+
 const FavoritesStack = styled.div`
   display: flex;
   flex-direction: column;
@@ -490,6 +583,9 @@ const ProfileUtilityPanel = ({ section, currentUser, onBack }) => {
   const [appLockEnabled, setAppLockEnabled] = useState(
     Boolean(currentUser?.appLockEnabled),
   );
+  const [sessions, setSessions] = useState([]);
+  const [sessionsLoading, setSessionsLoading] = useState(false);
+  const [deletingSessionId, setDeletingSessionId] = useState(null);
   const [pinPadState, setPinPadState] = useState({
     open: false,
     mode: "setup",
@@ -642,6 +738,39 @@ const ProfileUtilityPanel = ({ section, currentUser, onBack }) => {
   const refreshMe = async () => {
     const { data } = await axiosInstance.get("/users/me");
     setAuth({ ...(authUser || {}), ...data });
+  };
+
+  const loadSessions = useCallback(async () => {
+    setSessionsLoading(true);
+    try {
+      const { data } = await axiosInstance.get("/auth/sessions");
+      setSessions(Array.isArray(data) ? data : []);
+    } catch {
+      setSessions([]);
+    } finally {
+      setSessionsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (section !== "security") return;
+    loadSessions();
+  }, [section, loadSessions]);
+
+  const handleDeleteSession = async (sessionId) => {
+    if (deletingSessionId) return;
+    setDeletingSessionId(sessionId);
+    try {
+      await axiosInstance.delete(`/auth/sessions/${sessionId}`);
+      setSessions((prev) => prev.filter((s) => s._id !== sessionId));
+      toast.success(t("profileUtility.security.sessionDeleted"));
+    } catch (error) {
+      toast.error(
+        error?.response?.data?.message || t("profileUtility.security.sessionDeleteError"),
+      );
+    } finally {
+      setDeletingSessionId(null);
+    }
   };
 
   const resetPinPad = () => {
@@ -1257,6 +1386,33 @@ const ProfileUtilityPanel = ({ section, currentUser, onBack }) => {
           ? t("profileUtility.security.confirmPinDescription")
           : t("profileUtility.security.newPinDescription");
 
+  const getSessionIcon = (deviceType) => {
+    if (deviceType === "mobile") return <Smartphone size={18} />;
+    if (deviceType === "tablet") return <Tablet size={18} />;
+    return <Monitor size={18} />;
+  };
+
+  const formatLastUsed = (dateStr) => {
+    if (!dateStr) return "";
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diffMs = now - date;
+    const diffMin = Math.floor(diffMs / 60000);
+    const diffHr = Math.floor(diffMs / 3600000);
+    const diffDay = Math.floor(diffMs / 86400000);
+    if (diffMin < 1) return t("profileUtility.security.sessionJustNow");
+    if (diffMin < 60) return t("profileUtility.security.sessionMinutesAgo", { count: diffMin });
+    if (diffHr < 24) return t("profileUtility.security.sessionHoursAgo", { count: diffHr });
+    if (diffDay < 30) return t("profileUtility.security.sessionDaysAgo", { count: diffDay });
+    return date.toLocaleDateString();
+  };
+
+  // Current session is older than 1 day → can delete others
+  const currentSession = sessions.find((s) => s.isCurrent);
+  const canDeleteOthers = currentSession
+    ? Date.now() - new Date(currentSession.createdAt).getTime() >= 24 * 60 * 60 * 1000
+    : false;
+
   const renderSecurity = () => (
     <SecurityStack>
       <Group>
@@ -1302,6 +1458,64 @@ const ProfileUtilityPanel = ({ section, currentUser, onBack }) => {
           </DangerButton>
         </InfoCard>
       </CardsGrid>
+
+      <Group>
+        <GroupHeader>
+          <h4>{t("profileUtility.security.sessionsTitle")}</h4>
+          <p>{t("profileUtility.security.sessionsDescription")}</p>
+        </GroupHeader>
+        {sessionsLoading ? (
+          <div style={{ padding: "14px", color: "var(--text-muted-color)", fontSize: 13 }}>
+            {t("common.loading")}
+          </div>
+        ) : sessions.length === 0 ? (
+          <div style={{ padding: "14px", color: "var(--text-muted-color)", fontSize: 13 }}>
+            {t("profileUtility.security.sessionsEmpty")}
+          </div>
+        ) : (
+          <SessionsList>
+            {sessions.map((session) => (
+              <SessionItem key={session._id}>
+                <SessionIcon $current={session.isCurrent}>
+                  {getSessionIcon(session.deviceType)}
+                </SessionIcon>
+                <SessionInfo>
+                  <SessionName>
+                    {session.deviceName || t("profileUtility.security.unknownDevice")}
+                    {session.isCurrent && (
+                      <SessionCurrentBadge>
+                        {t("profileUtility.security.currentSession")}
+                      </SessionCurrentBadge>
+                    )}
+                  </SessionName>
+                  <SessionMeta>
+                    {session.ipAddress ? `${session.ipAddress} · ` : ""}
+                    {t("profileUtility.security.sessionLastUsed")}: {formatLastUsed(session.lastUsedAt)}
+                  </SessionMeta>
+                </SessionInfo>
+                {!session.isCurrent && (
+                  <SessionDeleteBtn
+                    title={
+                      !canDeleteOthers
+                        ? t("profileUtility.security.sessionDeleteRestriction")
+                        : t("common.delete")
+                    }
+                    disabled={!!deletingSessionId || !canDeleteOthers}
+                    onClick={() => handleDeleteSession(session._id)}
+                  >
+                    <Trash2 size={15} />
+                  </SessionDeleteBtn>
+                )}
+              </SessionItem>
+            ))}
+          </SessionsList>
+        )}
+        {!canDeleteOthers && sessions.length > 1 && (
+          <div style={{ padding: "8px 14px 12px", color: "var(--text-muted-color)", fontSize: 11 }}>
+            {t("profileUtility.security.sessionDeleteRestriction")}
+          </div>
+        )}
+      </Group>
 
       <AppLockPinPad
         open={pinPadState.open}
