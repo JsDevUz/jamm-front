@@ -12,9 +12,9 @@ export const useTheme = () => {
 
 export const ThemeProvider = ({ children }) => {
   const [theme, setTheme] = useState(() => {
-    // Get theme from localStorage or default to dark
+    // Get theme from localStorage or default to light
     const savedTheme = localStorage.getItem('theme')
-    return savedTheme || 'dark'
+    return savedTheme || 'light'
   })
 
   useEffect(() => {
@@ -72,7 +72,7 @@ export const ThemeProvider = ({ children }) => {
     }
   }
 
-  const currentTheme = themes[theme] || themes.dark
+  const currentTheme = themes[theme] || themes.light
 
   return (
     <ThemeContext.Provider value={{

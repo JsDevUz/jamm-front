@@ -1,5 +1,5 @@
 import React, { Suspense, lazy } from "react";
-import { Navigate, Route, Routes } from "react-router-dom";
+import { Navigate, Route, Routes, useParams } from "react-router-dom";
 import ProtectedRoute from "./ProtectedRoute";
 import GlobalSearchPage from "../../features/search/GlobalSearchPage";
 import useAuthStore from "../../store/authStore";
@@ -9,6 +9,16 @@ const LandingPage = lazy(() => import("../../pages/LandingPage"));
 const AppWrapper = lazy(() => import("./AppWrapper"));
 const SlugResolver = lazy(() => import("./SlugResolver"));
 const TeacherPage = lazy(() => import("../../pages/TeacherPage"));
+
+const LegacyCoursesRedirect = () => {
+  const { resourceId, lessonId } = useParams();
+  const nextPath = lessonId
+    ? `/my-courses/${resourceId}/${lessonId}`
+    : resourceId
+      ? `/my-courses/${resourceId}`
+      : "/my-courses";
+  return <Navigate to={nextPath} replace />;
+};
 
 // Public-only route component - redirects authenticated users to chats
 const PublicRoute = ({ children }) => {
@@ -83,7 +93,55 @@ export default function AppRoutes() {
           path="/home"
           element={
             <ProtectedRoute>
+              <Navigate to="/courses" replace />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/my-courses"
+          element={
+            <ProtectedRoute>
+              <AppWrapper forcedNav="courses" />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/my-courses/:resourceId"
+          element={
+            <ProtectedRoute>
+              <AppWrapper forcedNav="courses" />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/my-courses/:resourceId/:lessonId"
+          element={
+            <ProtectedRoute>
+              <AppWrapper forcedNav="courses" />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/courses"
+          element={
+            <ProtectedRoute>
               <AppWrapper forcedNav="home" />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/courses/:resourceId"
+          element={
+            <ProtectedRoute>
+              <LegacyCoursesRedirect />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/courses/:resourceId/:lessonId"
+          element={
+            <ProtectedRoute>
+              <LegacyCoursesRedirect />
             </ProtectedRoute>
           }
         />

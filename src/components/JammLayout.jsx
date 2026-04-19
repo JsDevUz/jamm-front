@@ -563,7 +563,7 @@ const JammLayout = ({
         initialNav === "courses" &&
         (!initialResourceId || initialResourceId === "0")
       ) {
-        // If we are on /courses and no specific course is selected, clear it
+        // If we are on /my-courses and no specific course is selected, clear it
         setSelectedCourse(null);
       }
     }
@@ -604,7 +604,13 @@ const JammLayout = ({
       } else if (navId === "courses") {
         setViewMode("courses");
       }
-      navigate(`/${navId}`);
+      navigate(
+        navId === "courses"
+          ? "/my-courses"
+          : navId === "home"
+            ? "/courses"
+            : `/${navId}`,
+      );
     });
   };
 
@@ -671,7 +677,7 @@ const JammLayout = ({
       if (direction < 0 && (selectedNav === "arena" || viewMode === "arena")) {
         setViewMode("courses");
         setSelectedNav("courses");
-        navigate("/courses");
+        navigate("/my-courses");
       }
     };
 
@@ -933,7 +939,7 @@ const JammLayout = ({
                       initialLessonSlug={initialLesson}
                       onClose={() => {
                         setSelectedCourse(null);
-                        navigate("/courses");
+                        navigate("/my-courses");
                       }}
                     />
                   </LazyPane>

@@ -284,7 +284,7 @@ const ProfilePage = ({ profileUserId, isFocused = false, onToggleFocus }) => {
             courses={userCourses}
             onBack={handlePaneBack}
             onOpenCourse={(course) =>
-              navigate(`/courses/${course.urlSlug || course.id || course._id}`)
+              navigate(`/my-courses/${course.urlSlug || course.id || course._id}`)
             }
           />
         ) : null}
@@ -349,7 +349,7 @@ const ProfilePage = ({ profileUserId, isFocused = false, onToggleFocus }) => {
           setIsProfileEditOpen(false);
           if (sessionStorage.getItem("jamm-tour-manual-sequence") === "profile") {
             sessionStorage.setItem("jamm-tour-manual-sequence", "courses");
-            navigate("/courses");
+            navigate("/my-courses");
           }
         }}
         storageKey="jamm-tour-profile-v1"

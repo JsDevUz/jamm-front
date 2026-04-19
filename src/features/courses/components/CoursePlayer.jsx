@@ -16,7 +16,6 @@ import {
   ListVideo,
   Lock,
   LogIn,
-  AlertCircle,
   ArrowLeft,
   SkipBack,
   SkipForward,
@@ -72,8 +71,6 @@ import {
   NoCourseText,
   NoCourseTitle,
   NonSelectableVideo,
-  PlaybackErrorOverlay,
-  PlaybackErrorText,
   PlayerContainer,
   ProgressContainer,
   ProgressThumb,
@@ -208,7 +205,7 @@ const CoursePlayer = ({
   const totalLessonDurationRef = useRef(0);
   const attendanceEligibleRef = useRef(false);
   const currentLessonIdRef = useRef("");
-  const attendanceLastFlushedPercentRef = useRef({});
+  const attendanceLastFlushedSecondRef = useRef({});
 
   // Video player state
   const videoRef = useRef(null);
@@ -337,6 +334,12 @@ const CoursePlayer = ({
       currentMediaItem?.videoUrl ||
       activeMediaIndex,
   );
+  const currentMediaIdentifier =
+    currentMediaItem?.mediaId ||
+    currentMediaItem?._id ||
+    currentMediaItem?.fileUrl ||
+    currentMediaItem?.videoUrl ||
+    String(activeMediaIndex);
   const currentLessonHeaderTitle = currentLessonData
     ? `${activeLesson + 1}-dars: ${currentLessonData.title || course?.name || "Dars"}`
     : course?.name || "Dars";
@@ -359,7 +362,7 @@ const CoursePlayer = ({
 
     try {
       await navigator.clipboard.writeText(
-        `${window.location.origin}/courses/${courseSlug}/${lessonSlug}`,
+        `${window.location.origin}/my-courses/${courseSlug}/${lessonSlug}`,
       );
       toast.success("Dars havolasi nusxalandi");
     } catch {
@@ -730,7 +733,7 @@ const CoursePlayer = ({
     }
 
     const courseSlug = course.urlSlug || course._id || course.id;
-    const coursePath = `/courses/${courseSlug}`;
+    const coursePath = `/my-courses/${courseSlug}`;
     const lessonSlug =
       currentLessonData?.urlSlug ||
       currentLessonData?._id ||
@@ -796,7 +799,7 @@ const CoursePlayer = ({
       // to the next session and inflate the total on the backend.
       attendanceTrackedPercentRef.current[key] = 0;
       attendancePendingPercentRef.current[key] = 0;
-      attendanceLastFlushedPercentRef.current[key] = 0;
+      attendanceLastFlushedSecondRef.current[key] = 0;
     }
     attendanceSessionLoggedRef.current = "";
   }, [activeLesson, courseId]);
@@ -881,44 +884,6 @@ const CoursePlayer = ({
       currentLessonData?._id || currentLessonData?.id || currentLessonData?.urlSlug;
 
     if (
-      !lessonId ||
-      admin ||
-      enrollStatus !== "approved" ||
-      !currentLessonHasMedia ||
-      !canAccessLesson(activeLesson)
-    ) {
-      return;
-    }
-
-    const sessionKey = `${courseId}:${lessonId}`;
-    if (attendanceSessionLoggedRef.current === sessionKey) {
-      return;
-    }
-
-    attendanceSessionLoggedRef.current = sessionKey;
-    // Read current position from ref to avoid re-firing when time changes.
-    flushOwnAttendance(lessonId, {
-      force: true,
-      watchIncrement: 1,
-      lastPositionSeconds: overallCurrentTimeRef.current,
-      lessonDurationSeconds: totalLessonDurationRef.current,
-    });
-  }, [
-    activeLesson,
-    admin,
-    canAccessLesson,
-    courseId,
-    currentLessonData,
-    currentLessonHasMedia,
-    enrollStatus,
-    flushOwnAttendance,
-  ]);
-
-  useEffect(() => {
-    const lessonId =
-      currentLessonData?._id || currentLessonData?.id || currentLessonData?.urlSlug;
-
-    if (
       !courseId ||
       !lessonId ||
       !duration ||
@@ -979,6 +944,45 @@ const CoursePlayer = ({
       lessonDurationSeconds: totalLessonDurationRef.current,
     });
   }, [currentLessonData, flushOwnAttendance, isPlaying]);
+
+  const handlePlay = useCallback(() => {
+    setIsPlaying(true);
+
+    const lessonId =
+      currentLessonData?._id || currentLessonData?.id || currentLessonData?.urlSlug;
+
+    if (
+      !lessonId ||
+      admin ||
+      enrollStatus !== "approved" ||
+      !currentLessonHasMedia ||
+      !canAccessLesson(activeLesson)
+    ) {
+      return;
+    }
+
+    const sessionKey = `${courseId}:${lessonId}`;
+    if (attendanceSessionLoggedRef.current === sessionKey) {
+      return;
+    }
+
+    attendanceSessionLoggedRef.current = sessionKey;
+    flushOwnAttendance(lessonId, {
+      force: true,
+      watchIncrement: 1,
+      lastPositionSeconds: overallCurrentTimeRef.current,
+      lessonDurationSeconds: totalLessonDurationRef.current,
+    });
+  }, [
+    activeLesson,
+    admin,
+    canAccessLesson,
+    courseId,
+    currentLessonData,
+    currentLessonHasMedia,
+    enrollStatus,
+    flushOwnAttendance,
+  ]);
 
   // Flush on lesson unmount (lesson switch or component teardown).
   useEffect(() => {
@@ -1130,16 +1134,14 @@ const CoursePlayer = ({
     const nextTrackedPercent = Math.min(100, prevTrackedPercent + watchedPercentDelta);
     attendanceTrackedPercentRef.current[lessonKey] = nextTrackedPercent;
 
-    const crossedPresentThreshold = nextTrackedPercent >= 70 && prevTrackedPercent < 70;
+    const lastFlushedSecond = Number(attendanceLastFlushedSecondRef.current[lessonKey] || 0);
+    const crossedTenSecondMark =
+      now >= 10 && Math.floor(now / 10) > Math.floor(lastFlushedSecond / 10);
 
-    // Flush when crossing 70%, or every 10 absolute percentage points since last flush.
-    const lastFlushed = Number(attendanceLastFlushedPercentRef.current[lessonKey] || 0);
-    const crossedNextFlushPoint = Math.floor(nextTrackedPercent / 10) > Math.floor(lastFlushed / 10);
-
-    if (crossedPresentThreshold || crossedNextFlushPoint) {
-      attendanceLastFlushedPercentRef.current[lessonKey] = nextTrackedPercent;
+    if (crossedTenSecondMark) {
+      attendanceLastFlushedSecondRef.current[lessonKey] = now;
       flushOwnAttendanceRef.current(lessonKey, {
-        force: crossedPresentThreshold,
+        force: false,
         lastPositionSeconds: now,
         lessonDurationSeconds: totalDur,
       });
@@ -1191,6 +1193,15 @@ const CoursePlayer = ({
     },
     [t],
   );
+
+  useEffect(() => {
+    if (!playbackError) return;
+
+    toast.error(playbackError, {
+      id: "course-player-playback-error",
+    });
+    setPlaybackError(null);
+  }, [playbackError]);
 
   const handleSeek = useCallback(
     (e) => {
@@ -1515,7 +1526,7 @@ const CoursePlayer = ({
     if (!inlineMode && lessonData) {
       const lessonSlug = lessonData.urlSlug || lessonData._id || lessonData.id;
       const courseSlug = course.urlSlug || course._id || course.id;
-      navigate(`/courses/${courseSlug}/${lessonSlug}`);
+      navigate(`/my-courses/${courseSlug}/${lessonSlug}`);
     }
   };
 
@@ -1564,7 +1575,7 @@ const CoursePlayer = ({
         const { streamUrl, streamType } = await getLessonPlaybackToken(
           courseId,
           lessonIdentifier,
-          currentMediaItem?.mediaId,
+          currentMediaItem?.mediaId || currentMediaItem?._id,
         );
         if (
           cancelled ||
@@ -1597,9 +1608,10 @@ const CoursePlayer = ({
     };
   }, [
     activeLesson,
+    activeMediaIndex,
     canAccessActiveLesson,
     courseId,
-    currentMediaItem?.mediaId,
+    currentMediaIdentifier,
     isLocalVideo,
     lessonIdentifier,
     playbackRequested,
@@ -1892,7 +1904,7 @@ const CoursePlayer = ({
                     disablePictureInPicture
                     disableRemotePlayback
                     onContextMenu={(e) => e.preventDefault()}
-                    onPlay={() => setIsPlaying(true)}
+                    onPlay={handlePlay}
                     onPause={() => setIsPlaying(false)}
                     onWaiting={() => setIsBuffering(true)}
                     onCanPlay={() => {
@@ -1931,13 +1943,6 @@ const CoursePlayer = ({
                     }}
                     onEnded={playNextLesson}
                   />
-
-                  {playbackError && (
-                    <PlaybackErrorOverlay>
-                      <AlertCircle size={48} />
-                      <PlaybackErrorText>{playbackError}</PlaybackErrorText>
-                    </PlaybackErrorOverlay>
-                  )}
 
                   <VideoOverlay
                     $visible={showControls || !isPlaying}

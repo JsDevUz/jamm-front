@@ -12,12 +12,12 @@ import { Navigate, useNavigate } from "react-router-dom";
 import {
   BookOpen,
   Check,
+  ChevronDown,
   ClipboardCheck,
   Copy,
   GraduationCap,
   LayoutDashboard,
   MessageCircle,
-  PanelLeft,
   Pencil,
   Plus,
   RefreshCw,
@@ -64,15 +64,10 @@ const Layout = styled.div`
   min-height: calc(var(--app-height, 100dvh) - 36px);
   width: 100%;
   display: grid;
-  grid-template-columns: ${({ $sidebarCollapsed }) =>
-    $sidebarCollapsed ? "68px minmax(0, 1fr)" : "268px minmax(0, 1fr)"};
+  grid-template-columns: 268px minmax(0, 1fr);
   gap: 16px;
   align-items: stretch;
-  transition: grid-template-columns 0.2s ease;
-
-  @media (max-width: 960px) {
-    grid-template-columns: 1fr;
-  }
+  min-width: 0;
 `;
 
 const Panel = styled.div`
@@ -98,32 +93,11 @@ const SidebarShell = styled.div`
   height: 100%;
   display: block;
 `;
-
-const SidebarRail = styled.div`
-  display: ${({ $collapsed }) => ($collapsed ? "flex" : "none")};
-  min-height: 100%;
-  height: 100%;
-  background: var(--secondary-color);
-  border: 1px solid var(--border-color);
-  border-radius: 22px;
-  padding: 10px 6px;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-`;
-
-const RailSection = styled.div`
-  width: 100%;
-  display: grid;
-  justify-content: center;
-  gap: 8px;
-`;
-
 const SidebarMenu = styled.div`
   min-width: 0;
   min-height: 100%;
   height: 100%;
-  display: ${({ $collapsed }) => ($collapsed ? "none" : "grid")};
+  display: grid;
 `;
 
 const SidebarCard = styled.div`
@@ -294,6 +268,11 @@ const NavList = styled.div`
   gap: 8px;
 `;
 
+const SidebarCoursesWrap = styled.div`
+  display: grid;
+  gap: 8px;
+`;
+
 const NavButton = styled.button`
   position: relative;
   width: 100%;
@@ -352,6 +331,81 @@ const NavButton = styled.button`
 
 const NavText = styled.span`
   display: ${({ $collapsed }) => ($collapsed ? "none" : "inline")};
+`;
+
+const NavButtonAside = styled.span`
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: inherit;
+  transform: rotate(${({ $expanded }) => ($expanded ? "180deg" : "0deg")});
+  transition: transform 0.22s ease;
+`;
+
+const CourseAccordion = styled.div`
+  display: grid;
+  gap: 6px;
+  max-height: ${({ $expanded }) => ($expanded ? "420px" : "0")};
+  opacity: ${({ $expanded }) => ($expanded ? 1 : 0)};
+  overflow: hidden;
+  transition:
+    max-height 0.28s ease,
+    opacity 0.2s ease;
+`;
+
+const CourseAccordionInner = styled.div`
+  display: grid;
+  gap: 6px;
+  padding: 2px 0 0 10px;
+  border-left: 1px solid var(--border-color);
+  margin-left: 14px;
+`;
+
+const CourseAccordionItem = styled.button`
+  width: 100%;
+  min-height: 38px;
+  border: 1px solid ${({ $active }) => ($active ? "var(--primary-color)" : "var(--border-color)")};
+  background: ${({ $active }) =>
+    $active
+      ? "color-mix(in srgb, var(--primary-color) 8%, var(--background-color))"
+      : "var(--background-color)"};
+  color: ${({ $active }) => ($active ? "var(--text-color)" : "var(--text-secondary-color)")};
+  border-radius: 12px;
+  padding: 0 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 0.2s ease,
+    background-color 0.2s ease,
+    color 0.2s ease,
+    transform 0.2s ease;
+
+  &:hover {
+    border-color: var(--primary-color);
+    color: var(--text-color);
+    transform: translateX(2px);
+  }
+`;
+
+const CourseAccordionTitle = styled.span`
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 700;
+`;
+
+const CourseAccordionMeta = styled.span`
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted-color);
 `;
 
 const RailButton = styled.button`
@@ -1415,7 +1469,7 @@ const StudentModalOverlay = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 24px;
+  padding: 10px;
 `;
 
 const StudentModalPanel = styled.div`
@@ -1583,10 +1637,12 @@ const StudentModalBody = styled.div`
 
 const LessonContentModalPanel = styled(StudentModalPanel)`
   width: min(100%, 1240px);
-  max-height: min(94vh, 1100px);
+  height: calc(100vh - 20px);
+  max-height: calc(100vh - 20px);
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
   overflow: hidden;
+  background: var(--background-color);
 `;
 
 const LessonContentModalHeader = styled.div`
@@ -1627,6 +1683,79 @@ const LessonContentModalSubline = styled.div`
 const LessonContentModalBody = styled.div`
   min-height: 0;
   overflow: auto;
+  background: var(--background-color);
+`;
+
+const LessonMasteryPanel = styled.div`
+  padding: 20px 22px 24px;
+  display: grid;
+  gap: 18px;
+`;
+
+const LessonMasteryIntro = styled.div`
+  display: grid;
+  gap: 6px;
+`;
+
+const LessonMasteryTitle = styled.div`
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--text-color);
+`;
+
+const LessonMasteryText = styled.div`
+  font-size: 13px;
+  color: var(--text-secondary-color);
+`;
+
+const LessonMasteryTable = styled.div`
+  min-width: 860px;
+  display: grid;
+`;
+
+const LessonMasteryHead = styled.div`
+  display: grid;
+  grid-template-columns: minmax(240px, 1.6fr) 130px 130px 130px 140px 120px;
+  gap: 16px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border-color);
+  background: color-mix(in srgb, var(--secondary-color) 55%, transparent);
+`;
+
+const LessonMasteryRow = styled.div`
+  display: grid;
+  grid-template-columns: minmax(240px, 1.6fr) 130px 130px 130px 140px 120px;
+  gap: 16px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border-color);
+  align-items: center;
+
+  &:last-child {
+    border-bottom: none;
+  }
+`;
+
+const LessonMasteryCell = styled.div`
+  min-width: 0;
+  display: flex;
+  align-items: center;
+`;
+
+const LessonMasteryAction = styled.button`
+  height: 38px;
+  padding: 0 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border-color);
+  background: var(--secondary-color);
+  color: var(--text-color);
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+
+  &:hover {
+    border-color: var(--primary-color);
+    color: var(--primary-color);
+  }
 `;
 
 const StudentModalTabs = styled.div`
@@ -1739,27 +1868,6 @@ const CourseModalLessonActions = styled.div`
   @media (max-width: 760px) {
     width: 100%;
     justify-content: flex-start;
-  }
-`;
-
-const CourseModalLessonContentButton = styled.button`
-  height: 42px;
-  padding: 0 14px;
-  border-radius: 14px;
-  border: 1px solid var(--border-color);
-  background: var(--secondary-color);
-  color: var(--text-color);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  font-size: 13px;
-  font-weight: 700;
-  cursor: pointer;
-
-  &:hover {
-    border-color: var(--primary-color);
-    color: var(--primary-color);
   }
 `;
 
@@ -2053,6 +2161,16 @@ const AttendanceStatusGroup = styled.div`
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
+`;
+
+const MasteryMetricsGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+
+  @media (max-width: 760px) {
+    grid-template-columns: 1fr;
+  }
 `;
 
 const AttendanceStatusButton = styled.button`
@@ -2669,7 +2787,7 @@ export default function TeacherPage() {
   } = useCourses();
 
   const [activeSection, setActiveSection] = useState("dashboard");
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [coursesMenuExpanded, setCoursesMenuExpanded] = useState(true);
   const [search, setSearch] = useState("");
   const [selectedStudentCourseFilter, setSelectedStudentCourseFilter] = useState(
     "all",
@@ -2679,11 +2797,12 @@ export default function TeacherPage() {
   const [selectedStudentRow, setSelectedStudentRow] = useState(null);
   const [selectedAttendanceRow, setSelectedAttendanceRow] = useState(null);
   const [selectedMasteryRow, setSelectedMasteryRow] = useState(null);
-  const [selectedCourseModalId, setSelectedCourseModalId] = useState(null);
+  const [selectedMasteryLessonFocusId, setSelectedMasteryLessonFocusId] = useState(null);
   const [studentModalTab, setStudentModalTab] = useState("overview");
   const [savingAttendanceKey, setSavingAttendanceKey] = useState("");
   const [savingMasteryKey, setSavingMasteryKey] = useState("");
   const [masteryDrafts, setMasteryDrafts] = useState({});
+  const [studentMasteryDrafts, setStudentMasteryDrafts] = useState({});
   const [collapsedMasteryLessons, setCollapsedMasteryLessons] = useState({});
   const [isStartingChat, setIsStartingChat] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
@@ -2692,6 +2811,7 @@ export default function TeacherPage() {
   const [lessonToDelete, setLessonToDelete] = useState(null);
   const [isDeletingLesson, setIsDeletingLesson] = useState(false);
   const [lessonContentLessonId, setLessonContentLessonId] = useState(null);
+  const [lessonContentModalTab, setLessonContentModalTab] = useState("content");
   const [courseToDelete, setCourseToDelete] = useState(null);
   const [isDeletingCourse, setIsDeletingCourse] = useState(false);
 
@@ -2744,6 +2864,12 @@ export default function TeacherPage() {
     }
   }, [selectedCourseId]);
 
+  useEffect(() => {
+    if (activeSection === "courses") {
+      setCoursesMenuExpanded(true);
+    }
+  }, [activeSection]);
+
   const selectedCourse = useMemo(
     () =>
       teacherCourses.find(
@@ -2752,37 +2878,25 @@ export default function TeacherPage() {
     [selectedCourseId, teacherCourses],
   );
 
-  const selectedCourseModal = useMemo(
-    () =>
-      teacherCourses.find(
-        (course) => getCourseId(course) === String(selectedCourseModalId || ""),
-      ) || null,
-    [selectedCourseModalId, teacherCourses],
-  );
-
   const selectedLessonContent = useMemo(
     () =>
-      (selectedCourseModal?.lessons || []).find(
+      (selectedCourse?.lessons || []).find(
         (lesson) => getLessonId(lesson) === String(lessonContentLessonId || ""),
       ) || null,
-    [lessonContentLessonId, selectedCourseModal],
+    [lessonContentLessonId, selectedCourse],
   );
-
-  useEffect(() => {
-    if (selectedCourseModalId && !selectedCourseModal) {
-      setSelectedCourseModalId(null);
-      setCourseLessonDialogOpen(false);
-      setEditingCourseLesson(null);
-      setLessonToDelete(null);
-      setLessonContentLessonId(null);
-    }
-  }, [selectedCourseModal, selectedCourseModalId]);
 
   useEffect(() => {
     if (lessonContentLessonId && !selectedLessonContent) {
       setLessonContentLessonId(null);
     }
   }, [lessonContentLessonId, selectedLessonContent]);
+
+  useEffect(() => {
+    if (lessonContentLessonId) {
+      setLessonContentModalTab("content");
+    }
+  }, [lessonContentLessonId]);
 
   useEffect(() => {
     if (
@@ -2805,6 +2919,12 @@ export default function TeacherPage() {
       setSelectedMasteryRow(null);
     }
   }, [selectedMasteryRow, teacherCourses]);
+
+  useEffect(() => {
+    if (!selectedMasteryRow) {
+      setSelectedMasteryLessonFocusId(null);
+    }
+  }, [selectedMasteryRow]);
 
   useEffect(() => {
     if (!selectedMasteryRow?.course) {
@@ -2831,6 +2951,31 @@ export default function TeacherPage() {
     setMasteryDrafts(nextDrafts);
     setCollapsedMasteryLessons(nextCollapsed);
   }, [selectedMasteryRow]);
+
+  useEffect(() => {
+    if (!selectedStudentRow?.course) {
+      setStudentMasteryDrafts({});
+      return;
+    }
+
+    const nextDrafts = {};
+    getDisplayLessons(selectedStudentRow.course).forEach((lesson, index) => {
+      const lessonId =
+        getLessonId(lesson) || `${selectedStudentRow.id}-student-mastery-${index}`;
+      const oral = getLessonOralAssessmentForUser(lesson, selectedStudentRow.memberId);
+      const attendanceRecord = getMemberAttendanceRecord(
+        lesson,
+        selectedStudentRow.memberId,
+      );
+      nextDrafts[lessonId] = {
+        score:
+          oral?.score === null || oral?.score === undefined ? "" : String(oral.score),
+        note: oral?.note || "",
+        attendanceStatus: attendanceRecord?.status || "",
+      };
+    });
+    setStudentMasteryDrafts(nextDrafts);
+  }, [selectedStudentRow]);
 
   useEffect(() => {
     if (!selectedCourse) {
@@ -2937,6 +3082,19 @@ export default function TeacherPage() {
         .includes(query),
     );
   }, [query, teacherCourses]);
+
+  const filteredCourseLessons = useMemo(() => {
+    const lessons = selectedCourse?.lessons || [];
+    if (!query) return lessons;
+
+    return lessons.filter((lesson, index) =>
+      `${lesson.title || `${index + 1}-dars`} ${lesson.description || ""} ${
+        lesson.status || ""
+      }`
+        .toLowerCase()
+        .includes(query),
+    );
+  }, [query, selectedCourse]);
 
   const filteredStudents = useMemo(() => {
     if (!query) return studentItems;
@@ -3082,10 +3240,55 @@ export default function TeacherPage() {
     });
   }, [selectedAttendanceRow, t]);
 
+  const selectedStudentAttendanceLessonRows = useMemo(() => {
+    if (!selectedStudentRow?.course) return [];
+
+    return getDisplayLessons(selectedStudentRow.course).map((lesson, index) => {
+      const lessonId = getLessonId(lesson) || `${selectedStudentRow.id}-student-attendance-${index}`;
+      const attendanceRecord = getMemberAttendanceRecord(
+        lesson,
+        selectedStudentRow.memberId,
+      );
+      const progressPercent = Math.max(
+        0,
+        Math.min(100, Number(attendanceRecord?.progressPercent || 0)),
+      );
+
+      return {
+        id: lessonId,
+        index,
+        title: lesson.title || `${index + 1}-dars`,
+        description: (lesson.description || "").trim(),
+        status: attendanceRecord?.status || "unmarked",
+        progressPercent,
+        watchedLabel:
+          progressPercent > 0
+            ? `${progressPercent}% progress`
+            : t("teacher.workspace.noActivityYet", {
+                defaultValue: "Faollik hali yo'q",
+              }),
+        markedAt: attendanceRecord?.markedAt || attendanceRecord?.lastWatchedAt || null,
+      };
+    });
+  }, [selectedStudentRow, t]);
+
+  const selectedStudentAttendanceSummary = useMemo(
+    () =>
+      selectedStudentRow?.course
+        ? getAttendanceSummary(selectedStudentRow.course, selectedStudentRow.memberId)
+        : {
+            attendancePercent: 0,
+            completedLessons: 0,
+            totalLessons: 0,
+            activeLessons: 0,
+          },
+    [selectedStudentRow],
+  );
+
   const selectedMasteryLessonRows = useMemo(() => {
     if (!selectedMasteryRow?.course) return [];
 
-    return getDisplayLessons(selectedMasteryRow.course).map((lesson, index) => {
+    const rows = getDisplayLessons(selectedMasteryRow.course).map((lesson, index) => {
       const lessonId = getLessonId(lesson) || `${selectedMasteryRow.id}-mastery-${index}`;
       const homework = getHomeworkLessonSummary(lesson, selectedMasteryRow.memberId);
       const exercise = getExerciseLessonSummary(lesson, selectedMasteryRow.memberId);
@@ -3112,7 +3315,100 @@ export default function TeacherPage() {
         updatedAt: oral?.updatedAt || oral?.createdAt || null,
       };
     });
-  }, [masteryDrafts, selectedMasteryRow]);
+
+    if (!selectedMasteryLessonFocusId) {
+      return rows;
+    }
+
+    return rows.filter((lesson) => lesson.id === String(selectedMasteryLessonFocusId));
+  }, [masteryDrafts, selectedMasteryLessonFocusId, selectedMasteryRow]);
+
+  const selectedStudentMasteryLessonRows = useMemo(() => {
+    if (!selectedStudentRow?.course) return [];
+
+    return getDisplayLessons(selectedStudentRow.course).map((lesson, index) => {
+      const lessonId = getLessonId(lesson) || `${selectedStudentRow.id}-student-mastery-${index}`;
+      const homework = getHomeworkLessonSummary(lesson, selectedStudentRow.memberId);
+      const exercise = getExerciseLessonSummary(lesson, selectedStudentRow.memberId);
+      const oral = getLessonOralAssessmentForUser(lesson, selectedStudentRow.memberId);
+      const attendanceRecord = getMemberAttendanceRecord(
+        lesson,
+        selectedStudentRow.memberId,
+      );
+      const draft = studentMasteryDrafts[lessonId] || {};
+
+      return {
+        id: lessonId,
+        index,
+        title: lesson.title || `${index + 1}-dars`,
+        description: (lesson.description || "").trim(),
+        homework,
+        exercise,
+        oralScore:
+          draft.score !== undefined
+            ? draft.score
+            : oral?.score === null || oral?.score === undefined
+              ? ""
+              : String(oral.score),
+        oralScoreDisplay:
+          oral?.score === null || oral?.score === undefined
+            ? "—"
+            : `${oral.score}/100`,
+        oralNote: draft.note !== undefined ? draft.note : oral?.note || "",
+        attendanceStatus:
+          draft.attendanceStatus !== undefined
+            ? draft.attendanceStatus
+            : attendanceRecord?.status || "",
+        updatedAt: oral?.updatedAt || oral?.createdAt || null,
+        isGraded: hasSavedOralAssessment(oral),
+      };
+    });
+  }, [selectedStudentRow, studentMasteryDrafts]);
+
+  const selectedStudentMasterySummary = useMemo(
+    () =>
+      selectedStudentRow?.course
+        ? getMasterySummary(selectedStudentRow.course, selectedStudentRow.memberId)
+        : {
+            masteryPercent: 0,
+            completedLessons: 0,
+            totalLessons: 0,
+            averageProgress: 0,
+          },
+    [selectedStudentRow],
+  );
+
+  const selectedLessonMasteryRows = useMemo(() => {
+    if (!selectedCourse || !selectedLessonContent) return [];
+
+    return masteryRows
+      .filter((row) => getCourseId(row.course) === getCourseId(selectedCourse))
+      .map((row) => {
+        const homework = getHomeworkLessonSummary(
+          selectedLessonContent,
+          row.memberId,
+        );
+        const exercise = getExerciseLessonSummary(
+          selectedLessonContent,
+          row.memberId,
+        );
+        const oral = getLessonOralAssessmentForUser(
+          selectedLessonContent,
+          row.memberId,
+        );
+
+        return {
+          ...row,
+          homework,
+          exercise,
+          oralScore:
+            oral?.score === null || oral?.score === undefined
+              ? "—"
+              : `${oral.score}/100`,
+          oralSaved: hasSavedOralAssessment(oral),
+        };
+      });
+  }, [masteryRows, selectedCourse, selectedLessonContent]);
 
   const handleApprove = useCallback(
     async (courseId, userId) => {
@@ -3155,22 +3451,19 @@ export default function TeacherPage() {
       if (String(selectedCourseId || "") === courseId) {
         setSelectedCourseId(null);
       }
-      if (String(selectedCourseModalId || "") === courseId) {
-        setSelectedCourseModalId(null);
-      }
     } catch {
       toast.error(t("teacher.courses.deleteError"));
     } finally {
       setIsDeletingCourse(false);
     }
-  }, [courseToDelete, removeCourse, selectedCourseId, selectedCourseModalId, t]);
+  }, [courseToDelete, removeCourse, selectedCourseId, t]);
 
   const handleDeleteLessonConfirm = useCallback(async () => {
-    if (!lessonToDelete || !selectedCourseModal) return;
+    if (!lessonToDelete || !selectedCourse) return;
 
     try {
       setIsDeletingLesson(true);
-      await removeLesson(getCourseId(selectedCourseModal), getLessonId(lessonToDelete));
+      await removeLesson(getCourseId(selectedCourse), getLessonId(lessonToDelete));
       setLessonToDelete(null);
     } catch {
       toast.error(
@@ -3181,20 +3474,7 @@ export default function TeacherPage() {
     } finally {
       setIsDeletingLesson(false);
     }
-  }, [lessonToDelete, removeLesson, selectedCourseModal, t]);
-
-  function openCourseLessonsModal(courseId, lessonId = null) {
-    openCourseWorkspace(courseId, { lessonId });
-    setSelectedCourseModalId(String(courseId));
-  }
-
-  const closeCourseLessonsModal = useCallback(() => {
-    setSelectedCourseModalId(null);
-    setCourseLessonDialogOpen(false);
-    setEditingCourseLesson(null);
-    setLessonToDelete(null);
-    setLessonContentLessonId(null);
-  }, []);
+  }, [lessonToDelete, removeLesson, selectedCourse, t]);
 
   const openCourseLessonCreator = useCallback(() => {
     setEditingCourseLesson(null);
@@ -3223,7 +3503,7 @@ export default function TeacherPage() {
         }
 
         await navigator.clipboard.writeText(
-          `${window.location.origin}/courses/${courseSlug}`,
+          `${window.location.origin}/my-courses/${courseSlug}`,
         );
         toast.success(t("coursePlayer.playlist.copyCourseSuccess"));
       } catch {
@@ -3288,6 +3568,23 @@ export default function TeacherPage() {
             ...getAttendanceSummary(nextCourse, row.memberId),
           };
         });
+        setSelectedStudentRow((prev) => {
+          if (!prev || prev.id !== row.id) return prev;
+
+          const nextCourse = patchLessonAttendanceStatus(
+            prev.course,
+            lessonId,
+            row.memberId,
+            status,
+          );
+
+          return {
+            ...prev,
+            course: nextCourse,
+            ...getAttendanceSummary(nextCourse, row.memberId),
+            ...getMasterySummary(nextCourse, row.memberId),
+          };
+        });
         await fetchCourses();
         toast.success(
           t("teacher.workspace.attendanceSaved", {
@@ -3310,6 +3607,16 @@ export default function TeacherPage() {
 
   const handleMasteryDraftChange = useCallback((lessonId, field, value) => {
     setMasteryDrafts((prev) => ({
+      ...prev,
+      [lessonId]: {
+        ...(prev[lessonId] || {}),
+        [field]: value,
+      },
+    }));
+  }, []);
+
+  const handleStudentMasteryDraftChange = useCallback((lessonId, field, value) => {
+    setStudentMasteryDrafts((prev) => ({
       ...prev,
       [lessonId]: {
         ...(prev[lessonId] || {}),
@@ -3452,6 +3759,100 @@ export default function TeacherPage() {
       patchCourseLesson,
       setLessonAttendanceStatus,
       setLessonOralAssessment,
+      t,
+    ],
+  );
+
+  const handleStudentMasterySave = useCallback(
+    async (row, lessonId) => {
+      if (!row?.course || !row.memberId || !lessonId) return;
+
+      const courseId = getCourseId(row.course);
+      const draft = studentMasteryDrafts[lessonId] || {};
+      const rawScore = draft.score;
+      const score =
+        rawScore === "" || rawScore === undefined || rawScore === null
+          ? null
+          : Number(rawScore);
+
+      if (score !== null && (!Number.isFinite(score) || score < 0 || score > 100)) {
+        toast.error(
+          t("teacher.workspace.scoreRangeError", {
+            defaultValue: "Baho 0 dan 100 gacha bo'lishi kerak",
+          }),
+        );
+        return;
+      }
+
+      const saveKey = `${row.memberId}-${lessonId}`;
+      setSavingMasteryKey(saveKey);
+
+      try {
+        const currentLesson = (row.course?.lessons || []).find(
+          (lesson) => getLessonId(lesson) === String(lessonId || ""),
+        );
+        const existingAttendance =
+          getMemberAttendanceRecord(currentLesson, row.memberId)?.status || "";
+        const attendanceStatus =
+          draft.attendanceStatus || existingAttendance || (score === 0 ? "absent" : "present");
+        await setLessonOralAssessment(courseId, lessonId, row.memberId, {
+          score,
+          note: draft.note || "",
+        });
+        await setLessonAttendanceStatus(
+          courseId,
+          lessonId,
+          row.memberId,
+          attendanceStatus,
+        );
+
+        setSelectedStudentRow((prev) => {
+          if (!prev || prev.id !== row.id) return prev;
+
+          const withAssessment = patchLessonOralAssessment(
+            prev.course,
+            lessonId,
+            row.memberId,
+            score,
+            draft.note || "",
+          );
+          const nextCourse = patchLessonAttendanceStatus(
+            withAssessment,
+            lessonId,
+            row.memberId,
+            attendanceStatus,
+          );
+
+          return {
+            ...prev,
+            course: nextCourse,
+            ...getAttendanceSummary(nextCourse, row.memberId),
+            ...getMasterySummary(nextCourse, row.memberId),
+          };
+        });
+
+        await fetchCourses();
+        toast.success(
+          t("teacher.workspace.masterySaved", {
+            defaultValue: "Baholash saqlandi",
+          }),
+        );
+      } catch (error) {
+        toast.error(
+          error?.response?.data?.message ||
+            t("teacher.workspace.masterySaveError", {
+              defaultValue: "Bahoni saqlab bo'lmadi",
+            }),
+        );
+      } finally {
+        setSavingMasteryKey("");
+      }
+    },
+    [
+      fetchCourses,
+      setLessonAttendanceStatus,
+      setLessonOralAssessment,
+      studentMasteryDrafts,
       t,
     ],
   );
@@ -3679,18 +4080,24 @@ export default function TeacherPage() {
           <StudentTableToolbar>
             <TableHeaderTop>
               <StudentTableInfo>
-                <StudentTableTitle>{t("teacher.nav.courses")}</StudentTableTitle>
+                <StudentTableTitle>
+                  {t("teacher.workspace.lessonsPageTitle", {
+                    defaultValue: "Darslar",
+                  })}
+                </StudentTableTitle>
                 <StudentTableSubtitle>
-                  {t("teacher.workspace.coursesSubtitle", {
+                  {t("teacher.workspace.lessonsPageSubtitle", {
                     defaultValue:
-                      "Barcha kurslar shu yerda jadval ko‘rinishida turadi. Shu oynaning o‘zidan qidirish, tanlash va tezkor amallarni bajarish mumkin.",
+                      "Kursni tanlang va shu sahifaning o‘zida uning barcha darslarini boshqaring. Endi alohida modal ishlatilmaydi.",
                   })}
                 </StudentTableSubtitle>
               </StudentTableInfo>
 
-              <PrimaryButton type="button" onClick={() => setCreateOpen(true)}>
+              <PrimaryButton type="button" onClick={openCourseLessonCreator}>
                 <Plus size={15} />
-                {t("teacher.courses.create")}
+                {t("teacher.workspace.addLesson", {
+                  defaultValue: "Yangi dars qo'shish",
+                })}
               </PrimaryButton>
             </TableHeaderTop>
 
@@ -3713,68 +4120,67 @@ export default function TeacherPage() {
           <CourseTableGrid>
             <CourseTableHeadRow>
               <CourseTableHeadCell>
-                {t("teacher.nav.courses")}
-                <StudentCountBadge>{filteredCourses.length}</StudentCountBadge>
+                {t("teacher.table.lessons", {
+                  defaultValue: "Darslar",
+                })}
+                <StudentCountBadge>{filteredCourseLessons.length}</StudentCountBadge>
               </CourseTableHeadCell>
               <CourseTableHeadCell>
-                {t("teacher.workspace.courseCategory", {
-                  defaultValue: "Kategoriya",
+                {t("teacher.workspace.lessonDescriptionLabel", {
+                  defaultValue: "Tavsif",
                 })}
               </CourseTableHeadCell>
               <CourseTableHeadCell>
-                {t("teacher.table.lessons")}
+                {t("teacher.workspace.lessonStatus", {
+                  defaultValue: "Holati",
+                })}
               </CourseTableHeadCell>
               <CourseTableHeadCell>
-                {t("teacher.table.students")}
+                {t("teacher.workspace.lessonMediaCount", {
+                  defaultValue: "Media",
+                })}
               </CourseTableHeadCell>
               <CourseTableHeadCell>
-                {t("teacher.table.pending")}
-              </CourseTableHeadCell>
-              <CourseTableHeadCell>
-                {t("createCourse.accessType", {
-                  defaultValue: "Tarif",
+                {t("teacher.workspace.lessonContentActions", {
+                  defaultValue: "Kontent",
                 })}
               </CourseTableHeadCell>
               <CourseTableHeadCell />
             </CourseTableHeadRow>
 
             <CourseTableBody>
-              {filteredCourses.map((course) => {
-                const courseId = getCourseId(course);
-                const courseLessons = course.lessons || [];
-                const firstLesson = courseLessons[0] || null;
-                const courseLabel = course.title || course.name;
-                const courseInitial = (courseLabel || "?").charAt(0).toUpperCase();
-                const approvedCount = getApprovedMembers(course).length;
-                const pendingCount = getPendingMembers(course).length;
+              {filteredCourseLessons.map((lesson, index) => {
+                const lessonId = getLessonId(lesson);
+                const lessonStatus = lesson.status || "published";
+                const lessonMediaCount = Array.isArray(lesson.mediaItems)
+                  ? lesson.mediaItems.length
+                  : lesson.videoUrl || lesson.fileUrl
+                    ? 1
+                    : 0;
+                const lessonTitle = lesson.title || `${index + 1}-dars`;
 
                 return (
                   <CourseTableRow
-                    key={courseId}
+                    key={lessonId || `${index}`}
                     type="button"
-                    $active={courseId === String(selectedCourseId || "")}
-                    onClick={() =>
-                      openCourseLessonsModal(courseId, 
-                        firstLesson ? getLessonId(firstLesson) : null,
-                      )
-                    }
+                    $active={lessonId === String(selectedLessonId || "")}
+                    onClick={() => {
+                      setSelectedLessonId(lessonId);
+                      openLessonContentManager(lesson);
+                    }}
                   >
                     <CourseTableCell>
                       <CourseIdentity>
-                        <CourseTableThumb>
-                          {course.image ? (
-                            <CourseTableImage src={course.image} alt={courseLabel} />
-                          ) : (
-                            courseInitial
-                          )}
-                        </CourseTableThumb>
+                        <CourseModalLessonIcon $status={lessonStatus}>
+                          <BookOpen size={18} />
+                        </CourseModalLessonIcon>
                         <CourseIdentityMeta>
-                          <CourseIdentityTitle>{courseLabel}</CourseIdentityTitle>
+                          <CourseIdentityTitle>{lessonTitle}</CourseIdentityTitle>
                           <CourseIdentitySub>
-                            {course.description ||
-                              t("teacher.workspace.courseDescriptionFallback", {
-                                defaultValue: "Bu kurs uchun tavsif kiritilmagan.",
-                              })}
+                            {t("coursePlayer.adminPane.lessonNumber", {
+                              index: index + 1,
+                              defaultValue: `Dars ${index + 1}`,
+                            })}
                           </CourseIdentitySub>
                         </CourseIdentityMeta>
                       </CourseIdentity>
@@ -3782,49 +4188,43 @@ export default function TeacherPage() {
 
                     <CourseTableCell>
                       <DateCellText>
-                        {course.category ||
-                          t("teacher.workspace.courseCategory", {
-                            defaultValue: "Kategoriya ko‘rsatilmagan",
+                        {(lesson.description || "").trim() ||
+                          t("teacher.workspace.lessonDescriptionFallback", {
+                            defaultValue: "Bu dars uchun tavsif kiritilmagan.",
                           })}
                       </DateCellText>
                     </CourseTableCell>
 
                     <CourseTableCell>
-                      <CourseMetricText>{courseLessons.length}</CourseMetricText>
+                      <CourseAccessPill>
+                        {lessonStatus === "draft"
+                          ? t("coursePlayer.playlist.draft", {
+                              defaultValue: "Draft",
+                            })
+                          : t("coursePlayer.adminPane.published", {
+                              defaultValue: "Published",
+                            })}
+                      </CourseAccessPill>
                     </CourseTableCell>
 
                     <CourseTableCell>
-                      <CourseMetricText>{approvedCount}</CourseMetricText>
+                      <CourseMetricText>{lessonMediaCount}</CourseMetricText>
                     </CourseTableCell>
 
                     <CourseTableCell>
-                      <CourseMetricText>{pendingCount}</CourseMetricText>
-                    </CourseTableCell>
-
-                    <CourseTableCell>
-                      <CourseAccessPill>{formatEnrollmentPlan(course, t)}</CourseAccessPill>
+                      <DateCellText>
+                        {t("teacher.workspace.lessonContentSummary", {
+                          defaultValue: "Video, material, uyga vazifa, test",
+                        })}
+                      </DateCellText>
                     </CourseTableCell>
 
                     <CourseActionCell onClick={(event) => event.stopPropagation()}>
                       <CourseMenuButton
                         type="button"
-                        title={t("coursePlayer.playlist.copyCourse")}
-                        aria-label={t("coursePlayer.playlist.copyCourse")}
-                        onClick={() => handleCopyCourseLink(course)}
-                      >
-                        <Copy size={15} />
-                      </CourseMenuButton>
-
-                      <CourseMenuButton
-                        type="button"
                         title={t("common.edit")}
                         aria-label={t("common.edit")}
-                        onClick={() =>
-                          openCourseLessonsModal(
-                            courseId,
-                            firstLesson ? getLessonId(firstLesson) : null,
-                          )
-                        }
+                        onClick={() => openCourseLessonEditor(lesson)}
                       >
                         <Pencil size={15} />
                       </CourseMenuButton>
@@ -3834,7 +4234,7 @@ export default function TeacherPage() {
                         title={t("common.delete")}
                         aria-label={t("common.delete")}
                         $tone="danger"
-                        onClick={() => setCourseToDelete(course)}
+                        onClick={() => setLessonToDelete(lesson)}
                       >
                         <Trash2 size={15} />
                       </CourseMenuButton>
@@ -3843,13 +4243,20 @@ export default function TeacherPage() {
                 );
               })}
 
-              {!filteredCourses.length ? (
+              {!selectedCourse ? (
+                <TableEmptyState>
+                  {t("teacher.workspace.selectCourseForLessons", {
+                    defaultValue: "Darslarni ko‘rish uchun kurs tanlang",
+                  })}
+                </TableEmptyState>
+              ) : null}
+
+              {selectedCourse && !filteredCourseLessons.length ? (
                 <TableEmptyState>
                   {search
                     ? t("teacher.courses.noResults")
-                    : t("teacher.workspace.emptyCourses", {
-                        defaultValue:
-                          "Yangi kurs yarating yoki qidiruvni tozalab qayta urinib ko‘ring.",
+                    : t("teacher.workspace.noLessonsYet", {
+                        defaultValue: "Darslar hali yo‘q",
                       })}
                 </TableEmptyState>
               ) : null}
@@ -3857,6 +4264,8 @@ export default function TeacherPage() {
           </CourseTableGrid>
         </StudentTableScroll>
       </CourseTableCard>
+
+    
     </FillPane>
   );
 
@@ -4332,6 +4741,7 @@ export default function TeacherPage() {
                     key={`mastery-${row.id}`}
                     type="button"
                     onClick={() => {
+                      setSelectedMasteryLessonFocusId(null);
                       setSelectedMasteryRow(row);
                     }}
                   >
@@ -4410,60 +4820,10 @@ export default function TeacherPage() {
 
   return (
     <Shell>
-      <Layout $sidebarCollapsed={sidebarCollapsed}>
+      <Layout>
         <Sidebar>
-          <SidebarShell $collapsed={sidebarCollapsed}>
-            <SidebarRail $collapsed={sidebarCollapsed}>
-              <RailSection>
-                <RailButton
-                  type="button"
-                  data-label={
-                    sidebarCollapsed
-                      ? t("teacher.workspace.expandSidebar", {
-                          defaultValue: "Sidebarni kengaytirish",
-                        })
-                      : t("teacher.workspace.collapseSidebar", {
-                          defaultValue: "Sidebarni kichraytirish",
-                        })
-                  }
-                  onClick={() => setSidebarCollapsed((prev) => !prev)}
-                >
-                  <PanelLeft size={16} />
-                </RailButton>
-              </RailSection>
-
-              <RailSection>
-                {NAV_ITEMS.map(({ id, icon: Icon }) => (
-                  <RailButton
-                    key={id}
-                    type="button"
-                    $active={activeSection === id}
-                    data-label={t(`teacher.nav.${id}`)}
-                    onClick={() => setActiveSection(id)}
-                  >
-                    <Icon size={16} />
-                  </RailButton>
-                ))}
-              </RailSection>
-
-              <RailSection style={{ marginTop: "auto" }}>
-                <RailButton
-                  type="button"
-                  data-label={currentUserName}
-                  onClick={() => navigate("/chats")}
-                >
-                  <ProfileAvatar>
-                    {currentUser?.avatar ? (
-                      <AvatarImage src={currentUser.avatar} alt={currentUserName} />
-                    ) : (
-                      currentUserInitial
-                    )}
-                  </ProfileAvatar>
-                </RailButton>
-              </RailSection>
-            </SidebarRail>
-
-            <SidebarMenu $collapsed={sidebarCollapsed}>
+          <SidebarShell>
+            <SidebarMenu>
               <SidebarCard>
                 <SidebarCardBody>
                   <BrandRow>
@@ -4475,16 +4835,6 @@ export default function TeacherPage() {
                         <BrandName>{t("teacher.brand")}</BrandName>
                       </BrandMeta>
                     </BrandIdentity>
-
-                    <CollapseButton
-                      type="button"
-                      title={t("teacher.workspace.collapseSidebar", {
-                        defaultValue: "Sidebarni kichraytirish",
-                      })}
-                      onClick={() => setSidebarCollapsed(true)}
-                    >
-                      <PanelLeft size={16} />
-                    </CollapseButton>
                   </BrandRow>
 
                  
@@ -4500,18 +4850,86 @@ export default function TeacherPage() {
                       })}
                     </GroupTitle>
                     <NavList>
-                      {NAV_ITEMS.map(({ id, icon: Icon }) => (
-                        <NavButton
-                          key={id}
-                          type="button"
-                          $active={activeSection === id}
-                          $collapsed={false}
-                          onClick={() => setActiveSection(id)}
-                        >
-                          <Icon size={16} />
-                          <NavText>{t(`teacher.nav.${id}`)}</NavText>
-                        </NavButton>
-                      ))}
+                      {NAV_ITEMS.map(({ id, icon: Icon }) =>
+                        id === "courses" ? (
+                          <SidebarCoursesWrap key={id}>
+                            <NavButton
+                              type="button"
+                              $active={activeSection === id}
+                              $collapsed={false}
+                              onClick={() => {
+                                setActiveSection("courses");
+                                setCoursesMenuExpanded((prev) => !prev);
+                              }}
+                            >
+                              <Icon size={16} />
+                              <NavText>{t(`teacher.nav.${id}`)}</NavText>
+                              <NavButtonAside $expanded={coursesMenuExpanded}>
+                                <ChevronDown size={15} />
+                              </NavButtonAside>
+                            </NavButton>
+
+                            <CourseAccordion $expanded={coursesMenuExpanded}>
+                              <CourseAccordionInner>
+                                {teacherCourses.map((course) => {
+                                  const courseId = getCourseId(course);
+                                  const isActive =
+                                    activeSection === "courses" &&
+                                    courseId === String(selectedCourseId || "");
+
+                                  return (
+                                    <CourseAccordionItem
+                                      key={courseId}
+                                      type="button"
+                                      $active={isActive}
+                                      onClick={() => {
+                                        setActiveSection("courses");
+                                        setSelectedCourseId(courseId);
+                                      }}
+                                    >
+                                      <CourseAccordionTitle>
+                                        {course.title || course.name}
+                                      </CourseAccordionTitle>
+                                      <CourseAccordionMeta>
+                                        {course.lessons?.length || 0}
+                                      </CourseAccordionMeta>
+                                    </CourseAccordionItem>
+                                  );
+                                })}
+
+                                <CourseAccordionItem
+                                  type="button"
+                                  $active={false}
+                                  onClick={() => {
+                                    setActiveSection("courses");
+                                    setCreateOpen(true);
+                                  }}
+                                >
+                                  <CourseAccordionTitle>
+                                    {t("teacher.workspace.addCourseMenu", {
+                                      defaultValue: "Yangi qo'shish",
+                                    })}
+                                  </CourseAccordionTitle>
+                                  <CourseAccordionMeta>
+                                    <Plus size={14} />
+                                  </CourseAccordionMeta>
+                                </CourseAccordionItem>
+                              </CourseAccordionInner>
+                            </CourseAccordion>
+                          </SidebarCoursesWrap>
+                        ) : (
+                          <NavButton
+                            key={id}
+                            type="button"
+                            $active={activeSection === id}
+                            $collapsed={false}
+                            onClick={() => setActiveSection(id)}
+                          >
+                            <Icon size={16} />
+                            <NavText>{t(`teacher.nav.${id}`)}</NavText>
+                          </NavButton>
+                        ),
+                      )}
                     </NavList>
                   </MenuGroup>
                 </SidebarCardBody>
@@ -4565,12 +4983,12 @@ export default function TeacherPage() {
 
       <Suspense fallback={null}>
         <AddLessonDialog
-          isOpen={courseLessonDialogOpen && !!selectedCourseModal}
+          isOpen={courseLessonDialogOpen && !!selectedCourse}
           onClose={() => {
             setCourseLessonDialogOpen(false);
             setEditingCourseLesson(null);
           }}
-          courseId={getCourseId(selectedCourseModal)}
+          courseId={getCourseId(selectedCourse)}
           lesson={editingCourseLesson}
           onSaved={() => {
             setCourseLessonDialogOpen(false);
@@ -4618,240 +5036,8 @@ export default function TeacherPage() {
         isDanger
       />
 
-      {selectedCourseModal ? (
-        <StudentModalOverlay onClick={closeCourseLessonsModal}>
-          <StudentModalPanel onClick={(event) => event.stopPropagation()}>
-            <StudentModalHeader>
-              <StudentModalTop>
-                <StudentModalIdentity>
-                  <StudentModalAvatar $seed={getCourseId(selectedCourseModal).length || 0}>
-                    <AvatarImageWithFallback
-                      src={selectedCourseModal.image}
-                      alt={selectedCourseModal.title || selectedCourseModal.name}
-                    >
-                      {getInitials(
-                        selectedCourseModal.title || selectedCourseModal.name || "C",
-                      )}
-                    </AvatarImageWithFallback>
-                  </StudentModalAvatar>
-
-                  <StudentModalMeta>
-                    <StudentModalMetaRow>
-                      <span>ID:{getCourseId(selectedCourseModal)}</span>
-                      <span>•</span>
-                      <StudentModalStatusBadge>
-                        <BookOpen size={12} />
-                        {selectedCourseModal.category ||
-                          t("teacher.workspace.courseCategory", {
-                            defaultValue: "Kategoriya ko‘rsatilmagan",
-                          })}
-                      </StudentModalStatusBadge>
-                    </StudentModalMetaRow>
-                    <StudentModalName>
-                      {selectedCourseModal.title || selectedCourseModal.name}
-                    </StudentModalName>
-                    <StudentModalSubline>
-                      {selectedCourseModal.description ||
-                        t("teacher.workspace.courseDescriptionFallback", {
-                          defaultValue: "Bu kurs uchun tavsif kiritilmagan.",
-                        })}
-                    </StudentModalSubline>
-                  </StudentModalMeta>
-                </StudentModalIdentity>
-
-                <StudentModalClose
-                  type="button"
-                  onClick={closeCourseLessonsModal}
-                >
-                  <X size={18} />
-                </StudentModalClose>
-              </StudentModalTop>
-
-              <StudentModalActions>
-                <StudentModalPrimaryAction
-                  type="button"
-                  onClick={openCourseLessonCreator}
-                >
-                  <Plus size={18} />
-                  {t("teacher.workspace.addLesson", {
-                    defaultValue: "Dars qo‘shish",
-                  })}
-                </StudentModalPrimaryAction>
-
-                <StudentModalSecondaryAction
-                  type="button"
-                  onClick={() => handleCopyCourseLink(selectedCourseModal)}
-                >
-                  <Copy size={18} />
-                  {t("coursePlayer.playlist.copyCourse")}
-                </StudentModalSecondaryAction>
-              </StudentModalActions>
-            </StudentModalHeader>
-
-            <StudentModalBody>
-              <StudentModalSection>
-                <StudentModalSectionTitle>
-                  {t("teacher.workspace.info", {
-                    defaultValue: "Ma'lumot",
-                  })}
-                </StudentModalSectionTitle>
-
-                <StudentInfoGrid>
-                  <StudentInfoCard>
-                    <StudentInfoLabel>
-                      {t("teacher.table.lessons")}
-                    </StudentInfoLabel>
-                    <StudentInfoValue>
-                      {selectedCourseModal.lessons?.length || 0}
-                    </StudentInfoValue>
-                  </StudentInfoCard>
-                  <StudentInfoCard>
-                    <StudentInfoLabel>
-                      {t("teacher.table.students")}
-                    </StudentInfoLabel>
-                    <StudentInfoValue>
-                      {getApprovedMembers(selectedCourseModal).length}
-                    </StudentInfoValue>
-                  </StudentInfoCard>
-                  <StudentInfoCard>
-                    <StudentInfoLabel>
-                      {t("teacher.table.pending")}
-                    </StudentInfoLabel>
-                    <StudentInfoValue>
-                      {getPendingMembers(selectedCourseModal).length}
-                    </StudentInfoValue>
-                  </StudentInfoCard>
-                  <StudentInfoCard>
-                    <StudentInfoLabel>
-                      {t("createCourse.accessType", {
-                        defaultValue: "Tarif",
-                      })}
-                    </StudentInfoLabel>
-                    <StudentInfoValue>
-                      {formatEnrollmentPlan(selectedCourseModal, t)}
-                    </StudentInfoValue>
-                  </StudentInfoCard>
-                </StudentInfoGrid>
-              </StudentModalSection>
-
-              <StudentModalSection>
-                <StudentTimelineHeader>
-                  <span>
-                    {t("teacher.table.lessons", {
-                      defaultValue: "Darslar",
-                    })}
-                  </span>
-                  <span>
-                    • {(selectedCourseModal.lessons || []).length}
-                  </span>
-                </StudentTimelineHeader>
-
-                <StudentTimelineCard>
-                  {(selectedCourseModal.lessons || []).length ? (
-                    <CourseModalLessonList>
-                      {(selectedCourseModal.lessons || []).map((lesson, index) => {
-                        const lessonId = getLessonId(lesson);
-                        const lessonStatus = lesson.status || "published";
-                        const lessonMediaCount = Array.isArray(lesson.mediaItems)
-                          ? lesson.mediaItems.length
-                          : lesson.videoUrl || lesson.fileUrl
-                            ? 1
-                            : 0;
-
-                        return (
-                          <CourseModalLessonCard key={lessonId || `${index}`}>
-                            <CourseModalLessonMain>
-                              <CourseModalLessonIcon $status={lessonStatus}>
-                                <BookOpen size={18} />
-                              </CourseModalLessonIcon>
-                              <CourseModalLessonMeta>
-                                <CourseModalLessonOrder>
-                                  {t("coursePlayer.adminPane.lessonNumber", {
-                                    index: index + 1,
-                                    defaultValue: `Dars ${index + 1}`,
-                                  })}
-                                </CourseModalLessonOrder>
-                                <CourseModalLessonTitle>
-                                  {lesson.title || `${index + 1}-dars`}
-                                </CourseModalLessonTitle>
-                                <CourseModalLessonSubline>
-                                  {(lesson.description || "").trim() ||
-                                    t("teacher.workspace.lessonDescriptionFallback", {
-                                      defaultValue:
-                                        "Bu dars uchun tavsif kiritilmagan.",
-                                    })}
-                                </CourseModalLessonSubline>
-                              </CourseModalLessonMeta>
-                            </CourseModalLessonMain>
-
-                            <CourseModalLessonActions>
-                              <StudentLessonFact>
-                                {lessonStatus === "draft"
-                                  ? t("coursePlayer.playlist.draft", {
-                                      defaultValue: "Draft",
-                                    })
-                                  : t("coursePlayer.adminPane.published", {
-                                      defaultValue: "Published",
-                                    })}
-                              </StudentLessonFact>
-                              <StudentLessonFact>
-                                {lessonMediaCount} media
-                              </StudentLessonFact>
-                              <CourseModalLessonContentButton
-                                type="button"
-                                onClick={() => openLessonContentManager(lesson)}
-                              >
-                                <LayoutDashboard size={15} />
-                                {t("teacher.workspace.openLessonContent", {
-                                  defaultValue: "Kontent qo'shish",
-                                })}
-                              </CourseModalLessonContentButton>
-                              <CourseMenuButton
-                                type="button"
-                                title={t("common.edit")}
-                                aria-label={t("common.edit")}
-                                onClick={() => openCourseLessonEditor(lesson)}
-                              >
-                                <Pencil size={15} />
-                              </CourseMenuButton>
-                              <CourseMenuButton
-                                type="button"
-                                title={t("common.delete")}
-                                aria-label={t("common.delete")}
-                                $tone="danger"
-                                onClick={() => setLessonToDelete(lesson)}
-                              >
-                                <Trash2 size={15} />
-                              </CourseMenuButton>
-                            </CourseModalLessonActions>
-                          </CourseModalLessonCard>
-                        );
-                      })}
-                    </CourseModalLessonList>
-                  ) : (
-                    <EmptyState>
-                      <EmptyTitle>
-                        {t("teacher.workspace.noLessonsYet", {
-                          defaultValue: "Darslar hali yo‘q",
-                        })}
-                      </EmptyTitle>
-                      <EmptyText>
-                        {t("teacher.workspace.noLessonsYetText", {
-                          defaultValue:
-                            "Birinchi darsni qo‘shish uchun yuqoridagi tugmadan foydalaning.",
-                        })}
-                      </EmptyText>
-                    </EmptyState>
-                  )}
-                </StudentTimelineCard>
-              </StudentModalSection>
-            </StudentModalBody>
-          </StudentModalPanel>
-        </StudentModalOverlay>
-      ) : null}
-
       <Suspense fallback={null}>
-        {selectedCourseModal && selectedLessonContent ? (
+        {selectedCourse && selectedLessonContent ? (
           <StudentModalOverlay onClick={closeLessonContentManager}>
             <LessonContentModalPanel onClick={(event) => event.stopPropagation()}>
               <LessonContentModalHeader>
@@ -4861,6 +5047,15 @@ export default function TeacherPage() {
                       defaultValue: "Kontent qo'shish",
                     })}
                   </LessonContentModalEyebrow>
+                  <LessonContentModalTitle>
+                    {selectedLessonContent.title ||
+                      t("teacher.table.lessons", {
+                        defaultValue: "Dars",
+                      })}
+                  </LessonContentModalTitle>
+                  <LessonContentModalSubline>
+                    {selectedCourse.title || selectedCourse.name}
+                  </LessonContentModalSubline>
                 </LessonContentModalMeta>
 
                 <StudentModalClose
@@ -4872,12 +5067,155 @@ export default function TeacherPage() {
               </LessonContentModalHeader>
 
               <LessonContentModalBody>
-                <TeacherLessonContentWorkspace
-                  key={`${getCourseId(selectedCourseModal)}-${getLessonId(selectedLessonContent)}`}
-                  courseId={getCourseId(selectedCourseModal)}
-                  courseTitle={selectedCourseModal.title || selectedCourseModal.name}
-                  lesson={selectedLessonContent}
-                />
+                <LessonMasteryPanel>
+                  <StudentModalTabs>
+                    <StudentModalTab
+                      type="button"
+                      $active={lessonContentModalTab === "content"}
+                      onClick={() => setLessonContentModalTab("content")}
+                    >
+                      <BookOpen size={16} />
+                      {t("teacher.workspace.contentTab", {
+                        defaultValue: "Kontent",
+                      })}
+                    </StudentModalTab>
+                    <StudentModalTab
+                      type="button"
+                      $active={lessonContentModalTab === "mastery"}
+                      onClick={() => setLessonContentModalTab("mastery")}
+                    >
+                      <GraduationCap size={16} />
+                      {t("teacher.nav.mastery", {
+                        defaultValue: "O'zlashtirish",
+                      })}
+                    </StudentModalTab>
+                  </StudentModalTabs>
+
+                  {lessonContentModalTab === "content" ? (
+                    <TeacherLessonContentWorkspace
+                      key={`${getCourseId(selectedCourse)}-${getLessonId(selectedLessonContent)}`}
+                      courseId={getCourseId(selectedCourse)}
+                      courseTitle={selectedCourse.title || selectedCourse.name}
+                      lesson={selectedLessonContent}
+                    />
+                  ) : (
+                    <StudentModalSection>
+                      <LessonMasteryIntro>
+                        <LessonMasteryTitle>
+                          {t("teacher.workspace.lessonMasteryTitle", {
+                            defaultValue: "Dars bo'yicha o'zlashtirish",
+                          })}
+                        </LessonMasteryTitle>
+                        <LessonMasteryText>
+                          {t("teacher.workspace.lessonMasteryText", {
+                            defaultValue:
+                              "Shu dars uchun uyga vazifa, mashq va og'zaki baholarni o'quvchilar kesimida ko'ring.",
+                          })}
+                        </LessonMasteryText>
+                      </LessonMasteryIntro>
+
+                      <StudentTableScroll>
+                        <LessonMasteryTable>
+                          <LessonMasteryHead>
+                            <StudentTableHeadCell>
+                              {t("teacher.nav.students", {
+                                defaultValue: "O'quvchilar",
+                              })}
+                            </StudentTableHeadCell>
+                            <StudentTableHeadCell>
+                              {t("coursePlayer.homework.title", {
+                                defaultValue: "Uyga vazifa",
+                              })}
+                            </StudentTableHeadCell>
+                            <StudentTableHeadCell>
+                              {t("teacher.workspace.exercise", {
+                                defaultValue: "Mashq",
+                              })}
+                            </StudentTableHeadCell>
+                            <StudentTableHeadCell>
+                              {t("teacher.workspace.teacherScoreLabel", {
+                                defaultValue: "Sizning bahongiz",
+                              })}
+                            </StudentTableHeadCell>
+                            <StudentTableHeadCell>
+                              {t("teacher.workspace.masteryRate", {
+                                defaultValue: "O'zlashtirish",
+                              })}
+                            </StudentTableHeadCell>
+                            <StudentTableHeadCell>
+                              {t("teacher.workspace.studentActions", {
+                                defaultValue: "Harakatlar",
+                              })}
+                            </StudentTableHeadCell>
+                          </LessonMasteryHead>
+
+                          {selectedLessonMasteryRows.map((row) => (
+                            <LessonMasteryRow key={`lesson-mastery-${row.id}`}>
+                              <LessonMasteryCell>
+                                <StudentIdentity>
+                                  <StudentAvatar $seed={row.studentId?.length || 0}>
+                                    <AvatarImageWithFallback src={row.avatar} alt={row.name}>
+                                      {getInitials(row.name)}
+                                    </AvatarImageWithFallback>
+                                  </StudentAvatar>
+                                  <StudentMeta>
+                                    <StudentName>{row.name}</StudentName>
+                                    <StudentSubline>{row.tariffLabel}</StudentSubline>
+                                  </StudentMeta>
+                                </StudentIdentity>
+                              </LessonMasteryCell>
+
+                              <LessonMasteryCell>
+                                <DateCellText>{row.homework.scoreLabel}</DateCellText>
+                              </LessonMasteryCell>
+
+                              <LessonMasteryCell>
+                                <DateCellText>{row.exercise.scoreLabel}</DateCellText>
+                              </LessonMasteryCell>
+
+                              <LessonMasteryCell>
+                                <DateCellText>{row.oralScore}</DateCellText>
+                              </LessonMasteryCell>
+
+                              <LessonMasteryCell>
+                                <CourseAccessPill>{row.masteryPercent}%</CourseAccessPill>
+                              </LessonMasteryCell>
+
+                              <LessonMasteryCell>
+                                <LessonMasteryAction
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedMasteryLessonFocusId(
+                                      getLessonId(selectedLessonContent),
+                                    );
+                                    setSelectedMasteryRow(row);
+                                  }}
+                                >
+                                  {row.oralSaved
+                                    ? t("common.edit", {
+                                        defaultValue: "Tahrirlash",
+                                      })
+                                    : t("teacher.workspace.gradeStudent", {
+                                        defaultValue: "Baholash",
+                                      })}
+                                </LessonMasteryAction>
+                              </LessonMasteryCell>
+                            </LessonMasteryRow>
+                          ))}
+
+                          {!selectedLessonMasteryRows.length ? (
+                            <TableEmptyState>
+                              {t("teacher.workspace.noStudentsForLessonMastery", {
+                                defaultValue:
+                                  "Bu dars uchun ko'rsatish mumkin bo'lgan o'quvchilar topilmadi.",
+                              })}
+                            </TableEmptyState>
+                          ) : null}
+                        </LessonMasteryTable>
+                      </StudentTableScroll>
+                    </StudentModalSection>
+                  )}
+                </LessonMasteryPanel>
               </LessonContentModalBody>
             </LessonContentModalPanel>
           </StudentModalOverlay>
@@ -5058,7 +5396,12 @@ export default function TeacherPage() {
       ) : null}
 
       {selectedMasteryRow ? (
-        <StudentModalOverlay onClick={() => setSelectedMasteryRow(null)}>
+        <StudentModalOverlay
+          onClick={() => {
+            setSelectedMasteryLessonFocusId(null);
+            setSelectedMasteryRow(null);
+          }}
+        >
           <StudentModalPanel onClick={(event) => event.stopPropagation()}>
             <StudentModalHeader>
               <StudentModalTop>
@@ -5099,7 +5442,10 @@ export default function TeacherPage() {
 
                 <StudentModalClose
                   type="button"
-                  onClick={() => setSelectedMasteryRow(null)}
+                  onClick={() => {
+                    setSelectedMasteryLessonFocusId(null);
+                    setSelectedMasteryRow(null);
+                  }}
                 >
                   <X size={18} />
                 </StudentModalClose>
@@ -5452,182 +5798,444 @@ export default function TeacherPage() {
                 </StudentModalTab>
                 <StudentModalTab
                   type="button"
-                  $active={studentModalTab === "progress"}
-                  onClick={() => setStudentModalTab("progress")}
+                  $active={studentModalTab === "mastery"}
+                  onClick={() => setStudentModalTab("mastery")}
                 >
-                  <RefreshCw size={16} />
-                  {t("teacher.workspace.progressFlow", {
-                    defaultValue: "Jarayon",
+                  <GraduationCap size={16} />
+                  {t("teacher.nav.mastery", {
+                    defaultValue: "O'zlashtirish",
                   })}
                 </StudentModalTab>
               </StudentModalTabs>
 
-              <StudentModalSection>
-                <StudentModalSectionTitle>
-                  {t("teacher.workspace.info", {
-                    defaultValue: "Ma'lumot",
-                  })}
-                </StudentModalSectionTitle>
-
-                <StudentInfoGrid>
-                  <StudentInfoCard>
-                    <StudentInfoLabel>
-                      {t("teacher.table.course", {
-                        defaultValue: "Mahsulot nomi",
+              {studentModalTab === "overview" ? (
+                <>
+                  <StudentModalSection>
+                    <StudentModalSectionTitle>
+                      {t("teacher.workspace.info", {
+                        defaultValue: "Ma'lumot",
                       })}
-                    </StudentInfoLabel>
-                    <StudentInfoValue>
-                      {selectedStudentRow.course.title || selectedStudentRow.course.name}
-                    </StudentInfoValue>
-                  </StudentInfoCard>
-                  <StudentInfoCard>
-                    <StudentInfoLabel>
-                      {t("teacher.workspace.joinedAt", {
-                        defaultValue: "Kirish muddati",
-                      })}
-                    </StudentInfoLabel>
-                    <StudentInfoValue>
-                      {formatShortDate(selectedStudentRow.joinedAt)}
-                    </StudentInfoValue>
-                  </StudentInfoCard>
-                  <StudentInfoCard>
-                    <StudentInfoLabel>
-                      {t("coursePlayer.adminPane.currentLesson", {
-                        defaultValue: "Ishga tushirish",
-                      })}
-                    </StudentInfoLabel>
-                    <StudentInfoValue>
-                      {selectedStudentRow.currentLessonTitle || "—"}
-                    </StudentInfoValue>
-                  </StudentInfoCard>
-                  <StudentInfoCard>
-                    <StudentInfoLabel>
-                      {t("createCourse.accessType", {
-                        defaultValue: "Tarif",
-                      })}
-                    </StudentInfoLabel>
-                    <StudentInfoValue>{selectedStudentRow.tariffLabel}</StudentInfoValue>
-                  </StudentInfoCard>
-                </StudentInfoGrid>
-              </StudentModalSection>
+                    </StudentModalSectionTitle>
 
-              <StudentModalSection>
-                <StudentTimelineHeader>
-                  <span>{t("teacher.workspace.progressFlow", { defaultValue: "Jarayon" })}</span>
-                  <span>
-                    • {selectedStudentRow.progressPercent}% (
-                    {selectedStudentLessonRows.filter(
-                      (lesson) => lesson.status === "completed",
-                    ).length}
-                    /{selectedStudentLessonRows.length || 0})
-                  </span>
-                </StudentTimelineHeader>
+                    <StudentInfoGrid>
+                      <StudentInfoCard>
+                        <StudentInfoLabel>
+                          {t("teacher.table.course", {
+                            defaultValue: "Mahsulot nomi",
+                          })}
+                        </StudentInfoLabel>
+                        <StudentInfoValue>
+                          {selectedStudentRow.course.title || selectedStudentRow.course.name}
+                        </StudentInfoValue>
+                      </StudentInfoCard>
+                      <StudentInfoCard>
+                        <StudentInfoLabel>
+                          {t("teacher.workspace.joinedAt", {
+                            defaultValue: "Kirish muddati",
+                          })}
+                        </StudentInfoLabel>
+                        <StudentInfoValue>
+                          {formatShortDate(selectedStudentRow.joinedAt)}
+                        </StudentInfoValue>
+                      </StudentInfoCard>
+                      <StudentInfoCard>
+                        <StudentInfoLabel>
+                          {t("coursePlayer.adminPane.currentLesson", {
+                            defaultValue: "Ishga tushirish",
+                          })}
+                        </StudentInfoLabel>
+                        <StudentInfoValue>
+                          {selectedStudentRow.currentLessonTitle || "—"}
+                        </StudentInfoValue>
+                      </StudentInfoCard>
+                      <StudentInfoCard>
+                        <StudentInfoLabel>
+                          {t("createCourse.accessType", {
+                            defaultValue: "Tarif",
+                          })}
+                        </StudentInfoLabel>
+                        <StudentInfoValue>{selectedStudentRow.tariffLabel}</StudentInfoValue>
+                      </StudentInfoCard>
+                    </StudentInfoGrid>
+                  </StudentModalSection>
 
-                <StudentTimelineCard>
-                  <StudentLessonList>
-                    {selectedStudentLessonRows.map((lesson) => (
-                      <StudentLessonCard key={lesson.id}>
-                        <StudentLessonMain>
-                          <StudentLessonStatusIcon $status={lesson.status}>
-                            {lesson.status === "completed" ? (
-                              <Check size={18} />
-                            ) : lesson.status === "current" ? (
-                              <RefreshCw size={18} />
-                            ) : (
-                              <BookOpen size={18} />
-                            )}
-                          </StudentLessonStatusIcon>
+                  <StudentModalSection>
+                    <StudentTimelineHeader>
+                      <span>{t("teacher.workspace.allEducation", { defaultValue: "Barcha ta'lim" })}</span>
+                      <span>
+                        • {selectedStudentRow.progressPercent}% (
+                        {selectedStudentLessonRows.filter(
+                          (lesson) => lesson.status === "completed",
+                        ).length}
+                        /{selectedStudentLessonRows.length || 0})
+                      </span>
+                    </StudentTimelineHeader>
 
-                          <StudentLessonMeta>
-                            <StudentLessonModule>
-                              Modul {lesson.index + 1}
-                            </StudentLessonModule>
-                            <StudentLessonTitle>{lesson.title}</StudentLessonTitle>
-                            <StudentLessonStatusText>
-                              {lesson.status === "completed"
-                                ? t("teacher.workspace.lessonDone", {
-                                    defaultValue: "Bajarildi",
-                                  })
-                                : lesson.hasPlaybackActivity &&
-                                    lesson.lastPositionSeconds > 0
-                                  ? t("teacher.workspace.partialWatchStatus", {
-                                      defaultValue: `${formatPlaybackTime(
-                                        lesson.lastPositionSeconds,
-                                      )} gacha ko‘rgan`,
-                                    })
-                                  : lesson.status === "current"
-                                  ? t("teacher.workspace.lessonCurrent", {
-                                      defaultValue: "Amaliyotda",
-                                    })
-                                  : t("teacher.workspace.lessonPending", {
-                                      defaultValue: "Boshlanmagan",
+                    <StudentTimelineCard>
+                      <StudentLessonList>
+                        {selectedStudentLessonRows.map((lesson) => (
+                          <StudentLessonCard key={lesson.id}>
+                            <StudentLessonMain>
+                              <StudentLessonStatusIcon $status={lesson.status}>
+                                {lesson.status === "completed" ? (
+                                  <Check size={18} />
+                                ) : lesson.status === "current" ? (
+                                  <RefreshCw size={18} />
+                                ) : (
+                                  <BookOpen size={18} />
+                                )}
+                              </StudentLessonStatusIcon>
+
+                              <StudentLessonMeta>
+                                <StudentLessonModule>
+                                  Modul {lesson.index + 1}
+                                </StudentLessonModule>
+                                <StudentLessonTitle>{lesson.title}</StudentLessonTitle>
+                                <StudentLessonStatusText>
+                                  {lesson.status === "completed"
+                                    ? t("teacher.workspace.lessonDone", {
+                                        defaultValue: "Bajarildi",
+                                      })
+                                    : lesson.hasPlaybackActivity &&
+                                        lesson.lastPositionSeconds > 0
+                                      ? t("teacher.workspace.partialWatchStatus", {
+                                          defaultValue: `${formatPlaybackTime(
+                                            lesson.lastPositionSeconds,
+                                          )} gacha ko‘rgan`,
+                                        })
+                                      : lesson.status === "current"
+                                        ? t("teacher.workspace.lessonCurrent", {
+                                            defaultValue: "Amaliyotda",
+                                          })
+                                        : t("teacher.workspace.lessonPending", {
+                                            defaultValue: "Boshlanmagan",
+                                          })}
+                                </StudentLessonStatusText>
+                              </StudentLessonMeta>
+                            </StudentLessonMain>
+
+                            <StudentLessonAside>
+                              <StudentLessonFacts>
+                                {lesson.watchCount > 0 ? (
+                                  <StudentLessonFact>
+                                    {lesson.watchCount}x
+                                  </StudentLessonFact>
+                                ) : null}
+                                {lesson.lastPositionSeconds > 0 ? (
+                                  <StudentLessonFact>
+                                    {t("teacher.workspace.lastPoint", {
+                                      defaultValue: "Oxirgi nuqta",
+                                    })}{" "}
+                                    {formatPlaybackTime(lesson.lastPositionSeconds)}
+                                  </StudentLessonFact>
+                                ) : null}
+                                {lesson.maxPositionSeconds > 0 ? (
+                                  <StudentLessonFact>
+                                    {t("teacher.workspace.furthestPoint", {
+                                      defaultValue: "Eng uzoq",
+                                    })}{" "}
+                                    {formatPlaybackTime(lesson.maxPositionSeconds)}
+                                  </StudentLessonFact>
+                                ) : null}
+                                {lesson.lessonDurationSeconds > 0 ? (
+                                  <StudentLessonFact>
+                                    {formatPlaybackTime(lesson.lessonDurationSeconds)}
+                                  </StudentLessonFact>
+                                ) : null}
+                              </StudentLessonFacts>
+
+                              {lesson.status === "current" ? (
+                                <StudentLessonBadge $status="current">
+                                  {lesson.hasPlaybackActivity &&
+                                  lesson.lastPositionSeconds > 0
+                                    ? t("teacher.workspace.partialWatchBadge", {
+                                        defaultValue: "Qisman ko‘rgan",
+                                      })
+                                    : t("teacher.workspace.current", {
+                                        defaultValue: "Joriy",
+                                      })}
+                                </StudentLessonBadge>
+                              ) : null}
+                              {lesson.status === "completed" ? (
+                                <StudentLessonBadge $status="completed">
+                                  {lesson.progressPercent}%
+                                </StudentLessonBadge>
+                              ) : null}
+                              <StudentLessonTimestamp>
+                                {lesson.lastWatchedAt
+                                  ? `${t("teacher.workspace.lastActivity", {
+                                      defaultValue: "Oxirgi harakat",
+                                    })} ${formatDateTime(lesson.lastWatchedAt)}`
+                                  : t("teacher.workspace.notWatchedYet", {
+                                      defaultValue: "Hali ko‘rilmagan",
                                     })}
-                            </StudentLessonStatusText>
-                          </StudentLessonMeta>
-                        </StudentLessonMain>
+                              </StudentLessonTimestamp>
+                            </StudentLessonAside>
+                          </StudentLessonCard>
+                        ))}
+                      </StudentLessonList>
+                    </StudentTimelineCard>
+                  </StudentModalSection>
+                </>
+              ) : null}
 
-                        <StudentLessonAside>
-                          <StudentLessonFacts>
-                            {lesson.watchCount > 0 ? (
-                              <StudentLessonFact>
-                                {lesson.watchCount}x
-                              </StudentLessonFact>
-                            ) : null}
-                            {lesson.lastPositionSeconds > 0 ? (
-                              <StudentLessonFact>
-                                {t("teacher.workspace.lastPoint", {
-                                  defaultValue: "Oxirgi nuqta",
-                                })}{" "}
-                                {formatPlaybackTime(lesson.lastPositionSeconds)}
-                              </StudentLessonFact>
-                            ) : null}
-                            {lesson.maxPositionSeconds > 0 ? (
-                              <StudentLessonFact>
-                                {t("teacher.workspace.furthestPoint", {
-                                  defaultValue: "Eng uzoq",
-                                })}{" "}
-                                {formatPlaybackTime(lesson.maxPositionSeconds)}
-                              </StudentLessonFact>
-                            ) : null}
-                            {lesson.lessonDurationSeconds > 0 ? (
-                              <StudentLessonFact>
-                                {formatPlaybackTime(lesson.lessonDurationSeconds)}
-                              </StudentLessonFact>
-                            ) : null}
-                          </StudentLessonFacts>
+              {studentModalTab === "mastery" ? (
+                <StudentModalSection>
+                  <StudentInfoGrid>
+                    <StudentInfoCard>
+                      <StudentInfoLabel>
+                        {t("teacher.workspace.attendanceRate", {
+                          defaultValue: "Davomat",
+                        })}
+                      </StudentInfoLabel>
+                      <StudentInfoValue>
+                        {selectedStudentAttendanceSummary.attendancePercent}%
+                      </StudentInfoValue>
+                    </StudentInfoCard>
+                    <StudentInfoCard>
+                      <StudentInfoLabel>
+                        {t("teacher.workspace.attendedLessons", {
+                          defaultValue: "Qatnashgan darslar",
+                        })}
+                      </StudentInfoLabel>
+                      <StudentInfoValue>
+                        {selectedStudentAttendanceSummary.activeLessons}/
+                        {selectedStudentAttendanceSummary.totalLessons}
+                      </StudentInfoValue>
+                    </StudentInfoCard>
+                    <StudentInfoCard>
+                      <StudentInfoLabel>
+                        {t("teacher.workspace.masteryRate", {
+                          defaultValue: "O'zlashtirish",
+                        })}
+                      </StudentInfoLabel>
+                      <StudentInfoValue>
+                        {selectedStudentMasterySummary.masteryPercent}%
+                      </StudentInfoValue>
+                    </StudentInfoCard>
+                    <StudentInfoCard>
+                      <StudentInfoLabel>
+                        {t("teacher.workspace.averageProgress", {
+                          defaultValue: "O'rtacha progress",
+                        })}
+                      </StudentInfoLabel>
+                      <StudentInfoValue>
+                        {selectedStudentMasterySummary.averageProgress}%
+                      </StudentInfoValue>
+                    </StudentInfoCard>
+                  </StudentInfoGrid>
 
-                          {lesson.status === "current" ? (
-                            <StudentLessonBadge $status="current">
-                              {lesson.hasPlaybackActivity &&
-                              lesson.lastPositionSeconds > 0
-                                ? t("teacher.workspace.partialWatchBadge", {
-                                    defaultValue: "Qisman ko‘rgan",
-                                  })
-                                : t("teacher.workspace.current", {
-                                    defaultValue: "Joriy",
+                  <StudentTimelineHeader>
+                    <span>
+                      {t("teacher.workspace.lessonGrades", {
+                        defaultValue: "Darslar bo'yicha baholash",
+                      })}
+                    </span>
+                    <span>
+                      • {selectedStudentMasterySummary.masteryPercent}%
+                    </span>
+                  </StudentTimelineHeader>
+
+                  {selectedStudentMasteryLessonRows.length ? (
+                    <DetailLessonList>
+                      {selectedStudentMasteryLessonRows.map((lesson) => {
+                        const saveKey = `${selectedStudentRow.memberId}-${lesson.id}`;
+                        const saving = savingMasteryKey === saveKey;
+
+                        return (
+                          <DetailLessonCard key={lesson.id}>
+                            <DetailLessonHeader>
+                              <DetailLessonMeta>
+                                <DetailLessonEyebrow>
+                                  {t("coursePlayer.adminPane.lessonNumber", {
+                                    index: lesson.index + 1,
+                                    defaultValue: `Dars ${lesson.index + 1}`,
                                   })}
-                            </StudentLessonBadge>
-                          ) : null}
-                          {lesson.status === "completed" ? (
-                            <StudentLessonBadge $status="completed">
-                              {lesson.progressPercent}%
-                            </StudentLessonBadge>
-                          ) : null}
-                          <StudentLessonTimestamp>
-                            {lesson.lastWatchedAt
-                              ? `${t("teacher.workspace.lastActivity", {
-                                  defaultValue: "Oxirgi harakat",
-                                })} ${formatDateTime(lesson.lastWatchedAt)}`
-                              : t("teacher.workspace.notWatchedYet", {
-                                  defaultValue: "Hali ko‘rilmagan",
-                                })}
-                          </StudentLessonTimestamp>
-                        </StudentLessonAside>
-                      </StudentLessonCard>
-                    ))}
-                  </StudentLessonList>
-                </StudentTimelineCard>
-              </StudentModalSection>
+                                </DetailLessonEyebrow>
+                                <DetailLessonTitle>{lesson.title}</DetailLessonTitle>
+                                <DetailLessonSubline>
+                                  {lesson.description ||
+                                    t("teacher.workspace.lessonDescriptionFallback", {
+                                      defaultValue: "Bu dars uchun tavsif kiritilmagan.",
+                                    })}
+                                </DetailLessonSubline>
+                              </DetailLessonMeta>
+
+                              <DetailMetricRow>
+                                <DetailMetricPill>
+                                  {lesson.attendanceStatus === "present"
+                                    ? t("teacher.workspace.present", {
+                                        defaultValue: "Kirdi",
+                                      })
+                                    : lesson.attendanceStatus === "late"
+                                      ? t("teacher.workspace.late", {
+                                          defaultValue: "Kechikdi",
+                                        })
+                                      : lesson.attendanceStatus === "absent"
+                                        ? t("teacher.workspace.absent", {
+                                            defaultValue: "Kirmadi",
+                                          })
+                                        : t("teacher.workspace.notMarkedYet", {
+                                            defaultValue: "Hali belgilanmagan",
+                                          })}
+                                </DetailMetricPill>
+                                <DetailMetricPill>
+                                  {lesson.updatedAt
+                                    ? formatShortDate(lesson.updatedAt)
+                                    : t("teacher.workspace.notMarkedYet", {
+                                        defaultValue: "Hali baholanmagan",
+                                      })}
+                                </DetailMetricPill>
+                              </DetailMetricRow>
+                            </DetailLessonHeader>
+
+                            <MasteryMetricsGrid>
+                              <MasteryMetricCard>
+                                <MasteryMetricLabel>
+                                  {t("coursePlayer.homework.title", {
+                                    defaultValue: "Uyga vazifa",
+                                  })}
+                                </MasteryMetricLabel>
+                                <MasteryMetricValue>{lesson.homework.scoreLabel}</MasteryMetricValue>
+                              </MasteryMetricCard>
+
+                              <MasteryMetricCard>
+                                <MasteryMetricLabel>
+                                  {t("teacher.workspace.exercise", {
+                                    defaultValue: "Mashq",
+                                  })}
+                                </MasteryMetricLabel>
+                                <MasteryMetricValue>{lesson.exercise.scoreLabel}</MasteryMetricValue>
+                              </MasteryMetricCard>
+
+                              <MasteryMetricCard>
+                                <MasteryMetricLabel>
+                                  {t("teacher.workspace.teacherScoreLabel", {
+                                    defaultValue: "O'qituvchi bahosi",
+                                  })}
+                                </MasteryMetricLabel>
+                                <MasteryMetricValue>
+                                  {lesson.oralScoreDisplay}
+                                </MasteryMetricValue>
+                              </MasteryMetricCard>
+                            </MasteryMetricsGrid>
+
+                            <AttendanceStatusGroup>
+                              {[
+                                {
+                                  id: "present",
+                                  label: t("teacher.workspace.present", {
+                                    defaultValue: "Kirdi",
+                                  }),
+                                },
+                                {
+                                  id: "late",
+                                  label: t("teacher.workspace.late", {
+                                    defaultValue: "Kechikdi",
+                                  }),
+                                },
+                                {
+                                  id: "absent",
+                                  label: t("teacher.workspace.absent", {
+                                    defaultValue: "Kirmadi",
+                                  }),
+                                },
+                              ].map((option) => (
+                                <AttendanceStatusButton
+                                  key={option.id}
+                                  type="button"
+                                  $active={lesson.attendanceStatus === option.id}
+                                  disabled={saving}
+                                  onClick={() =>
+                                    handleStudentMasteryDraftChange(
+                                      lesson.id,
+                                      "attendanceStatus",
+                                      option.id,
+                                    )
+                                  }
+                                >
+                                  {saving && lesson.attendanceStatus !== option.id
+                                    ? t("common.saving")
+                                    : option.label}
+                                </AttendanceStatusButton>
+                              ))}
+                            </AttendanceStatusGroup>
+
+                            <MasteryEditorGrid>
+                              <FieldGroup>
+                                <FieldLabel>
+                                  {t("teacher.workspace.teacherScoreLabel", {
+                                    defaultValue: "O'qituvchi bahosi",
+                                  })}
+                                </FieldLabel>
+                                <FieldInput
+                                  type="number"
+                                  min="0"
+                                  max="100"
+                                  value={lesson.oralScore}
+                                  onChange={(event) =>
+                                    handleStudentMasteryDraftChange(
+                                      lesson.id,
+                                      "score",
+                                      event.target.value,
+                                    )
+                                  }
+                                  placeholder="0-100"
+                                />
+                              </FieldGroup>
+
+                              <FieldGroup>
+                                <FieldLabel>
+                                  {t("teacher.workspace.note", {
+                                    defaultValue: "Izoh",
+                                  })}
+                                </FieldLabel>
+                                <FieldTextarea
+                                  rows={2}
+                                  value={lesson.oralNote}
+                                  onChange={(event) =>
+                                    handleStudentMasteryDraftChange(
+                                      lesson.id,
+                                      "note",
+                                      event.target.value,
+                                    )
+                                  }
+                                  placeholder={t(
+                                    "teacher.workspace.scoreNotePlaceholder",
+                                    {
+                                      defaultValue: "Qisqa fikr yoki tavsiya yozing",
+                                    },
+                                  )}
+                                />
+                              </FieldGroup>
+
+                              <InlinePrimaryButton
+                                type="button"
+                                disabled={saving}
+                                onClick={() =>
+                                  handleStudentMasterySave(selectedStudentRow, lesson.id)
+                                }
+                              >
+                                {saving
+                                  ? t("common.saving")
+                                  : t("common.save", {
+                                      defaultValue: "Saqlash",
+                                    })}
+                              </InlinePrimaryButton>
+                            </MasteryEditorGrid>
+                          </DetailLessonCard>
+                        );
+                      })}
+                    </DetailLessonList>
+                  ) : (
+                    <EmptyDetailState>
+                      {t("teacher.workspace.noLessonsYet", {
+                        defaultValue: "Darslar hali yo'q",
+                      })}
+                    </EmptyDetailState>
+                  )}
+                </StudentModalSection>
+              ) : null}
             </StudentModalBody>
           </StudentModalPanel>
         </StudentModalOverlay>

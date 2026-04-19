@@ -1261,7 +1261,7 @@ const ProfileUtilityPanel = ({ section, currentUser, onBack }) => {
                   key={lesson._id}
                   onClick={() =>
                     navigate(
-                      `/courses/${lesson.course?.urlSlug || lesson.course?._id}/${lesson.urlSlug || lesson._id}`,
+                      `/my-courses/${lesson.course?.urlSlug || lesson.course?._id}/${lesson.urlSlug || lesson._id}`,
                     )
                   }
                 >

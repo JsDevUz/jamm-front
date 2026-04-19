@@ -398,7 +398,7 @@ const CourseSidebar = ({
     onSelectCourse(course._id);
 
     const slug = course.urlSlug || course._id;
-    navigate(`/courses/${slug}`);
+    navigate(`/my-courses/${slug}`);
   };
 
   return (
@@ -433,7 +433,7 @@ const CourseSidebar = ({
             $active={viewMode === "courses"}
             onClick={() => {
               if (onToggleViewMode) onToggleViewMode("courses");
-              navigate("/courses");
+              navigate("/my-courses");
             }}
           >
             {t("courseSidebar.tabs.courses")}

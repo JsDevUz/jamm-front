@@ -49,7 +49,10 @@ const PageWrapper = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #1a1b2e 0%, #16171d 50%, #0d0e14 100%);
+  background:
+    radial-gradient(circle at top right, rgba(88, 101, 242, 0.12), transparent 32%),
+    radial-gradient(circle at bottom left, rgba(255, 122, 47, 0.1), transparent 28%),
+    linear-gradient(180deg, #f8fbff 0%, #eef3fb 100%);
   position: relative;
   overflow: hidden;
   padding: 20px;
@@ -59,7 +62,7 @@ const BackgroundOrb = styled.div`
   position: absolute;
   border-radius: 50%;
   filter: blur(80px);
-  opacity: 0.15;
+  opacity: 0.35;
   pointer-events: none;
 
   &:nth-child(1) {
@@ -94,14 +97,14 @@ const AuthCard = styled.div`
   width: 900px;
   max-width: 100%;
   display: flex;
-  background: rgba(47, 49, 54, 0.85);
-  backdrop-filter: blur(20px);
-  border: 1px solid rgba(88, 101, 242, 0.15);
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(18px);
+  border: 1px solid rgba(88, 101, 242, 0.1);
   border-radius: 20px;
   overflow: hidden;
   box-shadow:
-    0 20px 80px rgba(0, 0, 0, 0.5),
-    0 0 40px rgba(88, 101, 242, 0.08);
+    0 24px 80px rgba(46, 73, 118, 0.16),
+    0 0 30px rgba(88, 101, 242, 0.05);
   animation: ${fadeIn} 0.5s ease-out;
   position: relative;
   z-index: 1;
@@ -242,7 +245,7 @@ const LogoIcon = styled.div`
 const LogoText = styled.h1`
   font-size: 24px;
   font-weight: 800;
-  background: linear-gradient(135deg, #ffffff, #b9bbbe);
+  background: linear-gradient(135deg, #273142, #5865f2);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   letter-spacing: -0.5px;
@@ -251,14 +254,14 @@ const LogoText = styled.h1`
 const Title = styled.h2`
   font-size: 22px;
   font-weight: 700;
-  color: #fff;
+  color: #1f2937;
   text-align: center;
   margin-bottom: 4px;
 `;
 
 const Subtitle = styled.p`
   font-size: 14px;
-  color: #b9bbbe;
+  color: #6b7280;
   text-align: center;
   margin-bottom: 24px;
 `;
@@ -268,7 +271,7 @@ const Subtitle = styled.p`
    ============================ */
 const TabRow = styled.div`
   display: flex;
-  background: rgba(32, 34, 37, 0.7);
+  background: #eef2f8;
   border-radius: 12px;
   padding: 4px;
   margin-bottom: 24px;
@@ -289,6 +292,7 @@ const Tab = styled.button`
       ? "linear-gradient(135deg, #5865f2, #4752c4)"
       : "transparent"};
   color: ${(props) => (props.$active ? "#fff" : "#b9bbbe")};
+  color: ${(props) => (props.$active ? "#fff" : "#64748b")};
   box-shadow: ${(props) =>
     props.$active ? "0 2px 10px rgba(88, 101, 242, 0.3)" : "none"};
 
@@ -297,7 +301,7 @@ const Tab = styled.button`
     background: ${(props) =>
       props.$active
         ? "linear-gradient(135deg, #5865f2, #4752c4)"
-        : "rgba(255,255,255,0.05)"};
+        : "rgba(88, 101, 242, 0.08)"};
   }
 `;
 
@@ -322,19 +326,20 @@ const Label = styled.label`
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.6px;
-  color: #b9bbbe;
+  color: #667085;
 `;
 
 const InputWrapper = styled.div`
   position: relative;
   display: flex;
   align-items: center;
+  border-radius: 12px;
 `;
 
 const InputIcon = styled.div`
   position: absolute;
   left: 14px;
-  color: #72767d;
+  color: #94a3b8;
   display: flex;
   align-items: center;
   pointer-events: none;
@@ -344,22 +349,43 @@ const InputIcon = styled.div`
 const StyledInput = styled.input`
   width: 100%;
   padding: 12px 14px 12px 42px;
-  background: rgba(32, 34, 37, 0.8);
-  border: 1.5px solid rgba(64, 68, 75, 0.6);
-  border-radius: 10px;
-  color: #dcddde;
+  background: #ffffff;
+  border: 1.5px solid #d7e0ec;
+  border-radius: 12px;
+  color: #1f2937;
   font-size: 15px;
   font-family: inherit;
   outline: none;
   transition: all 0.2s ease;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.95),
+    0 10px 24px rgba(148, 163, 184, 0.08);
 
   &::placeholder {
-    color: #4f545c;
+    color: #94a3b8;
   }
 
   &:focus {
     border-color: #5865f2;
-    box-shadow: 0 0 0 3px rgba(88, 101, 242, 0.15);
+    background: #ffffff;
+    box-shadow: 0 0 0 3px rgba(88, 101, 242, 0.12);
+  }
+
+  &:not(:placeholder-shown) {
+    background: #ffffff;
+  }
+
+  &:-webkit-autofill,
+  &:-webkit-autofill:hover,
+  &:-webkit-autofill:focus,
+  &:-webkit-autofill:active {
+    -webkit-text-fill-color: #1f2937;
+    caret-color: #1f2937;
+    border: 1.5px solid #d7e0ec;
+    -webkit-box-shadow:
+      0 0 0 1000px #ffffff inset,
+      0 10px 24px rgba(148, 163, 184, 0.08);
+    transition: background-color 9999s ease-out 0s;
   }
 
   &:focus ~ ${InputIcon}, &:focus + ${InputIcon} {
@@ -372,7 +398,7 @@ const PasswordToggle = styled.button`
   right: 14px;
   background: none;
   border: none;
-  color: #72767d;
+  color: #94a3b8;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -381,7 +407,7 @@ const PasswordToggle = styled.button`
   transition: color 0.2s;
 
   &:hover {
-    color: #dcddde;
+    color: #475569;
   }
 `;
 
@@ -434,12 +460,12 @@ const Divider = styled.div`
     content: "";
     flex: 1;
     height: 1px;
-    background: rgba(64, 68, 75, 0.6);
+    background: #dbe4f0;
   }
 
   span {
     font-size: 12px;
-    color: #72767d;
+    color: #94a3b8;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.5px;
@@ -451,9 +477,9 @@ const GoogleButton = styled.button`
   padding: 12px;
   font-size: 14px;
   font-weight: 600;
-  color: #dcddde;
-  background: rgba(32, 34, 37, 0.8);
-  border: 1.5px solid rgba(64, 68, 75, 0.6);
+  color: #334155;
+  background: #ffffff;
+  border: 1.5px solid #dbe4f0;
   border-radius: 10px;
   cursor: pointer;
   display: flex;
@@ -463,7 +489,7 @@ const GoogleButton = styled.button`
   transition: all 0.2s ease;
 
   &:hover {
-    background: rgba(64, 68, 75, 0.5);
+    background: #f8fbff;
     border-color: rgba(88, 101, 242, 0.4);
   }
 `;
@@ -496,7 +522,7 @@ const FooterText = styled.p`
   margin-top: 20px;
   text-align: center;
   font-size: 13px;
-  color: #72767d;
+  color: #64748b;
 `;
 
 const SwitchLink = styled.button`
@@ -516,8 +542,8 @@ const SwitchLink = styled.button`
 `;
 
 const ErrorMessage = styled.div`
-  background: rgba(240, 71, 71, 0.12);
-  border: 1px solid rgba(240, 71, 71, 0.3);
+  background: #fff1f2;
+  border: 1px solid #fecdd3;
   border-radius: 8px;
   padding: 10px 14px;
   color: #f04747;
@@ -527,8 +553,8 @@ const ErrorMessage = styled.div`
 `;
 
 const SuccessMessage = styled.div`
-  background: rgba(67, 181, 129, 0.12);
-  border: 1px solid rgba(67, 181, 129, 0.3);
+  background: #ecfdf3;
+  border: 1px solid #bbf7d0;
   border-radius: 8px;
   padding: 10px 14px;
   color: #43b581;
@@ -553,7 +579,7 @@ const LegalOverlay = styled.div`
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.85);
+  background: rgba(15, 23, 42, 0.45);
   backdrop-filter: blur(10px);
   display: flex;
   align-items: center;
@@ -567,9 +593,9 @@ const LegalCard = styled.div`
   width: 100%;
   max-width: 600px;
   max-height: 80vh;
-  background: #2f3136;
+  background: #ffffff;
   border-radius: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid #dbe4f0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -578,14 +604,14 @@ const LegalCard = styled.div`
 
 const LegalHeader = styled.div`
   padding: 20px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom: 1px solid #e5edf6;
   display: flex;
   justify-content: space-between;
   align-items: center;
 
   h3 {
     margin: 0;
-    color: #fff;
+    color: #0f172a;
     font-size: 18px;
   }
 `;
@@ -593,12 +619,12 @@ const LegalHeader = styled.div`
 const LegalBody = styled.div`
   padding: 24px;
   overflow-y: auto;
-  color: #dcddde;
+  color: #334155;
   line-height: 1.6;
   font-size: 14px;
 
   h4 {
-    color: #fff;
+    color: #0f172a;
     margin: 20px 0 10px 0;
     font-size: 16px;
   }
@@ -620,7 +646,7 @@ const LegalBody = styled.div`
     width: 8px;
   }
   &::-webkit-scrollbar-thumb {
-    background: #202225;
+    background: #cbd5e1;
     border-radius: 4px;
   }
 `;
@@ -636,7 +662,7 @@ const PolicyLinks = styled.div`
 const PolicyLink = styled.button`
   background: none;
   border: none;
-  color: #72767d;
+  color: #64748b;
   cursor: pointer;
   transition: all 0.2s;
 
@@ -657,13 +683,13 @@ const GhostLinkButton = styled.button`
   background: none;
   border: none;
   padding: 0;
-  color: #8ea1e1;
+  color: #5865f2;
   cursor: pointer;
   font-size: 13px;
   font-weight: 600;
 
   &:hover {
-    color: #bcc8f6;
+    color: #4752c4;
     text-decoration: underline;
   }
 `;

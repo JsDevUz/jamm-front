@@ -501,7 +501,7 @@ function formatPrice(price, accessType, t) {
 }
 
 function getCourseHref(course, lessonSlug) {
-  const base = `/courses/${course.urlSlug || course._id}`;
+  const base = `/my-courses/${course.urlSlug || course._id}`;
   return lessonSlug ? `${base}/${lessonSlug}` : base;
 }
 

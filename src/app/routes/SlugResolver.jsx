@@ -10,6 +10,7 @@ const knownRoutes = [
   "users",
   "groups",
   "courses",
+  "my-courses",
   "arena",
   "profile",
   "admin",
@@ -30,7 +31,7 @@ export default function SlugResolver() {
     if (!nav && chatId) {
       slugToResolve = chatId;
     } else if (nav?.startsWith("+")) {
-      navigate(`/courses/${nav}`, { replace: true });
+      navigate(`/my-courses/${nav}`, { replace: true });
       return;
     } else if (nav?.startsWith(":")) {
       navigate(`/articles/${nav}`, { replace: true });

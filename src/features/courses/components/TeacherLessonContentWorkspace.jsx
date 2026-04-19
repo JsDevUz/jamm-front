@@ -26,8 +26,20 @@ const LESSON_MATERIAL_LIMIT = 3;
 const LESSON_HOMEWORK_LIMIT = 3;
 
 const WorkspaceShell = styled.div`
+  --workspace-bg: var(--background-color);
+  --workspace-surface: var(--secondary-color);
+  --workspace-surface-alt: color-mix(in srgb, var(--secondary-color) 72%, var(--background-color));
+  --workspace-border: var(--border-color);
+  --workspace-text: var(--text-color);
+  --workspace-muted: var(--text-secondary-color);
+  --workspace-soft-text: var(--text-muted-color);
+  --workspace-primary: var(--primary-color);
+  --workspace-primary-soft: color-mix(in srgb, var(--primary-color) 10%, var(--secondary-color));
+  --workspace-danger: var(--danger-color, #db3b22);
+  --workspace-danger-soft: color-mix(in srgb, var(--danger-color, #db3b22) 12%, var(--secondary-color));
   min-height: 100%;
-  background: #f7f8fa;
+  height: 100%;
+  background: var(--workspace-bg);
   display: grid;
   gap: 14px;
   padding: 16px;
@@ -39,9 +51,9 @@ const WorkspaceShell = styled.div`
 `;
 
 const Hero = styled.section`
-  border: 1px solid #e7ebf3;
+  border: 1px solid var(--workspace-border);
   border-radius: 16px;
-  background: #ffffff;
+  background: var(--workspace-surface);
   padding: 16px 20px;
   display: flex;
   align-items: center;
@@ -67,7 +79,7 @@ const HeroMeta = styled.div`
 const HeroDesc = styled.p`
   margin: 0;
   font-size: 13px;
-  color: #7a8698;
+  color: var(--workspace-muted);
   line-height: 1.4;
   white-space: nowrap;
   overflow: hidden;
@@ -79,7 +91,7 @@ const HeroTitle = styled.h2`
   margin: 0;
   font-size: 17px;
   font-weight: 700;
-  color: #171b25;
+  color: var(--workspace-text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -96,9 +108,9 @@ const HeroButton = styled.button`
   height: 36px;
   padding: 0 14px;
   border-radius: 10px;
-  border: 1px solid ${(props) => (props.$primary ? "#ff7a2f" : "#e4e8f0")};
-  background: ${(props) => (props.$primary ? "#ff7a2f" : "#ffffff")};
-  color: ${(props) => (props.$primary ? "#ffffff" : "#1f2937")};
+  border: 1px solid ${(props) => (props.$primary ? "var(--workspace-primary)" : "var(--workspace-border)")};
+  background: ${(props) => (props.$primary ? "var(--workspace-primary)" : "var(--workspace-surface)")};
+  color: ${(props) => (props.$primary ? "#ffffff" : "var(--workspace-text)")};
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -125,9 +137,9 @@ const TabButton = styled.button`
   height: 34px;
   padding: 0 14px;
   border-radius: 999px;
-  border: 1px solid ${(props) => (props.$active ? "#ff7a2f" : "#e6ebf2")};
-  background: ${(props) => (props.$active ? "#fff4ee" : "#ffffff")};
-  color: ${(props) => (props.$active ? "#ff7a2f" : "#5a6474")};
+  border: 1px solid ${(props) => (props.$active ? "var(--workspace-primary)" : "var(--workspace-border)")};
+  background: ${(props) => (props.$active ? "var(--workspace-primary-soft)" : "var(--workspace-surface)")};
+  color: ${(props) => (props.$active ? "var(--workspace-primary)" : "var(--workspace-muted)")};
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -147,9 +159,9 @@ const PanelGrid = styled.div`
 `;
 
 const PanelCard = styled.section`
-  border: 1px solid #e7ebf3;
+  border: 1px solid var(--workspace-border);
   border-radius: 14px;
-  background: #ffffff;
+  background: var(--workspace-surface);
   padding: 18px;
   display: grid;
   gap: 14px;
@@ -177,9 +189,9 @@ const TinyButton = styled.button`
   height: 32px;
   padding: 0 12px;
   border-radius: 8px;
-  border: 1px solid ${(props) => (props.$danger ? "#ffd8d3" : "#e5e9f2")};
-  background: ${(props) => (props.$danger ? "#fff4f2" : "#f8fafc")};
-  color: ${(props) => (props.$danger ? "#db3b22" : "#253041")};
+  border: 1px solid ${(props) => (props.$danger ? "var(--workspace-danger)" : "var(--workspace-border)")};
+  background: ${(props) => (props.$danger ? "var(--workspace-danger-soft)" : "var(--workspace-surface-alt)")};
+  color: ${(props) => (props.$danger ? "var(--workspace-danger)" : "var(--workspace-text)")};
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -217,7 +229,7 @@ const Field = styled.label`
 const FieldLabel = styled.span`
   font-size: 12px;
   font-weight: 800;
-  color: #7d8898;
+  color: var(--workspace-soft-text);
   letter-spacing: 0.04em;
   text-transform: uppercase;
 `;
@@ -228,15 +240,15 @@ const FieldInput = styled.input`
   height: 40px;
   padding: 0 12px;
   border-radius: 10px;
-  border: 1px solid #e4e8f0;
-  background: #f8fafc;
-  color: #171b25;
+  border: 1px solid var(--workspace-border);
+  background: var(--workspace-surface-alt);
+  color: var(--workspace-text);
   font-size: 14px;
   outline: none;
 
   &:focus {
-    border-color: #ff7a2f;
-    background: #ffffff;
+    border-color: var(--workspace-primary);
+    background: var(--workspace-surface);
   }
 `;
 
@@ -246,9 +258,9 @@ const FieldTextarea = styled.textarea`
   min-height: 96px;
   padding: 10px 12px;
   border-radius: 10px;
-  border: 1px solid #e4e8f0;
-  background: #f8fafc;
-  color: #171b25;
+  border: 1px solid var(--workspace-border);
+  background: var(--workspace-surface-alt);
+  color: var(--workspace-text);
   font-size: 14px;
   line-height: 1.6;
   resize: vertical;
@@ -256,8 +268,8 @@ const FieldTextarea = styled.textarea`
   font-family: inherit;
 
   &:focus {
-    border-color: #ff7a2f;
-    background: #ffffff;
+    border-color: var(--workspace-primary);
+    background: var(--workspace-surface);
   }
 `;
 
@@ -267,25 +279,25 @@ const FieldSelect = styled.select`
   height: 40px;
   padding: 0 12px;
   border-radius: 10px;
-  border: 1px solid #e4e8f0;
-  background: #f8fafc;
-  color: #171b25;
+  border: 1px solid var(--workspace-border);
+  background: var(--workspace-surface-alt);
+  color: var(--workspace-text);
   font-size: 14px;
   outline: none;
 `;
 
 const FileBox = styled.label`
   min-height: 90px;
-  border: 1px dashed #d4dbe7;
+  border: 1px dashed var(--workspace-border);
   border-radius: 12px;
-  background: #f8fafc;
+  background: var(--workspace-surface-alt);
   display: grid;
   place-items: center;
   gap: 6px;
   text-align: center;
   padding: 14px;
   cursor: pointer;
-  color: #566273;
+  color: var(--workspace-muted);
   font-size: 13px;
 `;
 
@@ -295,7 +307,7 @@ const HiddenFileInput = styled.input`
 
 const HelperText = styled.div`
   font-size: 13px;
-  color: #6b7688;
+  color: var(--workspace-soft-text);
   line-height: 1.5;
 `;
 
@@ -305,9 +317,9 @@ const ContentList = styled.div`
 `;
 
 const ContentCard = styled.div`
-  border: 1px solid #e8edf4;
+  border: 1px solid var(--workspace-border);
   border-radius: 10px;
-  background: #f8fafc;
+  background: var(--workspace-surface-alt);
   padding: 12px;
   display: flex;
   align-items: flex-start;
@@ -328,13 +340,13 @@ const ContentMeta = styled.div`
 const ContentTitle = styled.div`
   font-size: 14px;
   font-weight: 700;
-  color: #171b25;
+  color: var(--workspace-text);
   line-height: 1.3;
 `;
 
 const ContentSub = styled.div`
   font-size: 13px;
-  color: #667387;
+  color: var(--workspace-muted);
   line-height: 1.6;
   word-break: break-word;
 `;
@@ -352,17 +364,17 @@ const Badge = styled.span`
   min-height: 30px;
   padding: 0 12px;
   border-radius: 999px;
-  background: ${(props) => props.$accent || "#f4f6fa"};
-  color: ${(props) => props.$color || "#425063"};
+  background: ${(props) => props.$accent || "var(--workspace-surface-alt)"};
+  color: ${(props) => props.$color || "var(--workspace-muted)"};
   font-size: 12px;
   font-weight: 800;
 `;
 
 const EmptyState = styled.div`
-  border: 1px dashed #d8deea;
+  border: 1px dashed var(--workspace-border);
   border-radius: 12px;
   padding: 18px;
-  background: #fbfcff;
+  background: var(--workspace-surface-alt);
   text-align: center;
   display: grid;
   gap: 6px;
@@ -371,12 +383,12 @@ const EmptyState = styled.div`
 const EmptyTitle = styled.div`
   font-size: 16px;
   font-weight: 900;
-  color: #171b25;
+  color: var(--workspace-text);
 `;
 
 const EmptyText = styled.div`
   font-size: 14px;
-  color: #677486;
+  color: var(--workspace-muted);
   line-height: 1.6;
 `;
 
@@ -389,8 +401,12 @@ const PdfLibraryGrid = styled.div`
 const PdfLibraryCard = styled.div`
   min-height: 168px;
   border-radius: 18px;
-  border: 1px solid #e6ebf2;
-  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  border: 1px solid var(--workspace-border);
+  background: linear-gradient(
+    180deg,
+    var(--workspace-surface) 0%,
+    var(--workspace-surface-alt) 100%
+  );
   padding: 16px;
   display: flex;
   flex-direction: column;
@@ -402,8 +418,8 @@ const PdfPreviewBadge = styled.div`
   width: 44px;
   height: 44px;
   border-radius: 14px;
-  background: #fff3ec;
-  color: #ff7a2f;
+  background: var(--workspace-primary-soft);
+  color: var(--workspace-primary);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -412,7 +428,7 @@ const PdfPreviewBadge = styled.div`
 const PdfLibraryTitle = styled.div`
   font-size: 15px;
   font-weight: 800;
-  color: #171b25;
+  color: var(--workspace-text);
   line-height: 1.4;
   word-break: break-word;
 `;
@@ -421,13 +437,13 @@ const PdfLibraryMeta = styled.div`
   display: grid;
   gap: 6px;
   font-size: 12px;
-  color: #6c788b;
+  color: var(--workspace-muted);
 `;
 
 const AsideCard = styled.div`
-  border: 1px solid #e7ebf3;
+  border: 1px solid var(--workspace-border);
   border-radius: 14px;
-  background: #ffffff;
+  background: var(--workspace-surface);
   padding: 16px;
   display: grid;
   gap: 10px;
@@ -436,20 +452,20 @@ const AsideCard = styled.div`
 const AsideTitle = styled.div`
   font-size: 14px;
   font-weight: 700;
-  color: #171b25;
+  color: var(--workspace-text);
 `;
 
 const AsideText = styled.div`
   font-size: 14px;
   line-height: 1.6;
-  color: #617082;
+  color: var(--workspace-muted);
 `;
 
 const ActionLink = styled.a`
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  color: #ff7a2f;
+  color: var(--workspace-primary);
   font-size: 13px;
   font-weight: 800;
   text-decoration: none;

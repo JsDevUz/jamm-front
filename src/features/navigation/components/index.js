@@ -1,1 +1,1 @@
-export { default as ServerSidebar } from "./ServerSidebar";
+export { default as ServerSidebar } from "../ServerSidebarExpanded";

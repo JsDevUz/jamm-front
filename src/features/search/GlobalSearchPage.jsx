@@ -506,7 +506,7 @@ export default function GlobalSearchPage() {
               <ResultCard
                 key={course._id}
                 type="button"
-                onClick={() => navigate(`/courses/${course.urlSlug || course._id}`)}
+                onClick={() => navigate(`/my-courses/${course.urlSlug || course._id}`)}
               >
                 <SearchAvatar
                   src={course.image}

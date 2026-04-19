@@ -33,12 +33,6 @@ export const AppContainer = styled.div`
   background-color: var(--background-color);
   overflow: hidden;
   box-sizing: border-box;
-
-  @media (max-width: 700px) {
-    flex-direction: column;
-    padding-top: constant(safe-area-inset-top);
-    padding-top: env(safe-area-inset-top, 0px);
-  }
 `;
 
 export const NotificationPromptBanner = styled.div`
@@ -167,15 +161,6 @@ export const MainContent = styled.div`
   min-width: 0;
   min-height: 0;
   overflow: hidden;
-
-  @media (max-width: 700px) {
-    order: 1;
-    flex-direction: column;
-    width: 100%;
-    height: auto;
-    min-height: 0;
-    box-sizing: border-box;
-  }
 `;
 
 export const PaneDivider = styled.div`

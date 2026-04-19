@@ -28,7 +28,7 @@ const NAV_META = [
     description: "Jamm maqolalari, yozuvlar va bilimlar bazasini o'qing.",
   },
   {
-    pattern: /^\/courses(?:\/.*)?$/,
+    pattern: /^\/(?:courses|my-courses)(?:\/.*)?$/,
     title: "Kurslar | Jamm",
     description:
       "Jamm kurslari, darslar va topshiriqlarini bir joyda boshqaring.",
@@ -56,7 +56,7 @@ const DYNAMIC_PREVIEW_PATTERNS = [
   /^\/groups\/[^/]+$/,
   /^\/users\/[^/]+$/,
   /^\/articles\/[^/]+$/,
-  /^\/courses\/[^/]+(?:\/[^/]+)?$/,
+  /^\/(?:courses|my-courses)\/[^/]+(?:\/[^/]+)?$/,
   /^\/join\/[^/]+$/,
   /^\/arena\/quiz-link\/[^/]+$/,
   /^\/arena\/quiz\/[^/]+(?:\/[^/]+)?$/,
