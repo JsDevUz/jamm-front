@@ -1293,6 +1293,76 @@
       "welcomeDescription": "Выберите нужный раздел в меню слева: решайте тесты, запоминайте слова или соревнуйтесь с друзьями."
     }
   },
+  "coursePreview": {
+    "loading": "Загрузка предпросмотра курса...",
+    "notFound": "Курс не найден или предпросмотр пока недоступен.",
+    "shareTitle": "Предпросмотр курса",
+    "free": "Бесплатно",
+    "video": "Видео",
+    "videoNumber": "Видео {{count}}",
+    "instructor": "Преподаватель",
+    "recentlyUpdated": "Недавно обновлено",
+    "thisCourse": "Этот курс",
+    "defaultLanguage": "Русский",
+    "bestseller": "Рекомендуем",
+    "descriptionFallback": "Практичная и удобная страница предпросмотра курса по теме {{category}}.",
+    "ratings": "({{formatted}} оценок)",
+    "students": "{{formatted}} студентов",
+    "lessonsCount": "{{count}} уроков",
+    "createdBy": "Автор:",
+    "lastUpdated": "Последнее обновление {{date}}",
+    "subtitles": "Субтитры: {{language}}",
+    "whatYouLearn": "Что вы изучите",
+    "showLess": "Показать меньше",
+    "showMore": "Показать больше",
+    "curriculum": "Программа",
+    "curriculumMeta": "{{sections}} раздел • {{lectures}} уроков • всего {{duration}}",
+    "sectionTitle": "Раздел {{index}} - {{name}}",
+    "lessonNumber": "Урок {{count}}",
+    "lessonMeta": "Видео • {{duration}}",
+    "emptyCurriculum": "Предпросмотр программы скоро будет заполнен. Пока доступны основные сведения, описание и запись на курс.",
+    "showLessSections": "Скрыть разделы",
+    "moreSections": "Ещё {{count}} разделов",
+    "includesTitle": "В этот курс входит",
+    "requirementsTitle": "Требования",
+    "descriptionTitle": "Описание",
+    "noDescription": "Описание для этого курса пока не добавлено.",
+    "offer": "Скидка 50% — временная цена",
+    "cta": {
+      "requestSent": "Заявка отправлена",
+      "openCourse": "Открыть курс",
+      "enrollNow": "Записаться",
+      "buyNow": "Купить"
+    },
+    "toasts": {
+      "shareCopied": "Ссылка на курс скопирована",
+      "shareError": "Не удалось поделиться ссылкой на курс",
+      "requestSent": "Ваша заявка отправлена",
+      "enrollError": "Не удалось записаться на курс"
+    },
+    "duration": {
+      "minutes": "{{count}} минут",
+      "hours": "{{count}} часов",
+      "hoursMinutes": "{{hours}} ч, {{minutes}} мин"
+    },
+    "learningFallback": {
+      "main": "Вы изучите основные понятия курса {{name}}",
+      "practice": "Получите практические навыки через пошаговые уроки",
+      "independent": "Доведёте каждый модуль до самостоятельного применения"
+    },
+    "requirementsFallback": {
+      "language": "Понимание языка {{language}} будет полезно",
+      "device": "Достаточно интернета и телефона или компьютера",
+      "experience": "Глубокий предыдущий опыт не требуется"
+    },
+    "includes": {
+      "video": "{{duration}} видео по запросу",
+      "sections": "{{count}} вспомогательных разделов",
+      "lifetime": "Пожизненный доступ",
+      "devices": "Доступ с телефона, компьютера и ТВ",
+      "certificate": "Сертификат об окончании"
+    }
+  },
   "coursesHome": {
     "pageTitle": "Курсы",
     "searchPlaceholder": "Найти курс...",

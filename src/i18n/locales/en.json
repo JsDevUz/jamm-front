@@ -1293,6 +1293,76 @@
       "welcomeDescription": "Choose a section from the menu on the left: solve tests, memorize vocabulary, or compete with friends."
     }
   },
+  "coursePreview": {
+    "loading": "Loading course preview...",
+    "notFound": "This course was not found or the preview is not available yet.",
+    "shareTitle": "Course preview",
+    "free": "Free",
+    "video": "Video",
+    "videoNumber": "Video {{count}}",
+    "instructor": "Instructor",
+    "recentlyUpdated": "Recently updated",
+    "thisCourse": "This course",
+    "defaultLanguage": "English",
+    "bestseller": "Featured",
+    "descriptionFallback": "A practical and convenient course preview page for {{category}}.",
+    "ratings": "({{formatted}} ratings)",
+    "students": "{{formatted}} students",
+    "lessonsCount": "{{count}} lessons",
+    "createdBy": "Created by",
+    "lastUpdated": "Last updated {{date}}",
+    "subtitles": "{{language}} subtitles",
+    "whatYouLearn": "What you'll learn",
+    "showLess": "Show less",
+    "showMore": "Show more",
+    "curriculum": "Curriculum",
+    "curriculumMeta": "{{sections}} section • {{lectures}} lectures • {{duration}} total length",
+    "sectionTitle": "Section {{index}} - {{name}}",
+    "lessonNumber": "Lesson {{count}}",
+    "lessonMeta": "Video • {{duration}}",
+    "emptyCurriculum": "The curriculum preview will be filled soon. For now, the main course details, description and enrollment are available.",
+    "showLessSections": "Show less sections",
+    "moreSections": "{{count}} more sections",
+    "includesTitle": "This course includes",
+    "requirementsTitle": "Requirements",
+    "descriptionTitle": "Description",
+    "noDescription": "No description has been added for this course yet.",
+    "offer": "50% off - limited time price",
+    "cta": {
+      "requestSent": "Request sent",
+      "openCourse": "Open course",
+      "enrollNow": "Enroll now",
+      "buyNow": "Buy now"
+    },
+    "toasts": {
+      "shareCopied": "Course link copied",
+      "shareError": "Could not share the course link",
+      "requestSent": "Your request has been sent",
+      "enrollError": "Could not enroll in the course"
+    },
+    "duration": {
+      "minutes": "{{count}} minutes",
+      "hours": "{{count}} hours",
+      "hoursMinutes": "{{hours}} hours, {{minutes}} minutes"
+    },
+    "learningFallback": {
+      "main": "You will learn the core concepts of {{name}}",
+      "practice": "Build practical skills through step-by-step lessons",
+      "independent": "Bring each module to independent working level"
+    },
+    "requirementsFallback": {
+      "language": "Understanding {{language}} will be helpful",
+      "device": "Internet and a phone or computer are enough",
+      "experience": "Deep prior experience is not required to start"
+    },
+    "includes": {
+      "video": "{{duration}} on-demand video",
+      "sections": "{{count}} support sections",
+      "lifetime": "Full lifetime access",
+      "devices": "Access on mobile, desktop and TV",
+      "certificate": "Certificate of completion"
+    }
+  },
   "coursesHome": {
     "pageTitle": "Courses",
     "searchPlaceholder": "Search for a course...",

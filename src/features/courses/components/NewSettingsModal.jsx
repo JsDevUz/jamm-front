@@ -1,6 +1,6 @@
 import React from "react";
 import styled, { keyframes } from "styled-components";
-import { ArrowLeft, LogOut, X } from "lucide-react";
+import { ArrowLeft, ChevronRight, LogOut, Search, X } from "lucide-react";
 
 const modalOverlayIn = keyframes`
   from { opacity: 0; }
@@ -33,8 +33,13 @@ const AccountOverlay = styled.div`
   transition: opacity 0.18s ease;
 
   @media (max-width: 768px) {
+    inset: auto 0 auto 0;
+    top: var(--visual-viewport-offset-top, 0px);
+    height: var(--visual-viewport-height, var(--app-height, 100dvh));
+    max-height: var(--visual-viewport-height, var(--app-height, 100dvh));
     padding: 0;
     align-items: stretch;
+    overflow: hidden;
   }
 `;
 
@@ -66,8 +71,9 @@ const AccountModal = styled.div`
 
   @media (max-width: 768px) {
     width: 100vw;
-    min-height: 100vh;
-    max-height: 100vh;
+    height: 100%;
+    min-height: 0;
+    max-height: 100%;
     border-radius: 0;
     overflow: hidden;
   }
@@ -85,12 +91,77 @@ const AccountSidebar = styled.div`
     border-right: none;
     border-bottom: 1px solid color-mix(in srgb, var(--border-color) 82%, transparent);
   }
+
+  @media (max-width: 768px) {
+    height: 100%;
+    min-height: 0;
+    overflow-y: auto;
+    border-bottom: none;
+    padding: 0 10px calc(28px + env(safe-area-inset-bottom, 0px));
+    gap: 18px;
+    background: color-mix(in srgb, var(--background-color) 88%, var(--secondary-color));
+    -webkit-overflow-scrolling: touch;
+  }
+`;
+
+const MobileSettingsHeader = styled.div`
+  display: none;
+
+  @media (max-width: 768px) {
+    display: grid;
+    grid-template-columns: 38px minmax(0, 1fr) 38px;
+    align-items: center;
+    min-height: 46px;
+    padding: calc(14px + env(safe-area-inset-top, 0px)) 0 14px;
+    margin: 0 -7px;
+    border-bottom: 1px solid color-mix(in srgb, var(--border-color) 72%, transparent);
+  }
+`;
+
+const MobileCloseButton = styled.button`
+  border: none;
+  background: transparent;
+  color: var(--text-color);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+`;
+
+const MobileSettingsTitle = styled.h2`
+  margin: 0;
+  color: var(--text-color);
+  font-size: 1.08rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  text-align: center;
+`;
+
+const MobileSearchBox = styled.div`
+  display: none;
+
+  @media (max-width: 768px) {
+    min-height: 42px;
+    border-radius: 15px;
+    background: color-mix(in srgb, var(--tertiary-color) 80%, black 20%);
+    color: var(--text-muted-color);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 0 12px;
+    font-size: 0.92rem;
+    font-weight: 600;
+  }
 `;
 
 const AccountUserRow = styled.div`
   display: flex;
   align-items: center;
   gap: 10px;
+
+  @media (max-width: 768px) {
+    display: none;
+  }
 `;
 
 const AccountUserAvatar = styled.div`
@@ -148,6 +219,27 @@ const AccountNavLabel = styled.div`
   font-weight: 700;
   padding: 0 8px;
   margin-top: 2px;
+
+  @media (max-width: 768px) {
+    color: var(--text-secondary-color);
+    font-size: 0.82rem;
+    font-weight: 800;
+    padding: 0 2px;
+    margin: 0;
+  }
+`;
+
+const AccountNavItems = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+
+  @media (max-width: 768px) {
+    gap: 0;
+    overflow: hidden;
+    border-radius: 15px;
+    background: color-mix(in srgb, var(--secondary-color) 94%, var(--background-color));
+  }
 `;
 
 const AccountNavItem = styled.button`
@@ -185,12 +277,57 @@ const AccountNavItem = styled.button`
     color: ${(props) =>
       props.$danger ? "var(--danger-color)" : "var(--text-color)"};
   }
+
+  @media (max-width: 768px) {
+    min-height: 54px;
+    border-radius: 0;
+    padding: 0 14px;
+    gap: 14px;
+    background: transparent;
+    color: ${(props) => (props.$danger ? "var(--danger-color)" : "var(--text-color)")};
+    font-size: 0.9rem;
+    font-weight: 800;
+    letter-spacing: 0.01em;
+
+    &:not(:last-child) {
+      border-bottom: 1px solid color-mix(in srgb, var(--border-color) 58%, transparent);
+    }
+
+    svg:first-child {
+      width: 22px;
+      height: 22px;
+      color: ${(props) =>
+        props.$danger ? "var(--danger-color)" : "var(--text-secondary-color)"};
+      flex-shrink: 0;
+    }
+  }
+`;
+
+const AccountNavItemLabel = styled.span`
+  flex: 1;
+  min-width: 0;
+`;
+
+const AccountNavChevron = styled(ChevronRight)`
+  display: none;
+
+  @media (max-width: 768px) {
+    display: block;
+    width: 19px;
+    height: 19px;
+    color: var(--text-secondary-color);
+    flex-shrink: 0;
+  }
 `;
 
 const AccountNavDivider = styled.div`
   height: 1px;
   background: color-mix(in srgb, var(--border-color) 82%, transparent);
   margin: 4px 0;
+
+  @media (max-width: 768px) {
+    display: none;
+  }
 `;
 
 const AccountMain = styled.div`
@@ -206,7 +343,7 @@ const AccountMain = styled.div`
     inset: 0;
     z-index: 2;
     background: color-mix(in srgb, var(--secondary-color) 92%, black 8%);
-    padding: 14px;
+    padding: 0;
     transform: translateX(${(props) => (props.$mobileOpen ? "0" : "100%")});
     opacity: ${(props) => (props.$mobileOpen ? 1 : 0)};
     pointer-events: ${(props) => (props.$mobileOpen ? "auto" : "none")};
@@ -223,6 +360,10 @@ const AccountHeader = styled.div`
   gap: 12px;
   padding-bottom: 12px;
   border-bottom: 1px solid color-mix(in srgb, var(--border-color) 82%, transparent);
+
+  @media (max-width: 768px) {
+    padding: calc(14px + env(safe-area-inset-top, 0px)) 14px 12px;
+  }
 `;
 
 const AccountHeaderLeft = styled.div`
@@ -289,6 +430,10 @@ const AccountContent = styled.div`
   overflow-x: hidden;
   padding-top: 16px;
   padding-right: 4px;
+
+  @media (max-width: 768px) {
+    padding: 10px;
+  }
 `;
 
 export default function NewSettingsModal({
@@ -312,6 +457,17 @@ export default function NewSettingsModal({
     <AccountOverlay $closing={closing} onClick={onClose}>
       <AccountModal $closing={closing} onClick={(event) => event.stopPropagation()}>
         <AccountSidebar>
+          <MobileSettingsHeader>
+            <MobileCloseButton
+              type="button"
+              aria-label="Close settings"
+              onClick={onClose}
+            >
+              <ArrowLeft size={26} />
+            </MobileCloseButton>
+            <MobileSettingsTitle>Settings</MobileSettingsTitle>
+            <span />
+          </MobileSettingsHeader>
           <AccountUserRow>
             <AccountUserAvatar>
               {currentUser?.avatar ? (
@@ -322,30 +478,34 @@ export default function NewSettingsModal({
             </AccountUserAvatar>
             <AccountUserMeta>
               <AccountUserName>{displayName}</AccountUserName>
-              <AccountUserSub>Edit Profiles</AccountUserSub>
+              <AccountUserSub>Bu siz</AccountUserSub>
             </AccountUserMeta>
           </AccountUserRow>
           <AccountNavSection>
-            <AccountNavLabel>User Settings</AccountNavLabel>
-            {settingsMenuItems.map((item) => {
-              const Icon = item.icon;
-              return (
-                <AccountNavItem
-                  key={item.id}
-                  type="button"
-                  $active={accountSettingsSection === item.id}
-                  onClick={() => onSectionSelect(item.id)}
-                >
-                  <Icon size={18} />
-                  {item.label}
-                </AccountNavItem>
-              );
-            })}
-            <AccountNavDivider />
-            <AccountNavItem type="button" $danger onClick={onLogout}>
-              <LogOut size={18} />
-              Log out
-            </AccountNavItem>
+            <AccountNavLabel>Account Settings</AccountNavLabel>
+            <AccountNavItems>
+              {settingsMenuItems.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <AccountNavItem
+                    key={item.id}
+                    type="button"
+                    $active={accountSettingsSection === item.id}
+                    onClick={() => onSectionSelect(item.id)}
+                  >
+                    <Icon size={14} />
+                    <AccountNavItemLabel>{item.label}</AccountNavItemLabel>
+                    <AccountNavChevron />
+                  </AccountNavItem>
+                );
+              })}
+              <AccountNavDivider />
+              <AccountNavItem type="button" $danger onClick={onLogout}>
+                <LogOut size={14} />
+                <AccountNavItemLabel>Log out</AccountNavItemLabel>
+                <AccountNavChevron />
+              </AccountNavItem>
+            </AccountNavItems>
           </AccountNavSection>
         </AccountSidebar>
 
@@ -357,7 +517,7 @@ export default function NewSettingsModal({
                 aria-label="Back to settings menu"
                 onClick={onBackMobile}
               >
-                <ArrowLeft size={18} />
+                <ArrowLeft size={14} />
               </AccountBackButton>
               <AccountTitle>
                 {settingsMenuItems.find((item) => item.id === accountSettingsSection)

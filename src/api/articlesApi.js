@@ -25,12 +25,16 @@ export const fetchLikedArticles = async () => {
 };
 
 export const getArticle = async (articleId) => {
-  const { data } = await axiosInstance.get(`/articles/${articleId}`);
+  const { data } = await axiosInstance.get(
+    `/articles/${encodeURIComponent(articleId)}`,
+  );
   return data;
 };
 
 export const getArticleContent = async (articleId) => {
-  const { data } = await axiosInstance.get(`/articles/${articleId}/content`);
+  const { data } = await axiosInstance.get(
+    `/articles/${encodeURIComponent(articleId)}/content`,
+  );
   return data;
 };
 
@@ -40,36 +44,48 @@ export const createArticle = async (payload) => {
 };
 
 export const updateArticle = async (articleId, payload) => {
-  const { data } = await axiosInstance.patch(`/articles/${articleId}`, payload);
+  const { data } = await axiosInstance.patch(
+    `/articles/${encodeURIComponent(articleId)}`,
+    payload,
+  );
   return data;
 };
 
 export const deleteArticle = async (articleId) => {
-  const { data } = await axiosInstance.delete(`/articles/${articleId}`);
+  const { data } = await axiosInstance.delete(
+    `/articles/${encodeURIComponent(articleId)}`,
+  );
   return data;
 };
 
 export const likeArticle = async (articleId) => {
-  const { data } = await axiosInstance.post(`/articles/${articleId}/like`);
+  const { data } = await axiosInstance.post(
+    `/articles/${encodeURIComponent(articleId)}/like`,
+  );
   return data;
 };
 
 export const viewArticle = async (articleId) => {
-  const { data } = await axiosInstance.post(`/articles/${articleId}/view`);
+  const { data } = await axiosInstance.post(
+    `/articles/${encodeURIComponent(articleId)}/view`,
+  );
   return data;
 };
 
 export const getArticleComments = async (articleId, page = 1, limit = 10) => {
   const { data } = await axiosInstance.get(
-    `/articles/${articleId}/comments?page=${page}&limit=${limit}`,
+    `/articles/${encodeURIComponent(articleId)}/comments?page=${page}&limit=${limit}`,
   );
   return data;
 };
 
 export const addArticleComment = async ({ articleId, content }) => {
-  const { data } = await axiosInstance.post(`/articles/${articleId}/comments`, {
-    content,
-  });
+  const { data } = await axiosInstance.post(
+    `/articles/${encodeURIComponent(articleId)}/comments`,
+    {
+      content,
+    },
+  );
   return data;
 };
 
@@ -80,7 +96,7 @@ export const addArticleReply = async ({
   replyToUser,
 }) => {
   const { data } = await axiosInstance.post(
-    `/articles/${articleId}/comments/${commentId}/reply`,
+    `/articles/${encodeURIComponent(articleId)}/comments/${encodeURIComponent(commentId)}/reply`,
     {
       content,
       replyToUser,

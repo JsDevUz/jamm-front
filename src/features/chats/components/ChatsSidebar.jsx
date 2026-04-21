@@ -95,6 +95,20 @@ const ChatsSidebar = ({
     normalizedSearchQuery.length >= MIN_SEARCH_LENGTH;
 
   const emptyListConfig = useMemo(() => {
+    if (selectedNav === "chats" && effectiveChatTab === "private") {
+      return {
+        icon: <MessageSquare size={32} />,
+        text: "Sizda shaxsiy chatlar yo'q",
+      };
+    }
+
+    if (selectedNav === "chats" && effectiveChatTab === "group") {
+      return {
+        icon: <Users size={32} />,
+        text: "Sizda hozircha guruh yo'q",
+      };
+    }
+
     if (selectedNav === "groups") {
       return {
         icon: <Users size={32} />,
@@ -110,7 +124,7 @@ const ChatsSidebar = ({
     }
 
     return null;
-  }, [selectedNav]);
+  }, [effectiveChatTab, selectedNav]);
 
   useEffect(() => {
     if (selectedNav === "groups") {

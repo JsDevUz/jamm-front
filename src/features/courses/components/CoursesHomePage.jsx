@@ -113,7 +113,7 @@ const PageInner = styled.div`
   width: 100%;
   max-width: 1280px;
   margin: 0 auto;
-  padding: 22px 16px 110px;
+  padding: calc(22px + env(safe-area-inset-top, 0px)) 16px 110px;
   box-sizing: border-box;
 
   @media (min-width: 768px) {
@@ -1583,6 +1583,10 @@ const RecommendedGrid = styled.div`
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 14px;
 
+  @media (max-width: 430px) {
+    gap: 10px;
+  }
+
   @media (min-width: 768px) {
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 18px;
@@ -1632,6 +1636,10 @@ const CoverFrame = styled.div`
   @media (min-width: 768px) {
     aspect-ratio: 1.34;
   }
+
+  @media (max-width: 430px) {
+    aspect-ratio: 1.22;
+  }
 `;
 
 const CoverImage = styled.img`
@@ -1648,6 +1656,21 @@ const CoverFallback = styled.div`
   align-items: center;
   justify-content: center;
   color: var(--warning-color);
+
+  svg {
+    width: 38px;
+    height: 38px;
+  }
+
+  @media (max-width: 430px) {
+    align-items: flex-start;
+    padding-top: 36px;
+
+    svg {
+      width: 34px;
+      height: 34px;
+    }
+  }
 `;
 
 const CoverBadge = styled.div`
@@ -1662,6 +1685,13 @@ const CoverBadge = styled.div`
   font-weight: 800;
   letter-spacing: 0.04em;
   text-transform: uppercase;
+
+  @media (max-width: 430px) {
+    top: 8px;
+    left: 8px;
+    padding: 4px 7px;
+    font-size: 0.56rem;
+  }
 `;
 
 const CoverMeta = styled.div`
@@ -1676,6 +1706,14 @@ const CoverMeta = styled.div`
   color: white;
   font-size: 0.76rem;
   font-weight: 700;
+
+  @media (max-width: 430px) {
+    left: 8px;
+    right: 8px;
+    bottom: 8px;
+    gap: 5px;
+    font-size: 0.7rem;
+  }
 `;
 
 const CoverMetaPill = styled.div`
@@ -1683,11 +1721,15 @@ const CoverMetaPill = styled.div`
   align-items: center;
   gap: 6px;
   min-width: 0;
+  max-width: 100%;
   padding: 5px 0;
   border-radius: 999px;
   background: transparent;
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 `;
 
 const CourseTitle = styled.div`
@@ -1706,6 +1748,11 @@ const CourseTitle = styled.div`
     font-size: 1.06rem;
     padding: 0 16px;
   }
+
+  @media (max-width: 430px) {
+    font-size: 0.92rem;
+    padding: 0 10px;
+  }
 `;
 
 const CourseAuthor = styled.div`
@@ -1718,6 +1765,11 @@ const CourseAuthor = styled.div`
   @media (min-width: 768px) {
     padding: 0 16px;
   }
+
+  @media (max-width: 430px) {
+    font-size: 0.74rem;
+    padding: 0 10px;
+  }
 `;
 
 const CourseFooter = styled.div`
@@ -1728,9 +1780,10 @@ const CourseFooter = styled.div`
   padding: 0 14px 14px;
 
   @media (max-width: 430px) {
-    flex-direction: column;
-    align-items: flex-start;
+    flex-direction: row;
+    align-items: center;
     gap: 6px;
+    padding: 0 10px 10px;
   }
 
   @media (min-width: 768px) {

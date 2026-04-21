@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import styled from "styled-components";
+import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   ArrowLeft,
@@ -30,8 +31,8 @@ const PageShell = styled.div`
   overflow-y: auto;
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
-  background: #050505;
-  color: #f7f7fb;
+  background: var(--background-color);
+  color: var(--text-color);
 `;
 
 const PageInner = styled.div`
@@ -77,10 +78,10 @@ const TopBar = styled.div`
 const IconButton = styled.button`
   width: 42px;
   height: 42px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1px solid var(--border-color);
   border-radius: 14px;
-  background: rgba(255, 255, 255, 0.04);
-  color: #fff;
+  background: var(--secondary-color);
+  color: var(--text-color);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -91,8 +92,8 @@ const HeroCard = styled.div`
   position: relative;
   overflow: hidden;
   border-radius: 22px;
-  background: #111;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--secondary-color);
+  border: 1px solid var(--border-color);
 `;
 
 const HeroImage = styled.img`
@@ -106,7 +107,7 @@ const HeroVideo = styled.video`
   width: 100%;
   aspect-ratio: 16 / 9;
   display: block;
-  background: #000;
+  background: var(--tertiary-color);
   object-fit: cover;
 `;
 
@@ -115,7 +116,7 @@ const HeroIframe = styled.iframe`
   aspect-ratio: 16 / 9;
   display: block;
   border: 0;
-  background: #000;
+  background: var(--tertiary-color);
 `;
 
 const HeroFallback = styled.div`
@@ -123,8 +124,8 @@ const HeroFallback = styled.div`
   aspect-ratio: 16 / 9;
   display: grid;
   place-items: center;
-  background: #121214;
-  color: rgba(255, 255, 255, 0.86);
+  background: var(--secondary-color);
+  color: var(--text-color);
   font-size: clamp(18px, 2.5vw, 28px);
   font-weight: 800;
   text-align: center;
@@ -139,7 +140,7 @@ const HeroOverlay = styled.div`
   align-items: center;
   justify-content: center;
   gap: 12px;
-  background: rgba(0, 0, 0, 0.34);
+  background: color-mix(in srgb, var(--background-color) 44%, transparent);
   text-align: center;
   padding: 24px;
 `;
@@ -148,7 +149,7 @@ const PlayBadge = styled.div`
   width: 78px;
   height: 78px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.16);
+  background: color-mix(in srgb, var(--secondary-color) 72%, transparent);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -163,7 +164,7 @@ const PlayBadge = styled.div`
 const HeroText = styled.div`
   font-size: clamp(16px, 1.9vw, 22px);
   font-weight: 800;
-  color: #fff;
+  color: var(--text-color);
 `;
 
 const Headline = styled.div`
@@ -174,8 +175,8 @@ const Headline = styled.div`
 const MobileOfferCard = styled.div`
   display: none;
   border-radius: 20px;
-  background: #121214;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--secondary-color);
+  border: 1px solid var(--border-color);
   padding: 18px;
   gap: 14px;
 
@@ -190,14 +191,14 @@ const Title = styled.h1`
   line-height: 1.08;
   letter-spacing: -0.03em;
   font-weight: 900;
-  color: #fff;
+  color: var(--text-color);
 `;
 
 const Subtitle = styled.p`
   margin: 0;
   font-size: clamp(16px, 1.45vw, 21px);
   line-height: 1.45;
-  color: rgba(255, 255, 255, 0.78);
+  color: var(--text-secondary-color);
   max-width: 920px;
 `;
 
@@ -205,8 +206,8 @@ const BestsellerBadge = styled.div`
   width: fit-content;
   padding: 9px 14px;
   border-radius: 12px;
-  background: #efe98d;
-  color: #3b3609;
+  background: var(--active-color);
+  color: var(--primary-color);
   font-size: 14px;
   font-weight: 900;
 `;
@@ -217,14 +218,14 @@ const RatingRow = styled.div`
   align-items: center;
   gap: 12px;
   font-size: 14px;
-  color: rgba(255, 255, 255, 0.86);
+  color: var(--text-secondary-color);
 `;
 
 const RatingScore = styled.div`
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  color: #f7b63f;
+  color: var(--warning-color);
   font-weight: 900;
 `;
 
@@ -238,7 +239,7 @@ const MetaStack = styled.div`
   display: grid;
   gap: 8px;
   font-size: 14px;
-  color: rgba(255, 255, 255, 0.84);
+  color: var(--text-secondary-color);
 `;
 
 const MetaLine = styled.div`
@@ -249,14 +250,14 @@ const MetaLine = styled.div`
 `;
 
 const AccentText = styled.span`
-  color: #ba9cff;
+  color: var(--primary-color);
   font-weight: 800;
 `;
 
 const SectionCard = styled.section`
   border-radius: 22px;
-  background: #1a1a1d;
-  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: var(--secondary-color);
+  border: 1px solid var(--border-color);
   padding: 22px;
   display: grid;
   gap: 18px;
@@ -272,7 +273,7 @@ const SectionTitle = styled.h2`
   font-size: clamp(22px, 2.1vw, 34px);
   line-height: 1.12;
   font-weight: 900;
-  color: #fff;
+  color: var(--text-color);
 `;
 
 const LearnList = styled.div`
@@ -291,7 +292,7 @@ const LearnItem = styled.div`
   gap: 12px;
   font-size: clamp(15px, 1.2vw, 18px);
   line-height: 1.45;
-  color: rgba(255, 255, 255, 0.92);
+  color: var(--text-color);
 `;
 
 const LearnIcon = styled.div`
@@ -302,15 +303,15 @@ const LearnIcon = styled.div`
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: #fff;
-  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-color);
+  background: var(--hover-color);
 `;
 
 const SectionAction = styled.button`
   width: fit-content;
   border: 0;
   background: transparent;
-  color: #ba9cff;
+  color: var(--primary-color);
   padding: 0;
   font-size: 15px;
   font-weight: 800;
@@ -320,7 +321,7 @@ const SectionAction = styled.button`
 const CurriculumMeta = styled.div`
   font-size: 15px;
   line-height: 1.4;
-  color: rgba(255, 255, 255, 0.74);
+  color: var(--text-secondary-color);
 `;
 
 const CurriculumSection = styled.div`
@@ -332,7 +333,7 @@ const CurriculumHeader = styled.button`
   width: 100%;
   border: 0;
   background: transparent;
-  color: #fff;
+  color: var(--text-color);
   padding: 8px 0;
   display: flex;
   align-items: center;
@@ -354,7 +355,7 @@ const LessonRow = styled.div`
   gap: 14px;
   align-items: center;
   padding: 14px 0;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-top: 1px solid var(--border-color);
 
   @media (max-width: 640px) {
     grid-template-columns: 32px minmax(0, 1fr) auto;
@@ -364,7 +365,7 @@ const LessonRow = styled.div`
 
 const LessonIndex = styled.div`
   font-size: 18px;
-  color: rgba(255, 255, 255, 0.68);
+  color: var(--text-muted-color);
   text-align: right;
 `;
 
@@ -377,31 +378,31 @@ const LessonInfo = styled.div`
 const LessonTitle = styled.div`
   font-size: clamp(15px, 1.15vw, 18px);
   line-height: 1.34;
-  color: #fff;
+  color: var(--text-color);
   font-weight: 600;
 `;
 
 const LessonMeta = styled.div`
   font-size: 14px;
-  color: rgba(255, 255, 255, 0.68);
+  color: var(--text-muted-color);
 `;
 
 const LessonPlay = styled.div`
   width: 40px;
   height: 40px;
   border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.24);
+  border: 1px solid var(--border-color);
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: #fff;
+  color: var(--text-color);
 `;
 
 const IncludesList = styled.div`
   display: grid;
   gap: 14px;
   font-size: clamp(15px, 1.2vw, 18px);
-  color: rgba(255, 255, 255, 0.92);
+  color: var(--text-color);
 `;
 
 const IncludeItem = styled.div`
@@ -417,7 +418,7 @@ const RequirementsList = styled.ul`
   gap: 10px;
   font-size: clamp(15px, 1.2vw, 18px);
   line-height: 1.5;
-  color: rgba(255, 255, 255, 0.9);
+  color: var(--text-color);
 `;
 
 const DescriptionBody = styled.div`
@@ -425,7 +426,7 @@ const DescriptionBody = styled.div`
   gap: 12px;
   font-size: clamp(15px, 1.2vw, 18px);
   line-height: 1.58;
-  color: rgba(255, 255, 255, 0.9);
+  color: var(--text-color);
 `;
 
 const DescriptionParagraph = styled.p`
@@ -436,8 +437,8 @@ const PurchaseCard = styled.div`
   position: sticky;
   top: 24px;
   border-radius: 22px;
-  background: #111113;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--secondary-color);
+  border: 1px solid var(--border-color);
   overflow: hidden;
 `;
 
@@ -451,12 +452,12 @@ const PriceValue = styled.div`
   font-size: clamp(28px, 2.4vw, 42px);
   line-height: 1;
   font-weight: 900;
-  color: #fff;
+  color: var(--text-color);
 `;
 
 const OldPrice = styled.div`
   font-size: 18px;
-  color: rgba(255, 255, 255, 0.45);
+  color: var(--text-muted-color);
   text-decoration: line-through;
 `;
 
@@ -464,7 +465,7 @@ const OfferText = styled.div`
   display: flex;
   align-items: center;
   gap: 8px;
-  color: #d6653b;
+  color: var(--danger-color);
   font-size: 14px;
   font-weight: 800;
 `;
@@ -474,8 +475,8 @@ const PurchaseButton = styled.button`
   min-height: 54px;
   border: 0;
   border-radius: 14px;
-  background: #a837ff;
-  color: #fff;
+  background: var(--primary-color);
+  color: var(--background-color);
   font-size: clamp(18px, 1.4vw, 22px);
   font-weight: 900;
   cursor: pointer;
@@ -491,7 +492,7 @@ const LoadingWrap = styled.div`
   display: grid;
   place-items: center;
   text-align: center;
-  color: rgba(255, 255, 255, 0.75);
+  color: var(--text-secondary-color);
   padding: 24px;
 `;
 
@@ -508,28 +509,33 @@ const PlainSection = styled.section`
 
 const EmptyCurriculumCard = styled.div`
   border-radius: 18px;
-  background: #18181a;
-  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: var(--secondary-color);
+  border: 1px solid var(--border-color);
   padding: 18px;
-  color: rgba(255, 255, 255, 0.72);
+  color: var(--text-secondary-color);
   font-size: 15px;
   line-height: 1.5;
 `;
 
-function formatDuration(totalSeconds = 0) {
+function formatDuration(totalSeconds = 0, t) {
   const normalized = Math.max(0, Math.round(Number(totalSeconds || 0)));
   const hours = Math.floor(normalized / 3600);
   const minutes = Math.floor((normalized % 3600) / 60);
 
   if (hours <= 0) {
-    return `${Math.max(1, minutes)} minutes`;
+    return t("coursePreview.duration.minutes", {
+      count: Math.max(1, minutes),
+    });
   }
 
   if (!minutes) {
-    return `${hours} hours`;
+    return t("coursePreview.duration.hours", { count: hours });
   }
 
-  return `${hours} hours, ${minutes} minutes`;
+  return t("coursePreview.duration.hoursMinutes", {
+    hours,
+    minutes,
+  });
 }
 
 function formatCompactDuration(totalSeconds = 0) {
@@ -544,10 +550,10 @@ function formatCompactDuration(totalSeconds = 0) {
   return `${hours}h ${minutes}m`;
 }
 
-function formatPrice(price, accessType) {
+function formatPrice(price, accessType, t) {
   const normalized = Number(price || 0);
   if (accessType === "free_open" || normalized <= 0) {
-    return "Free";
+    return t("coursePreview.free");
   }
 
   return new Intl.NumberFormat("en-US", {
@@ -571,11 +577,14 @@ function getLessonDurationSeconds(lesson) {
   return 0;
 }
 
-function normalizeLessonMediaItems(lesson) {
+function normalizeLessonMediaItems(lesson, t) {
   if (Array.isArray(lesson?.mediaItems) && lesson.mediaItems.length) {
     return lesson.mediaItems.map((item, index) => ({
       mediaId: item?.mediaId || item?._id || `media-${index}`,
-      title: item?.title || lesson?.title || `Video ${index + 1}`,
+      title:
+        item?.title ||
+        lesson?.title ||
+        t("coursePreview.videoNumber", { count: index + 1 }),
       videoUrl: item?.videoUrl || "",
       fileUrl: item?.fileUrl || "",
     }));
@@ -585,7 +594,7 @@ function normalizeLessonMediaItems(lesson) {
     return [
       {
         mediaId: "primary",
-        title: lesson?.title || "Video",
+        title: lesson?.title || t("coursePreview.video"),
         videoUrl: lesson?.videoUrl || "",
         fileUrl: lesson?.fileUrl || "",
       },
@@ -627,24 +636,29 @@ function extractDescriptionItems(description = "") {
     .filter((line) => line.length > 18);
 }
 
-function getCreatedByLabel(createdBy) {
-  if (!createdBy) return "Instructor";
-  if (typeof createdBy === "string") return "Instructor";
-  return createdBy.name || createdBy.nickname || createdBy.username || "Instructor";
+function getCreatedByLabel(createdBy, t) {
+  if (!createdBy) return t("coursePreview.instructor");
+  if (typeof createdBy === "string") return t("coursePreview.instructor");
+  return (
+    createdBy.name ||
+    createdBy.nickname ||
+    createdBy.username ||
+    t("coursePreview.instructor")
+  );
 }
 
-function getCreatedAtLabel(course) {
+function getCreatedAtLabel(course, t) {
   const value = course?.updatedAt || course?.createdAt;
-  if (!value) return "Recently updated";
+  if (!value) return t("coursePreview.recentlyUpdated");
 
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "Recently updated";
+  if (Number.isNaN(date.getTime())) return t("coursePreview.recentlyUpdated");
 
   const month = String(date.getMonth() + 1).padStart(2, "0");
   return `${month}.${date.getFullYear()}`;
 }
 
-function buildLearningItems(course) {
+function buildLearningItems(course, t) {
   const explicitItems = Array.isArray(course?.previewLearn)
     ? course.previewLearn
         .map((item) => String(item || "").trim())
@@ -669,13 +683,15 @@ function buildLearningItems(course) {
   }
 
   return [
-    `${course?.name || "This course"} bo'yicha asosiy tushunchalarni o'rganasiz`,
-    "Bosqichma-bosqich darslar orqali amaliy ko'nikma hosil qilasiz",
-    "Har bir modulni mustaqil ishlash darajasigacha olib borasiz",
+    t("coursePreview.learningFallback.main", {
+      name: course?.name || t("coursePreview.thisCourse"),
+    }),
+    t("coursePreview.learningFallback.practice"),
+    t("coursePreview.learningFallback.independent"),
   ];
 }
 
-function buildRequirements(course) {
+function buildRequirements(course, t) {
   const explicitItems = Array.isArray(course?.previewRequirements)
     ? course.previewRequirements
         .map((item) => String(item || "").trim())
@@ -689,16 +705,21 @@ function buildRequirements(course) {
   const requirements = [];
 
   if (course?.lessonLanguage) {
-    requirements.push(`${course.lessonLanguage} tilini tushunish foydali bo'ladi`);
+    requirements.push(
+      t("coursePreview.requirementsFallback.language", {
+        language: course.lessonLanguage,
+      }),
+    );
   }
 
-  requirements.push("Internet va telefon yoki kompyuter kifoya qiladi");
-  requirements.push("Boshlash uchun oldindan chuqur tajriba shart emas");
+  requirements.push(t("coursePreview.requirementsFallback.device"));
+  requirements.push(t("coursePreview.requirementsFallback.experience"));
 
   return requirements;
 }
 
 export default function CoursePreviewPage() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { resourceId } = useParams();
   const {
@@ -765,8 +786,8 @@ export default function CoursePreviewPage() {
   );
   const firstPreviewLesson = lessons[0] || null;
   const firstPreviewMediaItems = useMemo(
-    () => normalizeLessonMediaItems(firstPreviewLesson),
-    [firstPreviewLesson],
+    () => normalizeLessonMediaItems(firstPreviewLesson, t),
+    [firstPreviewLesson, t],
   );
   const firstPreviewMedia = firstPreviewMediaItems[0] || null;
   const previewMediaUrl =
@@ -781,8 +802,8 @@ export default function CoursePreviewPage() {
     [lessons],
   );
 
-  const learningItems = useMemo(() => buildLearningItems(course), [course]);
-  const requirements = useMemo(() => buildRequirements(course), [course]);
+  const learningItems = useMemo(() => buildLearningItems(course, t), [course, t]);
+  const requirements = useMemo(() => buildRequirements(course, t), [course, t]);
   const visibleLearnItems = showAllLearn ? learningItems : learningItems.slice(0, 4);
   const visibleLessons = showAllLessons ? lessons : lessons.slice(0, 6);
   const courseSlug = course?.urlSlug || course?._id || course?.id || resourceId;
@@ -816,7 +837,7 @@ export default function CoursePreviewPage() {
     try {
       if (navigator.share) {
         await navigator.share({
-          title: course?.name || "Course preview",
+          title: course?.name || t("coursePreview.shareTitle"),
           text: course?.description || "",
           url: shareUrl,
         });
@@ -824,11 +845,11 @@ export default function CoursePreviewPage() {
       }
 
       await navigator.clipboard.writeText(shareUrl);
-      toast.success("Kurs havolasi nusxalandi");
+      toast.success(t("coursePreview.toasts.shareCopied"));
     } catch {
-      toast.error("Kurs havolasini ulashib bo'lmadi");
+      toast.error(t("coursePreview.toasts.shareError"));
     }
-  }, [course?.description, course?.name]);
+  }, [course?.description, course?.name, t]);
 
   const handleEnroll = useCallback(async () => {
     if (!resourceId || isSubmitting) return;
@@ -845,19 +866,21 @@ export default function CoursePreviewPage() {
       if (course?.accessType === "free_open") {
         navigate(myCoursePath);
       } else {
-        toast.success("So'rovingiz yuborildi");
+        toast.success(t("coursePreview.toasts.requestSent"));
       }
     } catch (error) {
-      toast.error(error?.response?.data?.message || "Kursga yozilishda xatolik yuz berdi");
+      toast.error(
+        error?.response?.data?.message || t("coursePreview.toasts.enrollError"),
+      );
     } finally {
       setIsSubmitting(false);
     }
-  }, [canOpenCourse, course?.accessType, enrollInCourse, isSubmitting, myCoursePath, navigate, resourceId]);
+  }, [canOpenCourse, course?.accessType, enrollInCourse, isSubmitting, myCoursePath, navigate, resourceId, t]);
 
   if (loading) {
     return (
       <PageShell>
-        <LoadingWrap>Kurs preview yuklanmoqda...</LoadingWrap>
+        <LoadingWrap>{t("coursePreview.loading")}</LoadingWrap>
       </PageShell>
     );
   }
@@ -867,7 +890,7 @@ export default function CoursePreviewPage() {
       <PageShell>
         <LoadingWrap>
           <EmptyState>
-            <div>Bunday kurs topilmadi yoki preview hozircha mavjud emas.</div>
+            <div>{t("coursePreview.notFound")}</div>
             <IconButton type="button" onClick={() => navigate("/courses")}>
               <ArrowLeft size={20} />
             </IconButton>
@@ -879,12 +902,12 @@ export default function CoursePreviewPage() {
 
   const ctaLabel =
     enrollStatus === "pending"
-      ? "Request sent"
+      ? t("coursePreview.cta.requestSent")
       : canOpenCourse
-        ? "Open course"
+        ? t("coursePreview.cta.openCourse")
         : isFreeCourse
-          ? "Enroll now"
-          : "Buy now";
+          ? t("coursePreview.cta.enrollNow")
+          : t("coursePreview.cta.buyNow");
 
   const oldPrice =
     !isFreeCourse && Number(course.price || 0) > 0
@@ -898,14 +921,14 @@ export default function CoursePreviewPage() {
   const purchaseBlock = (
     <>
       <div>
-        <PriceValue>{formatPrice(course.price, course.accessType)}</PriceValue>
+        <PriceValue>{formatPrice(course.price, course.accessType, t)}</PriceValue>
         {oldPrice ? <OldPrice>{oldPrice}</OldPrice> : null}
       </div>
 
       {oldPrice ? (
         <OfferText>
           <Clock3 size={22} />
-          50% off - limited time price
+          {t("coursePreview.offer")}
         </OfferText>
       ) : null}
 
@@ -920,7 +943,7 @@ export default function CoursePreviewPage() {
           handleEnroll();
         }}
       >
-        {isSubmitting ? "Loading..." : ctaLabel}
+        {isSubmitting ? t("common.loading") : ctaLabel}
       </PurchaseButton>
     </>
   );
@@ -932,7 +955,7 @@ export default function CoursePreviewPage() {
           src={`https://www.youtube.com/embed/${previewYoutubeId}?rel=0&modestbranding=1`}
           allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture; web-share"
           allowFullScreen
-          title={firstPreviewLesson?.title || course?.name || "Course preview"}
+          title={firstPreviewLesson?.title || course?.name || t("coursePreview.shareTitle")}
         />
       );
     }
@@ -976,10 +999,13 @@ export default function CoursePreviewPage() {
           <Headline>
             <Title>{course.name}</Title>
             <Subtitle>
-              {course.description || `${course.category || "Course"} bo'yicha amaliy va qulay kurs preview sahifasi.`}
+              {course.description ||
+                t("coursePreview.descriptionFallback", {
+                  category: course.category || t("common.course"),
+                })}
             </Subtitle>
             <BestsellerBadge>
-              {course.category || "Bestseller"}
+              {course.category || t("coursePreview.bestseller")}
             </BestsellerBadge>
             <RatingRow>
               <RatingScore>
@@ -990,24 +1016,39 @@ export default function CoursePreviewPage() {
                   ))}
                 </Stars>
               </RatingScore>
-              <div>({ratingCount.toLocaleString()} ratings)</div>
-              <div>{studentCount.toLocaleString()} students</div>
+              <div>
+                {t("coursePreview.ratings", {
+                  count: ratingCount,
+                  formatted: ratingCount.toLocaleString(),
+                })}
+              </div>
+              <div>
+                {t("coursePreview.students", {
+                  count: studentCount,
+                  formatted: studentCount.toLocaleString(),
+                })}
+              </div>
             </RatingRow>
             <MetaStack>
               <MetaLine>
-                Created by <AccentText>{getCreatedByLabel(course.createdBy)}</AccentText>
+                {t("coursePreview.createdBy")}{" "}
+                <AccentText>{getCreatedByLabel(course.createdBy, t)}</AccentText>
               </MetaLine>
               <MetaLine>
                 <Clock3 size={18} />
-                Last updated {getCreatedAtLabel(course)}
+                {t("coursePreview.lastUpdated", {
+                  date: getCreatedAtLabel(course, t),
+                })}
               </MetaLine>
               <MetaLine>
                 <Globe size={18} />
-                {course.lessonLanguage || "English"}
+                {course.lessonLanguage || t("coursePreview.defaultLanguage")}
               </MetaLine>
               <MetaLine>
                 <FileText size={18} />
-                {course.lessonLanguage || "English"} subtitles
+                {t("coursePreview.subtitles", {
+                  language: course.lessonLanguage || t("coursePreview.defaultLanguage"),
+                })}
               </MetaLine>
             </MetaStack>
           </Headline>
@@ -1017,7 +1058,7 @@ export default function CoursePreviewPage() {
           </MobileOfferCard>
 
           <SectionCard>
-            <SectionTitle>What you'll learn</SectionTitle>
+            <SectionTitle>{t("coursePreview.whatYouLearn")}</SectionTitle>
             <LearnList>
               {visibleLearnItems.map((item, index) => (
                 <LearnItem key={`${item}-${index}`}>
@@ -1030,21 +1071,29 @@ export default function CoursePreviewPage() {
             </LearnList>
             {learningItems.length > 4 ? (
               <SectionAction type="button" onClick={() => setShowAllLearn((prev) => !prev)}>
-                {showAllLearn ? "Show less" : "Show more"}
+                {showAllLearn
+                  ? t("coursePreview.showLess")
+                  : t("coursePreview.showMore")}
               </SectionAction>
             ) : null}
           </SectionCard>
 
           <PlainSection>
-            <SectionTitle style={{ marginBottom: 10 }}>Curriculum</SectionTitle>
+            <SectionTitle style={{ marginBottom: 10 }}>
+              {t("coursePreview.curriculum")}
+            </SectionTitle>
             <CurriculumMeta>
-              1 section • {lessons.length} lectures • {formatDuration(totalDurationSeconds)} total length
+              {t("coursePreview.curriculumMeta", {
+                sections: 1,
+                lectures: lessons.length,
+                duration: formatDuration(totalDurationSeconds, t),
+              })}
             </CurriculumMeta>
           </PlainSection>
 
           <CurriculumSection>
             <CurriculumHeader type="button" onClick={() => setCurriculumOpen((prev) => !prev)}>
-              <span>Section 1 - {course.name}</span>
+              <span>{t("coursePreview.sectionTitle", { index: 1, name: course.name })}</span>
               {curriculumOpen ? <ChevronUp size={24} /> : <ChevronDown size={24} />}
             </CurriculumHeader>
 
@@ -1055,9 +1104,18 @@ export default function CoursePreviewPage() {
                     <LessonRow key={lesson._id || lesson.urlSlug || index}>
                       <LessonIndex>{index + 1}</LessonIndex>
                       <LessonInfo>
-                        <LessonTitle>{lesson.title || `Lesson ${index + 1}`}</LessonTitle>
+                        <LessonTitle>
+                          {lesson.title ||
+                            t("coursePreview.lessonNumber", {
+                              count: index + 1,
+                            })}
+                        </LessonTitle>
                         <LessonMeta>
-                          Video • {formatCompactDuration(getLessonDurationSeconds(lesson))}
+                          {t("coursePreview.lessonMeta", {
+                            duration: formatCompactDuration(
+                              getLessonDurationSeconds(lesson),
+                            ),
+                          })}
                         </LessonMeta>
                       </LessonInfo>
                       <LessonPlay>
@@ -1068,47 +1126,62 @@ export default function CoursePreviewPage() {
                 </LessonRows>
               ) : (
                 <EmptyCurriculumCard>
-                  Curriculum preview tez orada to‘ldiriladi. Hozircha kurs haqida asosiy ma’lumotlar,
-                  tavsif va yozilish imkoniyati ochiq turadi.
+                  {t("coursePreview.emptyCurriculum")}
                 </EmptyCurriculumCard>
               )
             ) : null}
 
             {lessons.length > 6 ? (
               <SectionAction type="button" onClick={() => setShowAllLessons((prev) => !prev)}>
-                {showAllLessons ? "Show less sections" : `${lessons.length - 6} more sections`}
+                {showAllLessons
+                  ? t("coursePreview.showLessSections")
+                  : t("coursePreview.moreSections", {
+                      count: lessons.length - 6,
+                    })}
               </SectionAction>
             ) : null}
           </CurriculumSection>
 
           <PlainSection>
-            <SectionTitle style={{ marginBottom: 18 }}>This course includes</SectionTitle>
+            <SectionTitle style={{ marginBottom: 18 }}>
+              {t("coursePreview.includesTitle")}
+            </SectionTitle>
             <IncludesList>
               <IncludeItem>
                 <Clock3 size={24} />
-                <span>{formatDuration(totalDurationSeconds)} on-demand video</span>
+                <span>
+                  {t("coursePreview.includes.video", {
+                    duration: formatDuration(totalDurationSeconds, t),
+                  })}
+                </span>
               </IncludeItem>
               <IncludeItem>
                 <FileText size={24} />
-                <span>{lessons.length} support sections</span>
+                <span>
+                  {t("coursePreview.includes.sections", {
+                    count: lessons.length,
+                  })}
+                </span>
               </IncludeItem>
               <IncludeItem>
                 <Infinity size={24} />
-                <span>Full lifetime access</span>
+                <span>{t("coursePreview.includes.lifetime")}</span>
               </IncludeItem>
               <IncludeItem>
                 <Smartphone size={24} />
-                <span>Access on mobile, desktop and TV</span>
+                <span>{t("coursePreview.includes.devices")}</span>
               </IncludeItem>
               <IncludeItem>
                 <Award size={24} />
-                <span>Certificate of completion</span>
+                <span>{t("coursePreview.includes.certificate")}</span>
               </IncludeItem>
             </IncludesList>
           </PlainSection>
 
           <PlainSection>
-            <SectionTitle style={{ marginBottom: 18 }}>Requirements</SectionTitle>
+            <SectionTitle style={{ marginBottom: 18 }}>
+              {t("coursePreview.requirementsTitle")}
+            </SectionTitle>
             <RequirementsList>
               {requirements.map((item, index) => (
                 <li key={`${item}-${index}`}>{item}</li>
@@ -1117,7 +1190,9 @@ export default function CoursePreviewPage() {
           </PlainSection>
 
           <PlainSection>
-            <SectionTitle style={{ marginBottom: 18 }}>Description</SectionTitle>
+            <SectionTitle style={{ marginBottom: 18 }}>
+              {t("coursePreview.descriptionTitle")}
+            </SectionTitle>
             <DescriptionBody>
               {extractDescriptionItems(course.description || "").length ? (
                 extractDescriptionItems(course.description || "").map((item, index) => (
@@ -1127,7 +1202,7 @@ export default function CoursePreviewPage() {
                 ))
               ) : (
                 <DescriptionParagraph>
-                  {course.description || "Bu kurs uchun tavsif hali to'ldirilmagan."}
+                  {course.description || t("coursePreview.noDescription")}
                 </DescriptionParagraph>
               )}
             </DescriptionBody>
@@ -1146,15 +1221,26 @@ export default function CoursePreviewPage() {
               <IncludesList style={{ gap: 14, fontSize: 18 }}>
                 <IncludeItem>
                   <Users size={20} />
-                  <span>{studentCount.toLocaleString()} students</span>
+                  <span>
+                    {t("coursePreview.students", {
+                      count: studentCount,
+                      formatted: studentCount.toLocaleString(),
+                    })}
+                  </span>
                 </IncludeItem>
                 <IncludeItem>
                   <BookOpen size={20} />
-                  <span>{lessons.length} lessons</span>
+                  <span>
+                    {t("coursePreview.lessonsCount", {
+                      count: lessons.length,
+                    })}
+                  </span>
                 </IncludeItem>
                 <IncludeItem>
                   <Globe size={20} />
-                  <span>{course.lessonLanguage || "English"}</span>
+                  <span>
+                    {course.lessonLanguage || t("coursePreview.defaultLanguage")}
+                  </span>
                 </IncludeItem>
               </IncludesList>
             </PurchaseBody>

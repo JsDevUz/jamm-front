@@ -505,7 +505,11 @@ const JammLayout = ({
       if (selectedNav !== "chats") setSelectedNav("chats");
     } else if (initialNav === "meets") {
       if (selectedNav !== "users") setSelectedNav("users");
-    } else if (initialNav === "users" || initialNav === "groups") {
+    } else if (
+      initialNav === "users" ||
+      initialNav === "groups" ||
+      initialNav === "articles"
+    ) {
       if (
         initialResourceId !== undefined &&
         initialResourceId !== selectedChatId

@@ -1,6 +1,7 @@
 import React from "react";
 import styled, { keyframes } from "styled-components";
 import {
+  ArrowLeft,
   BookOpen,
   GraduationCap,
   MessageCircle,
@@ -48,8 +49,13 @@ const ProfileOverlay = styled.div`
   transition: opacity 0.18s ease;
 
   @media (max-width: 768px) {
+    inset: auto 0 auto 0;
+    top: var(--visual-viewport-offset-top, 0px);
+    height: var(--visual-viewport-height, var(--app-height, 100dvh));
+    max-height: var(--visual-viewport-height, var(--app-height, 100dvh));
     padding: 0;
     align-items: stretch;
+    overflow: hidden;
   }
 `;
 
@@ -83,10 +89,14 @@ const ProfileModal = styled.div`
 
   @media (max-width: 768px) {
     width: 100vw;
-    min-height: 100vh;
-    max-height: 100vh;
+    height: 100%;
+    min-height: 0;
+    max-height: 100%;
     border-radius: 0;
     overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    scroll-padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px));
   }
 `;
 
@@ -113,6 +123,27 @@ const ProfileCloseButton = styled.button`
     background: color-mix(in srgb, var(--hover-color) 82%, transparent);
     transform: translateY(-1px);
   }
+
+  @media (max-width: 768px) {
+    top: calc(14px + env(safe-area-inset-top, 0px));
+    left: 14px;
+    right: auto;
+    background: color-mix(in srgb, var(--hover-color) 72%, transparent);
+  }
+`;
+
+const DesktopCloseIcon = styled(X)`
+  @media (max-width: 768px) {
+    display: none;
+  }
+`;
+
+const MobileBackIcon = styled(ArrowLeft)`
+  display: none;
+
+  @media (max-width: 768px) {
+    display: block;
+  }
 `;
 
 const ProfileSidebar = styled.div`
@@ -130,7 +161,7 @@ const ProfileSidebar = styled.div`
   @media (max-width: 920px) {
     border-right: none;
     border-bottom: 1px solid color-mix(in srgb, var(--border-color) 82%, transparent);
-    padding: 58px 18px 18px;
+    padding: calc(58px + env(safe-area-inset-top, 0px)) 18px 18px;
   }
 `;
 
@@ -279,7 +310,7 @@ const ProfileMain = styled.div`
   min-width: 0;
 
   @media (max-width: 768px) {
-    padding: 20px 16px 18px;
+    padding: 20px 16px calc(28px + env(safe-area-inset-bottom, 0px));
   }
 `;
 
@@ -559,7 +590,8 @@ export default function NewProfileModal({
           aria-label="Close profile preview"
           onClick={onClose}
         >
-          <X size={22} />
+          <DesktopCloseIcon size={22} />
+          <MobileBackIcon size={22} />
         </ProfileCloseButton>
 
         <ProfileSidebar>

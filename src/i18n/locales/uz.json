@@ -1295,6 +1295,76 @@
       "welcomeDescription": "Chap tomondagi menyudan o'zingizga kerakli bo'limni tanlang: testlar ishlash, lug'at yodlash yoki do'stlar bilan bellashuv."
     }
   },
+  "coursePreview": {
+    "loading": "Kurs preview yuklanmoqda...",
+    "notFound": "Bunday kurs topilmadi yoki preview hozircha mavjud emas.",
+    "shareTitle": "Kurs preview",
+    "free": "Bepul",
+    "video": "Video",
+    "videoNumber": "Video {{count}}",
+    "instructor": "O'qituvchi",
+    "recentlyUpdated": "Yaqinda yangilangan",
+    "thisCourse": "Bu kurs",
+    "defaultLanguage": "O'zbek",
+    "bestseller": "Tavsiya",
+    "descriptionFallback": "{{category}} bo'yicha amaliy va qulay kurs preview sahifasi.",
+    "ratings": "({{formatted}} ta rating)",
+    "students": "{{formatted}} o'quvchi",
+    "lessonsCount": "{{count}} dars",
+    "createdBy": "Muallif:",
+    "lastUpdated": "Oxirgi yangilanish {{date}}",
+    "subtitles": "{{language}} subtitrlari",
+    "whatYouLearn": "Nimalarni o'rganasiz",
+    "showLess": "Kamroq ko'rsatish",
+    "showMore": "Ko'proq ko'rsatish",
+    "curriculum": "Darslar dasturi",
+    "curriculumMeta": "{{sections}} bo'lim • {{lectures}} dars • jami {{duration}}",
+    "sectionTitle": "{{index}}-bo'lim - {{name}}",
+    "lessonNumber": "{{count}}-dars",
+    "lessonMeta": "Video • {{duration}}",
+    "emptyCurriculum": "Darslar dasturi tez orada to'ldiriladi. Hozircha kurs haqida asosiy ma'lumotlar, tavsif va yozilish imkoniyati ochiq turadi.",
+    "showLessSections": "Bo'limlarni qisqartirish",
+    "moreSections": "Yana {{count}} ta bo'lim",
+    "includesTitle": "Bu kurs ichida",
+    "requirementsTitle": "Talablar",
+    "descriptionTitle": "Tavsif",
+    "noDescription": "Bu kurs uchun tavsif hali to'ldirilmagan.",
+    "offer": "50% chegirma - vaqtinchalik narx",
+    "cta": {
+      "requestSent": "So'rov yuborilgan",
+      "openCourse": "Kursni ochish",
+      "enrollNow": "Hozir yozilish",
+      "buyNow": "Sotib olish"
+    },
+    "toasts": {
+      "shareCopied": "Kurs havolasi nusxalandi",
+      "shareError": "Kurs havolasini ulashib bo'lmadi",
+      "requestSent": "So'rovingiz yuborildi",
+      "enrollError": "Kursga yozilishda xatolik yuz berdi"
+    },
+    "duration": {
+      "minutes": "{{count}} daqiqa",
+      "hours": "{{count}} soat",
+      "hoursMinutes": "{{hours}} soat, {{minutes}} daqiqa"
+    },
+    "learningFallback": {
+      "main": "{{name}} bo'yicha asosiy tushunchalarni o'rganasiz",
+      "practice": "Bosqichma-bosqich darslar orqali amaliy ko'nikma hosil qilasiz",
+      "independent": "Har bir modulni mustaqil ishlash darajasigacha olib borasiz"
+    },
+    "requirementsFallback": {
+      "language": "{{language}} tilini tushunish foydali bo'ladi",
+      "device": "Internet va telefon yoki kompyuter kifoya qiladi",
+      "experience": "Boshlash uchun oldindan chuqur tajriba shart emas"
+    },
+    "includes": {
+      "video": "{{duration}} video dars",
+      "sections": "{{count}} yordamchi bo'lim",
+      "lifetime": "Doimiy kirish imkoniyati",
+      "devices": "Telefon, desktop va TV orqali kirish",
+      "certificate": "Tugatganlik sertifikati"
+    }
+  },
   "coursesHome": {
     "pageTitle": "Kurslar",
     "searchPlaceholder": "Kurs qidiring...",
