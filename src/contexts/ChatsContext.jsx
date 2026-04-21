@@ -68,10 +68,12 @@ export const ChatsProvider = ({ children }) => {
       "users",
       "groups",
       "courses",
+      "my-courses",
       "arena",
       "profile",
     ];
     if (first === "a") return "chats";
+    if (first === "my-courses") return "courses";
     return knownNavs.includes(first) ? first : "chats";
   });
   const [selectedChatId, setSelectedChatId] = useState(() => {

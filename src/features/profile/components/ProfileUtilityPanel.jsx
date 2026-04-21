@@ -42,6 +42,7 @@ import AppLockPinPad from "../../../app/components/AppLockPinPad";
 import usePremiumUpgradeModalStore from "../../../app/store/usePremiumUpgradeModalStore";
 import useProfileDecorationsStore from "../../../store/profileDecorationsStore";
 import { MarkdownRenderer } from "../../articles/components";
+import OfficalBadge from "../../../shared/ui/badges/OfficalBadge";
 
 const MobileBackBtn = styled(ProfileMobileBackButton)``;
 
@@ -262,12 +263,14 @@ const DecorationEmoji = styled.div`
   height: 26px;
   min-width: 26px;
   border-radius: 999px;
-  border: 1px solid var(--border-color);
-  background: var(--input-color);
+  border: 1px solid
+    ${(props) => (props.$plain ? "transparent" : "var(--border-color)")};
+  background: ${(props) => (props.$plain ? "transparent" : "var(--input-color)")};
   display: inline-flex;
   align-items: center;
   justify-content: center;
   font-size: 16px;
+  overflow: hidden;
 `;
 
 const DecorationMeta = styled.div`
@@ -547,7 +550,7 @@ const getFavoriteMarkdown = (item) =>
       "",
   ).trim();
 
-const ProfileUtilityPanel = ({ section, currentUser, onBack }) => {
+const ProfileUtilityPanel = ({ section, currentUser, onBack, embedded = false }) => {
   const { t, i18n } = useTranslation();
   const { theme, toggleTheme } = useTheme();
   const { getUserByUsername, createChat, fetchChats } = useChats();
@@ -989,6 +992,36 @@ const ProfileUtilityPanel = ({ section, currentUser, onBack }) => {
     [decorations],
   );
 
+  const renderDecorationIcon = (item) => {
+    if (item?.key === "premium-badge") {
+      return (
+        <DecorationEmoji $plain>
+          <OfficalBadge
+            width={18}
+            height={18}
+            variant="premium"
+            style={{ marginLeft: 0 }}
+          />
+        </DecorationEmoji>
+      );
+    }
+
+    if (item?.key === "official-badge") {
+      return (
+        <DecorationEmoji $plain>
+          <OfficalBadge
+            width={18}
+            height={18}
+            color="var(--primary-color)"
+            style={{ marginLeft: 0, filter: "none" }}
+          />
+        </DecorationEmoji>
+      );
+    }
+
+    return <DecorationEmoji>{item?.emoji}</DecorationEmoji>;
+  };
+
   const handleDecorationSelect = async (decorationId) => {
     if (decorationSaving) return;
 
@@ -1208,7 +1241,7 @@ const ProfileUtilityPanel = ({ section, currentUser, onBack }) => {
                     disabled={decorationSaving}
                   >
                     <DecorationPreview>
-                      <DecorationEmoji>{item.emoji}</DecorationEmoji>
+                      {renderDecorationIcon(item)}
                       {item.label}
                     </DecorationPreview>
                     <DecorationMeta>
@@ -1532,6 +1565,22 @@ const ProfileUtilityPanel = ({ section, currentUser, onBack }) => {
     </SecurityStack>
   );
 
+  const content = (
+    <Body>
+      {section === "appearance" && renderAppearance()}
+      {section === "language" && renderLanguage()}
+      {section === "security" && renderSecurity()}
+      {section === "premium" && renderPremium()}
+      {section === "support" && renderSupport()}
+      {section === "favorites" && renderFavorites()}
+      {section === "learn" && renderLearn()}
+    </Body>
+  );
+
+  if (embedded) {
+    return content;
+  }
+
   return (
     <Wrapper data-tour={`profile-pane-${section}`}>
       <Header>
@@ -1540,15 +1589,7 @@ const ProfileUtilityPanel = ({ section, currentUser, onBack }) => {
         </MobileBackBtn>
         <HeaderTitle>{meta.title}</HeaderTitle>
       </Header>
-      <Body>
-        {section === "appearance" && renderAppearance()}
-        {section === "language" && renderLanguage()}
-        {section === "security" && renderSecurity()}
-        {section === "premium" && renderPremium()}
-        {section === "support" && renderSupport()}
-        {section === "favorites" && renderFavorites()}
-        {section === "learn" && renderLearn()}
-      </Body>
+      {content}
     </Wrapper>
   );
 };

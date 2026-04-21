@@ -290,6 +290,8 @@ const resetState = {
   imageUrl: "",
   category: "IT",
   lessonLanguage: "O'zbek",
+  previewLearn: "",
+  previewRequirements: "",
   deliveryType: "recorded",
   accessType: "free_request",
   price: 0,
@@ -305,6 +307,10 @@ const CreateCourseDialog = ({ isOpen, onClose, onCreated, onOpenPremium }) => {
   const [imageUrl, setImageUrl] = useState(resetState.imageUrl);
   const [category, setCategory] = useState(resetState.category);
   const [lessonLanguage, setLessonLanguage] = useState(resetState.lessonLanguage);
+  const [previewLearn, setPreviewLearn] = useState(resetState.previewLearn);
+  const [previewRequirements, setPreviewRequirements] = useState(
+    resetState.previewRequirements,
+  );
   const [deliveryType, setDeliveryType] = useState(resetState.deliveryType);
   const [price, setPrice] = useState(resetState.price);
   const [accessType, setAccessType] = useState(resetState.accessType);
@@ -327,12 +333,21 @@ const CreateCourseDialog = ({ isOpen, onClose, onCreated, onOpenPremium }) => {
 
   if (!isOpen) return null;
 
+  const parseLineItems = (value) =>
+    String(value || "")
+      .split("\n")
+      .map((item) => item.trim())
+      .filter(Boolean)
+      .slice(0, 8);
+
   const resetForm = () => {
     setName(resetState.name);
     setDescription(resetState.description);
     setImageUrl(resetState.imageUrl);
     setCategory(resetState.category);
     setLessonLanguage(resetState.lessonLanguage);
+    setPreviewLearn(resetState.previewLearn);
+    setPreviewRequirements(resetState.previewRequirements);
     setDeliveryType(resetState.deliveryType);
     setPrice(resetState.price);
     setAccessType(resetState.accessType);
@@ -416,6 +431,8 @@ const CreateCourseDialog = ({ isOpen, onClose, onCreated, onOpenPremium }) => {
         image: imageUrl.trim(),
         category: category.trim(),
         lessonLanguage: lessonLanguage.trim(),
+        previewLearn: parseLineItems(previewLearn),
+        previewRequirements: parseLineItems(previewRequirements),
         deliveryType,
         price: accessType === "paid" ? Number(price || 0) : 0,
         accessType,
@@ -627,6 +644,64 @@ const CreateCourseDialog = ({ isOpen, onClose, onCreated, onOpenPremium }) => {
                   value={accessType === "paid" ? price : 0}
                   onChange={(e) => setPrice(Number(e.target.value))}
                   disabled={accessType !== "paid"}
+                />
+              </InputGroup>
+            </ResponsiveGrid>
+
+            <ResponsiveGrid>
+              <InputGroup>
+                <LabelRow>
+                  <Label>
+                    {t("createCourse.previewLearnTitle", {
+                      defaultValue: "What you'll learn",
+                    })}
+                  </Label>
+                  <MetaText>{parseLineItems(previewLearn).length}/8</MetaText>
+                </LabelRow>
+                <HelperText>
+                  {t("createCourse.previewLearnDescription", {
+                    defaultValue:
+                      "Har qatorda bittadan natija yozing. Preview sahifadagi o'rganiladigan bo'limlar shu yerdan olinadi.",
+                  })}
+                </HelperText>
+                <TextArea
+                  as="textarea"
+                  minHeight={undefined}
+                  style={{ minHeight: 140 }}
+                  placeholder={t("createCourse.previewLearnPlaceholder", {
+                    defaultValue:
+                      "React hooks bilan ishlash\nAPI bilan ulanish\nAmaliy loyiha yig'ish",
+                  })}
+                  value={previewLearn}
+                  onChange={(e) => setPreviewLearn(e.target.value)}
+                />
+              </InputGroup>
+
+              <InputGroup>
+                <LabelRow>
+                  <Label>
+                    {t("createCourse.previewRequirementsTitle", {
+                      defaultValue: "Requirements",
+                    })}
+                  </Label>
+                  <MetaText>{parseLineItems(previewRequirements).length}/8</MetaText>
+                </LabelRow>
+                <HelperText>
+                  {t("createCourse.previewRequirementsDescription", {
+                    defaultValue:
+                      "Har qatorda bittadan talab yozing. Preview sahifadagi talablar bo'limi shu yerdan olinadi.",
+                  })}
+                </HelperText>
+                <TextArea
+                  as="textarea"
+                  minHeight={undefined}
+                  style={{ minHeight: 140 }}
+                  placeholder={t("createCourse.previewRequirementsPlaceholder", {
+                    defaultValue:
+                      "Internet va kompyuter\nBoshlang'ich HTML/CSS foydali\nO'rganishga tayyorlik",
+                  })}
+                  value={previewRequirements}
+                  onChange={(e) => setPreviewRequirements(e.target.value)}
                 />
               </InputGroup>
             </ResponsiveGrid>

@@ -4,26 +4,40 @@ import {
   ArrowUpRight,
   BookOpen,
   CheckCircle2,
+  ExternalLink,
   Eye,
   FileText,
   LayoutTemplate,
+  Link,
   Plus,
   Sparkles,
   Trash2,
   Upload,
   Video,
+  X,
 } from "lucide-react";
 import styled from "styled-components";
 import toast from "react-hot-toast";
 import axiosInstance from "../../../api/axiosInstance";
 import { APP_LIMITS } from "../../../constants/appLimits";
 import { useCourses } from "../../../contexts/CoursesContext";
+import {
+  ModalBody,
+  ModalCloseButton,
+  ModalHeader,
+  ModalOverlay,
+  ModalPanel,
+  ModalSubtitle,
+  ModalTitle,
+  ModalTitleBlock,
+} from "../../../shared/ui/dialogs/ModalShell";
 
-const TABS = ["media", "materials", "homework", "tests"];
+const TABS = ["content", "materials", "homework", "tests"];
 const HOMEWORK_TYPES = ["text", "audio", "video", "pdf", "photo"];
 const LESSON_VIDEO_LIMIT = 3;
 const LESSON_MATERIAL_LIMIT = 3;
 const LESSON_HOMEWORK_LIMIT = 3;
+const LESSON_TEST_LIMIT = 3;
 
 const WorkspaceShell = styled.div`
   --workspace-bg: var(--background-color);
@@ -522,6 +536,7 @@ export default function TeacherLessonContentWorkspace({
   const { t } = useTranslation();
   const {
     getLessonMaterials,
+    getCourseMaterialLibrary,
     upsertLessonMaterial,
     deleteLessonMaterial,
     getLessonHomework,
@@ -536,7 +551,6 @@ export default function TeacherLessonContentWorkspace({
 
   const lessonId = lesson?._id || lesson?.id || lesson?.urlSlug;
   const lessonMediaItems = useMemo(() => normalizeLessonMediaItems(lesson), [lesson]);
-  const hasPublishedMedia = lessonMediaItems.length > 0;
   const videoLimit = LESSON_VIDEO_LIMIT;
 
   const [activeTab, setActiveTab] = useState("media");
@@ -548,9 +562,16 @@ export default function TeacherLessonContentWorkspace({
   const [videoTitle, setVideoTitle] = useState("");
   const [videoFile, setVideoFile] = useState(null);
   const [isSavingVideo, setIsSavingVideo] = useState(false);
+  const [notionUrl, setNotionUrl] = useState(lesson?.notionUrl || "");
+  const [savedNotionUrl, setSavedNotionUrl] = useState(lesson?.notionUrl || "");
+  const [isSavingNotion, setIsSavingNotion] = useState(false);
   const [materialTitle, setMaterialTitle] = useState("");
   const [materialFile, setMaterialFile] = useState(null);
   const [isSavingMaterial, setIsSavingMaterial] = useState(false);
+  const [isPdfLibraryOpen, setIsPdfLibraryOpen] = useState(false);
+  const [pdfLibraryItems, setPdfLibraryItems] = useState([]);
+  const [isPdfLibraryLoading, setIsPdfLibraryLoading] = useState(false);
+  const [isLinkingLibraryMaterial, setIsLinkingLibraryMaterial] = useState(false);
 
   const [editingHomeworkId, setEditingHomeworkId] = useState(null);
   const [homeworkTitle, setHomeworkTitle] = useState("");
@@ -564,6 +585,7 @@ export default function TeacherLessonContentWorkspace({
   const [testUrl, setTestUrl] = useState("");
   const [testMinScore, setTestMinScore] = useState(0);
   const [isSavingTest, setIsSavingTest] = useState(false);
+  const [lessonStatus, setLessonStatus] = useState(lesson?.status || "draft");
 
   const videoInputRef = useRef(null);
   const materialInputRef = useRef(null);
@@ -572,6 +594,9 @@ export default function TeacherLessonContentWorkspace({
   const homeworkCount = homeworkAssignments.length;
   const materialsCount = materials.length;
   const testsCount = linkedTests.length;
+  const effectiveNotionUrl = savedNotionUrl?.trim() || "";
+  const effectiveLessonStatus = lessonStatus || "draft";
+  const hasPublishedMedia = lessonMediaItems.length > 0 || !!effectiveNotionUrl;
 
   const refreshContent = useCallback(async () => {
     if (!courseId || !lessonId) return;
@@ -605,11 +630,15 @@ export default function TeacherLessonContentWorkspace({
   }, [refreshContent]);
 
   useEffect(() => {
-    setActiveTab("media");
+    setActiveTab("content");
     setVideoTitle(lesson?.title || "");
     setVideoFile(null);
+    setNotionUrl(lesson?.notionUrl || "");
+    setSavedNotionUrl(lesson?.notionUrl || "");
     setMaterialTitle("");
     setMaterialFile(null);
+    setIsPdfLibraryOpen(false);
+    setPdfLibraryItems([]);
     setEditingHomeworkId(null);
     setHomeworkTitle("");
     setHomeworkDescription("");
@@ -619,7 +648,8 @@ export default function TeacherLessonContentWorkspace({
     setEditingTestId(null);
     setTestUrl("");
     setTestMinScore(0);
-  }, [lessonId, lesson?.title]);
+    setLessonStatus(lesson?.status || "draft");
+  }, [lessonId, lesson?.title, lesson?.notionUrl, lesson?.status]);
 
   const uploadFile = useCallback(async (file) => {
     const formData = new FormData();
@@ -718,6 +748,33 @@ export default function TeacherLessonContentWorkspace({
     videoLimit,
     videoTitle,
   ]);
+
+  const handleSaveNotion = useCallback(async () => {
+    if (!courseId || !lessonId) return;
+    const trimmed = notionUrl.trim();
+    if (!trimmed) return;
+
+    try {
+      setIsSavingNotion(true);
+      await updateLesson(courseId, lessonId, { notionUrl: trimmed });
+      setSavedNotionUrl(trimmed);
+      toast.success(
+        t("teacher.lessonWorkspace.notionSaved", {
+          defaultValue: "Notion havola saqlandi",
+        }),
+      );
+    } catch (error) {
+      console.error(error);
+      toast.error(
+        error?.response?.data?.message ||
+          t("teacher.lessonWorkspace.notionSaveError", {
+            defaultValue: "Notion havolani saqlab bo'lmadi",
+          }),
+      );
+    } finally {
+      setIsSavingNotion(false);
+    }
+  }, [courseId, lessonId, notionUrl, t, updateLesson]);
 
   const handleDeleteVideo = useCallback(
     async (mediaIndex) => {
@@ -821,6 +878,101 @@ export default function TeacherLessonContentWorkspace({
     uploadFile,
     upsertLessonMaterial,
   ]);
+
+  const openPdfLibrary = useCallback(async () => {
+    if (!courseId) return;
+
+    try {
+      setIsPdfLibraryOpen(true);
+      setIsPdfLibraryLoading(true);
+      const data = await getCourseMaterialLibrary(courseId);
+      setPdfLibraryItems(Array.isArray(data?.items) ? data.items : []);
+    } catch (error) {
+      console.error(error);
+      toast.error(
+        error?.response?.data?.message ||
+          t("teacher.lessonWorkspace.materialLibraryLoadError", {
+            defaultValue: "PDF kutubxonani yuklab bo'lmadi",
+          }),
+      );
+      setIsPdfLibraryOpen(false);
+    } finally {
+      setIsPdfLibraryLoading(false);
+    }
+  }, [courseId, getCourseMaterialLibrary, t]);
+
+  const handleSelectLibraryMaterial = useCallback(
+    async (item) => {
+      if (!courseId || !lessonId || !item?.fileUrl) return;
+
+      if (materialsCount >= LESSON_MATERIAL_LIMIT) {
+        toast.error(
+          t("teacher.lessonWorkspace.materialLimit", {
+            count: LESSON_MATERIAL_LIMIT,
+            defaultValue: `Bu darsga maksimal ${LESSON_MATERIAL_LIMIT} ta PDF yuklash mumkin`,
+          }),
+        );
+        return;
+      }
+
+      const alreadyLinked = materials.some(
+        (material) => String(material?.fileUrl || "") === String(item?.fileUrl || ""),
+      );
+      if (alreadyLinked) {
+        toast(
+          t("teacher.lessonWorkspace.materialAlreadyLinked", {
+            defaultValue: "Bu PDF allaqachon shu darsga biriktirilgan",
+          }),
+        );
+        return;
+      }
+
+      try {
+        setIsLinkingLibraryMaterial(true);
+        await upsertLessonMaterial(courseId, lessonId, {
+          title:
+            materialTitle.trim() ||
+            item.title ||
+            String(item.fileName || "").replace(/\.pdf$/i, ""),
+          fileUrl: item.fileUrl,
+          fileName: item.fileName || "",
+          fileSize: Number(item.fileSize || 0),
+        });
+        await refreshContent();
+        setMaterialTitle("");
+        setMaterialFile(null);
+        if (materialInputRef.current) {
+          materialInputRef.current.value = "";
+        }
+        setIsPdfLibraryOpen(false);
+        toast.success(
+          t("teacher.lessonWorkspace.materialLinked", {
+            defaultValue: "PDF kutubxonadan biriktirildi",
+          }),
+        );
+      } catch (error) {
+        console.error(error);
+        toast.error(
+          error?.response?.data?.message ||
+            t("teacher.lessonWorkspace.materialSaveError", {
+              defaultValue: "Materialni saqlab bo'lmadi",
+            }),
+        );
+      } finally {
+        setIsLinkingLibraryMaterial(false);
+      }
+    },
+    [
+      courseId,
+      lessonId,
+      materialTitle,
+      materials,
+      materialsCount,
+      refreshContent,
+      t,
+      upsertLessonMaterial,
+    ],
+  );
 
   const handleDeleteMaterial = useCallback(
     async (materialId) => {
@@ -960,6 +1112,16 @@ export default function TeacherLessonContentWorkspace({
   const handleSaveTest = useCallback(async () => {
     if (!courseId || !lessonId || !testUrl.trim()) return;
 
+    if (!editingTestId && testsCount >= LESSON_TEST_LIMIT) {
+      toast.error(
+        t("teacher.lessonWorkspace.testLimit", {
+          count: LESSON_TEST_LIMIT,
+          defaultValue: `Bu darsga maksimal ${LESSON_TEST_LIMIT} ta test biriktirish mumkin`,
+        }),
+      );
+      return;
+    }
+
     try {
       setIsSavingTest(true);
       const result = await upsertLessonLinkedTest(courseId, lessonId, {
@@ -997,6 +1159,7 @@ export default function TeacherLessonContentWorkspace({
     lessonId,
     selectLinkedTest,
     t,
+    testsCount,
     testMinScore,
     testUrl,
     upsertLessonLinkedTest,
@@ -1023,11 +1186,16 @@ export default function TeacherLessonContentWorkspace({
     [courseId, deleteLessonLinkedTest, lessonId, selectLinkedTest, t],
   );
 
+  const handlePickNewPdf = useCallback(() => {
+    materialInputRef.current?.click();
+  }, []);
+
   const handlePublish = useCallback(async () => {
     if (!courseId || !lessonId) return;
 
     try {
       await publishLesson(courseId, lessonId);
+      setLessonStatus("published");
       toast.success(
         t("teacher.lessonWorkspace.lessonPublished", {
           defaultValue: "Dars e'lon qilindi",
@@ -1044,9 +1212,14 @@ export default function TeacherLessonContentWorkspace({
     }
   }, [courseId, lessonId, publishLesson, t]);
 
-const renderMedia = () => (
+const renderContent = () => (
     <PanelGrid>
+      {/* ---- VIDEO SECTION ---- */}
       <PanelCard>
+        <AsideTitle style={{ marginBottom: 12 }}>
+          <Video size={14} style={{ marginRight: 6, verticalAlign: "middle" }} />
+          {t("teacher.lessonWorkspace.videoSection", { defaultValue: "Video" })}
+        </AsideTitle>
         <FormGrid>
           <Field>
             <FieldLabel>
@@ -1160,13 +1333,83 @@ const renderMedia = () => (
                 defaultValue: "Video hali qo'shilmagan",
               })}
             </EmptyTitle>
-            <EmptyText>
-              {t("teacher.lessonWorkspace.noVideosText", {
-                defaultValue: "Avval asosiy video qo'shing, keyin darsni publish qilish mumkin bo'ladi.",
-              })}
-            </EmptyText>
           </EmptyState>
         )}
+      </AsideCard>
+
+      {/* ---- NOTION SECTION ---- */}
+      <PanelCard>
+        <AsideTitle style={{ marginBottom: 12 }}>
+          <Link size={14} style={{ marginRight: 6, verticalAlign: "middle" }} />
+          {t("teacher.lessonWorkspace.notionSection", { defaultValue: "Notion havola" })}
+        </AsideTitle>
+        <FormGrid>
+          <Field>
+            <FieldLabel>
+              {t("teacher.lessonWorkspace.notionUrlField", {
+                defaultValue: "Notion sahifa URL",
+              })}
+            </FieldLabel>
+            <FieldInput
+              value={notionUrl}
+              onChange={(e) => setNotionUrl(e.target.value)}
+              placeholder="https://notion.so/..."
+            />
+          </Field>
+        </FormGrid>
+        <PanelActions>
+          <HeroButton
+            type="button"
+            $primary
+            disabled={!notionUrl.trim() || isSavingNotion}
+            onClick={handleSaveNotion}
+          >
+            <Upload size={16} />
+            {isSavingNotion
+              ? t("common.saving", { defaultValue: "Saqlanmoqda..." })
+              : t("teacher.lessonWorkspace.saveNotion", { defaultValue: "Havolani saqlash" })}
+          </HeroButton>
+          {effectiveNotionUrl && (
+            <TinyButton
+              type="button"
+              as="a"
+              href={effectiveNotionUrl}
+              target="_blank"
+              rel="noreferrer"
+            >
+              <ExternalLink size={14} />
+              {t("teacher.lessonWorkspace.openNotion", { defaultValue: "Ochish" })}
+            </TinyButton>
+          )}
+        </PanelActions>
+        {effectiveNotionUrl && (
+          <HelperText style={{ marginTop: 8 }}>
+            {t("teacher.lessonWorkspace.savedNotionUrl", { defaultValue: "Saqlangan:" })}{" "}
+            {effectiveNotionUrl}
+          </HelperText>
+        )}
+      </PanelCard>
+
+      <AsideCard>
+        <AsideTitle>
+          {t("teacher.lessonWorkspace.contentStatus", { defaultValue: "Kontent holati" })}
+        </AsideTitle>
+        <EmptyState>
+          <EmptyTitle>
+            {hasPublishedMedia
+              ? t("teacher.lessonWorkspace.contentReady", { defaultValue: "Kontent tayyor" })
+              : t("teacher.lessonWorkspace.noContent", { defaultValue: "Kontent yo'q" })}
+          </EmptyTitle>
+          <EmptyText>
+            {hasPublishedMedia
+              ? t("teacher.lessonWorkspace.contentReadyText", {
+                  defaultValue: "Video yoki Notion havola qo'shilgan. Darsni e'lon qilish mumkin.",
+                })
+              : t("teacher.lessonWorkspace.noContentText", {
+                  defaultValue: "Darsni e'lon qilish uchun video yoki Notion havolasidan birini qo'shing.",
+                })}
+          </EmptyText>
+        </EmptyState>
       </AsideCard>
     </PanelGrid>
   );
@@ -1196,13 +1439,13 @@ const renderMedia = () => (
                 defaultValue: "PDF yuklash",
               })}
             </FieldLabel>
-            <FileBox>
+            <FileBox as="button" type="button" onClick={openPdfLibrary}>
               <FileText size={24} />
               <div>
                 {materialFile
                   ? `${materialFile.name} • ${formatFileSize(materialFile.size)}`
                   : t("teacher.lessonWorkspace.materialDropHint", {
-                    defaultValue: "Faqat PDF fayl tanlang",
+                      defaultValue: "PDF kutubxonani ochish yoki yangi PDF tanlash",
                   })}
               </div>
               <HelperText>
@@ -1211,13 +1454,16 @@ const renderMedia = () => (
                   defaultValue: `Limit: ${LESSON_MATERIAL_LIMIT} ta PDF`,
                 })}
               </HelperText>
-              <HiddenFileInput
-                ref={materialInputRef}
-                type="file"
-                accept="application/pdf,.pdf"
-                onChange={(event) => setMaterialFile(event.target.files?.[0] || null)}
-              />
             </FileBox>
+            <HiddenFileInput
+              ref={materialInputRef}
+              type="file"
+              accept="application/pdf,.pdf"
+              onChange={(event) => {
+                setMaterialFile(event.target.files?.[0] || null);
+                setIsPdfLibraryOpen(false);
+              }}
+            />
           </Field>
         </FormGrid>
 
@@ -1233,6 +1479,16 @@ const renderMedia = () => (
               ? t("teacher.lessonWorkspace.uploading", { defaultValue: "Yuklanmoqda..." })
               : t("teacher.lessonWorkspace.saveMaterial", { defaultValue: "Materialni saqlash" })}
           </HeroButton>
+          <TinyButton
+            type="button"
+            disabled={isSavingMaterial || isLinkingLibraryMaterial}
+            onClick={openPdfLibrary}
+          >
+            <FileText size={14} />
+            {t("teacher.lessonWorkspace.openPdfLibrary", {
+              defaultValue: "PDF kutubxona",
+            })}
+          </TinyButton>
         </PanelActions>
       </PanelCard>
 
@@ -1469,7 +1725,11 @@ const renderMedia = () => (
       <PanelCard>
         <PanelHeader>
           <PanelActions>
-            <TinyButton type="button" onClick={() => selectLinkedTest(null)}>
+            <TinyButton
+              type="button"
+              disabled={testsCount >= LESSON_TEST_LIMIT}
+              onClick={() => selectLinkedTest(null)}
+            >
               <Plus size={14} />
               {t("teacher.lessonWorkspace.newTestLink", {
                 defaultValue: "Yangi test",
@@ -1620,9 +1880,9 @@ const renderMedia = () => (
         return renderHomework();
       case "tests":
         return renderTests();
-      case "media":
+      case "content":
       default:
-        return renderMedia();
+        return renderContent();
     }
   };
 
@@ -1641,14 +1901,14 @@ const renderMedia = () => (
 
         <HeroActions>
           <Badge
-            $accent={lesson?.status === "draft" ? "#fff3dc" : "#eaffef"}
-            $color={lesson?.status === "draft" ? "#9a6a00" : "#1c8b48"}
+            $accent={effectiveLessonStatus === "draft" ? "#fff3dc" : "#eaffef"}
+            $color={effectiveLessonStatus === "draft" ? "#9a6a00" : "#1c8b48"}
           >
-            {lesson?.status === "draft"
+            {effectiveLessonStatus === "draft"
               ? t("coursePlayer.playlist.draft", { defaultValue: "Draft" })
               : t("coursePlayer.adminPane.published", { defaultValue: "Published" })}
           </Badge>
-          {lesson?.status === "draft" ? (
+          {effectiveLessonStatus === "draft" ? (
             <HeroButton
               type="button"
               $primary
@@ -1667,16 +1927,16 @@ const renderMedia = () => (
       <TabsRow>
         {TABS.map((tab) => {
           const count =
-            tab === "media"
-              ? lessonMediaItems.length
+            tab === "content"
+              ? lessonMediaItems.length + (effectiveNotionUrl ? 1 : 0)
               : tab === "materials"
                 ? materialsCount
                 : tab === "homework"
                   ? homeworkCount
                   : testsCount;
           const label =
-            tab === "media"
-              ? t("teacher.lessonWorkspace.tabs.media", { defaultValue: "Video" })
+            tab === "content"
+              ? t("teacher.lessonWorkspace.tabs.content", { defaultValue: "Kontent" })
               : tab === "materials"
                 ? t("teacher.lessonWorkspace.tabs.materials", { defaultValue: "Materials" })
                 : tab === "homework"
@@ -1689,7 +1949,7 @@ const renderMedia = () => (
               $active={activeTab === tab}
               onClick={() => setActiveTab(tab)}
             >
-              {tab === "media" ? <Video size={14} /> : null}
+              {tab === "content" ? <LayoutTemplate size={14} /> : null}
               {tab === "materials" ? <FileText size={14} /> : null}
               {tab === "homework" ? <BookOpen size={14} /> : null}
               {tab === "tests" ? <Sparkles size={14} /> : null}
@@ -1711,6 +1971,118 @@ const renderMedia = () => (
       ) : (
         renderActiveTab()
       )}
+
+      {isPdfLibraryOpen ? (
+        <ModalOverlay onClick={() => setIsPdfLibraryOpen(false)} $zIndex={10040}>
+          <ModalPanel
+            $width="min(100%, 980px)"
+            $maxHeight="88vh"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <ModalHeader>
+              <ModalTitleBlock>
+                <ModalTitle>
+                  {t("teacher.lessonWorkspace.materialLibrary", {
+                    defaultValue: "Materiallar kutubxonasi",
+                  })}
+                </ModalTitle>
+                <ModalSubtitle>
+                  {t("teacher.lessonWorkspace.materialLibraryHint", {
+                    defaultValue:
+                      "Oldin yuklangan PDF'ni tanlasangiz storage'da duplicate fayl yaratilmaydi.",
+                  })}
+                </ModalSubtitle>
+              </ModalTitleBlock>
+              <ModalCloseButton type="button" onClick={() => setIsPdfLibraryOpen(false)}>
+                <X size={18} />
+              </ModalCloseButton>
+            </ModalHeader>
+
+            <ModalBody>
+              <PanelActions style={{ marginBottom: 14 }}>
+                <HeroButton type="button" $primary onClick={handlePickNewPdf}>
+                  <Upload size={16} />
+                  {t("teacher.lessonWorkspace.pickNewPdf", {
+                    defaultValue: "Yangi PDF tanlash",
+                  })}
+                </HeroButton>
+              </PanelActions>
+              {isPdfLibraryLoading ? (
+                <EmptyState>
+                  <EmptyTitle>{t("common.loading")}</EmptyTitle>
+                  <EmptyText>
+                    {t("teacher.lessonWorkspace.loadingPdfLibrary", {
+                      defaultValue: "PDF kutubxona yuklanmoqda...",
+                    })}
+                  </EmptyText>
+                </EmptyState>
+              ) : pdfLibraryItems.length ? (
+                <PdfLibraryGrid>
+                  {pdfLibraryItems.map((item) => (
+                    <PdfLibraryCard key={`${item.fileUrl}-${item.materialId || item.lessonId}`}>
+                      <ContentMeta>
+                        <PdfPreviewBadge>
+                          <FileText size={20} />
+                        </PdfPreviewBadge>
+                        <PdfLibraryTitle>{item.title || item.fileName}</PdfLibraryTitle>
+                        <PdfLibraryMeta>
+                          <span>{item.fileName}</span>
+                          <span>{formatFileSize(item.fileSize || 0)}</span>
+                          <span>
+                            {t("teacher.lessonWorkspace.fromLesson", {
+                              defaultValue: "Dars",
+                            })}
+                            : {item.lessonTitle || "—"}
+                          </span>
+                        </PdfLibraryMeta>
+                      </ContentMeta>
+                      <PanelActions>
+                        <TinyButton
+                          type="button"
+                          onClick={() => handleSelectLibraryMaterial(item)}
+                          disabled={isLinkingLibraryMaterial}
+                        >
+                          <Link size={14} />
+                          {isLinkingLibraryMaterial
+                            ? t("teacher.lessonWorkspace.linkingMaterial", {
+                                defaultValue: "Biriktirilmoqda...",
+                              })
+                            : t("teacher.lessonWorkspace.usePdfLink", {
+                                defaultValue: "Linkni ishlatish",
+                              })}
+                        </TinyButton>
+                        <TinyButton
+                          type="button"
+                          as="a"
+                          href={item.fileUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          <Eye size={14} />
+                          {t("teacher.lessonWorkspace.preview", { defaultValue: "Ko'rish" })}
+                        </TinyButton>
+                      </PanelActions>
+                    </PdfLibraryCard>
+                  ))}
+                </PdfLibraryGrid>
+              ) : (
+                <EmptyState>
+                  <EmptyTitle>
+                    {t("teacher.lessonWorkspace.noMaterials", {
+                      defaultValue: "Material hali qo'shilmagan",
+                    })}
+                  </EmptyTitle>
+                  <EmptyText>
+                    {t("teacher.lessonWorkspace.noPdfLibraryText", {
+                      defaultValue: "Kutubxonada reuse qilish uchun avval kamida bitta PDF yuklang.",
+                    })}
+                  </EmptyText>
+                </EmptyState>
+              )}
+            </ModalBody>
+          </ModalPanel>
+        </ModalOverlay>
+      ) : null}
     </WorkspaceShell>
   );
 }

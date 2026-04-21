@@ -8,6 +8,11 @@ export const fetchCourses = async (page = 1, limit = 15) => {
   return data;
 };
 
+export const getCourse = async (courseId) => {
+  const { data } = await axiosInstance.get(`/courses/${courseId}`);
+  return data;
+};
+
 export const searchCourses = async (query, limit = 20) => {
   const { data } = await axiosInstance.get(
     `/courses/search?q=${encodeURIComponent(query)}&limit=${limit}`,
@@ -108,6 +113,22 @@ export const toggleLessonLike = async ({ courseId, lessonId }) => {
   const { data } = await axiosInstance.post(
     `/courses/${courseId}/lessons/${lessonId}/like`,
   );
+  return data;
+};
+
+export const upsertLessonNote = async ({ courseId, lessonId, text }) => {
+  const { data } = await axiosInstance.patch(
+    `/courses/${courseId}/lessons/${lessonId}/note`,
+    { text },
+  );
+  return data;
+};
+
+export const upsertCourseReview = async ({ courseId, rating, text }) => {
+  const { data } = await axiosInstance.patch(`/courses/${courseId}/review`, {
+    rating,
+    text,
+  });
   return data;
 };
 
@@ -285,6 +306,11 @@ export const getLessonMaterials = async (courseId, lessonId) => {
   const { data } = await axiosInstance.get(
     `/courses/${courseId}/lessons/${lessonId}/materials`,
   );
+  return data;
+};
+
+export const getCourseMaterialLibrary = async (courseId) => {
+  const { data } = await axiosInstance.get(`/courses/${courseId}/materials/library`);
   return data;
 };
 

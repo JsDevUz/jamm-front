@@ -370,6 +370,40 @@ const FormField = styled.div`
   margin-bottom: 20px;
 `;
 
+const QuickActionsRow = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 18px;
+`;
+
+const QuickActionButton = styled.button`
+  height: 40px;
+  padding: 0 14px;
+  border-radius: 12px;
+  border: 1px solid
+    ${(props) =>
+      props.$primary ? "var(--primary-color)" : "var(--border-color)"};
+  background: ${(props) =>
+    props.$primary ? "color-mix(in srgb, var(--primary-color) 14%, transparent)" : "var(--input-color)"};
+  color: ${(props) => (props.$primary ? "var(--primary-color)" : "var(--text-color)")};
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    transform 0.15s ease,
+    filter 0.15s ease;
+
+  &:hover {
+    transform: translateY(-1px);
+    filter: brightness(1.05);
+  }
+`;
+
 const FieldLabel = styled.div`
   color: #b9bbbe;
   font-size: 11px;
@@ -689,6 +723,7 @@ const PremiumSection = ({
 
 const SettingsDialog = ({ isOpen, onClose, initialSection = "my-account" }) => {
   const { theme, toggleTheme } = useTheme();
+  const navigate = useNavigate();
   const [activeSection, setActiveSection] = useState(initialSection);
 
   useEffect(() => {
@@ -716,6 +751,8 @@ const SettingsDialog = ({ isOpen, onClose, initialSection = "my-account" }) => {
 
   // Initialize from Zustand store for immediate accurate rendering
   const initialUser = useAuthStore((state) => state.user) || {};
+  const isInstructor = Boolean(initialUser.isInstructor);
+  const isCeoUser = initialUser?.officialBadgeKey === "ceo";
   const [profile, setProfile] = useState({
     nickname: initialUser.nickname || "",
     username: initialUser.username || "",
@@ -1001,6 +1038,36 @@ const SettingsDialog = ({ isOpen, onClose, initialSection = "my-account" }) => {
             <Camera size={22} />
           </AvatarOverlay>
         </AvatarWrap>
+
+        {(isInstructor || isCeoUser) && (
+          <QuickActionsRow>
+            {isInstructor ? (
+              <QuickActionButton
+                type="button"
+                onClick={() => {
+                  onClose?.();
+                  navigate("/teacher");
+                }}
+              >
+                <Camera size={16} />
+                Ustoz sahifasi
+              </QuickActionButton>
+            ) : null}
+            {isCeoUser ? (
+              <QuickActionButton
+                type="button"
+                $primary
+                onClick={() => {
+                  onClose?.();
+                  navigate("/admin");
+                }}
+              >
+                <Shield size={16} />
+                CEO paneli
+              </QuickActionButton>
+            ) : null}
+          </QuickActionsRow>
+        )}
 
         <FormField>
           <FieldLabel style={{ display: "flex", alignItems: "center", gap: 6 }}>

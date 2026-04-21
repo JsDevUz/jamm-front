@@ -446,9 +446,10 @@ const FeedPage = () => {
         <FeedHeaderInner>
           <SectionHeader
             title={t("feed.title")}
+            showProfile
             onSearch={() =>
-              navigate("/search?tab=private", {
-                state: { from: `${location.pathname}${location.search}` },
+              navigate("/search", {
+                state: { backgroundLocation: location, initialTab: "private" },
               })
             }
             onAdd={() => setIsCreateOpen(true)}

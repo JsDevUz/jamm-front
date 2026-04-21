@@ -13,6 +13,27 @@ export const SidebarContainer = styled.div`
   flex-shrink: 0;
   overflow: visible;
   border-right: 1px solid color-mix(in srgb, var(--border-color) 76%, transparent);
+
+  @media (max-width: 700px) {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 120;
+    width: 100%;
+    height: auto;
+    min-height: 72px;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: stretch;
+    padding: 6px 8px calc(6px + env(safe-area-inset-bottom, 0px));
+    border-right: none;
+    border-top: 1px solid color-mix(in srgb, var(--border-color) 76%, transparent);
+    background: var(--secondary-color);
+    backdrop-filter: blur(18px);
+    box-shadow: 0 -10px 32px rgba(0, 0, 0, 0.22);
+    overflow: hidden;
+  }
 `;
 
 export const NavButton = styled.button`
@@ -128,6 +149,33 @@ export const NavButton = styled.button`
   &:focus-visible::after {
     transform: translateY(-50%) translateX(0);
   }
+
+  @media (max-width: 700px) {
+    flex: 1;
+    min-width: 0;
+    width: auto;
+    min-height: 56px;
+    height: 56px;
+    margin-right: 0;
+    margin-bottom: 0;
+    border-radius: 18px;
+    flex-direction: column;
+    gap: 4px;
+
+    &::before {
+      display: none;
+    }
+
+    &:hover::before,
+    &:focus-visible::before {
+      display: none;
+    }
+
+    &::after,
+    & > span:first-child::after {
+      display: none;
+    }
+  }
 `;
 
 export const IconSlot = styled.div`
@@ -135,6 +183,7 @@ export const IconSlot = styled.div`
   width: 48px;
   height: 48px;
   position: relative;
+  overflow: visible;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -142,8 +191,6 @@ export const IconSlot = styled.div`
   background: ${(props) =>
     props.$active ? "var(--primary-color)" : "var(--secondary-color)"};
   color: ${(props) => (props.$active ? "#ffffff" : "var(--text-color)")};
-  box-shadow: ${(props) =>
-    props.$active ? "0 12px 24px rgba(80, 96, 255, 0.28)" : "none"};
   transition:
     border-radius 0.18s ease,
     background-color 0.18s ease,
@@ -154,10 +201,30 @@ export const IconSlot = styled.div`
   ${NavButton}:focus-visible & {
     border-radius: 18px;
   }
+
+  @media (max-width: 700px) {
+    min-width: 40px;
+    width: 40px;
+    height: 40px;
+    border-radius: 14px;
+    background: ${(props) =>
+      props.$active
+        ? "color-mix(in srgb, var(--primary-color) 18%, var(--secondary-color))"
+        : "transparent"};
+    box-shadow: none;
+  }
 `;
 
 export const NavLabel = styled.span`
   display: none;
+
+  @media (max-width: 700px) {
+    display: block;
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 1;
+    color: inherit;
+  }
 `;
 
 export const NavBadge = styled.span`
@@ -181,21 +248,20 @@ export const NavBadge = styled.span`
 
 export const Spacer = styled.div`
   flex: 1;
+
+  @media (max-width: 700px) {
+    display: none;
+  }
 `;
 
 export const AvatarButton = styled.button`
   position: relative;
   z-index: 1;
-  width: 52px;
-  min-height: 52px;
-  border-radius: 16px;
-  border: 1px solid
-    ${(props) =>
-      props.$active
-        ? "var(--primary-color)"
-        : props.$premium
-          ? "var(--warning-color)"
-          : "var(--border-color)"};
+  width: 48px;
+  min-width: 48px;
+  height: 48px;
+  min-height: 48px;
+  border-radius: 14px;
   background: ${(props) =>
     props.$active
       ? "color-mix(in srgb, var(--primary-color) 12%, var(--secondary-color))"
@@ -206,17 +272,21 @@ export const AvatarButton = styled.button`
   justify-content: center;
   margin-bottom: 12px;
   padding: 0;
-  overflow: hidden;
+  overflow: visible;
   transition:
     transform 0.2s ease,
     border-color 0.2s ease,
     background-color 0.2s ease;
   gap: 0;
+  color: ${(props) =>
+    props.$active ? "var(--primary-color)" : "var(--text-secondary-color)"};
 
   &:hover {
     transform: translateY(-1px);
     border-color: var(--primary-color);
     background: transparent;
+    color: ${(props) =>
+      props.$active ? "var(--primary-color)" : "var(--text-color)"};
   }
 
   &:hover ${IconSlot},
@@ -303,6 +373,39 @@ export const AvatarButton = styled.button`
   &:focus-visible::after {
     transform: translateY(-50%) translateX(0);
   }
+
+  @media (max-width: 700px) {
+    flex: 1;
+    min-width: 0;
+    width: auto;
+    height: 56px;
+    min-height: 56px;
+    margin-bottom: 0;
+    margin-left: 0;
+    border-radius: 18px;
+    flex-direction: column;
+    gap: 4px;
+    background: transparent;
+
+    &::before {
+      display: none;
+    }
+
+    &:hover::before,
+    &:focus-visible::before {
+      display: none;
+    }
+
+    &::after,
+    & > span:first-child::after {
+      display: none;
+    }
+
+    &:hover,
+    &:focus-visible {
+      background: transparent;
+    }
+  }
 `;
 
 export const SidebarHeader = styled.div`
@@ -314,15 +417,26 @@ export const SidebarTitle = styled.div`
 `;
 
 export const ProfileAvatarWrap = styled.div`
-  width: 100%;
-  height: 100%;
+  width: 40px;
+  height: 40px;
   border-radius: 14px;
   position: relative;
   overflow: visible;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  z-index: 2;
 
+  @media (min-width: 701px) {
+    width: 48px;
+    height: 48px;
+  }
+
+  @media (max-width: 700px) {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+  }
 `;
 
 export const AvatarImage = styled.img`
@@ -330,6 +444,7 @@ export const AvatarImage = styled.img`
   height: 100%;
   object-fit: cover;
   border-radius: inherit;
+  display: block;
 `;
 
 export const AvatarFallback = styled.span`
@@ -349,11 +464,13 @@ export const AvatarFallback = styled.span`
 export const ProfileStatusDot = styled.span`
   display: block;
   position: absolute;
-  right: -2px;
+  right: -1px;
   bottom: -1px;
-  width: 9px;
-  height: 9px;
+  width: 10px;
+  height: 10px;
   border-radius: 999px;
   background: #46c46b;
-  border: 1.5px solid var(--background-color);
+  border: 2px solid var(--tertiary-color);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--border-color) 70%, transparent);
+  z-index: 3;
 `;

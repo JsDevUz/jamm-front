@@ -38,7 +38,7 @@ const fadeIn = keyframes`
 
 const Sidebar = styled.aside`
   width: 340px;
-  height: 100vh;
+  height: 100%;
   background: var(--secondary-color);
   display: flex;
   flex-direction: column;
@@ -183,6 +183,34 @@ const ActionRow = styled.div`
   display: flex;
   gap: 8px;
   padding: 0 18px 14px;
+`;
+
+const QuickActionRow = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px 18px 8px;
+`;
+
+const QuickActionBtn = styled.button`
+  min-height: 34px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid
+    ${(props) =>
+      props.$primary ? "color-mix(in srgb, var(--primary-color) 72%, transparent)" : "var(--border-color)"};
+  background: ${(props) =>
+    props.$primary
+      ? "color-mix(in srgb, var(--primary-color) 14%, var(--secondary-color))"
+      : "var(--input-color)"};
+  color: ${(props) => (props.$primary ? "var(--primary-color)" : "var(--text-color)")};
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
 `;
 
 const ActionBtn = styled.button`
@@ -478,6 +506,8 @@ const ProfileSidebar = ({
   onToggleFollow,
   onOpenProfileEdit,
   onOpenDirectMessage,
+  onOpenTeacherPage,
+  onOpenAdminPanel,
 }) => {
   const { t } = useTranslation();
   const [isAvatarPreviewOpen, setIsAvatarPreviewOpen] = useState(false);
@@ -486,6 +516,9 @@ const ProfileSidebar = ({
   const logout = useAuthStore((state) => state.logout);
   const isMobile = typeof window !== "undefined" && window.innerWidth <= 768;
   const canInstallApp = isOwnProfile && isMobile && !isStandaloneMode();
+  const showTeacherAction = isOwnProfile && targetUser?.isInstructor;
+  const showAdminAction =
+    isOwnProfile && targetUser?.officialBadgeKey === "ceo";
   const handle = `@${(targetUser?.username || "user").toLowerCase()}`;
   const avatarLetter = displayName.charAt(0).toUpperCase();
   const userAvatar = targetUser?.avatar;
@@ -547,6 +580,23 @@ const ProfileSidebar = ({
         alt={displayName}
         onClose={() => setIsAvatarPreviewOpen(false)}
       />
+
+      {showTeacherAction || showAdminAction ? (
+        <QuickActionRow>
+          {showTeacherAction ? (
+            <QuickActionBtn type="button" onClick={onOpenTeacherPage}>
+              <GraduationCap size={14} />
+              Ustoz sahifasi
+            </QuickActionBtn>
+          ) : null}
+          {showAdminAction ? (
+            <QuickActionBtn type="button" $primary onClick={onOpenAdminPanel}>
+              <Shield size={14} />
+              CEO paneli
+            </QuickActionBtn>
+          ) : null}
+        </QuickActionRow>
+      ) : null}
 
       <Info>
         <NameRow>

@@ -52,7 +52,7 @@ const PageWrapper = styled.div`
   background:
     radial-gradient(circle at top right, rgba(88, 101, 242, 0.12), transparent 32%),
     radial-gradient(circle at bottom left, rgba(255, 122, 47, 0.1), transparent 28%),
-    linear-gradient(180deg, #f8fbff 0%, #eef3fb 100%);
+    var(--background-color);
   position: relative;
   overflow: hidden;
   padding: 20px;
@@ -97,9 +97,9 @@ const AuthCard = styled.div`
   width: 900px;
   max-width: 100%;
   display: flex;
-  background: rgba(255, 255, 255, 0.88);
+  background: var(--background-color);
   backdrop-filter: blur(18px);
-  border: 1px solid rgba(88, 101, 242, 0.1);
+  border: 1px solid var(--border-color);
   border-radius: 20px;
   overflow: hidden;
   box-shadow:
@@ -209,6 +209,7 @@ const FeatureText = styled.span`
 const RightPanel = styled.div`
   flex: 1;
   padding: 40px;
+  background: var(--background-color);
 
   @media (max-width: 480px) {
     padding: 28px 20px;
@@ -245,7 +246,7 @@ const LogoIcon = styled.div`
 const LogoText = styled.h1`
   font-size: 24px;
   font-weight: 800;
-  background: linear-gradient(135deg, #273142, #5865f2);
+  background: linear-gradient(135deg, var(--text-color), #5865f2);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   letter-spacing: -0.5px;
@@ -254,14 +255,14 @@ const LogoText = styled.h1`
 const Title = styled.h2`
   font-size: 22px;
   font-weight: 700;
-  color: #1f2937;
+  color: var(--text-color);
   text-align: center;
   margin-bottom: 4px;
 `;
 
 const Subtitle = styled.p`
   font-size: 14px;
-  color: #6b7280;
+  color: var(--text-muted-color);
   text-align: center;
   margin-bottom: 24px;
 `;
@@ -271,7 +272,7 @@ const Subtitle = styled.p`
    ============================ */
 const TabRow = styled.div`
   display: flex;
-  background: #eef2f8;
+  background: var(--secondary-color);
   border-radius: 12px;
   padding: 4px;
   margin-bottom: 24px;
@@ -291,8 +292,7 @@ const Tab = styled.button`
     props.$active
       ? "linear-gradient(135deg, #5865f2, #4752c4)"
       : "transparent"};
-  color: ${(props) => (props.$active ? "#fff" : "#b9bbbe")};
-  color: ${(props) => (props.$active ? "#fff" : "#64748b")};
+  color: ${(props) => (props.$active ? "#fff" : "var(--text-secondary-color)")};
   box-shadow: ${(props) =>
     props.$active ? "0 2px 10px rgba(88, 101, 242, 0.3)" : "none"};
 
@@ -326,7 +326,7 @@ const Label = styled.label`
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.6px;
-  color: #667085;
+  color: var(--text-muted-color);
 `;
 
 const InputWrapper = styled.div`
@@ -349,42 +349,32 @@ const InputIcon = styled.div`
 const StyledInput = styled.input`
   width: 100%;
   padding: 12px 14px 12px 42px;
-  background: #ffffff;
-  border: 1.5px solid #d7e0ec;
+  background: var(--input-color);
+  border: 1.5px solid var(--border-color);
   border-radius: 12px;
-  color: #1f2937;
+  color: var(--text-color);
   font-size: 15px;
   font-family: inherit;
   outline: none;
   transition: all 0.2s ease;
-  box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.95),
-    0 10px 24px rgba(148, 163, 184, 0.08);
 
   &::placeholder {
-    color: #94a3b8;
+    color: var(--placeholder-color);
   }
 
   &:focus {
     border-color: #5865f2;
-    background: #ffffff;
     box-shadow: 0 0 0 3px rgba(88, 101, 242, 0.12);
-  }
-
-  &:not(:placeholder-shown) {
-    background: #ffffff;
   }
 
   &:-webkit-autofill,
   &:-webkit-autofill:hover,
   &:-webkit-autofill:focus,
   &:-webkit-autofill:active {
-    -webkit-text-fill-color: #1f2937;
-    caret-color: #1f2937;
-    border: 1.5px solid #d7e0ec;
-    -webkit-box-shadow:
-      0 0 0 1000px #ffffff inset,
-      0 10px 24px rgba(148, 163, 184, 0.08);
+    -webkit-text-fill-color: var(--text-color);
+    caret-color: var(--text-color);
+    border: 1.5px solid var(--border-color);
+    -webkit-box-shadow: 0 0 0 1000px var(--input-color) inset;
     transition: background-color 9999s ease-out 0s;
   }
 
@@ -460,12 +450,12 @@ const Divider = styled.div`
     content: "";
     flex: 1;
     height: 1px;
-    background: #dbe4f0;
+    background: var(--border-color);
   }
 
   span {
     font-size: 12px;
-    color: #94a3b8;
+    color: var(--text-muted-color);
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.5px;
@@ -477,9 +467,9 @@ const GoogleButton = styled.button`
   padding: 12px;
   font-size: 14px;
   font-weight: 600;
-  color: #334155;
-  background: #ffffff;
-  border: 1.5px solid #dbe4f0;
+  color: var(--text-color);
+  background: var(--secondary-color);
+  border: 1.5px solid var(--border-color);
   border-radius: 10px;
   cursor: pointer;
   display: flex;
@@ -489,7 +479,7 @@ const GoogleButton = styled.button`
   transition: all 0.2s ease;
 
   &:hover {
-    background: #f8fbff;
+    background: var(--tertiary-color);
     border-color: rgba(88, 101, 242, 0.4);
   }
 `;
@@ -522,7 +512,7 @@ const FooterText = styled.p`
   margin-top: 20px;
   text-align: center;
   font-size: 13px;
-  color: #64748b;
+  color: var(--text-secondary-color);
 `;
 
 const SwitchLink = styled.button`
@@ -593,9 +583,9 @@ const LegalCard = styled.div`
   width: 100%;
   max-width: 600px;
   max-height: 80vh;
-  background: #ffffff;
+  background: var(--background-color);
   border-radius: 16px;
-  border: 1px solid #dbe4f0;
+  border: 1px solid var(--border-color);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -604,14 +594,14 @@ const LegalCard = styled.div`
 
 const LegalHeader = styled.div`
   padding: 20px;
-  border-bottom: 1px solid #e5edf6;
+  border-bottom: 1px solid var(--border-color);
   display: flex;
   justify-content: space-between;
   align-items: center;
 
   h3 {
     margin: 0;
-    color: #0f172a;
+    color: var(--text-color);
     font-size: 18px;
   }
 `;
@@ -619,12 +609,12 @@ const LegalHeader = styled.div`
 const LegalBody = styled.div`
   padding: 24px;
   overflow-y: auto;
-  color: #334155;
+  color: var(--text-secondary-color);
   line-height: 1.6;
   font-size: 14px;
 
   h4 {
-    color: #0f172a;
+    color: var(--text-color);
     margin: 20px 0 10px 0;
     font-size: 16px;
   }
@@ -662,7 +652,7 @@ const PolicyLinks = styled.div`
 const PolicyLink = styled.button`
   background: none;
   border: none;
-  color: #64748b;
+  color: var(--text-muted-color);
   cursor: pointer;
   transition: all 0.2s;
 
@@ -1125,7 +1115,7 @@ const AuthPage = () => {
                 style={{
                   background: "none",
                   border: "none",
-                  color: "#72767d",
+                  color: "var(--text-muted-color)",
                   cursor: "pointer",
                 }}
               >

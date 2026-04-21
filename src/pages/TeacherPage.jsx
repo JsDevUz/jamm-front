@@ -6,16 +6,22 @@ import React, {
   useMemo,
   useState,
 } from "react";
-import styled from "styled-components";
+import styled, { css } from "styled-components";
 import { useTranslation } from "react-i18next";
-import { Navigate, useNavigate } from "react-router-dom";
+import { Navigate, useLocation, useNavigate, useParams } from "react-router-dom";
 import {
+  BarChart3,
   BookOpen,
   Check,
+  ChevronLeft,
   ChevronDown,
   ClipboardCheck,
   Copy,
+  Eye,
+  FileText,
   GraduationCap,
+  Link2,
+  MoreHorizontal,
   LayoutDashboard,
   MessageCircle,
   Pencil,
@@ -24,6 +30,8 @@ import {
   Search,
   Shield,
   Trash2,
+  Type,
+  UserX,
   Users,
   X,
 } from "lucide-react";
@@ -32,6 +40,56 @@ import { useCourses } from "../contexts/CoursesContext";
 import { useChats } from "../contexts/ChatsContext";
 import useAuthStore from "../store/authStore";
 import ConfirmDialog from "../shared/ui/dialogs/ConfirmDialog";
+import TeacherSidebarExpanded from "../features/navigation/TeacherSidebarExpanded";
+import {
+  createSentenceBuilderShareLink,
+  createTestShareLink,
+  deleteSentenceBuilderDeck,
+  deleteSentenceBuilderShareLink,
+  deleteTest,
+  deleteTestShareLink,
+  fetchMyTests,
+  fetchSentenceBuilderResults,
+  fetchSentenceBuilderShareLinks,
+  fetchSentenceBuilders,
+  fetchTestShareLinks,
+} from "../api/arenaApi";
+import { RESOLVED_APP_BASE_URL } from "../config/env";
+import { APP_LIMITS, isPremiumUser } from "../constants/appLimits";
+
+const MODAL_EXIT_DURATION_MS = 220;
+
+const getTooltipText = (content) => {
+  if (content === null || content === undefined || content === false) {
+    return undefined;
+  }
+
+  if (Array.isArray(content)) {
+    const text = content
+      .map((item) => getTooltipText(item))
+      .filter(Boolean)
+      .join(" ")
+      .trim();
+    return text || undefined;
+  }
+
+  if (typeof content === "string" || typeof content === "number") {
+    const text = String(content).trim();
+    return text || undefined;
+  }
+
+  return undefined;
+};
+
+const twoLineClamp = css`
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  white-space: normal;
+  text-overflow: ellipsis;
+  word-break: break-word;
+`;
 
 const CreateCourseDialog = lazy(() =>
   import("../features/courses/components").then((module) => ({
@@ -46,6 +104,21 @@ const AddLessonDialog = lazy(() =>
 const TeacherLessonContentWorkspace = lazy(() =>
   import("../features/courses/components/TeacherLessonContentWorkspace"),
 );
+const CreateSentenceBuilderDialog = lazy(
+  () => import("../features/arena/components/CreateSentenceBuilderDialog"),
+);
+const CreateTestDialog = lazy(
+  () => import("../features/arena/components/CreateTestDialog"),
+);
+const ArenaResultsPane = lazy(
+  () => import("../features/arena/components/ArenaResultsPane"),
+);
+const TestResultsDialog = lazy(
+  () => import("../features/arena/components/TestResultsDialog"),
+);
+const ShareLinksDialog = lazy(
+  () => import("../features/arena/components/ShareLinksDialog"),
+);
 
 const Shell = styled.div`
   width: 100%;
@@ -53,39 +126,44 @@ const Shell = styled.div`
   flex: 1 1 auto;
   min-height: var(--app-height, 100dvh);
   background: var(--background-color);
-  padding: 18px;
-
-  @media (max-width: 900px) {
-    padding: 12px;
-  }
 `;
 
 const Layout = styled.div`
-  min-height: calc(var(--app-height, 100dvh) - 36px);
+  height: var(--app-height);
   width: 100%;
   display: grid;
-  grid-template-columns: 268px minmax(0, 1fr);
-  gap: 16px;
+  grid-template-columns: 78px minmax(0, 1fr);
   align-items: stretch;
   min-width: 0;
+
+  @media (max-width: 700px) {
+    height: var(--app-height);
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) auto;
+  }
 `;
 
 const Panel = styled.div`
   width: 100%;
   background: var(--secondary-color);
   border: 1px solid var(--border-color);
-  border-radius: 24px;
   min-height: 0;
   height: calc(100vh - 36px);
   overflow: hidden;
 `;
 
-const Sidebar = styled(Panel)`
-  background: transparent;
-  border: none;
-  border-radius: 0;
-  overflow: visible;
-  min-height: 100%;
+const Sidebar = styled.div`
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  display: flex;
+  align-items: stretch;
+  justify-content: flex-start;
+
+  @media (max-width: 700px) {
+    order: 2;
+    height: auto;
+  }
 `;
 
 const SidebarShell = styled.div`
@@ -115,6 +193,7 @@ const SidebarCardBody = styled.div`
   padding: 12px;
   display: grid;
   gap: 12px;
+  justify-items: center;
 `;
 
 const SidebarDivider = styled.div`
@@ -125,13 +204,15 @@ const SidebarDivider = styled.div`
 const BrandRow = styled.div`
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
   gap: 12px;
+  width: 100%;
 `;
 
 const BrandIdentity = styled.div`
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 10px;
   min-width: 0;
 `;
@@ -167,6 +248,7 @@ const BrandName = styled.div`
 const MenuGroup = styled.div`
   display: grid;
   gap: 6px;
+  width: 100%;
 `;
 
 const GroupTitle = styled.div`
@@ -180,6 +262,7 @@ const ProfileCard = styled.div`
   padding: 12px;
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 10px;
   margin-top: auto;
 `;
@@ -227,21 +310,27 @@ const ProfileSub = styled.div`
 
 const Main = styled(Panel)`
   min-width: 0;
+  height: 100%;
   display: flex;
   flex-direction: column;
   justify-self: stretch;
+
+  @media (max-width: 700px) {
+    order: 1;
+  }
 `;
 
 const MainScroll = styled.div`
   flex: 1;
   min-height: 0;
-  padding: 18px;
+  padding: 16px;
   overflow-y: auto;
   display: grid;
-  gap: 16px;
+  gap: 12px;
+  align-content: start;
 
   @media (max-width: 900px) {
-    padding: 14px;
+    padding: 12px;
   }
 `;
 
@@ -266,6 +355,7 @@ const CollapseButton = styled.button`
 const NavList = styled.div`
   display: grid;
   gap: 8px;
+  width: 100%;
 `;
 
 const SidebarCoursesWrap = styled.div`
@@ -455,44 +545,69 @@ const RailButton = styled.button`
 `;
 
 const StatGrid = styled.div`
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content:'space-between'
 `;
 
 const StatCard = styled.div`
-  padding: 14px;
-  border-radius: 18px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 12px;
   border: 1px solid var(--border-color);
   background: var(--background-color);
-  display: grid;
-  gap: 6px;
+  flex: 1 0 auto;
+`;
+
+const StatIconSlot = styled.div`
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  background: var(--secondary-color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted-color);
+  flex-shrink: 0;
+`;
+
+const StatCardBody = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
 `;
 
 const StatLabel = styled.div`
-  font-size: 12px;
+  font-size: 10px;
+  font-weight: 700;
   color: var(--text-muted-color);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 `;
 
 const StatValue = styled.div`
-  font-size: 26px;
+  font-size: 18px;
   font-weight: 900;
-  line-height: 1;
+  line-height: 1.1;
   color: var(--text-color);
 `;
 
 const StatSub = styled.div`
-  font-size: 12px;
+  font-size: 11px;
   color: var(--text-secondary-color);
 `;
 
 const SectionCard = styled.div`
-  padding: 18px;
-  border-radius: 22px;
+  padding: 14px;
+  border-radius: 14px;
   background: var(--background-color);
   border: 1px solid var(--border-color);
   display: grid;
-  gap: 14px;
+  gap: 10px;
 `;
 
 const PageHeader = styled.div`
@@ -513,20 +628,20 @@ const PageTitleBlock = styled.div`
 
 const PageTitle = styled.h2`
   margin: 0;
-  font-size: 30px;
-  line-height: 1.05;
-  font-weight: 900;
+  font-size: 20px;
+  line-height: 1.2;
+  font-weight: 800;
   color: var(--text-color);
 
   @media (max-width: 720px) {
-    font-size: 24px;
+    font-size: 18px;
   }
 `;
 
 const PageDescription = styled.p`
   margin: 0;
-  font-size: 14px;
-  line-height: 1.6;
+  font-size: 13px;
+  line-height: 1.5;
   color: var(--text-muted-color);
   max-width: 780px;
 `;
@@ -627,8 +742,9 @@ const SearchInput = styled.input`
 const GridTwo = styled.div`
   display: grid;
   grid-template-columns: ${({ $left }) => $left || "minmax(320px, 380px) minmax(0, 1fr)"};
-  gap: 16px;
+  gap: 12px;
   min-height: 0;
+  align-items: start;
 
   @media (max-width: 1180px) {
     grid-template-columns: 1fr;
@@ -637,7 +753,7 @@ const GridTwo = styled.div`
 
 const Stack = styled.div`
   display: grid;
-  gap: 12px;
+  gap: 8px;
   min-height: 0;
 `;
 
@@ -839,19 +955,18 @@ const CourseLessonPreviewTitle = styled.div`
 const ListCard = styled.button`
   width: 100%;
   border: 1px solid ${({ $active }) => ($active ? "var(--primary-color)" : "var(--border-color)")};
-  background: ${({ $active }) =>
-    $active
-      ? "color-mix(in srgb, var(--primary-color) 8%, var(--background-color))"
-      : "var(--background-color)"};
-  border-radius: 18px;
-  padding: 14px;
+  background: ${({ $active }) => ($active ? "var(--secondary-color)" : "var(--background-color)")};
+  border-radius: 12px;
+  padding: 10px 12px;
   text-align: left;
   display: grid;
-  gap: 10px;
+  gap: 6px;
   cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
 
   &:hover {
     border-color: var(--primary-color);
+    background: var(--secondary-color);
   }
 `;
 
@@ -868,17 +983,18 @@ const CardMeta = styled.div`
 `;
 
 const MiniGrid = styled.div`
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
 `;
 
 const MiniStat = styled.div`
   border: 1px solid var(--border-color);
   background: var(--secondary-color);
-  border-radius: 14px;
-  padding: 10px;
-  display: grid;
+  border-radius: 8px;
+  padding: 3px 8px;
+  display: flex;
+  align-items: center;
   gap: 4px;
 `;
 
@@ -888,7 +1004,7 @@ const MiniLabel = styled.div`
 `;
 
 const MiniValue = styled.div`
-  font-size: 15px;
+  font-size: 12px;
   font-weight: 800;
   color: var(--text-color);
 `;
@@ -969,7 +1085,7 @@ const StudentTableCard = styled.div`
   border-radius: 22px;
   border: 1px solid var(--border-color);
   background: var(--background-color);
-  overflow: hidden;
+  overflow: ${({ $noClip }) => ($noClip ? "visible" : "hidden")};
   display: flex;
   flex-direction: column;
   align-self: start;
@@ -981,6 +1097,7 @@ const StudentTableHeader = styled.div`
   overflow: hidden;
   padding: 12px 18px;
   border-bottom: 1px solid var(--border-color);
+  border-radius: 22px 22px 0 0;
   display: grid;
   gap: 8px;
 `;
@@ -1028,6 +1145,11 @@ const StudentSearchWrap = styled.div`
   flex: 1 1 360px;
   max-width: 100%;
   min-width: 220px;
+
+  @media (max-width: 960px) {
+    flex-basis: 100%;
+    min-width: 0;
+  }
 `;
 
 const StudentFilterSelect = styled.select`
@@ -1045,6 +1167,12 @@ const StudentFilterSelect = styled.select`
 
   &:focus {
     border-color: var(--primary-color);
+  }
+
+  @media (max-width: 960px) {
+    flex-basis: 100%;
+    min-width: 0;
+    width: 100%;
   }
 `;
 
@@ -1082,20 +1210,35 @@ const StudentTableScroll = styled.div`
   flex: 1 1 auto;
   min-height: 0;
   overflow-x: auto;
+
+  @media (max-width: 960px) {
+    overflow-x: visible;
+  }
 `;
 
 const StudentTableGrid = styled.div`
   min-width: 1020px;
   display: grid;
+
+  @media (max-width: 960px) {
+    min-width: 0;
+  }
 `;
 
 const StudentTableHeadRow = styled.div`
   display: grid;
-  grid-template-columns: minmax(280px, 1.6fr) minmax(240px, 1.45fr) 150px 180px 140px 140px;
+  grid-template-columns: ${({ $withActions }) =>
+    $withActions
+      ? "minmax(280px, 1.6fr) minmax(240px, 1.45fr) 150px 180px 140px 140px 94px"
+      : "minmax(280px, 1.6fr) minmax(240px, 1.45fr) 150px 180px 140px 140px"};
   gap: 18px;
   padding: 16px 18px;
   border-bottom: 1px solid var(--border-color);
   background: color-mix(in srgb, var(--secondary-color) 55%, transparent);
+
+  @media (max-width: 960px) {
+    display: none;
+  }
 `;
 
 const StudentTableHeadCell = styled.div`
@@ -1123,12 +1266,173 @@ const StudentCountBadge = styled.span`
 
 const StudentTableBody = styled.div`
   display: grid;
+
+  @media (max-width: 960px) {
+    gap: 12px;
+    padding: 12px;
+  }
+`;
+
+const ArenaTeacherGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 18px;
+  align-items: start;
+  align-content: start;
+  justify-content: start;
+`;
+
+const ArenaTeacherCard = styled.button`
+  position: relative;
+  z-index: ${({ $raised }) => ($raised ? 12 : 1)};
+  width: 100%;
+  border: 1px solid var(--border-color);
+  background: var(--tertiary-color);
+  border-radius: 22px;
+  padding: 20px;
+  display: grid;
+  gap: 12px;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    transform 0.18s ease,
+    border-color 0.18s ease,
+    background-color 0.18s ease;
+
+  &:hover {
+    border-color: var(--primary-color);
+    transform: translateY(-2px);
+  }
+`;
+
+const ArenaTeacherCardTop = styled.div`
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+`;
+
+const ArenaTeacherMenuWrap = styled.div`
+  position: relative;
+  flex-shrink: 0;
+`;
+
+const ArenaTeacherMenuButton = styled.button`
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  border: 1px solid var(--border-color);
+  background: var(--secondary-color);
+  color: var(--text-muted-color);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+
+  &:hover {
+    color: var(--text-color);
+  }
+`;
+
+const ArenaTeacherMenuDropdown = styled.div`
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 180px;
+  padding: 8px;
+  border-radius: 14px;
+  border: 1px solid var(--border-color);
+  background: var(--secondary-color);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.24);
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+`;
+
+const ArenaTeacherMenuItem = styled.button`
+  min-height: 38px;
+  padding: 0 12px;
+  border: none;
+  border-radius: 10px;
+  background: ${({ $danger }) =>
+    $danger ? "rgba(239, 68, 68, 0.08)" : "transparent"};
+  color: ${({ $danger }) => ($danger ? "#ef4444" : "var(--text-color)")};
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+
+  &:hover {
+    background: ${({ $danger }) =>
+      $danger ? "rgba(239, 68, 68, 0.12)" : "var(--tertiary-color)"};
+  }
+`;
+
+const ArenaTeacherCardTitle = styled.h3`
+  margin: 0;
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--text-color);
+`;
+
+const ArenaTeacherCardDesc = styled.p`
+  margin: 0;
+  color: var(--text-muted-color);
+  font-size: 14px;
+  line-height: 1.55;
+`;
+
+const ArenaTeacherMeta = styled.div`
+  color: var(--text-muted-color);
+  font-size: 13px;
+`;
+
+const ArenaTeacherHint = styled.div`
+  margin-top: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-muted-color);
+  font-size: 12px;
+  font-weight: 700;
+`;
+
+const ArenaTeacherEmpty = styled.div`
+  border: 1px dashed var(--border-color);
+  border-radius: 22px;
+  padding: 46px 24px;
+  text-align: center;
+  color: var(--text-muted-color);
+  background: color-mix(in srgb, var(--secondary-color) 40%, transparent);
+`;
+
+const ArenaTeacherPane = styled.div`
+  min-width: 0;
+  min-height: 0;
+  display: block;
+`;
+
+const ArenaTeacherBody = styled.div`
+  padding: 18px;
+  overflow: visible;
+  display: grid;
+  align-content: start;
+
+  @media (max-width: 900px) {
+    padding: 14px;
+  }
 `;
 
 const StudentTableRow = styled.button`
   width: 100%;
   display: grid;
-  grid-template-columns: minmax(280px, 1.6fr) minmax(240px, 1.45fr) 150px 180px 140px 140px;
+  grid-template-columns: ${({ $withActions }) =>
+    $withActions
+      ? "minmax(280px, 1.6fr) minmax(240px, 1.45fr) 150px 180px 140px 140px 94px"
+      : "minmax(280px, 1.6fr) minmax(240px, 1.45fr) 150px 180px 140px 140px"};
   gap: 18px;
   padding: 16px 18px;
   border-bottom: 1px solid var(--border-color);
@@ -1143,12 +1447,47 @@ const StudentTableRow = styled.button`
   &:last-child {
     border-bottom: none;
   }
+
+  @media (max-width: 960px) {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+    padding: 14px;
+    border: 1px solid var(--border-color);
+    border-radius: 18px;
+    background: var(--background-color);
+
+    &:last-child {
+      border-bottom: 1px solid var(--border-color);
+    }
+  }
 `;
 
 const StudentCell = styled.div`
   min-width: 0;
   display: flex;
   align-items: center;
+
+  @media (max-width: 960px) {
+    width: 100%;
+
+    &[data-label] {
+      display: grid;
+      grid-template-columns: minmax(92px, auto) minmax(0, 1fr);
+      align-items: start;
+      gap: 10px;
+    }
+
+    &[data-label]::before {
+      content: attr(data-label);
+      padding-top: 2px;
+      font-size: 11px;
+      font-weight: 800;
+      line-height: 1.4;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--text-muted-color);
+    }
+  }
 `;
 
 const StudentIdentity = styled.div`
@@ -1198,21 +1537,23 @@ const StudentMeta = styled.div`
   gap: 4px;
 `;
 
-const StudentName = styled.div`
+const StudentName = styled.div.attrs((props) => ({
+  title: getTooltipText(props.children),
+}))`
   font-size: 15px;
   font-weight: 800;
   color: var(--text-color);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  line-height: 1.35;
+  ${twoLineClamp}
 `;
 
-const StudentSubline = styled.div`
+const StudentSubline = styled.div.attrs((props) => ({
+  title: getTooltipText(props.children),
+}))`
   font-size: 12px;
   color: var(--text-muted-color);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  line-height: 1.45;
+  ${twoLineClamp}
 `;
 
 const CourseCellWrap = styled.div`
@@ -1249,21 +1590,23 @@ const CourseCellMeta = styled.div`
   gap: 4px;
 `;
 
-const CourseCellTitle = styled.div`
+const CourseCellTitle = styled.div.attrs((props) => ({
+  title: getTooltipText(props.children),
+}))`
   font-size: 14px;
   font-weight: 700;
   color: var(--text-color);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  line-height: 1.35;
+  ${twoLineClamp}
 `;
 
-const CourseCellSub = styled.div`
+const CourseCellSub = styled.div.attrs((props) => ({
+  title: getTooltipText(props.children),
+}))`
   font-size: 12px;
   color: var(--text-muted-color);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  line-height: 1.45;
+  ${twoLineClamp}
 `;
 
 const ProgressCell = styled.div`
@@ -1298,21 +1641,39 @@ const TariffPill = styled.span`
   font-weight: 700;
 `;
 
-const DateCellText = styled.div`
+const DateCellText = styled.div.attrs((props) => ({
+  title: getTooltipText(props.children),
+}))`
   font-size: 13px;
   font-weight: 600;
   color: var(--text-secondary-color);
+  line-height: 1.45;
+  ${twoLineClamp}
+`;
+
+const CellValue = styled.div`
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--text-color);
 `;
 
 const TableEmptyState = styled.div`
   padding: 28px 18px;
   font-size: 14px;
   color: var(--text-muted-color);
+
+  @media (max-width: 960px) {
+    padding: 8px 4px 2px;
+  }
 `;
 
 const CourseTableGrid = styled.div`
   min-width: 980px;
   display: grid;
+
+  @media (max-width: 960px) {
+    min-width: 0;
+  }
 `;
 
 const CourseTableHeadRow = styled.div`
@@ -1322,6 +1683,10 @@ const CourseTableHeadRow = styled.div`
   padding: 16px 18px;
   border-bottom: 1px solid var(--border-color);
   background: color-mix(in srgb, var(--secondary-color) 55%, transparent);
+
+  @media (max-width: 960px) {
+    display: none;
+  }
 `;
 
 const CourseTableHeadCell = styled.div`
@@ -1335,6 +1700,11 @@ const CourseTableHeadCell = styled.div`
 
 const CourseTableBody = styled.div`
   display: grid;
+
+  @media (max-width: 960px) {
+    gap: 12px;
+    padding: 12px;
+  }
 `;
 
 const CourseTableRow = styled.button`
@@ -1358,12 +1728,50 @@ const CourseTableRow = styled.button`
   &:last-child {
     border-bottom: none;
   }
+
+  @media (max-width: 960px) {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+    padding: 14px;
+    border: 1px solid var(--border-color);
+    border-radius: 18px;
+    background: ${({ $active }) =>
+      $active
+        ? "color-mix(in srgb, var(--primary-color) 8%, var(--background-color))"
+        : "var(--background-color)"};
+
+    &:last-child {
+      border-bottom: 1px solid var(--border-color);
+    }
+  }
 `;
 
 const CourseTableCell = styled.div`
   min-width: 0;
   display: flex;
   align-items: center;
+
+  @media (max-width: 960px) {
+    width: 100%;
+
+    &[data-label] {
+      display: grid;
+      grid-template-columns: minmax(92px, auto) minmax(0, 1fr);
+      align-items: start;
+      gap: 10px;
+    }
+
+    &[data-label]::before {
+      content: attr(data-label);
+      padding-top: 2px;
+      font-size: 11px;
+      font-weight: 800;
+      line-height: 1.4;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--text-muted-color);
+    }
+  }
 `;
 
 const CourseIdentity = styled.div`
@@ -1400,21 +1808,23 @@ const CourseIdentityMeta = styled.div`
   gap: 4px;
 `;
 
-const CourseIdentityTitle = styled.div`
+const CourseIdentityTitle = styled.div.attrs((props) => ({
+  title: getTooltipText(props.children),
+}))`
   font-size: 16px;
   font-weight: 800;
   color: var(--text-color);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  line-height: 1.35;
+  ${twoLineClamp}
 `;
 
-const CourseIdentitySub = styled.div`
+const CourseIdentitySub = styled.div.attrs((props) => ({
+  title: getTooltipText(props.children),
+}))`
   font-size: 12px;
   color: var(--text-muted-color);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  line-height: 1.45;
+  ${twoLineClamp}
 `;
 
 const CourseMetricText = styled.div`
@@ -1458,6 +1868,11 @@ const CourseActionCell = styled.div`
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
+
+  @media (max-width: 960px) {
+    justify-content: flex-start;
+    padding-top: 4px;
+  }
 `;
 
 const StudentModalOverlay = styled.div`
@@ -1470,6 +1885,10 @@ const StudentModalOverlay = styled.div`
   align-items: center;
   justify-content: center;
   padding: 10px;
+  opacity: ${({ $visible }) => ($visible ? 1 : 0)};
+  transition:
+    opacity ${MODAL_EXIT_DURATION_MS}ms ease,
+    backdrop-filter ${MODAL_EXIT_DURATION_MS}ms ease;
 `;
 
 const StudentModalPanel = styled.div`
@@ -1480,6 +1899,12 @@ const StudentModalPanel = styled.div`
   background: var(--background-color);
   border: 1px solid var(--border-color);
   box-shadow: 0 32px 80px rgba(0, 0, 0, 0.24);
+  opacity: ${({ $visible }) => ($visible ? 1 : 0)};
+  transform: translateY(${({ $visible }) => ($visible ? "0" : "14px")})
+    scale(${({ $visible }) => ($visible ? 1 : 0.985)});
+  transition:
+    opacity ${MODAL_EXIT_DURATION_MS}ms ease,
+    transform ${MODAL_EXIT_DURATION_MS}ms ease;
 `;
 
 const StudentModalHeader = styled.div`
@@ -2072,19 +2497,20 @@ const StudentLessonFact = styled.span`
 `;
 
 const ApprovalCard = styled.div`
-  padding: 14px;
-  border-radius: 18px;
+  padding: 10px 12px;
+  border-radius: 10px;
   border: 1px solid var(--border-color);
   background: var(--background-color);
-  display: grid;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: 10px;
 `;
 
 const ApprovalActions = styled.div`
   display: flex;
-  
-  flex-wrap: wrap;
-  gap: 8px;
+  flex-shrink: 0;
+  gap: 6px;
 `;
 
 const DetailLessonList = styled.div`
@@ -2339,6 +2765,8 @@ const NAV_ITEMS = [
   { id: "students", icon: Users },
   { id: "attendance", icon: ClipboardCheck },
   { id: "mastery", icon: GraduationCap },
+  { id: "tests", icon: FileText },
+  { id: "sentenceBuilder", icon: Type },
 ];
 
 const getEntityId = (value) => {
@@ -2741,6 +3169,31 @@ const formatShortDate = (value) => {
   }).format(date);
 };
 
+function useAnimatedModalState(value) {
+  const [renderValue, setRenderValue] = useState(value);
+  const [isVisible, setIsVisible] = useState(Boolean(value));
+
+  useEffect(() => {
+    if (value) {
+      setRenderValue(value);
+      const frameId = window.requestAnimationFrame(() => {
+        setIsVisible(true);
+      });
+
+      return () => window.cancelAnimationFrame(frameId);
+    }
+
+    setIsVisible(false);
+    const timeoutId = window.setTimeout(() => {
+      setRenderValue(null);
+    }, MODAL_EXIT_DURATION_MS);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [value]);
+
+  return { renderValue, isVisible };
+}
+
 function AvatarImageWithFallback({
   src,
   alt,
@@ -2766,6 +3219,8 @@ function AvatarImageWithFallback({
 export default function TeacherPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const location = useLocation();
+  const { courseId: routeCourseId } = useParams();
   const { createChat } = useChats();
   const currentUser = useAuthStore((state) => state.user);
   const initialized = useAuthStore((state) => state.initialized);
@@ -2787,7 +3242,6 @@ export default function TeacherPage() {
   } = useCourses();
 
   const [activeSection, setActiveSection] = useState("dashboard");
-  const [coursesMenuExpanded, setCoursesMenuExpanded] = useState(true);
   const [search, setSearch] = useState("");
   const [selectedStudentCourseFilter, setSelectedStudentCourseFilter] = useState(
     "all",
@@ -2801,6 +3255,46 @@ export default function TeacherPage() {
   const [studentModalTab, setStudentModalTab] = useState("overview");
   const [savingAttendanceKey, setSavingAttendanceKey] = useState("");
   const [savingMasteryKey, setSavingMasteryKey] = useState("");
+  const [teacherTests, setTeacherTests] = useState([]);
+  const [teacherSentenceBuilders, setTeacherSentenceBuilders] = useState([]);
+  const [testsLoading, setTestsLoading] = useState(false);
+  const [sentenceBuildersLoading, setSentenceBuildersLoading] = useState(false);
+  const [teacherArenaMenuId, setTeacherArenaMenuId] = useState(null);
+  const [teacherTestToDelete, setTeacherTestToDelete] = useState(null);
+  const [teacherSentenceBuilderToDelete, setTeacherSentenceBuilderToDelete] =
+    useState(null);
+  const [isDeletingArenaItem, setIsDeletingArenaItem] = useState(false);
+  const [showSbDialog, setShowSbDialog] = useState(false);
+  const [sbEditingDeck, setSbEditingDeck] = useState(null);
+  // Share link dialog state
+  const [shareDeck, setShareDeck] = useState(null);
+  const [shareMode, setShareMode] = useState("persist");
+  const [shareGroupName, setShareGroupName] = useState("");
+  const [shareShowResults, setShareShowResults] = useState(true);
+  const [shareTimeLimit, setShareTimeLimit] = useState(0);
+  const [shareLinks, setShareLinks] = useState([]);
+  const [loadingShareLinks, setLoadingShareLinks] = useState(false);
+  const [creatingShareLink, setCreatingShareLink] = useState(false);
+  const [deletingShareLinkId, setDeletingShareLinkId] = useState(null);
+  // Results pane state (sentence builder)
+  const [resultsDeck, setResultsDeck] = useState(null);
+  const [resultsData, setResultsData] = useState([]);
+  const [loadingResults, setLoadingResults] = useState(false);
+  // Test create/edit dialog state
+  const [showTestDialog, setShowTestDialog] = useState(false);
+  const [testEditingItem, setTestEditingItem] = useState(null);
+  // Test share link dialog state
+  const [shareTest, setShareTest] = useState(null);
+  const [shareTestMode, setShareTestMode] = useState("persist");
+  const [shareTestGroupName, setShareTestGroupName] = useState("");
+  const [shareTestShowResults, setShareTestShowResults] = useState(true);
+  const [shareTestTimeLimit, setShareTestTimeLimit] = useState(0);
+  const [shareTestLinks, setShareTestLinks] = useState([]);
+  const [loadingTestShareLinks, setLoadingTestShareLinks] = useState(false);
+  const [creatingTestShareLink, setCreatingTestShareLink] = useState(false);
+  const [deletingTestShareLinkId, setDeletingTestShareLinkId] = useState(null);
+  // Test results state
+  const [selectedTestForResults, setSelectedTestForResults] = useState(null);
   const [masteryDrafts, setMasteryDrafts] = useState({});
   const [studentMasteryDrafts, setStudentMasteryDrafts] = useState({});
   const [collapsedMasteryLessons, setCollapsedMasteryLessons] = useState({});
@@ -2839,6 +3333,17 @@ export default function TeacherPage() {
   }, [joinCourseRoom, leaveCourseRoom, teacherCourses]);
 
   useEffect(() => {
+    if (location.pathname === "/teacher/courses") {
+      setSelectedCourseId(null);
+      setSelectedLessonId(null);
+      return;
+    }
+
+    if (routeCourseId) {
+      setSelectedCourseId(String(routeCourseId));
+      return;
+    }
+
     if (!teacherCourses.length) {
       setSelectedCourseId(null);
       return;
@@ -2856,7 +3361,7 @@ export default function TeacherPage() {
     if (!exists && !loading) {
       setSelectedCourseId(getCourseId(teacherCourses[0]));
     }
-  }, [loading, selectedCourseId, teacherCourses]);
+  }, [loading, location.pathname, routeCourseId, selectedCourseId, teacherCourses]);
 
   useEffect(() => {
     if (!selectedCourseId) {
@@ -2865,10 +3370,10 @@ export default function TeacherPage() {
   }, [selectedCourseId]);
 
   useEffect(() => {
-    if (activeSection === "courses") {
-      setCoursesMenuExpanded(true);
+    if (location.pathname.startsWith("/teacher/courses")) {
+      setActiveSection("courses");
     }
-  }, [activeSection]);
+  }, [location.pathname]);
 
   const selectedCourse = useMemo(
     () =>
@@ -2925,6 +3430,93 @@ export default function TeacherPage() {
       setSelectedMasteryLessonFocusId(null);
     }
   }, [selectedMasteryRow]);
+
+  useEffect(() => {
+    if (!teacherArenaMenuId) return undefined;
+
+    const handleOutsideClick = () => setTeacherArenaMenuId(null);
+    document.addEventListener("click", handleOutsideClick);
+
+    return () => {
+      document.removeEventListener("click", handleOutsideClick);
+    };
+  }, [teacherArenaMenuId]);
+
+  useEffect(() => {
+    if (activeSection !== "tests" || teacherTests.length) {
+      return;
+    }
+
+    let cancelled = false;
+    setTestsLoading(true);
+
+    fetchMyTests(1, 12)
+      .then((response) => {
+        if (cancelled) return;
+        const items = Array.isArray(response)
+          ? response
+          : response?.items || response?.tests || response?.data || [];
+        setTeacherTests(Array.isArray(items) ? items : []);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          toast.error(
+            t("teacher.workspace.testsLoadError", {
+              defaultValue: "Testlarni yuklab bo'lmadi",
+            }),
+          );
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setTestsLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeSection, teacherTests.length, t]);
+
+  useEffect(() => {
+    if (activeSection !== "sentenceBuilder" || teacherSentenceBuilders.length) {
+      return;
+    }
+
+    let cancelled = false;
+    setSentenceBuildersLoading(true);
+
+    fetchSentenceBuilders(1, 12)
+      .then((response) => {
+        if (cancelled) return;
+        const items = Array.isArray(response)
+          ? response
+          : response?.items ||
+            response?.decks ||
+            response?.sentenceBuilders ||
+            response?.data ||
+            [];
+        setTeacherSentenceBuilders(Array.isArray(items) ? items : []);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          toast.error(
+            t("teacher.workspace.sentenceBuilderLoadError", {
+              defaultValue: "Gap tuzish kartalarini yuklab bo'lmadi",
+            }),
+          );
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setSentenceBuildersLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeSection, teacherSentenceBuilders.length, t]);
 
   useEffect(() => {
     if (!selectedMasteryRow?.course) {
@@ -3293,6 +3885,7 @@ export default function TeacherPage() {
       const homework = getHomeworkLessonSummary(lesson, selectedMasteryRow.memberId);
       const exercise = getExerciseLessonSummary(lesson, selectedMasteryRow.memberId);
       const oral = getLessonOralAssessmentForUser(lesson, selectedMasteryRow.memberId);
+      const attendanceRecord = getMemberAttendanceRecord(lesson, selectedMasteryRow.memberId);
       const draft = masteryDrafts[lessonId] || {};
       const isGraded = hasSavedOralAssessment(oral);
 
@@ -3311,6 +3904,10 @@ export default function TeacherPage() {
               : String(oral.score),
         oralNote:
           draft.note !== undefined ? draft.note : oral?.note || "",
+        attendanceStatus:
+          draft.attendanceStatus !== undefined
+            ? draft.attendanceStatus
+            : attendanceRecord?.status || "",
         isGraded,
         updatedAt: oral?.updatedAt || oral?.createdAt || null,
       };
@@ -3450,13 +4047,15 @@ export default function TeacherPage() {
       setCourseToDelete(null);
       if (String(selectedCourseId || "") === courseId) {
         setSelectedCourseId(null);
+        setSelectedLessonId(null);
+        navigate("/teacher/courses");
       }
     } catch {
       toast.error(t("teacher.courses.deleteError"));
     } finally {
       setIsDeletingCourse(false);
     }
-  }, [courseToDelete, removeCourse, selectedCourseId, t]);
+  }, [courseToDelete, navigate, removeCourse, selectedCourseId, t]);
 
   const handleDeleteLessonConfirm = useCallback(async () => {
     if (!lessonToDelete || !selectedCourse) return;
@@ -3475,6 +4074,251 @@ export default function TeacherPage() {
       setIsDeletingLesson(false);
     }
   }, [lessonToDelete, removeLesson, selectedCourse, t]);
+
+  const handleDeleteTeacherTest = useCallback(async () => {
+    if (!teacherTestToDelete) return;
+
+    try {
+      setIsDeletingArenaItem(true);
+      await deleteTest(teacherTestToDelete._id || teacherTestToDelete.id);
+      setTeacherTests((prev) =>
+        prev.filter(
+          (item) =>
+            String(item._id || item.id) !==
+            String(teacherTestToDelete._id || teacherTestToDelete.id),
+        ),
+      );
+      setTeacherTestToDelete(null);
+      toast.success(
+        t("teacher.workspace.testDeleted", {
+          defaultValue: "Test o'chirildi",
+        }),
+      );
+    } catch {
+      toast.error(
+        t("teacher.workspace.testDeleteError", {
+          defaultValue: "Testni o'chirib bo'lmadi",
+        }),
+      );
+    } finally {
+      setIsDeletingArenaItem(false);
+    }
+  }, [t, teacherTestToDelete]);
+
+  const handleDeleteTeacherSentenceBuilder = useCallback(async () => {
+    if (!teacherSentenceBuilderToDelete) return;
+
+    try {
+      setIsDeletingArenaItem(true);
+      await deleteSentenceBuilderDeck(
+        teacherSentenceBuilderToDelete._id || teacherSentenceBuilderToDelete.id,
+      );
+      setTeacherSentenceBuilders((prev) =>
+        prev.filter(
+          (item) =>
+            String(item._id || item.id) !==
+            String(
+              teacherSentenceBuilderToDelete._id ||
+                teacherSentenceBuilderToDelete.id,
+            ),
+        ),
+      );
+      setTeacherSentenceBuilderToDelete(null);
+      toast.success(
+        t("teacher.workspace.sentenceBuilderDeleted", {
+          defaultValue: "Gap tuzish decki o'chirildi",
+        }),
+      );
+    } catch {
+      toast.error(
+        t("teacher.workspace.sentenceBuilderDeleteError", {
+          defaultValue: "Gap tuzish deckini o'chirib bo'lmadi",
+        }),
+      );
+    } finally {
+      setIsDeletingArenaItem(false);
+    }
+  }, [t, teacherSentenceBuilderToDelete]);
+
+  const refreshSentenceBuilders = useCallback(async () => {
+    setSentenceBuildersLoading(true);
+    try {
+      const response = await fetchSentenceBuilders(1, 12);
+      const items = Array.isArray(response)
+        ? response
+        : response?.items || response?.decks || response?.sentenceBuilders || response?.data || [];
+      setTeacherSentenceBuilders(Array.isArray(items) ? items : []);
+    } catch {
+      // silent
+    } finally {
+      setSentenceBuildersLoading(false);
+    }
+  }, []);
+
+  const openShareDialog = useCallback(async (deck) => {
+    setTeacherArenaMenuId(null);
+    setShareDeck(deck);
+    setShareMode("persist");
+    setShareGroupName("");
+    setShareShowResults(true);
+    setShareTimeLimit(0);
+    setLoadingShareLinks(true);
+    try {
+      const data = await fetchSentenceBuilderShareLinks(deck._id);
+      setShareLinks(Array.isArray(data) ? data : []);
+    } finally {
+      setLoadingShareLinks(false);
+    }
+  }, []);
+
+  const handleCreateShareLink = useCallback(async () => {
+    if (!shareDeck || creatingShareLink) return;
+    if (shareMode === "persist" && !shareGroupName.trim()) {
+      toast.error("Guruh nomini kiriting");
+      return;
+    }
+    setCreatingShareLink(true);
+    try {
+      const created = await createSentenceBuilderShareLink(shareDeck._id, {
+        persistResults: shareMode === "persist",
+        groupName: shareMode === "persist" ? shareGroupName.trim() : "",
+        showResults: shareShowResults,
+        timeLimit: Number(shareTimeLimit) || 0,
+      });
+      setShareLinks((prev) => [created, ...prev]);
+      const url = `${RESOLVED_APP_BASE_URL}/arena/sentence-builder/${created.shortCode}`;
+      await navigator.clipboard.writeText(url);
+      toast.success("Havola yaratildi va nusxalandi.");
+      setShareGroupName("");
+      setShareShowResults(true);
+      setShareTimeLimit(0);
+    } catch (error) {
+      toast.error(error?.response?.data?.message || "Havolani yaratishda xatolik yuz berdi");
+    } finally {
+      setCreatingShareLink(false);
+    }
+  }, [shareDeck, creatingShareLink, shareMode, shareGroupName, shareShowResults, shareTimeLimit]);
+
+  const handleCopyShareLink = useCallback(async (shortCode) => {
+    try {
+      await navigator.clipboard.writeText(
+        `${RESOLVED_APP_BASE_URL}/arena/sentence-builder/${shortCode}`,
+      );
+      toast.success("Havola nusxalandi.");
+    } catch {
+      toast.error("Havolani nusxalab bo'lmadi");
+    }
+  }, []);
+
+  const handleDeleteShareLink = useCallback(async (shareLinkId) => {
+    if (!shareDeck || deletingShareLinkId) return;
+    setDeletingShareLinkId(shareLinkId);
+    try {
+      await deleteSentenceBuilderShareLink(shareDeck._id, shareLinkId);
+      setShareLinks((prev) => prev.filter((item) => item._id !== shareLinkId));
+      toast.success("Havola o'chirildi.");
+    } catch (error) {
+      toast.error(error?.response?.data?.message || "Havolani o'chirishda xatolik yuz berdi");
+    } finally {
+      setDeletingShareLinkId(null);
+    }
+  }, [shareDeck, deletingShareLinkId]);
+
+  const handleLoadResults = useCallback(async (deck) => {
+    setTeacherArenaMenuId(null);
+    setResultsDeck(deck);
+    setLoadingResults(true);
+    try {
+      const response = await fetchSentenceBuilderResults(deck._id, { page: 1, limit: 500 });
+      setResultsData(response?.data || []);
+    } finally {
+      setLoadingResults(false);
+    }
+  }, []);
+
+  // Test share links — load when shareTest changes (mirrors TestList useEffect)
+  useEffect(() => {
+    if (!shareTest?._id) {
+      setShareTestLinks([]);
+      return;
+    }
+    setLoadingTestShareLinks(true);
+    fetchTestShareLinks(shareTest._id)
+      .then((data) => setShareTestLinks(Array.isArray(data) ? data : []))
+      .catch(() => setShareTestLinks([]))
+      .finally(() => setLoadingTestShareLinks(false));
+  }, [shareTest]);
+
+  const openTestShareDialog = useCallback((test) => {
+    setTeacherArenaMenuId(null);
+    setShareTest(test);
+    setShareTestMode("persist");
+    setShareTestGroupName("");
+    setShareTestShowResults(true);
+    setShareTestTimeLimit(0);
+  }, []);
+
+  const handleCreateTestShareLink = useCallback(async () => {
+    if (!shareTest || creatingTestShareLink) return;
+    setCreatingTestShareLink(true);
+    try {
+      const response = await createTestShareLink(shareTest._id, {
+        persistResults: shareTestMode !== "ephemeral",
+        groupName: shareTestMode === "persist" ? shareTestGroupName.trim() : "",
+        showResults: shareTestShowResults,
+        timeLimit: Number(shareTestTimeLimit) || 0,
+      });
+      const url = `${RESOLVED_APP_BASE_URL}/arena/quiz-link/${response.shortCode}`;
+      await navigator.clipboard.writeText(url);
+      setShareTestLinks((prev) => [response, ...prev]);
+      toast.success("Qisqa test havolasi nusxalandi!");
+      setShareTestGroupName("");
+      setShareTestMode("persist");
+      setShareTestShowResults(true);
+      setShareTestTimeLimit(0);
+    } catch (error) {
+      toast.error(
+        error?.response?.data?.message || "Test havolasini yaratishda xatolik yuz berdi.",
+      );
+    } finally {
+      setCreatingTestShareLink(false);
+    }
+  }, [shareTest, creatingTestShareLink, shareTestMode, shareTestGroupName, shareTestShowResults, shareTestTimeLimit]);
+
+  const handleCopyTestExistingLink = useCallback(async (shortCode) => {
+    const url = `${RESOLVED_APP_BASE_URL}/arena/quiz-link/${shortCode}`;
+    await navigator.clipboard.writeText(url);
+    toast.success("Test havolasi nusxalandi!");
+  }, []);
+
+  const handleDeleteTestShareLink = useCallback(async (shareLinkId) => {
+    if (!shareTest?._id) return;
+    setDeletingTestShareLinkId(shareLinkId);
+    try {
+      await deleteTestShareLink(shareTest._id, shareLinkId);
+      setShareTestLinks((prev) => prev.filter((item) => item._id !== shareLinkId));
+      toast.success("Havola o'chirildi.");
+    } catch (error) {
+      toast.error(error?.response?.data?.message || "Havolani o'chirishda xatolik yuz berdi");
+    } finally {
+      setDeletingTestShareLinkId(null);
+    }
+  }, [shareTest]);
+
+  const refreshTests = useCallback(async () => {
+    setTestsLoading(true);
+    try {
+      const response = await fetchMyTests(1, 12);
+      const items = Array.isArray(response)
+        ? response
+        : response?.items || response?.tests || response?.data || [];
+      setTeacherTests(Array.isArray(items) ? items : []);
+    } catch {
+      // silent
+    } finally {
+      setTestsLoading(false);
+    }
+  }, []);
 
   const openCourseLessonCreator = useCallback(() => {
     setEditingCourseLesson(null);
@@ -3650,7 +4494,8 @@ export default function TeacherPage() {
       setSavingMasteryKey(saveKey);
 
       try {
-        const attendanceStatus = score === 0 ? "absent" : "present";
+        const attendanceStatus =
+          draft.attendanceStatus || (score === 0 ? "absent" : "present");
         await setLessonOralAssessment(courseId, lessonId, row.memberId, {
           score,
           note: draft.note || "",
@@ -3705,6 +4550,7 @@ export default function TeacherPage() {
           [lessonId]: {
             score: score === null ? "" : String(score),
             note: draft.note || "",
+            attendanceStatus,
           },
         }));
         setCollapsedMasteryLessons((prev) => ({
@@ -3870,9 +4716,29 @@ export default function TeacherPage() {
       setSelectedCourseId(courseId);
       setSelectedLessonId(lessonId || fallbackLessonId || null);
       setActiveSection("courses");
+      navigate(`/teacher/courses/${courseId}`);
     },
-    [teacherCourses],
+    [navigate, teacherCourses],
   );
+
+  const handleSectionChange = useCallback(
+    (sectionId) => {
+      setActiveSection(sectionId);
+      if (sectionId === "courses") {
+        navigate("/teacher/courses");
+        return;
+      }
+      navigate("/teacher");
+    },
+    [navigate],
+  );
+
+  const handleBackToCourses = useCallback(() => {
+    setSelectedLessonId(null);
+    setSelectedCourseId(null);
+    setActiveSection("courses");
+    navigate("/teacher/courses");
+  }, [navigate]);
 
   if (initialized && !currentUser) {
     return <Navigate to="/login" replace />;
@@ -3889,6 +4755,32 @@ export default function TeacherPage() {
   const currentUserName =
     currentUser?.nickname || currentUser?.username || t("common.userFallback");
   const currentUserInitial = currentUserName.charAt(0).toUpperCase();
+  const lessonContentModalSource = useMemo(
+    () =>
+      selectedCourse && selectedLessonContent
+        ? {
+            course: selectedCourse,
+            lesson: selectedLessonContent,
+          }
+        : null,
+    [selectedCourse, selectedLessonContent],
+  );
+  const {
+    renderValue: lessonContentModalData,
+    isVisible: isLessonContentModalVisible,
+  } = useAnimatedModalState(lessonContentModalSource);
+  const {
+    renderValue: animatedAttendanceRow,
+    isVisible: isAttendanceModalVisible,
+  } = useAnimatedModalState(selectedAttendanceRow);
+  const {
+    renderValue: animatedMasteryRow,
+    isVisible: isMasteryModalVisible,
+  } = useAnimatedModalState(selectedMasteryRow);
+  const {
+    renderValue: animatedStudentRow,
+    isVisible: isStudentModalVisible,
+  } = useAnimatedModalState(selectedStudentRow);
 
   const formatPlaybackTime = (value) => {
     const totalSeconds = Math.max(0, Math.round(Number(value || 0)));
@@ -3942,24 +4834,32 @@ export default function TeacherPage() {
 
       <StatGrid>
         <StatCard>
-          <StatLabel>{t("teacher.stats.courses")}</StatLabel>
-          <StatValue>{teacherCourses.length}</StatValue>
-          <StatSub>{t("teacher.stats.managedCourses")}</StatSub>
+          <StatIconSlot><BookOpen size={14} /></StatIconSlot>
+          <StatCardBody>
+            <StatValue>{teacherCourses.length}</StatValue>
+            <StatLabel>{t("teacher.stats.courses")}</StatLabel>
+          </StatCardBody>
         </StatCard>
         <StatCard>
-          <StatLabel>{t("teacher.stats.students")}</StatLabel>
-          <StatValue>{totalStudents}</StatValue>
-          <StatSub>{t("teacher.stats.approved")}</StatSub>
+          <StatIconSlot><Users size={14} /></StatIconSlot>
+          <StatCardBody>
+            <StatValue>{totalStudents}</StatValue>
+            <StatLabel>{t("teacher.stats.students")}</StatLabel>
+          </StatCardBody>
         </StatCard>
         <StatCard>
-          <StatLabel>{t("teacher.stats.lessons")}</StatLabel>
-          <StatValue>{totalLessons}</StatValue>
-          <StatSub>{t("teacher.stats.published")}</StatSub>
+          <StatIconSlot><FileText size={14} /></StatIconSlot>
+          <StatCardBody>
+            <StatValue>{totalLessons}</StatValue>
+            <StatLabel>{t("teacher.stats.lessons")}</StatLabel>
+          </StatCardBody>
         </StatCard>
         <StatCard>
-          <StatLabel>{t("teacher.stats.pending")}</StatLabel>
-          <StatValue>{totalPending}</StatValue>
-          <StatSub>{t("teacher.stats.awaitingApproval")}</StatSub>
+          <StatIconSlot><ClipboardCheck size={14} /></StatIconSlot>
+          <StatCardBody>
+            <StatValue>{totalPending}</StatValue>
+            <StatLabel>{t("teacher.stats.pending")}</StatLabel>
+          </StatCardBody>
         </StatCard>
       </StatGrid>
 
@@ -4075,6 +4975,160 @@ export default function TeacherPage() {
 
   const renderCourses = () => (
     <FillPane>
+      {!selectedCourse ? (
+        <CourseTableCard>
+          <StudentTableHeader>
+            <StudentTableToolbar>
+              <TableHeaderTop>
+                <StudentTableInfo>
+                  <StudentTableTitle>
+                    {t("teacher.nav.courses", {
+                      defaultValue: "Kurslar",
+                    })}
+                  </StudentTableTitle>
+                  <StudentTableSubtitle>
+                    {t("teacher.workspace.coursesSubtitle", {
+                      defaultValue:
+                        "Kursni tanlang va uning ichidagi darslar jadvaliga o‘ting.",
+                    })}
+                  </StudentTableSubtitle>
+                </StudentTableInfo>
+
+                <PrimaryButton type="button" onClick={() => setCreateOpen(true)}>
+                  <Plus size={15} />
+                  {t("teacher.workspace.addCourseMenu", {
+                    defaultValue: "Yangi qo'shish",
+                  })}
+                </PrimaryButton>
+              </TableHeaderTop>
+
+              <StudentTableControls>
+                <StudentSearchWrap>
+                  <StudentSearchIcon>
+                    <Search size={16} />
+                  </StudentSearchIcon>
+                  <StudentSearchInput
+                    value={search}
+                    onChange={(event) => setSearch(event.target.value)}
+                    placeholder={t("teacher.courses.search")}
+                  />
+                </StudentSearchWrap>
+              </StudentTableControls>
+            </StudentTableToolbar>
+          </StudentTableHeader>
+
+          <StudentTableScroll>
+            <StudentTableGrid>
+              <StudentTableHeadRow>
+                <StudentTableHeadCell>
+                  {t("teacher.nav.courses", { defaultValue: "Kurslar" })}
+                  <StudentCountBadge>{filteredCourses.length}</StudentCountBadge>
+                </StudentTableHeadCell>
+                <StudentTableHeadCell>
+                  {t("teacher.workspace.lessonDescriptionLabel", {
+                    defaultValue: "Tavsif",
+                  })}
+                </StudentTableHeadCell>
+                <StudentTableHeadCell>
+                  {t("teacher.table.lessons", { defaultValue: "Darslar" })}
+                </StudentTableHeadCell>
+                <StudentTableHeadCell>
+                  {t("teacher.table.students", { defaultValue: "O'quvchilar" })}
+                </StudentTableHeadCell>
+                <StudentTableHeadCell>
+                  {t("teacher.table.access", { defaultValue: "Ruxsat" })}
+                </StudentTableHeadCell>
+                <StudentTableHeadCell />
+              </StudentTableHeadRow>
+
+              <StudentTableBody>
+                {filteredCourses.map((course, index) => {
+                  const courseId = getCourseId(course);
+                  return (
+                    <StudentTableRow
+                      key={courseId || index}
+                      type="button"
+                      onClick={() => openCourseWorkspace(courseId)}
+                    >
+                      <StudentCell>
+                        <CourseCellWrap>
+                          <CourseMiniThumb>
+                            {course.image ? (
+                              <CourseMiniImage src={course.image} alt={course.title || course.name} />
+                            ) : (
+                              <BookOpen size={16} />
+                            )}
+                          </CourseMiniThumb>
+                          <CourseCellMeta>
+                            <CourseCellTitle>{course.title || course.name}</CourseCellTitle>
+                            <CourseCellSub>
+                              {course.category || t("teacher.table.course")}
+                            </CourseCellSub>
+                          </CourseCellMeta>
+                        </CourseCellWrap>
+                      </StudentCell>
+
+                      <StudentCell data-label="Tavsif">
+                        <DateCellText>
+                          {(course.description || "").trim() ||
+                            t("teacher.workspace.lessonDescriptionFallback", {
+                              defaultValue: "Bu kurs uchun tavsif kiritilmagan.",
+                            })}
+                        </DateCellText>
+                      </StudentCell>
+
+                      <StudentCell data-label="Darslar">
+                        <CellValue>{course.lessons?.length || 0}</CellValue>
+                      </StudentCell>
+
+                      <StudentCell data-label="O'quvchilar">
+                        <CellValue>{getApprovedMembers(course).length}</CellValue>
+                      </StudentCell>
+
+                      <StudentCell data-label="Ruxsat">
+                        <CourseAccessPill>
+                          {formatEnrollmentPlan(course, t)}
+                        </CourseAccessPill>
+                      </StudentCell>
+
+                      <CourseActionCell onClick={(event) => event.stopPropagation()}>
+                        <CourseMenuButton
+                          type="button"
+                          title={t("common.edit")}
+                          aria-label={t("common.edit")}
+                          onClick={() => openCourseWorkspace(courseId)}
+                        >
+                          <Pencil size={15} />
+                        </CourseMenuButton>
+
+                        <CourseMenuButton
+                          type="button"
+                          title={t("common.delete")}
+                          aria-label={t("common.delete")}
+                          $tone="danger"
+                          onClick={() => setCourseToDelete(course)}
+                        >
+                          <Trash2 size={15} />
+                        </CourseMenuButton>
+                      </CourseActionCell>
+                    </StudentTableRow>
+                  );
+                })}
+
+                {!filteredCourses.length ? (
+                  <TableEmptyState>
+                    {search
+                      ? t("teacher.courses.noResults")
+                      : t("teacher.courses.empty")}
+                  </TableEmptyState>
+                ) : null}
+              </StudentTableBody>
+            </StudentTableGrid>
+          </StudentTableScroll>
+        </CourseTableCard>
+      ) : null}
+
+      {selectedCourse ? (
       <CourseTableCard>
         <StudentTableHeader>
           <StudentTableToolbar>
@@ -4093,12 +5147,21 @@ export default function TeacherPage() {
                 </StudentTableSubtitle>
               </StudentTableInfo>
 
-              <PrimaryButton type="button" onClick={openCourseLessonCreator}>
-                <Plus size={15} />
-                {t("teacher.workspace.addLesson", {
-                  defaultValue: "Yangi dars qo'shish",
-                })}
-              </PrimaryButton>
+              <ActionRow>
+                <GhostButton type="button" onClick={handleBackToCourses}>
+                  <ChevronLeft size={16} />
+                  {t("common.back", {
+                    defaultValue: "Orqaga",
+                  })}
+                </GhostButton>
+
+                <PrimaryButton type="button" onClick={openCourseLessonCreator}>
+                  <Plus size={15} />
+                  {t("teacher.workspace.addLesson", {
+                    defaultValue: "Yangi dars qo'shish",
+                  })}
+                </PrimaryButton>
+              </ActionRow>
             </TableHeaderTop>
 
             <StudentTableControls>
@@ -4186,7 +5249,7 @@ export default function TeacherPage() {
                       </CourseIdentity>
                     </CourseTableCell>
 
-                    <CourseTableCell>
+                    <CourseTableCell data-label="Tavsif">
                       <DateCellText>
                         {(lesson.description || "").trim() ||
                           t("teacher.workspace.lessonDescriptionFallback", {
@@ -4195,7 +5258,7 @@ export default function TeacherPage() {
                       </DateCellText>
                     </CourseTableCell>
 
-                    <CourseTableCell>
+                    <CourseTableCell data-label="Holati">
                       <CourseAccessPill>
                         {lessonStatus === "draft"
                           ? t("coursePlayer.playlist.draft", {
@@ -4207,11 +5270,11 @@ export default function TeacherPage() {
                       </CourseAccessPill>
                     </CourseTableCell>
 
-                    <CourseTableCell>
+                    <CourseTableCell data-label="Media">
                       <CourseMetricText>{lessonMediaCount}</CourseMetricText>
                     </CourseTableCell>
 
-                    <CourseTableCell>
+                    <CourseTableCell data-label="Kontent">
                       <DateCellText>
                         {t("teacher.workspace.lessonContentSummary", {
                           defaultValue: "Video, material, uyga vazifa, test",
@@ -4264,8 +5327,7 @@ export default function TeacherPage() {
           </CourseTableGrid>
         </StudentTableScroll>
       </CourseTableCard>
-
-    
+      ) : null}
     </FillPane>
   );
 
@@ -4319,7 +5381,7 @@ export default function TeacherPage() {
 
         <StudentTableScroll>
           <StudentTableGrid>
-            <StudentTableHeadRow>
+            <StudentTableHeadRow $withActions>
               <StudentTableHeadCell>
                 {t("teacher.nav.students")}{" "}
                 <StudentCountBadge>{filteredStudentCount}</StudentCountBadge>
@@ -4348,6 +5410,9 @@ export default function TeacherPage() {
                 {t("teacher.workspace.joinedAt", {
                   defaultValue: "Kirish muddati",
                 })}
+              </StudentTableHeadCell>
+              <StudentTableHeadCell>
+                {t("common.actions", { defaultValue: "Amallar" })}
               </StudentTableHeadCell>
             </StudentTableHeadRow>
 
@@ -4378,6 +5443,7 @@ export default function TeacherPage() {
                   <StudentTableRow
                     key={row.id}
                     type="button"
+                    $withActions
                     onClick={() => {
                       setSelectedStudentRow(row);
                       setStudentModalTab("overview");
@@ -4397,7 +5463,7 @@ export default function TeacherPage() {
                       </StudentIdentity>
                     </StudentCell>
 
-                    <StudentCell>
+                    <StudentCell data-label="Kurs">
                       <CourseCellWrap>
                         <CourseMiniThumb>
                           {row.course.image ? (
@@ -4418,7 +5484,7 @@ export default function TeacherPage() {
                       </CourseCellWrap>
                     </StudentCell>
 
-                    <StudentCell>
+                    <StudentCell data-label="Progress">
                       <ProgressCell>
                         <ProgressRing viewBox="0 0 32 32" aria-hidden="true">
                           <circle
@@ -4445,17 +5511,38 @@ export default function TeacherPage() {
                       </ProgressCell>
                     </StudentCell>
 
-                    <StudentCell>
+                    <StudentCell data-label="Joriy dars">
                       <DateCellText>{row.currentLessonTitle || "—"}</DateCellText>
                     </StudentCell>
 
-                    <StudentCell>
+                    <StudentCell data-label="Tarif">
                       <TariffPill>{row.tariffLabel}</TariffPill>
                     </StudentCell>
 
-                    <StudentCell>
+                    <StudentCell data-label="Kirish">
                       <DateCellText>{formatShortDate(row.joinedAt)}</DateCellText>
                     </StudentCell>
+
+                    <CourseActionCell onClick={(event) => event.stopPropagation()}>
+                      <CourseMenuButton
+                        type="button"
+                        title={t("teacher.students.kick", {
+                          defaultValue: "Kick qilish",
+                        })}
+                        aria-label={t("teacher.students.kick", {
+                          defaultValue: "Kick qilish",
+                        })}
+                        $tone="danger"
+                        onClick={() =>
+                          handleRemoveStudent(
+                            getCourseId(row.course),
+                            row.memberId || row.studentId,
+                          )
+                        }
+                      >
+                        <UserX size={15} />
+                      </CourseMenuButton>
+                    </CourseActionCell>
                   </StudentTableRow>
                 );
               })}
@@ -4589,7 +5676,7 @@ export default function TeacherPage() {
                       </StudentIdentity>
                     </StudentCell>
 
-                    <StudentCell>
+                    <StudentCell data-label="Kurs">
                       <CourseCellWrap>
                         <CourseMiniThumb>
                           {row.course.image ? (
@@ -4610,23 +5697,23 @@ export default function TeacherPage() {
                       </CourseCellWrap>
                     </StudentCell>
 
-                    <StudentCell>
+                    <StudentCell data-label="Davomat">
                       <ProgressCell>
                         <ProgressValue>{row.attendancePercent}%</ProgressValue>
                       </ProgressCell>
                     </StudentCell>
 
-                    <StudentCell>
+                    <StudentCell data-label="Darslar">
                       <DateCellText>
                         {row.activeLessons}/{row.totalLessons}
                       </DateCellText>
                     </StudentCell>
 
-                    <StudentCell>
+                    <StudentCell data-label="Oxirgi faollik">
                       <DateCellText>{formatShortDate(row.lastActivityAt)}</DateCellText>
                     </StudentCell>
 
-                    <StudentCell>
+                    <StudentCell data-label="Tarif">
                       <TariffPill>{row.tariffLabel}</TariffPill>
                     </StudentCell>
                   </StudentTableRow>
@@ -4759,7 +5846,7 @@ export default function TeacherPage() {
                       </StudentIdentity>
                     </StudentCell>
 
-                    <StudentCell>
+                    <StudentCell data-label="Kurs">
                       <CourseCellWrap>
                         <CourseMiniThumb>
                           {row.course.image ? (
@@ -4780,23 +5867,23 @@ export default function TeacherPage() {
                       </CourseCellWrap>
                     </StudentCell>
 
-                    <StudentCell>
+                    <StudentCell data-label="O'zlashtirish">
                       <ProgressCell>
                         <ProgressValue>{row.masteryPercent}%</ProgressValue>
                       </ProgressCell>
                     </StudentCell>
 
-                    <StudentCell>
+                    <StudentCell data-label="Tugallangan">
                       <DateCellText>
                         {row.completedLessons}/{row.totalLessons}
                       </DateCellText>
                     </StudentCell>
 
-                    <StudentCell>
+                    <StudentCell data-label="O'rtacha progress">
                       <DateCellText>{row.averageProgressPercent}%</DateCellText>
                     </StudentCell>
 
-                    <StudentCell>
+                    <StudentCell data-label="Joriy dars">
                       <DateCellText>{row.currentLessonTitle || "—"}</DateCellText>
                     </StudentCell>
                   </StudentTableRow>
@@ -4818,144 +5905,389 @@ export default function TeacherPage() {
     </FillPane>
   );
 
+  const renderTests = () => (
+    <ArenaTeacherPane>
+      <StudentTableCard $noClip>
+        <StudentTableHeader>
+          <StudentTableToolbar>
+            <TableHeaderTop>
+              <StudentTableInfo>
+                <StudentTableTitle>
+                  {t("teacher.nav.tests", {
+                    defaultValue: "Testlar",
+                  })}
+                </StudentTableTitle>
+                <StudentTableSubtitle>
+                  {t("teacher.workspace.testsSubtitle", {
+                    defaultValue:
+                      "Arena bo'limidagi testlaringiz shu yerda kartalar ko'rinishida chiqadi.",
+                  })}
+                </StudentTableSubtitle>
+              </StudentTableInfo>
+
+              <PrimaryButton
+                type="button"
+                onClick={() => {
+                  setTestEditingItem(null);
+                  setShowTestDialog(true);
+                }}
+              >
+                <Plus size={15} />
+                {t("common.add", {
+                  defaultValue: "Yangi qo'shish",
+                })}
+              </PrimaryButton>
+            </TableHeaderTop>
+          </StudentTableToolbar>
+        </StudentTableHeader>
+
+        <ArenaTeacherBody>
+          {testsLoading ? (
+            <ArenaTeacherEmpty>
+              {t("common.loading", {
+                defaultValue: "Yuklanmoqda...",
+              })}
+            </ArenaTeacherEmpty>
+          ) : teacherTests.length ? (
+            <ArenaTeacherGrid>
+              {teacherTests.map((test) => (
+                <ArenaTeacherCard
+                  key={test._id || test.id || test.urlSlug}
+                  $raised={teacherArenaMenuId === `test-${test._id || test.id}`}
+                  type="button"
+                  onClick={() =>
+                    navigate(`/arena/quiz/${test.urlSlug || test._id || test.id}`)
+                  }
+                >
+                  <ArenaTeacherCardTop>
+                    <ArenaTeacherCardTitle>{test.title}</ArenaTeacherCardTitle>
+                    <ArenaTeacherMenuWrap
+                      onClick={(event) => event.stopPropagation()}
+                    >
+                      <ArenaTeacherMenuButton
+                        type="button"
+                        onClick={() =>
+                          setTeacherArenaMenuId((prev) =>
+                            prev === `test-${test._id || test.id}`
+                              ? null
+                              : `test-${test._id || test.id}`,
+                          )
+                        }
+                      >
+                        <MoreHorizontal size={16} />
+                      </ArenaTeacherMenuButton>
+                      {teacherArenaMenuId === `test-${test._id || test.id}` ? (
+                        <ArenaTeacherMenuDropdown
+                          onClick={(event) => event.stopPropagation()}
+                        >
+                          <ArenaTeacherMenuItem
+                            type="button"
+                            onClick={() => {
+                              navigate(
+                                `/arena/quiz/${test.urlSlug || test._id || test.id}`,
+                              );
+                              setTeacherArenaMenuId(null);
+                            }}
+                          >
+                            <Eye size={14} />
+                            {t("common.open", {
+                              defaultValue: "Ochish",
+                            })}
+                          </ArenaTeacherMenuItem>
+                          <ArenaTeacherMenuItem
+                            type="button"
+                            onClick={() => {
+                              setTestEditingItem(test);
+                              setShowTestDialog(true);
+                              setTeacherArenaMenuId(null);
+                            }}
+                          >
+                            <Pencil size={14} />
+                            {t("common.edit", { defaultValue: "Tahrirlash" })}
+                          </ArenaTeacherMenuItem>
+                          <ArenaTeacherMenuItem
+                            type="button"
+                            onClick={() => openTestShareDialog(test)}
+                          >
+                            <Link2 size={14} />
+                            {t("teacher.workspace.createLink", { defaultValue: "Havola yaratish" })}
+                          </ArenaTeacherMenuItem>
+                          <ArenaTeacherMenuItem
+                            type="button"
+                            onClick={() => {
+                              setTeacherArenaMenuId(null);
+                              setSelectedTestForResults(test);
+                            }}
+                          >
+                            <BarChart3 size={14} />
+                            {t("teacher.workspace.viewResults", { defaultValue: "Natijalarni ko'rish" })}
+                          </ArenaTeacherMenuItem>
+                          <ArenaTeacherMenuItem
+                            type="button"
+                            $danger
+                            onClick={() => {
+                              setTeacherTestToDelete(test);
+                              setTeacherArenaMenuId(null);
+                            }}
+                          >
+                            <Trash2 size={14} />
+                            {t("common.delete", { defaultValue: "O'chirish" })}
+                          </ArenaTeacherMenuItem>
+                        </ArenaTeacherMenuDropdown>
+                      ) : null}
+                    </ArenaTeacherMenuWrap>
+                  </ArenaTeacherCardTop>
+                  <ArenaTeacherCardDesc>
+                    {test.description ||
+                      t("teacher.workspace.noDescription", {
+                        defaultValue: "Tavsif yo'q",
+                      })}
+                  </ArenaTeacherCardDesc>
+                  <ArenaTeacherMeta>
+                    {t("teacher.workspace.questionsCount", {
+                      defaultValue: "Savollar soni: {{count}}",
+                      count: test.questions?.length || 0,
+                    })}
+                  </ArenaTeacherMeta>
+                  <ArenaTeacherMeta>
+                    {t("teacher.workspace.creatorLabel", {
+                      defaultValue: "Tuzuvchi: {{name}}",
+                      name:
+                        test.createdBy?.nickname ||
+                        test.createdBy?.username ||
+                        currentUserName,
+                    })}
+                  </ArenaTeacherMeta>
+                  <ArenaTeacherHint>
+                    <ClipboardCheck size={14} />
+                    {t("teacher.workspace.openArenaCard", {
+                      defaultValue: "Ochish uchun kartani bosing",
+                    })}
+                  </ArenaTeacherHint>
+                </ArenaTeacherCard>
+              ))}
+            </ArenaTeacherGrid>
+          ) : (
+            <ArenaTeacherEmpty>
+              {t("teacher.workspace.noTestsYet", {
+                defaultValue: "Hozircha testlar mavjud emas.",
+              })}
+            </ArenaTeacherEmpty>
+          )}
+        </ArenaTeacherBody>
+      </StudentTableCard>
+    </ArenaTeacherPane>
+  );
+
+  const sbShareLimit = isPremiumUser(currentUser)
+    ? APP_LIMITS.sentenceBuilderShareLinksPerDeck.premium
+    : APP_LIMITS.sentenceBuilderShareLinksPerDeck.ordinary;
+
+  const testShareLimit = isPremiumUser(currentUser)
+    ? APP_LIMITS.testShareLinksPerTest.premium
+    : APP_LIMITS.testShareLinksPerTest.ordinary;
+
+  const normalizedResultItems = useMemo(
+    () =>
+      (resultsData || []).map((attempt, attemptIndex) => ({
+        id: attempt._id || `${attempt.participantName}-${attempt.createdAt}-${attemptIndex}`,
+        participantName: attempt.participantName || "Foydalanuvchi",
+        groupName: attempt.groupName || "",
+        createdAt: attempt.createdAt,
+        score: Number(attempt.score || 0),
+        total: Number(attempt.total || 0),
+        accuracy: Number(attempt.accuracy || 0),
+        breakdowns: (attempt.items || []).map((item, itemIndex) => ({
+          questionIndex: item.questionIndex !== undefined ? item.questionIndex : itemIndex,
+          prompt: item.prompt || `Savol #${itemIndex + 1}`,
+          isCorrect: Boolean(item.isCorrect),
+          selectedTokens: item.selectedTokens || [],
+          expectedTokens: item.expectedTokens || [],
+          mistakes: item.mistakes || [],
+        })),
+      })),
+    [resultsData],
+  );
+
+  const renderSentenceBuilder = () => (
+    <ArenaTeacherPane>
+      <StudentTableCard $noClip>
+        <StudentTableHeader>
+          <StudentTableToolbar>
+            <TableHeaderTop>
+              <StudentTableInfo>
+                <StudentTableTitle>
+                  {t("teacher.nav.sentenceBuilder", {
+                    defaultValue: "Gap tuzish",
+                  })}
+                </StudentTableTitle>
+                <StudentTableSubtitle>
+                  {t("teacher.workspace.sentenceBuilderSubtitle", {
+                    defaultValue:
+                      "Arena bo'limidagi gap tuzish decklari shu yerda kartalar ko'rinishida chiqadi.",
+                  })}
+                </StudentTableSubtitle>
+              </StudentTableInfo>
+
+              <PrimaryButton
+                type="button"
+                onClick={() => {
+                  setSbEditingDeck(null);
+                  setShowSbDialog(true);
+                }}
+              >
+                <Plus size={15} />
+                {t("common.add", {
+                  defaultValue: "Yangi qo'shish",
+                })}
+              </PrimaryButton>
+            </TableHeaderTop>
+          </StudentTableToolbar>
+        </StudentTableHeader>
+
+        <ArenaTeacherBody>
+          {sentenceBuildersLoading ? (
+            <ArenaTeacherEmpty>
+              {t("common.loading", {
+                defaultValue: "Yuklanmoqda...",
+              })}
+            </ArenaTeacherEmpty>
+          ) : teacherSentenceBuilders.length ? (
+            <ArenaTeacherGrid>
+              {teacherSentenceBuilders.map((deck) => (
+                <ArenaTeacherCard
+                  key={deck._id || deck.id || deck.shortCode}
+                  $raised={
+                    teacherArenaMenuId ===
+                    `sentence-${deck._id || deck.id || deck.shortCode}`
+                  }
+                  type="button"
+                  onClick={() =>
+                    navigate(
+                      `/arena/sentence-builder/${deck.shortCode || deck._id || deck.id}`,
+                    )
+                  }
+                >
+                  <ArenaTeacherCardTop>
+                    <ArenaTeacherCardTitle>{deck.title}</ArenaTeacherCardTitle>
+                    <ArenaTeacherMenuWrap
+                      onClick={(event) => event.stopPropagation()}
+                    >
+                      <ArenaTeacherMenuButton
+                        type="button"
+                        onClick={() =>
+                          setTeacherArenaMenuId((prev) =>
+                            prev ===
+                            `sentence-${deck._id || deck.id || deck.shortCode}`
+                              ? null
+                              : `sentence-${deck._id || deck.id || deck.shortCode}`,
+                          )
+                        }
+                      >
+                        <MoreHorizontal size={16} />
+                      </ArenaTeacherMenuButton>
+                      {teacherArenaMenuId ===
+                      `sentence-${deck._id || deck.id || deck.shortCode}` ? (
+                        <ArenaTeacherMenuDropdown
+                          onClick={(event) => event.stopPropagation()}
+                        >
+                          <ArenaTeacherMenuItem
+                            type="button"
+                            onClick={() => {
+                              navigate(
+                                `/arena/sentence-builder/${
+                                  deck.shortCode || deck._id || deck.id
+                                }`,
+                              );
+                              setTeacherArenaMenuId(null);
+                            }}
+                          >
+                            <Eye size={14} />
+                            {t("common.open", { defaultValue: "Ochish" })}
+                          </ArenaTeacherMenuItem>
+                          <ArenaTeacherMenuItem
+                            type="button"
+                            onClick={() => {
+                              setSbEditingDeck(deck);
+                              setShowSbDialog(true);
+                              setTeacherArenaMenuId(null);
+                            }}
+                          >
+                            <Pencil size={14} />
+                            {t("common.edit", { defaultValue: "Tahrirlash" })}
+                          </ArenaTeacherMenuItem>
+                          <ArenaTeacherMenuItem
+                            type="button"
+                            onClick={() => openShareDialog(deck)}
+                          >
+                            <Link2 size={14} />
+                            {t("teacher.workspace.createLink", { defaultValue: "Havola yaratish" })}
+                          </ArenaTeacherMenuItem>
+                          <ArenaTeacherMenuItem
+                            type="button"
+                            onClick={() => handleLoadResults(deck)}
+                          >
+                            <BarChart3 size={14} />
+                            {t("teacher.workspace.viewResults", { defaultValue: "Natijalarni ko'rish" })}
+                          </ArenaTeacherMenuItem>
+                          <ArenaTeacherMenuItem
+                            type="button"
+                            $danger
+                            onClick={() => {
+                              setTeacherSentenceBuilderToDelete(deck);
+                              setTeacherArenaMenuId(null);
+                            }}
+                          >
+                            <Trash2 size={14} />
+                            {t("common.delete", { defaultValue: "O'chirish" })}
+                          </ArenaTeacherMenuItem>
+                        </ArenaTeacherMenuDropdown>
+                      ) : null}
+                    </ArenaTeacherMenuWrap>
+                  </ArenaTeacherCardTop>
+                  <ArenaTeacherCardDesc>
+                    {deck.description ||
+                      t("teacher.workspace.noDescription", {
+                        defaultValue: "Tavsif yo'q",
+                      })}
+                  </ArenaTeacherCardDesc>
+                  <ArenaTeacherMeta>
+                    {t("teacher.workspace.questionsCount", {
+                      defaultValue: "Savollar soni: {{count}}",
+                      count: deck.items?.length || 0,
+                    })}
+                  </ArenaTeacherMeta>
+                  <ArenaTeacherHint>
+                    <Type size={14} />
+                    {t("teacher.workspace.openArenaCard", {
+                      defaultValue: "Ochish uchun kartani bosing",
+                    })}
+                  </ArenaTeacherHint>
+                </ArenaTeacherCard>
+              ))}
+            </ArenaTeacherGrid>
+          ) : (
+            <ArenaTeacherEmpty>
+              {t("teacher.workspace.noSentenceBuildersYet", {
+                defaultValue: "Hozircha gap tuzish decklari mavjud emas.",
+              })}
+            </ArenaTeacherEmpty>
+          )}
+        </ArenaTeacherBody>
+      </StudentTableCard>
+    </ArenaTeacherPane>
+  );
+
   return (
     <Shell>
       <Layout>
         <Sidebar>
-          <SidebarShell>
-            <SidebarMenu>
-              <SidebarCard>
-                <SidebarCardBody>
-                  <BrandRow>
-                    <BrandIdentity>
-                      <BrandLogo>
-                        <Shield size={15} />
-                      </BrandLogo>
-                      <BrandMeta>
-                        <BrandName>{t("teacher.brand")}</BrandName>
-                      </BrandMeta>
-                    </BrandIdentity>
-                  </BrandRow>
-
-                 
-                </SidebarCardBody>
-
-                <SidebarDivider />
-
-                <SidebarCardBody>
-                  <MenuGroup>
-                    <GroupTitle>
-                      {t("teacher.workspace.menu", {
-                        defaultValue: "Menu",
-                      })}
-                    </GroupTitle>
-                    <NavList>
-                      {NAV_ITEMS.map(({ id, icon: Icon }) =>
-                        id === "courses" ? (
-                          <SidebarCoursesWrap key={id}>
-                            <NavButton
-                              type="button"
-                              $active={activeSection === id}
-                              $collapsed={false}
-                              onClick={() => {
-                                setActiveSection("courses");
-                                setCoursesMenuExpanded((prev) => !prev);
-                              }}
-                            >
-                              <Icon size={16} />
-                              <NavText>{t(`teacher.nav.${id}`)}</NavText>
-                              <NavButtonAside $expanded={coursesMenuExpanded}>
-                                <ChevronDown size={15} />
-                              </NavButtonAside>
-                            </NavButton>
-
-                            <CourseAccordion $expanded={coursesMenuExpanded}>
-                              <CourseAccordionInner>
-                                {teacherCourses.map((course) => {
-                                  const courseId = getCourseId(course);
-                                  const isActive =
-                                    activeSection === "courses" &&
-                                    courseId === String(selectedCourseId || "");
-
-                                  return (
-                                    <CourseAccordionItem
-                                      key={courseId}
-                                      type="button"
-                                      $active={isActive}
-                                      onClick={() => {
-                                        setActiveSection("courses");
-                                        setSelectedCourseId(courseId);
-                                      }}
-                                    >
-                                      <CourseAccordionTitle>
-                                        {course.title || course.name}
-                                      </CourseAccordionTitle>
-                                      <CourseAccordionMeta>
-                                        {course.lessons?.length || 0}
-                                      </CourseAccordionMeta>
-                                    </CourseAccordionItem>
-                                  );
-                                })}
-
-                                <CourseAccordionItem
-                                  type="button"
-                                  $active={false}
-                                  onClick={() => {
-                                    setActiveSection("courses");
-                                    setCreateOpen(true);
-                                  }}
-                                >
-                                  <CourseAccordionTitle>
-                                    {t("teacher.workspace.addCourseMenu", {
-                                      defaultValue: "Yangi qo'shish",
-                                    })}
-                                  </CourseAccordionTitle>
-                                  <CourseAccordionMeta>
-                                    <Plus size={14} />
-                                  </CourseAccordionMeta>
-                                </CourseAccordionItem>
-                              </CourseAccordionInner>
-                            </CourseAccordion>
-                          </SidebarCoursesWrap>
-                        ) : (
-                          <NavButton
-                            key={id}
-                            type="button"
-                            $active={activeSection === id}
-                            $collapsed={false}
-                            onClick={() => setActiveSection(id)}
-                          >
-                            <Icon size={16} />
-                            <NavText>{t(`teacher.nav.${id}`)}</NavText>
-                          </NavButton>
-                        ),
-                      )}
-                    </NavList>
-                  </MenuGroup>
-                </SidebarCardBody>
-
-                <SidebarDivider />
-
-                <ProfileCard>
-                  <ProfileAvatar>
-                    {currentUser?.avatar ? (
-                      <AvatarImage src={currentUser.avatar} alt={currentUserName} />
-                    ) : (
-                      currentUserInitial
-                    )}
-                  </ProfileAvatar>
-                  <ProfileMeta>
-                    <ProfileName>{currentUserName}</ProfileName>
-                    <ProfileSub>
-                      {t("teacher.workspace.instructorMode", {
-                        defaultValue: "Instructor mode",
-                      })}
-                    </ProfileSub>
-                  </ProfileMeta>
-                </ProfileCard>
-              </SidebarCard>
-            </SidebarMenu>
-          </SidebarShell>
+          <TeacherSidebarExpanded
+            activeNav={activeSection}
+            onSelectNav={handleSectionChange}
+            displayName={currentUserName}
+            avatar={currentUser?.avatar}
+          />
         </Sidebar>
 
         <Main>
@@ -4965,6 +6297,8 @@ export default function TeacherPage() {
             {activeSection === "students" ? renderStudents() : null}
             {activeSection === "attendance" ? renderAttendance() : null}
             {activeSection === "mastery" ? renderMastery() : null}
+            {activeSection === "tests" ? renderTests() : null}
+            {activeSection === "sentenceBuilder" ? renderSentenceBuilder() : null}
           </MainScroll>
         </Main>
       </Layout>
@@ -4977,6 +6311,7 @@ export default function TeacherPage() {
             setCreateOpen(false);
             setSelectedCourseId(String(courseId));
             setActiveSection("courses");
+            navigate(`/teacher/courses/${courseId}`);
           }}
         />
       </Suspense>
@@ -5036,10 +6371,156 @@ export default function TeacherPage() {
         isDanger
       />
 
+      <ConfirmDialog
+        isOpen={!!teacherTestToDelete}
+        onClose={() => {
+          if (!isDeletingArenaItem) {
+            setTeacherTestToDelete(null);
+          }
+        }}
+        title={t("teacher.workspace.deleteTestTitle", {
+          defaultValue: "Testni o'chirish",
+        })}
+        description={t("teacher.workspace.deleteTestText", {
+          defaultValue: "Bu test butunlay o'chiriladi. Bu amalni bekor qilib bo'lmaydi.",
+        })}
+        confirmText={isDeletingArenaItem ? t("common.saving") : t("common.delete")}
+        cancelText={t("common.cancel")}
+        onConfirm={handleDeleteTeacherTest}
+        isDanger
+      />
+
+      <ConfirmDialog
+        isOpen={!!teacherSentenceBuilderToDelete}
+        onClose={() => {
+          if (!isDeletingArenaItem) {
+            setTeacherSentenceBuilderToDelete(null);
+          }
+        }}
+        title={t("teacher.workspace.deleteSentenceBuilderTitle", {
+          defaultValue: "Gap tuzish deckini o'chirish",
+        })}
+        description={t("teacher.workspace.deleteSentenceBuilderText", {
+          defaultValue:
+            "Bu gap tuzish decki butunlay o'chiriladi. Bu amalni bekor qilib bo'lmaydi.",
+        })}
+        confirmText={isDeletingArenaItem ? t("common.saving") : t("common.delete")}
+        cancelText={t("common.cancel")}
+        onConfirm={handleDeleteTeacherSentenceBuilder}
+        isDanger
+      />
+
       <Suspense fallback={null}>
-        {selectedCourse && selectedLessonContent ? (
-          <StudentModalOverlay onClick={closeLessonContentManager}>
-            <LessonContentModalPanel onClick={(event) => event.stopPropagation()}>
+        {/* ── Sentence builder dialogs ── */}
+        {showSbDialog && (
+          <CreateSentenceBuilderDialog
+            initialDeck={sbEditingDeck}
+            onClose={() => {
+              setShowSbDialog(false);
+              setSbEditingDeck(null);
+              refreshSentenceBuilders();
+            }}
+          />
+        )}
+        {resultsDeck && (
+          <ArenaResultsPane
+            title="Gap tuzish natijalari"
+            subtitle={`"${resultsDeck.title}" bo'yicha ishlagan talabalar, ularning to'g'ri javoblari va har bir bo'lakdagi xatolari.`}
+            searchPlaceholder="Talaba yoki guruh qidirish..."
+            loading={loadingResults}
+            results={normalizedResultItems}
+            onClose={() => setResultsDeck(null)}
+          />
+        )}
+        <ShareLinksDialog
+          isOpen={Boolean(shareDeck)}
+          onClose={() => {
+            setShareDeck(null);
+            setShareMode("persist");
+            setShareGroupName("");
+            setShareShowResults(true);
+            setShareTimeLimit(0);
+          }}
+          title="Gap tuzish havolasini yaratish"
+          itemTitle={shareDeck?.title || ""}
+          limit={sbShareLimit}
+          currentCount={shareLinks.length}
+          mode={shareMode}
+          onModeChange={setShareMode}
+          groupName={shareGroupName}
+          onGroupNameChange={setShareGroupName}
+          showResults={shareShowResults}
+          onShowResultsChange={setShareShowResults}
+          timeLimit={shareTimeLimit}
+          onTimeLimitChange={setShareTimeLimit}
+          onCreate={handleCreateShareLink}
+          isCreating={creatingShareLink}
+          links={shareLinks}
+          loadingLinks={loadingShareLinks}
+          onCopyLink={handleCopyShareLink}
+          onDeleteLink={handleDeleteShareLink}
+          deletingLinkId={deletingShareLinkId}
+          linkPrefix="/arena/sentence-builder/"
+        />
+
+        {/* ── Test dialogs ── */}
+        <CreateTestDialog
+          isOpen={showTestDialog}
+          onClose={() => {
+            setShowTestDialog(false);
+            setTestEditingItem(null);
+            refreshTests();
+          }}
+          initialTest={testEditingItem}
+        />
+        {selectedTestForResults && (
+          <TestResultsDialog
+            test={selectedTestForResults}
+            onClose={() => setSelectedTestForResults(null)}
+          />
+        )}
+        <ShareLinksDialog
+          isOpen={Boolean(shareTest)}
+          onClose={() => {
+            setShareTest(null);
+            setShareTestMode("persist");
+            setShareTestGroupName("");
+            setShareTestShowResults(true);
+            setShareTestTimeLimit(0);
+          }}
+          title="Test havolasini yaratish"
+          itemTitle={shareTest?.title || ""}
+          limit={testShareLimit}
+          currentCount={shareTestLinks.length}
+          mode={shareTestMode}
+          onModeChange={setShareTestMode}
+          groupName={shareTestGroupName}
+          onGroupNameChange={setShareTestGroupName}
+          showResults={shareTestShowResults}
+          onShowResultsChange={setShareTestShowResults}
+          timeLimit={shareTestTimeLimit}
+          onTimeLimitChange={setShareTestTimeLimit}
+          onCreate={handleCreateTestShareLink}
+          isCreating={creatingTestShareLink}
+          links={shareTestLinks}
+          loadingLinks={loadingTestShareLinks}
+          onCopyLink={handleCopyTestExistingLink}
+          onDeleteLink={handleDeleteTestShareLink}
+          deletingLinkId={deletingTestShareLinkId}
+          linkPrefix="/arena/quiz-link/"
+        />
+      </Suspense>
+
+      <Suspense fallback={null}>
+        {lessonContentModalData ? (
+          <StudentModalOverlay
+            $visible={isLessonContentModalVisible}
+            onClick={closeLessonContentManager}
+          >
+            <LessonContentModalPanel
+              $visible={isLessonContentModalVisible}
+              onClick={(event) => event.stopPropagation()}
+            >
               <LessonContentModalHeader>
                 <LessonContentModalMeta>
                   <LessonContentModalEyebrow>
@@ -5048,13 +6529,14 @@ export default function TeacherPage() {
                     })}
                   </LessonContentModalEyebrow>
                   <LessonContentModalTitle>
-                    {selectedLessonContent.title ||
+                    {lessonContentModalData.lesson.title ||
                       t("teacher.table.lessons", {
                         defaultValue: "Dars",
                       })}
                   </LessonContentModalTitle>
                   <LessonContentModalSubline>
-                    {selectedCourse.title || selectedCourse.name}
+                    {lessonContentModalData.course.title ||
+                      lessonContentModalData.course.name}
                   </LessonContentModalSubline>
                 </LessonContentModalMeta>
 
@@ -5093,10 +6575,15 @@ export default function TeacherPage() {
 
                   {lessonContentModalTab === "content" ? (
                     <TeacherLessonContentWorkspace
-                      key={`${getCourseId(selectedCourse)}-${getLessonId(selectedLessonContent)}`}
-                      courseId={getCourseId(selectedCourse)}
-                      courseTitle={selectedCourse.title || selectedCourse.name}
-                      lesson={selectedLessonContent}
+                      key={`${getCourseId(lessonContentModalData.course)}-${getLessonId(
+                        lessonContentModalData.lesson,
+                      )}`}
+                      courseId={getCourseId(lessonContentModalData.course)}
+                      courseTitle={
+                        lessonContentModalData.course.title ||
+                        lessonContentModalData.course.name
+                      }
+                      lesson={lessonContentModalData.lesson}
                     />
                   ) : (
                     <StudentModalSection>
@@ -5186,7 +6673,7 @@ export default function TeacherPage() {
                                   type="button"
                                   onClick={() => {
                                     setSelectedMasteryLessonFocusId(
-                                      getLessonId(selectedLessonContent),
+                                      getLessonId(lessonContentModalData.lesson),
                                     );
                                     setSelectedMasteryRow(row);
                                   }}
@@ -5222,37 +6709,43 @@ export default function TeacherPage() {
         ) : null}
       </Suspense>
 
-      {selectedAttendanceRow ? (
-        <StudentModalOverlay onClick={() => setSelectedAttendanceRow(null)}>
-          <StudentModalPanel onClick={(event) => event.stopPropagation()}>
+      {animatedAttendanceRow ? (
+        <StudentModalOverlay
+          $visible={isAttendanceModalVisible}
+          onClick={() => setSelectedAttendanceRow(null)}
+        >
+          <StudentModalPanel
+            $visible={isAttendanceModalVisible}
+            onClick={(event) => event.stopPropagation()}
+          >
             <StudentModalHeader>
               <StudentModalTop>
                 <StudentModalIdentity>
-                  <StudentModalAvatar $seed={selectedAttendanceRow.studentId?.length || 0}>
+                  <StudentModalAvatar $seed={animatedAttendanceRow.studentId?.length || 0}>
                     <AvatarImageWithFallback
-                      src={selectedAttendanceRow.avatar}
-                      alt={selectedAttendanceRow.name}
+                      src={animatedAttendanceRow.avatar}
+                      alt={animatedAttendanceRow.name}
                     >
-                      {getInitials(selectedAttendanceRow.name)}
+                      {getInitials(animatedAttendanceRow.name)}
                     </AvatarImageWithFallback>
                   </StudentModalAvatar>
 
                   <StudentModalMeta>
                     <StudentModalMetaRow>
                       <span>
-                        {selectedAttendanceRow.course.title ||
-                          selectedAttendanceRow.course.name}
+                        {animatedAttendanceRow.course.title ||
+                          animatedAttendanceRow.course.name}
                       </span>
                       <span>•</span>
                       <StudentModalStatusBadge>
                         <ClipboardCheck size={12} />
-                        {selectedAttendanceRow.attendancePercent}%{" "}
+                        {animatedAttendanceRow.attendancePercent}%{" "}
                         {t("teacher.workspace.attendanceRate", {
                           defaultValue: "davomat",
                         })}
                       </StudentModalStatusBadge>
                     </StudentModalMetaRow>
-                    <StudentModalName>{selectedAttendanceRow.name}</StudentModalName>
+                    <StudentModalName>{animatedAttendanceRow.name}</StudentModalName>
                     <StudentModalSubline>
                       {t("teacher.workspace.attendanceModalSubtitle", {
                         defaultValue:
@@ -5280,7 +6773,7 @@ export default function TeacherPage() {
                     })}
                   </StudentInfoLabel>
                   <StudentInfoValue>
-                    {selectedAttendanceRow.activeLessons}/{selectedAttendanceRow.totalLessons}
+                    {animatedAttendanceRow.activeLessons}/{animatedAttendanceRow.totalLessons}
                   </StudentInfoValue>
                 </StudentInfoCard>
                 <StudentInfoCard>
@@ -5290,7 +6783,7 @@ export default function TeacherPage() {
                     })}
                   </StudentInfoLabel>
                   <StudentInfoValue>
-                    {formatShortDate(selectedAttendanceRow.lastActivityAt)}
+                    {formatShortDate(animatedAttendanceRow.lastActivityAt)}
                   </StudentInfoValue>
                 </StudentInfoCard>
               </StudentInfoGrid>
@@ -5305,7 +6798,7 @@ export default function TeacherPage() {
                 {selectedAttendanceLessonRows.length ? (
                   <DetailLessonList>
                     {selectedAttendanceLessonRows.map((lesson) => {
-                      const saveKey = `${selectedAttendanceRow.memberId}-${lesson.id}`;
+                      const saveKey = `${animatedAttendanceRow.memberId}-${lesson.id}`;
                       const saving = savingAttendanceKey === saveKey;
                       return (
                         <DetailLessonCard key={lesson.id}>
@@ -5366,7 +6859,7 @@ export default function TeacherPage() {
                                 disabled={saving}
                                 onClick={() =>
                                   handleAttendanceStatusSave(
-                                    selectedAttendanceRow,
+                                    animatedAttendanceRow,
                                     lesson.id,
                                     option.id,
                                   )
@@ -5395,42 +6888,46 @@ export default function TeacherPage() {
         </StudentModalOverlay>
       ) : null}
 
-      {selectedMasteryRow ? (
+      {animatedMasteryRow ? (
         <StudentModalOverlay
+          $visible={isMasteryModalVisible}
           onClick={() => {
             setSelectedMasteryLessonFocusId(null);
             setSelectedMasteryRow(null);
           }}
         >
-          <StudentModalPanel onClick={(event) => event.stopPropagation()}>
+          <StudentModalPanel
+            $visible={isMasteryModalVisible}
+            onClick={(event) => event.stopPropagation()}
+          >
             <StudentModalHeader>
               <StudentModalTop>
                 <StudentModalIdentity>
-                  <StudentModalAvatar $seed={selectedMasteryRow.studentId?.length || 0}>
+                  <StudentModalAvatar $seed={animatedMasteryRow.studentId?.length || 0}>
                     <AvatarImageWithFallback
-                      src={selectedMasteryRow.avatar}
-                      alt={selectedMasteryRow.name}
+                      src={animatedMasteryRow.avatar}
+                      alt={animatedMasteryRow.name}
                     >
-                      {getInitials(selectedMasteryRow.name)}
+                      {getInitials(animatedMasteryRow.name)}
                     </AvatarImageWithFallback>
                   </StudentModalAvatar>
 
                   <StudentModalMeta>
                     <StudentModalMetaRow>
                       <span>
-                        {selectedMasteryRow.course.title ||
-                          selectedMasteryRow.course.name}
+                        {animatedMasteryRow.course.title ||
+                          animatedMasteryRow.course.name}
                       </span>
                       <span>•</span>
                       <StudentModalStatusBadge>
                         <GraduationCap size={12} />
-                        {selectedMasteryRow.masteryPercent}%{" "}
+                        {animatedMasteryRow.masteryPercent}%{" "}
                         {t("teacher.workspace.masteryRate", {
                           defaultValue: "o'zlashtirish",
                         })}
                       </StudentModalStatusBadge>
                     </StudentModalMetaRow>
-                    <StudentModalName>{selectedMasteryRow.name}</StudentModalName>
+                    <StudentModalName>{animatedMasteryRow.name}</StudentModalName>
                     <StudentModalSubline>
                       {t("teacher.workspace.masteryModalSubtitle", {
                         defaultValue:
@@ -5461,7 +6958,7 @@ export default function TeacherPage() {
                     })}
                   </StudentInfoLabel>
                   <StudentInfoValue>
-                    {selectedMasteryRow.completedLessons}/{selectedMasteryRow.totalLessons}
+                    {animatedMasteryRow.completedLessons}/{animatedMasteryRow.totalLessons}
                   </StudentInfoValue>
                 </StudentInfoCard>
                 <StudentInfoCard>
@@ -5471,7 +6968,7 @@ export default function TeacherPage() {
                     })}
                   </StudentInfoLabel>
                   <StudentInfoValue>
-                    {selectedMasteryRow.averageProgress}%
+                    {animatedMasteryRow.averageProgress}%
                   </StudentInfoValue>
                 </StudentInfoCard>
               </StudentInfoGrid>
@@ -5486,7 +6983,7 @@ export default function TeacherPage() {
                 {selectedMasteryLessonRows.length ? (
                   <DetailLessonList>
                     {selectedMasteryLessonRows.map((lesson) => {
-                      const saveKey = `${selectedMasteryRow.memberId}-${lesson.id}`;
+                      const saveKey = `${animatedMasteryRow.memberId}-${lesson.id}`;
                       const saving = savingMasteryKey === saveKey;
                       const collapsed = collapsedMasteryLessons[lesson.id];
                       const scoreDisplay =
@@ -5622,69 +7119,110 @@ export default function TeacherPage() {
                               </InlineSecondaryButton>
                             </DetailMetricRow>
                           ) : (
-                            <MasteryEditorGrid>
-                              <FieldGroup>
-                                <FieldLabel>
-                                  {t("teacher.workspace.teacherScore", {
-                                    defaultValue: "Mening bahom",
-                                  })}
-                                </FieldLabel>
-                                <FieldInput
-                                  type="number"
-                                  min="0"
-                                  max="100"
-                                  step="1"
-                                  value={lesson.oralScore}
-                                  onChange={(event) =>
-                                    handleMasteryDraftChange(
-                                      lesson.id,
-                                      "score",
-                                      event.target.value,
-                                    )
-                                  }
-                                  placeholder="0-100"
-                                />
-                              </FieldGroup>
+                            <>
+                              <AttendanceStatusGroup>
+                                {[
+                                  {
+                                    id: "present",
+                                    label: t("teacher.workspace.present", {
+                                      defaultValue: "Kirdi",
+                                    }),
+                                  },
+                                  {
+                                    id: "late",
+                                    label: t("teacher.workspace.late", {
+                                      defaultValue: "Kechikdi",
+                                    }),
+                                  },
+                                  {
+                                    id: "absent",
+                                    label: t("teacher.workspace.absent", {
+                                      defaultValue: "Kirmadi",
+                                    }),
+                                  },
+                                ].map((option) => (
+                                  <AttendanceStatusButton
+                                    key={option.id}
+                                    type="button"
+                                    $active={lesson.attendanceStatus === option.id}
+                                    disabled={saving}
+                                    onClick={() =>
+                                      handleMasteryDraftChange(
+                                        lesson.id,
+                                        "attendanceStatus",
+                                        option.id,
+                                      )
+                                    }
+                                  >
+                                    {option.label}
+                                  </AttendanceStatusButton>
+                                ))}
+                              </AttendanceStatusGroup>
 
-                              <FieldGroup>
-                                <FieldLabel>
-                                  {t("teacher.workspace.note", {
-                                    defaultValue: "Izoh",
-                                  })}
-                                </FieldLabel>
-                                <FieldTextarea
-                                  rows={2}
-                                  value={lesson.oralNote}
-                                  onChange={(event) =>
-                                    handleMasteryDraftChange(
-                                      lesson.id,
-                                      "note",
-                                      event.target.value,
-                                    )
-                                  }
-                                  placeholder={t(
-                                    "teacher.workspace.scoreNotePlaceholder",
-                                    {
-                                      defaultValue: "Qisqa fikr yoki tavsiya yozing",
-                                    },
-                                  )}
-                                />
-                              </FieldGroup>
-
-                              <InlinePrimaryButton
-                                type="button"
-                                disabled={saving}
-                                onClick={() =>
-                                  handleMasterySave(selectedMasteryRow, lesson.id)
-                                }
-                              >
-                                {saving
-                                  ? t("common.saving")
-                                  : t("common.save", {
-                                      defaultValue: "Saqlash",
+                              <MasteryEditorGrid>
+                                <FieldGroup>
+                                  <FieldLabel>
+                                    {t("teacher.workspace.teacherScore", {
+                                      defaultValue: "Mening bahom",
                                     })}
-                              </InlinePrimaryButton>
-                            </MasteryEditorGrid>
+                                  </FieldLabel>
+                                  <FieldInput
+                                    type="number"
+                                    min="0"
+                                    max="100"
+                                    step="1"
+                                    value={lesson.oralScore}
+                                    onChange={(event) =>
+                                      handleMasteryDraftChange(
+                                        lesson.id,
+                                        "score",
+                                        event.target.value,
+                                      )
+                                    }
+                                    placeholder="0-100"
+                                  />
+                                </FieldGroup>
+
+                                <FieldGroup>
+                                  <FieldLabel>
+                                    {t("teacher.workspace.note", {
+                                      defaultValue: "Izoh",
+                                    })}
+                                  </FieldLabel>
+                                  <FieldTextarea
+                                    rows={2}
+                                    value={lesson.oralNote}
+                                    onChange={(event) =>
+                                      handleMasteryDraftChange(
+                                        lesson.id,
+                                        "note",
+                                        event.target.value,
+                                      )
+                                    }
+                                    placeholder={t(
+                                      "teacher.workspace.scoreNotePlaceholder",
+                                      {
+                                        defaultValue: "Qisqa fikr yoki tavsiya yozing",
+                                      },
+                                    )}
+                                  />
+                                </FieldGroup>
+
+                                <InlinePrimaryButton
+                                  type="button"
+                                  disabled={saving}
+                                  onClick={() =>
+                                    handleMasterySave(animatedMasteryRow, lesson.id)
+                                  }
+                                >
+                                  {saving
+                                    ? t("common.saving")
+                                    : t("common.save", {
+                                        defaultValue: "Saqlash",
+                                      })}
+                                </InlinePrimaryButton>
+                              </MasteryEditorGrid>
+                            </>
                           )}
                         </DetailLessonCard>
                       );
@@ -5703,41 +7241,47 @@ export default function TeacherPage() {
         </StudentModalOverlay>
       ) : null}
 
-      {selectedStudentRow ? (
-        <StudentModalOverlay onClick={() => setSelectedStudentRow(null)}>
-          <StudentModalPanel onClick={(event) => event.stopPropagation()}>
+      {animatedStudentRow ? (
+        <StudentModalOverlay
+          $visible={isStudentModalVisible}
+          onClick={() => setSelectedStudentRow(null)}
+        >
+          <StudentModalPanel
+            $visible={isStudentModalVisible}
+            onClick={(event) => event.stopPropagation()}
+          >
             <StudentModalHeader>
               <StudentModalTop>
                 <StudentModalIdentity>
-                  <StudentModalAvatar $seed={selectedStudentRow.studentId?.length || 0}>
+                  <StudentModalAvatar $seed={animatedStudentRow.studentId?.length || 0}>
                     <AvatarImageWithFallback
-                      src={selectedStudentRow.avatar}
-                      alt={selectedStudentRow.name}
+                      src={animatedStudentRow.avatar}
+                      alt={animatedStudentRow.name}
                     >
-                      {getInitials(selectedStudentRow.name)}
+                      {getInitials(animatedStudentRow.name)}
                     </AvatarImageWithFallback>
                   </StudentModalAvatar>
 
                   <StudentModalMeta>
                     <StudentModalMetaRow>
                       <span>
-                        ID:{selectedStudentRow.memberId || selectedStudentRow.studentId}
+                        ID:{animatedStudentRow.memberId || animatedStudentRow.studentId}
                       </span>
                       <span>•</span>
                       <StudentModalStatusBadge>
                         <RefreshCw size={12} />
-                        {selectedStudentRow.status === "pending"
+                        {animatedStudentRow.status === "pending"
                           ? t("teacher.students.pending")
                           : t("teacher.students.approved")}
                       </StudentModalStatusBadge>
                     </StudentModalMetaRow>
-                    <StudentModalName>{selectedStudentRow.name}</StudentModalName>
+                    <StudentModalName>{animatedStudentRow.name}</StudentModalName>
                     <StudentModalSubline>
-                      {selectedStudentRow.joinedAt
+                      {animatedStudentRow.joinedAt
                         ? t("teacher.workspace.joinedDate", {
-                            date: formatShortDate(selectedStudentRow.joinedAt),
+                            date: formatShortDate(animatedStudentRow.joinedAt),
                             defaultValue: `Qo'shilgan ${formatShortDate(
-                              selectedStudentRow.joinedAt,
+                              animatedStudentRow.joinedAt,
                             )}`,
                           })
                         : t("teacher.students.approved")}
@@ -5771,7 +7315,7 @@ export default function TeacherPage() {
                   type="button"
                   onClick={() => {
                     setSelectedStudentRow(null);
-                    openCourseWorkspace(getCourseId(selectedStudentRow.course), {
+                    openCourseWorkspace(getCourseId(animatedStudentRow.course), {
                       openAdmin: true,
                     });
                   }}

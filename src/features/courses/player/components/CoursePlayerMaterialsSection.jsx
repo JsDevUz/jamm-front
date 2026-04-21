@@ -391,6 +391,16 @@ const CoursePlayerMaterialsSection = () => {
     ) || items[0] || null;
   const isPreviewOpen = Boolean(getMaterialKey(previewMaterial)) && Boolean(previewMaterial?.fileUrl);
 
+  if (!admin && !loading && !items.length) {
+    return (
+      <EmptyMaterials>
+        {t("coursePlayer.materials.empty", {
+          defaultValue: "Hali dars materiallari joylanmagan.",
+        })}
+      </EmptyMaterials>
+    );
+  }
+
   return (
     <>
       <MaterialsSection $admin={admin}>
@@ -663,13 +673,7 @@ const CoursePlayerMaterialsSection = () => {
               </MaterialsList>
             </MaterialsViewer>
           )
-        ) : (
-          <EmptyMaterials>
-            {t("coursePlayer.materials.emptyState", {
-              defaultValue: "Dars materiallari mavjud emas",
-            })}
-          </EmptyMaterials>
-        )}
+        ) : null}
       </MaterialsSection>
 
       {isPreviewOpen ? (

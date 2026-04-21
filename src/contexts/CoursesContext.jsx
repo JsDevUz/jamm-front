@@ -40,6 +40,37 @@ export const CoursesProvider = ({ children }) => {
     [courses],
   );
 
+  const upsertCourse = useCallback((coursePayload) => {
+    if (!coursePayload) return null;
+
+    const mapped = {
+      ...coursePayload,
+      id: coursePayload._id || coursePayload.id,
+      createdBy: coursePayload.createdBy,
+    };
+
+    setCourses((prev) => {
+      const existingIndex = prev.findIndex(
+        (course) =>
+          String(course._id || course.id) === String(mapped._id || mapped.id) ||
+          String(course.urlSlug || "") === String(mapped.urlSlug || ""),
+      );
+
+      if (existingIndex === -1) {
+        return [mapped, ...prev];
+      }
+
+      const next = [...prev];
+      next[existingIndex] = {
+        ...next[existingIndex],
+        ...mapped,
+      };
+      return next;
+    });
+
+    return mapped;
+  }, []);
+
   const updateCourseMembers = useCallback((courseId, updater) => {
     setCourses((prev) =>
       prev.map((course) => {
@@ -89,6 +120,22 @@ export const CoursesProvider = ({ children }) => {
     if (hasLoadedCoursesRef.current) return;
     await fetchCourses(1);
   }, [fetchCourses]);
+
+  const ensureCourseLoaded = useCallback(
+    async (courseId) => {
+      const existing = findCourseByIdentifier(courseId);
+      if (existing) return existing;
+
+      await ensureCoursesLoaded();
+
+      const afterListLoad = findCourseByIdentifier(courseId);
+      if (afterListLoad) return afterListLoad;
+
+      const detailedCourse = await coursesApi.getCourse(courseId);
+      return upsertCourse(detailedCourse);
+    },
+    [ensureCoursesLoaded, findCourseByIdentifier, upsertCourse],
+  );
 
   useEffect(() => {
     // Moved to CourseSidebar for lazy loading
@@ -422,6 +469,65 @@ export const CoursesProvider = ({ children }) => {
     }
   }, []);
 
+  const patchCourseLesson = useCallback((courseId, lessonId, lessonPatcher) => {
+    setCourses((prev) =>
+      prev.map((course) => {
+        const courseMatches =
+          String(course._id || course.id || "") === String(courseId || "") ||
+          String(course.urlSlug || "") === String(courseId || "");
+        if (!courseMatches) return course;
+        return {
+          ...course,
+          lessons: (course.lessons || []).map((lesson) => {
+            const lessonMatches =
+              String(lesson._id || lesson.id || "") === String(lessonId || "") ||
+              String(lesson.urlSlug || "") === String(lessonId || "");
+            if (!lessonMatches) return lesson;
+            return lessonPatcher(lesson);
+          }),
+        };
+      }),
+    );
+  }, []);
+
+  const upsertLessonNote = useCallback(
+    async (courseId, lessonId, text) => {
+      try {
+        const result = await coursesApi.upsertLessonNote({
+          courseId,
+          lessonId,
+          text,
+        });
+        patchCourseLesson(courseId, lessonId, (lesson) => ({
+          ...lesson,
+          selfNote: result,
+        }));
+        return result;
+      } catch (err) {
+        console.error("Error saving lesson note:", err);
+        throw err;
+      }
+    },
+    [patchCourseLesson],
+  );
+
+  const upsertCourseReview = useCallback(
+    async (courseId, payload) => {
+      try {
+        const result = await coursesApi.upsertCourseReview({
+          courseId,
+          ...payload,
+        });
+        upsertCourse(result);
+        return result;
+      } catch (err) {
+        console.error("Error saving course review:", err);
+        throw err;
+      }
+    },
+    [upsertCourse],
+  );
+
   const fetchLikedLessons = useCallback(async () => {
     try {
       return await coursesApi.fetchLikedLessons();
@@ -661,6 +767,15 @@ export const CoursesProvider = ({ children }) => {
     }
   }, []);
 
+  const getCourseMaterialLibrary = useCallback(async (courseId) => {
+    try {
+      return await coursesApi.getCourseMaterialLibrary(courseId);
+    } catch (err) {
+      console.error("Error fetching course material library:", err);
+      throw err;
+    }
+  }, []);
+
   const upsertLessonMaterial = useCallback(
     async (courseId, lessonId, payload) => {
       try {
@@ -700,23 +815,6 @@ export const CoursesProvider = ({ children }) => {
       console.error("Error fetching lesson grading:", err);
       throw err;
     }
-  }, []);
-
-  const patchCourseLesson = useCallback((courseId, lessonId, lessonPatcher) => {
-    setCourses((prev) =>
-      prev.map((course) => {
-        const cId = String(course._id || course.id || "");
-        if (cId !== String(courseId || "")) return course;
-        return {
-          ...course,
-          lessons: (course.lessons || []).map((lesson) => {
-            const lId = String(lesson._id || lesson.id || lesson.urlSlug || "");
-            if (lId !== String(lessonId || "")) return lesson;
-            return lessonPatcher(lesson);
-          }),
-        };
-      }),
-    );
   }, []);
 
   const setLessonOralAssessment = useCallback(
@@ -791,6 +889,8 @@ export const CoursesProvider = ({ children }) => {
     removeUser,
     incrementViews,
     toggleLessonLike,
+    upsertLessonNote,
+    upsertCourseReview,
     fetchLikedLessons,
     getLessonAttendance,
     markOwnAttendance,
@@ -805,6 +905,7 @@ export const CoursesProvider = ({ children }) => {
     reviewLessonHomework,
     deleteLessonHomework,
     getLessonMaterials,
+    getCourseMaterialLibrary,
     upsertLessonMaterial,
     deleteLessonMaterial,
     getLessonGrading,
@@ -817,6 +918,7 @@ export const CoursesProvider = ({ children }) => {
     coursesHasMore,
     fetchCourses,
     ensureCoursesLoaded,
+    ensureCourseLoaded,
     joinCourseRoom,
     leaveCourseRoom,
   };

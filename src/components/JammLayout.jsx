@@ -182,6 +182,14 @@ const JammLayout = ({
     closePremiumUpgradeModal,
   } = usePremiumUpgradeModalStore();
   const mainContentRef = useRef(null);
+  const handleCloseProfileRoute = () => {
+    if (window.history.length > 1) {
+      navigate(-1);
+      return;
+    }
+
+    navigate("/home");
+  };
   const hasMobileChatDetailOpen =
     isMobile &&
     ["chats", "users", "groups"].includes(selectedNav) &&
@@ -486,20 +494,29 @@ const JammLayout = ({
   // Sync URL params → state. When URL is /a/:chatId, auto-detect nav type
   // from the current chat so selectedNav is ALWAYS meaningful (never "a").
   useEffect(() => {
-    if (
-      initialResourceId !== undefined &&
-      initialResourceId !== selectedChatId
-    ) {
-      setSelectedChatId(initialResourceId);
-    }
     if (initialNav === "a" || initialNav === "chats") {
+      if (
+        initialResourceId !== undefined &&
+        initialResourceId !== selectedChatId
+      ) {
+        setSelectedChatId(initialResourceId);
+      }
       // Direct message routing - always show chats
       if (selectedNav !== "chats") setSelectedNav("chats");
     } else if (initialNav === "meets") {
       if (selectedNav !== "users") setSelectedNav("users");
     } else if (initialNav === "users" || initialNav === "groups") {
+      if (
+        initialResourceId !== undefined &&
+        initialResourceId !== selectedChatId
+      ) {
+        setSelectedChatId(initialResourceId);
+      }
       if (selectedNav !== initialNav) setSelectedNav(initialNav);
     } else if (initialNav === "arena") {
+      if (selectedChatId && selectedChatId !== "0" && selectedChatId !== 0) {
+        setSelectedChatId(0);
+      }
       setSelectedNav("arena");
       setViewMode("arena");
 
@@ -548,6 +565,9 @@ const JammLayout = ({
         setActiveArenaTab(null);
       }
     } else if (initialNav !== selectedNav) {
+      if (selectedChatId && selectedChatId !== "0" && selectedChatId !== 0) {
+        setSelectedChatId(0);
+      }
       setSelectedNav(initialNav);
       if (initialNav === "courses") setViewMode("courses");
     }
@@ -882,6 +902,7 @@ const JammLayout = ({
                 onOpenPremium={() =>
                   openPremiumUpgradeModal({ source: "courses-sidebar" })
                 }
+                hideCreateCourse={selectedNav === "courses"}
                 viewMode={selectedNav === "arena" ? "arena" : viewMode}
                 onToggleViewMode={setViewMode}
                 selectedCourse={selectedCourse}
@@ -957,8 +978,7 @@ const JammLayout = ({
                   ? String(initialResourceId)
                   : null
               }
-              isFocused={isRightPaneFocused}
-              onToggleFocus={() => setIsRightPaneFocused((prev) => !prev)}
+              onClose={handleCloseProfileRoute}
             />
           </LazyPane>
         ) : selectedNav === "admin" ? (

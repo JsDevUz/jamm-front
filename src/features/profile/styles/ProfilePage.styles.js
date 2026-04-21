@@ -5,14 +5,14 @@ import { mobileFullscreenPane } from "../../../shared/styles/mobileSafeArea";
 export const ProfileContainer = styled.div`
   display: flex;
   flex: 1;
-  height: 100vh;
+  height: 100%;
   overflow: hidden;
   background: var(--background-color);
 `;
 
 export const RightPanel = styled.div`
   flex: 1;
-  height: 100vh;
+  height: 100%;
   display: ${(props) => (props.$visible ? "flex" : "none")};
   flex-direction: column;
   background: var(--background-color);

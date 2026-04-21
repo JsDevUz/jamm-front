@@ -180,8 +180,8 @@ const ArticlesSidebar = ({ selectedArticleId }) => {
       <SectionHeader
         title={t("navigation.articles")}
         onSearch={() =>
-          navigate("/search?tab=articles", {
-            state: { from: `${location.pathname}${location.search}` },
+          navigate("/search", {
+            state: { backgroundLocation: location, initialTab: "articles" },
           })
         }
         onAdd={() => setEditorOpen(true)}

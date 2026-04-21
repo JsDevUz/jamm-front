@@ -1,5 +1,5 @@
 import React, { Suspense, lazy } from "react";
-import { Navigate, Route, Routes, useParams } from "react-router-dom";
+import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import ProtectedRoute from "./ProtectedRoute";
 import GlobalSearchPage from "../../features/search/GlobalSearchPage";
 import useAuthStore from "../../store/authStore";
@@ -9,16 +9,7 @@ const LandingPage = lazy(() => import("../../pages/LandingPage"));
 const AppWrapper = lazy(() => import("./AppWrapper"));
 const SlugResolver = lazy(() => import("./SlugResolver"));
 const TeacherPage = lazy(() => import("../../pages/TeacherPage"));
-
-const LegacyCoursesRedirect = () => {
-  const { resourceId, lessonId } = useParams();
-  const nextPath = lessonId
-    ? `/my-courses/${resourceId}/${lessonId}`
-    : resourceId
-      ? `/my-courses/${resourceId}`
-      : "/my-courses";
-  return <Navigate to={nextPath} replace />;
-};
+const CoursePreviewPage = lazy(() => import("../../pages/CoursePreviewPage"));
 
 // Public-only route component - redirects authenticated users to chats
 const PublicRoute = ({ children }) => {
@@ -37,9 +28,12 @@ const PublicRoute = ({ children }) => {
 };
 
 export default function AppRoutes() {
+  const location = useLocation();
+  const backgroundLocation = location.state?.backgroundLocation;
+
   return (
     <Suspense fallback={null}>
-      <Routes>
+      <Routes location={backgroundLocation || location}>
         <Route path="/maintenance" element={null} />
         <Route path="/blocked" element={null} />
 
@@ -133,7 +127,7 @@ export default function AppRoutes() {
           path="/courses/:resourceId"
           element={
             <ProtectedRoute>
-              <LegacyCoursesRedirect />
+              <CoursePreviewPage />
             </ProtectedRoute>
           }
         />
@@ -141,12 +135,28 @@ export default function AppRoutes() {
           path="/courses/:resourceId/:lessonId"
           element={
             <ProtectedRoute>
-              <LegacyCoursesRedirect />
+              <CoursePreviewPage />
             </ProtectedRoute>
           }
         />
         <Route
           path="/teacher"
+          element={
+            <ProtectedRoute>
+              <TeacherPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/teacher/courses"
+          element={
+            <ProtectedRoute>
+              <TeacherPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/teacher/courses/:courseId"
           element={
             <ProtectedRoute>
               <TeacherPage />
@@ -194,6 +204,18 @@ export default function AppRoutes() {
           }
         />
       </Routes>
+      {backgroundLocation ? (
+        <Routes>
+          <Route
+            path="/search"
+            element={
+              <ProtectedRoute>
+                <GlobalSearchPage />
+              </ProtectedRoute>
+            }
+          />
+        </Routes>
+      ) : null}
     </Suspense>
   );
 }

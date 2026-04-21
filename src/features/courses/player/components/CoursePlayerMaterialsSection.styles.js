@@ -119,12 +119,17 @@ export const MaterialLink = styled.a`
 `;
 
 export const EmptyMaterials = styled.div`
-  padding: 2px 0 0;
+  min-height: 180px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
   border: none;
   border-radius: 0;
   color: var(--text-muted-color);
   font-size: 13px;
-  text-align: left;
+  font-weight: 600;
+  text-align: center;
 `;
 
 export const MaterialPreviewFrame = styled.iframe`

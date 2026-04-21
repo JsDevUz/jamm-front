@@ -33,6 +33,10 @@ export const AppContainer = styled.div`
   background-color: var(--background-color);
   overflow: hidden;
   box-sizing: border-box;
+
+  @media (max-width: 700px) {
+    flex-direction: column-reverse;
+  }
 `;
 
 export const NotificationPromptBanner = styled.div`

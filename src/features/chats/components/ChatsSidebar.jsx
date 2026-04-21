@@ -475,12 +475,12 @@ const ChatsSidebar = ({
       <SectionHeader
         title={headerTitle}
         onSearch={() =>
-          navigate(
-            `/search?tab=${effectiveChatTab === "group" ? "groups" : "private"}`,
-            {
-              state: { from: `${location.pathname}${location.search}` },
+          navigate("/search", {
+            state: {
+              backgroundLocation: location,
+              initialTab: effectiveChatTab === "group" ? "groups" : "private",
             },
-          )
+          })
         }
         onAdd={
           effectiveChatTab === "group" ? onOpenCreateGroup : onOpenCreateMeet

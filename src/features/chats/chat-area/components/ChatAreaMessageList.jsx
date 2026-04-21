@@ -46,8 +46,8 @@ const MessagesContainer = styled.div`
   flex-direction: column;
   min-height: 0;
   background-image: url("/chat-area-bg.JPG");
-  background-size: 420px auto;
-  background-repeat: repeat;
+  background-size: cover;
+  background-repeat: no-repeat;
   background-position: center;
   -webkit-overflow-scrolling: touch;
   scroll-padding-bottom: ${(props) =>
@@ -58,6 +58,10 @@ const MessagesContainer = styled.div`
     padding-top 0.28s cubic-bezier(0.22, 1, 0.36, 1),
     padding-bottom 0.25s ease,
     scroll-padding-bottom 0.25s ease;
+
+  [data-theme="light"] & {
+    background-image: url("/chat-area-bg-lite.jpg");
+  }
 
   @media (max-width: 768px) {
     padding: ${(props) => (props.$keyboardOpen ? "4px" : "8px")} 8px

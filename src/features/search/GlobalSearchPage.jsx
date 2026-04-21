@@ -1,59 +1,89 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import styled, { keyframes } from "styled-components";
 import { ArrowLeft, Search } from "lucide-react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { searchArticles } from "../../api/articlesApi";
 import { searchCourses } from "../../api/coursesApi";
 import { useChats } from "../../contexts/ChatsContext";
 import useAuthStore from "../../store/authStore";
+import { getCourseNavigationPath } from "../courses/utils/courseNavigation";
 import {
   mobileFullscreenPane,
   mobileTopSafePadding,
 } from "../../shared/styles/mobileSafeArea";
 
-const slideIn = keyframes`
+const overlayIn = keyframes`
   from {
     opacity: 0;
-    transform: translateX(36px);
   }
 
   to {
     opacity: 1;
-    transform: translateX(0);
+  }
+`;
+
+const modalIn = keyframes`
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.97);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
   }
 `;
 
 const Shell = styled.div`
-  min-height: 100dvh;
-  background: var(--secondary-color);
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: ${(props) => (props.$standalone ? "var(--secondary-color)" : "rgba(8, 11, 18, 0.56)")};
+  backdrop-filter: ${(props) => (props.$standalone ? "none" : "blur(10px)")};
   color: var(--text-color);
-  animation: ${slideIn} 0.24s ease-out;
+  animation: ${overlayIn} 0.2s ease-out;
 
   @media (max-width: 768px) {
     ${mobileFullscreenPane};
-    z-index: 9999;
+    display: block;
     width: 100vw;
     max-width: 100vw;
     overflow: hidden;
     background: var(--secondary-color);
+    backdrop-filter: none;
+    padding: 0;
   }
 `;
 
 const Inner = styled.div`
   width: 100%;
   max-width: 880px;
-  margin: 0 auto;
-  min-height: 100dvh;
+  max-height: min(820px, calc(100dvh - 48px));
   display: flex;
   flex-direction: column;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 28px;
+  overflow: hidden;
+  background: var(--secondary-color);
+  box-shadow: 0 32px 80px rgba(0, 0, 0, 0.34);
+  animation: ${modalIn} 0.22s ease-out;
 
   @media (max-width: 768px) {
     max-width: none;
+    max-height: none;
     width: 100%;
     min-height: var(--app-height, 100dvh);
     overflow-y: auto;
     overflow-x: hidden;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+    animation: none;
   }
 `;
 
@@ -62,10 +92,12 @@ const Header = styled.div`
   display: flex;
   align-items: center;
   gap: 12px;
+  border-bottom: 1px solid var(--border-color);
 
   @media (max-width: 768px) {
     ${mobileTopSafePadding(12, 16, 0, 16)};
     padding-bottom: 14px;
+    border-bottom: none;
   }
 `;
 
@@ -144,9 +176,11 @@ const Content = styled.div`
   display: flex;
   flex-direction: column;
   gap: 10px;
+  overflow-y: auto;
 
   @media (max-width: 768px) {
     padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+    overflow-y: visible;
   }
 `;
 
@@ -255,29 +289,24 @@ function SearchAvatar({ src, label, alt }) {
 
 export default function GlobalSearchPage() {
   const { t } = useTranslation();
-  const navigate = useNavigate();
-  const [searchParams, setSearchParams] = useSearchParams();
   const currentUser = useAuthStore((state) => state.user);
+  const navigate = useNavigate();
+  const location = useLocation();
   const { chats, createChat, searchGlobalUsers, searchGroups } = useChats();
-  const [query, setQuery] = useState(searchParams.get("q") || "");
-  const [activeTab, setActiveTab] = useState(searchParams.get("tab") || "private");
+  const [query, setQuery] = useState(() => location.state?.initialQuery || "");
+  const [activeTab, setActiveTab] = useState(
+    () => location.state?.initialTab || "private",
+  );
   const [loading, setLoading] = useState(false);
   const [privateResults, setPrivateResults] = useState([]);
   const [groupResults, setGroupResults] = useState([]);
   const [articleResults, setArticleResults] = useState([]);
   const [courseResults, setCourseResults] = useState([]);
   const normalizedQuery = query.trim();
-
-  useEffect(() => {
-    const next = new URLSearchParams();
-    next.set("tab", activeTab);
-    if (query.trim()) {
-      next.set("q", query.trim());
-    } else {
-      next.delete("q");
-    }
-    setSearchParams(next, { replace: true });
-  }, [activeTab, query, setSearchParams]);
+  const isMobile =
+    typeof window !== "undefined" ? window.innerWidth <= 768 : false;
+  const backgroundLocation = location.state?.backgroundLocation;
+  const hasBackgroundLocation = Boolean(backgroundLocation);
 
   useEffect(() => {
     let cancelled = false;
@@ -378,17 +407,41 @@ export default function GlobalSearchPage() {
   );
 
   const handleBack = useCallback(() => {
-    if (window.history.length > 1) {
+    if (backgroundLocation?.pathname) {
+      navigate(
+        `${backgroundLocation.pathname}${backgroundLocation.search || ""}${backgroundLocation.hash || ""}`,
+        { replace: true },
+      );
+      return;
+    }
+
+    if (window.history.state?.idx > 0) {
       navigate(-1);
       return;
     }
 
     navigate("/chats", { replace: true });
-  }, [navigate]);
+  }, [backgroundLocation, navigate]);
+
+  useEffect(() => {
+    if (isMobile) return undefined;
+
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") {
+        handleBack();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [handleBack, isMobile]);
 
   return (
-    <Shell>
-      <Inner>
+    <Shell
+      $standalone={!hasBackgroundLocation}
+      onClick={!isMobile && hasBackgroundLocation ? handleBack : undefined}
+    >
+      <Inner onClick={(event) => event.stopPropagation()}>
         <Header>
           <BackButton type="button" onClick={handleBack}>
             <ArrowLeft size={25} />
@@ -506,7 +559,14 @@ export default function GlobalSearchPage() {
               <ResultCard
                 key={course._id}
                 type="button"
-                onClick={() => navigate(`/my-courses/${course.urlSlug || course._id}`)}
+                onClick={() =>
+                  navigate(
+                    getCourseNavigationPath(
+                      course,
+                      currentUser?._id || currentUser?.id || "",
+                    ),
+                  )
+                }
               >
                 <SearchAvatar
                   src={course.image}

@@ -35,6 +35,7 @@ export const VideoSection = styled.div`
   min-width: 0;
 
   @media (max-width: 768px) {
+    flex: 0 0 auto;
     padding-top: env(safe-area-inset-top, 0px);
   }
 `;
@@ -712,7 +713,9 @@ export const VideoInfo = styled.div`
   flex-shrink: 0;
 
   @media (max-width: 768px) {
-    display: none;
+    display: block;
+    padding: 12px 16px;
+    background: var(--background-color);
   }
 `;
 
@@ -724,7 +727,8 @@ export const VideoTitle = styled.h1`
   line-height: 1.4;
 
   @media (max-width: 768px) {
-    font-size: 16px;
+    font-size: 15px;
+    margin-bottom: 10px;
   }
 `;
 
@@ -733,6 +737,10 @@ export const VideoMeta = styled.div`
   align-items: center;
   gap: 16px;
   flex-wrap: wrap;
+
+  @media (max-width: 768px) {
+    gap: 10px 14px;
+  }
 `;
 
 export const LessonDescriptionCard = styled.div`
@@ -1003,6 +1011,13 @@ export const EnrollButton = styled.button`
           color: var(--success-color);
           cursor: default;
         `;
+      case "leave":
+        return `
+          background: color-mix(in srgb, var(--danger-color) 12%, transparent);
+          color: var(--danger-color);
+          cursor: pointer;
+          &:hover { background: color-mix(in srgb, var(--danger-color) 18%, transparent); }
+        `;
       case "admin":
         return `
           background: color-mix(in srgb, var(--primary-color) 15%, transparent);
@@ -1229,7 +1244,7 @@ export const PlayerTab = styled.button`
 `;
 
 export const PlayerTabContent = styled.div`
-  flex: 1;
+  flex: 0 0 auto;
   overflow-y: auto;
   min-height: 0;
 `;
@@ -1323,4 +1338,271 @@ export const NotesArea = styled.textarea`
   &::placeholder {
     color: var(--text-muted-color);
   }
+`;
+
+export const NoteStatusText = styled.div`
+  color: var(--text-muted-color);
+  font-size: 12px;
+  font-weight: 600;
+  min-height: 16px;
+`;
+
+export const RatingForm = styled.div`
+  display: grid;
+  gap: 12px;
+`;
+
+export const RatingStars = styled.div`
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+`;
+
+export const RatingStarButton = styled.button`
+  width: 34px;
+  height: 34px;
+  border: none;
+  border-radius: 10px;
+  background: ${(props) =>
+    props.$active
+      ? "rgba(250, 166, 26, 0.15)"
+      : "color-mix(in srgb, var(--hover-color) 72%, transparent)"};
+  color: ${(props) => (props.$active ? "var(--warning-color)" : "var(--text-muted-color)")};
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition:
+    transform 0.15s ease,
+    background-color 0.15s ease,
+    color 0.15s ease;
+
+  &:hover {
+    transform: translateY(-1px);
+    color: var(--warning-color);
+  }
+`;
+
+export const ReviewSaveButton = styled.button`
+  justify-self: start;
+  min-height: 38px;
+  padding: 0 16px;
+  border: none;
+  border-radius: 10px;
+  background: var(--primary-color);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+  opacity: ${(props) => (props.disabled ? 0.55 : 1)};
+  pointer-events: ${(props) => (props.disabled ? "none" : "auto")};
+`;
+
+export const NotionSurface = styled.section`
+  margin: 0;
+  border-top: ${(props) => (props.$compact ? "1px solid var(--border-color)" : "none")};
+  padding: ${(props) => (props.$compact ? "18px 20px 0" : "20px 20px 0")};
+  display: grid;
+  gap: 12px;
+
+  @media (max-width: 768px) {
+    margin: ${(props) => (props.$compact ? "14px 14px 0" : "0")};
+    padding: ${(props) => (props.$compact ? "14px 14px 0" : "14px 14px 0")};
+  }
+`;
+
+export const NotionSurfaceHeader = styled.div`
+  display: grid;
+  gap: 4px;
+`;
+
+export const NotionSurfaceTitle = styled.h3`
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-color);
+`;
+
+export const NotionSurfaceText = styled.div`
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-muted-color);
+
+  a {
+    color: var(--primary-color);
+    text-decoration: none;
+  }
+`;
+
+export const NotionSurfaceBody = styled.div`
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  background: var(--secondary-color);
+  min-height: ${(props) => (props.$compact ? "420px" : "calc(100vh - 320px)")};
+  padding: 18px;
+  overflow: auto;
+
+  .jamm-notion-root {
+    max-width: 840px;
+    margin: 0 auto;
+    color: var(--text-color);
+    font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+
+  .jamm-notion-root a {
+    color: var(--primary-color);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  .jamm-notion-page-title {
+    font-size: 2.55rem;
+    line-height: 1.08;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    margin-bottom: 30px;
+    color: var(--text-color);
+  }
+
+  .jamm-notion-paragraph {
+    margin: 0 0 14px;
+    font-size: 1rem;
+    line-height: 1.7;
+    color: var(--text-color);
+    white-space: normal;
+  }
+
+  .jamm-notion-heading {
+    margin: 28px 0 12px;
+    color: var(--text-color);
+  }
+
+  .jamm-notion-heading-lg {
+    font-size: 1.75rem;
+    line-height: 1.25;
+    font-weight: 700;
+  }
+
+  .jamm-notion-heading-md {
+    font-size: 1.35rem;
+    line-height: 1.3;
+    font-weight: 700;
+  }
+
+  .jamm-notion-heading-sm {
+    font-size: 1.1rem;
+    line-height: 1.35;
+    font-weight: 700;
+  }
+
+  .jamm-notion-list {
+    margin: 8px 0 18px 22px;
+    padding: 0;
+    color: var(--text-color);
+    line-height: 1.7;
+  }
+
+  .jamm-notion-list li {
+    margin-bottom: 8px;
+  }
+
+  .jamm-notion-todo {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin: 10px 0 12px;
+    font-size: 1rem;
+    line-height: 1.65;
+    color: var(--text-color);
+  }
+
+  .jamm-notion-todo input {
+    margin-top: 4px;
+    accent-color: var(--primary-color);
+  }
+
+  .jamm-notion-quote {
+    margin: 16px 0 18px;
+    padding: 4px 0 4px 16px;
+    border-left: 3px solid rgba(255, 255, 255, 0.22);
+    color: var(--text-secondary-color);
+    font-size: 1rem;
+    line-height: 1.7;
+  }
+
+  .jamm-notion-callout {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    margin: 16px 0 18px;
+    padding: 14px 16px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border-color);
+  }
+
+  .jamm-notion-callout-icon {
+    flex: 0 0 auto;
+    font-size: 1.1rem;
+    line-height: 1.2;
+  }
+
+  .jamm-notion-callout-text {
+    color: var(--text-color);
+    line-height: 1.65;
+  }
+
+  .jamm-notion-divider {
+    border: none;
+    border-top: 1px solid var(--border-color);
+    margin: 22px 0;
+  }
+
+  .jamm-notion-code {
+    margin: 16px 0 20px;
+    padding: 16px 18px;
+    border-radius: 16px;
+    background: rgba(0, 0, 0, 0.22);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    overflow-x: auto;
+  }
+
+  .jamm-notion-code code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.95rem;
+    line-height: 1.65;
+    color: #f3f4f6;
+    white-space: pre-wrap;
+  }
+
+  .jamm-notion-image {
+    display: block;
+    max-width: 100%;
+    border-radius: 14px;
+    margin: 16px 0 20px;
+  }
+
+  @media (max-width: 768px) {
+    min-height: ${(props) => (props.$compact ? "340px" : "360px")};
+    padding: 14px;
+
+    .jamm-notion-root {
+      max-width: 100%;
+    }
+
+    .jamm-notion-page-title {
+      font-size: 2rem;
+      margin-bottom: 24px;
+    }
+  }
+`;
+
+export const NotionSurfaceFrame = styled.iframe`
+  width: 100%;
+  min-height: inherit;
+  height: 100%;
+  border: 0;
+  border-radius: 12px;
+  background: #fff;
 `;

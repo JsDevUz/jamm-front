@@ -25,12 +25,12 @@
     "copy": "Nusxalash"
   },
   "navigation": {
-    "home": "Bosh sahifa",
+    "home": "Asosiy",
     "feed": "Gurunglar",
     "articles": "Maqolalar",
     "chats": "Chatlar",
     "courses": "Kurslar",
-    "profile": "Profilim",
+    "profile": "Siz",
     "admin": "Admin"
   },
   "theme": {
@@ -369,7 +369,7 @@
       "studentHint": "Darsga biriktirilgan PDF materiallarni shu yerda oching",
       "add": "PDF qo'shish",
       "addVideo": "Video qo'shish",
-      "empty": "Hali material qo'shilmagan",
+      "empty": "Hali dars materiallari joylanmagan.",
       "emptyMedia": "Hali dars videosi qo'shilmagan",
       "dialogTitle": "Yangi material",
       "dialogSubtitle": "Faqat PDF formatdagi faylni biriktiring.",
@@ -569,6 +569,8 @@
       "pending": "Kutilmoqda",
       "cancel": "Bekor qilish",
       "enrolled": "Obuna bo'lingan",
+      "leave": "Kursni tark etish",
+      "leftCourse": "Kurs tark etildi",
       "buy": "Sotib olish: {{price}} so'm",
       "enroll": "Obuna bo'lish",
       "approve": "Tasdiqlash",
@@ -1325,7 +1327,7 @@
     "tryAnother": "Boshqa kalit so'z bilan qidiring",
     "recommendedForYou": "Siz Uchun Tavsiya Etilgan Kurslar",
     "resumeCourse": "Kursni davom ettirish",
-    "emptyContinue": "O'qishni boshlagan kurslaringiz shu yerda ko'rinadi.",
+    "emptyContinue": "Sizda Boshlangan kurslar mavjud emas.",
     "emptyRecommended": "Tez orada sizga mos kurslar shu yerda chiqadi.",
     "lessonProgress": "{{completed}}/{{total}} dars",
     "lessonCountShort": "{{count}} dars",

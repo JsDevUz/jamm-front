@@ -1,13 +1,9 @@
 import React from "react";
-import { MdSchool, MdAdminPanelSettings } from "react-icons/md";
+import { MdSchool, MdHome } from "react-icons/md";
 import { PiArticleMediumFill } from "react-icons/pi";
 import { useTranslation } from "react-i18next";
 import { useChats } from "../../contexts/ChatsContext";
 import useAuthStore from "../../store/authStore";
-import {
-  AdminSolidIcon,
-  FeedSolidIcon,
-} from "../../shared/ui/icons/NavSolidIcons";
 import {
   AvatarButton,
   AvatarFallback,
@@ -23,10 +19,9 @@ import {
   SidebarTitle,
   Spacer,
 } from "./styles/ServerSidebar.styles";
-
+import {HiMiniChatBubbleLeftRight} from "react-icons/hi2";
 import {FaFire} from "react-icons/fa";
 import {GoHomeFill} from "react-icons/go";
-import {HiMiniChatBubbleLeftRight} from "react-icons/hi2";
 const baseNavItems = [
   { id: "home", icon: GoHomeFill, labelKey: "navigation.home" },
   { id: "feed", icon: FaFire, labelKey: "navigation.feed" },
@@ -57,13 +52,7 @@ export default function ServerSidebarExpanded({ onSelectNav, onPreloadNav }) {
   const displayName = currentUser?.nickname || currentUser?.username || "U";
   const avatarLetter = displayName.charAt(0).toUpperCase();
   const isPremium = currentUser?.premiumStatus === "active";
-  const navItems =
-    currentUser?.officialBadgeKey === "ceo"
-      ? [
-          ...baseNavItems,
-          { id: "admin", icon: MdAdminPanelSettings, labelKey: "navigation.admin" },
-        ]
-      : baseNavItems;
+  const navItems = baseNavItems;
 
   return (
     <SidebarContainer>

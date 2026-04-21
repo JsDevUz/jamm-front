@@ -1081,6 +1081,105 @@ const CoursePlayerHomeworkSection = ({
     </>
   );
 
+  const renderStudentSubmissionSummary = (assignment) => {
+    const submission = assignment?.selfSubmission;
+    if (!submission) return null;
+
+    return (
+      <HomeworkCard>
+        <HomeworkTitle>{t("coursePlayer.homework.submit")}</HomeworkTitle>
+        <HomeworkMeta>
+          <span>
+            {t("coursePlayer.homework.statusLabel")}:{" "}
+            {t(`coursePlayer.homework.status.${submission.status}`)}
+          </span>
+          <span>
+            {t("coursePlayer.homework.scoreLabel")}: {submission.score ?? "-"}
+          </span>
+        </HomeworkMeta>
+        {submission.text ? <HomeworkBody>{submission.text}</HomeworkBody> : null}
+        {submission.link ? (
+          <SubmissionLink href={submission.link} target="_blank" rel="noreferrer">
+            {submission.link}
+          </SubmissionLink>
+        ) : null}
+        {submission.fileUrl ? (
+          <>
+            <SubmissionLink
+              href={submission.fileUrl}
+              target="_blank"
+              rel="noreferrer"
+            >
+              {submission.fileName || t("coursePlayer.homework.fileUploaded")}
+            </SubmissionLink>
+            <SubmissionFileMeta>
+              {formatFileSize(submission.fileSize || 0)}
+            </SubmissionFileMeta>
+            {renderSubmissionPreview(
+              submission,
+              assignment.type || "text",
+              assignment.assignmentId,
+            )}
+          </>
+        ) : null}
+        {submission.feedback ? <HomeworkBody>{submission.feedback}</HomeworkBody> : null}
+      </HomeworkCard>
+    );
+  };
+
+  const openStudentSubmitModal = (assignment) => {
+    handleAssignmentSelect(assignment);
+    setIsSubmitModalOpen(true);
+  };
+
+  const renderStudentAssignmentCard = (assignment, index) => {
+    const hasSubmitted = Boolean(assignment.selfSubmission);
+    const canSubmitAgain = assignment.selfSubmission?.status === "needs_revision";
+
+    return (
+      <React.Fragment key={assignment.assignmentId || `assignment-${index}`}>
+        <HomeworkCard>
+          <HomeworkTitle>
+            {assignment.title ||
+              t("coursePlayer.homework.assignmentLabel", { index: index + 1 })}
+          </HomeworkTitle>
+          {assignment.description ? (
+            <HomeworkBody>{assignment.description}</HomeworkBody>
+          ) : null}
+          <HomeworkMeta>
+            <span>
+              {t("coursePlayer.homework.typeLabel")}:{" "}
+              {t(`coursePlayer.homework.types.${assignment.type || "text"}`)}
+            </span>
+            <span>
+              {t("coursePlayer.homework.deadline")}:{" "}
+              {assignment.deadline
+                ? new Date(assignment.deadline).toLocaleDateString()
+                : t("coursePlayer.homework.noDeadline")}
+            </span>
+            <span>
+              {t("coursePlayer.homework.maxScore")}: {assignment.maxScore}
+            </span>
+          </HomeworkMeta>
+          <HomeworkActions>
+            <HomeworkButton
+              type="button"
+              $primary={!hasSubmitted || canSubmitAgain}
+              onClick={() => openStudentSubmitModal(assignment)}
+            >
+              {canSubmitAgain
+                ? t("coursePlayer.homework.resubmit")
+                : hasSubmitted
+                  ? t(`coursePlayer.homework.status.${assignment.selfSubmission.status}`)
+                  : t("coursePlayer.homework.submit")}
+            </HomeworkButton>
+          </HomeworkActions>
+        </HomeworkCard>
+        {renderStudentSubmissionSummary(assignment)}
+      </React.Fragment>
+    );
+  };
+
   return (
     <>
       <HomeworkSection>
@@ -1118,7 +1217,7 @@ const CoursePlayerHomeworkSection = ({
           ) : null}
         </HomeworkHeader>
 
-        {admin || forceExpanded || isStudentSectionOpen ? renderAssignmentTabs() : null}
+        {admin ? renderAssignmentTabs() : null}
 
         {admin ? (
           <>
@@ -1130,52 +1229,7 @@ const CoursePlayerHomeworkSection = ({
         ) : null}
 
         {admin ? null : !(forceExpanded || isStudentSectionOpen) ? null : assignments.length ? (
-          selectedAssignment ? (
-            <>
-              <HomeworkCard>
-                <HomeworkTitle>{selectedAssignment.title}</HomeworkTitle>
-                <HomeworkBody>{selectedAssignment.description}</HomeworkBody>
-                <HomeworkMeta>
-                  <span>
-                    {t("coursePlayer.homework.typeLabel")}:{" "}
-                    {t(`coursePlayer.homework.types.${selectedAssignment.type || "text"}`)}
-                  </span>
-                  <span>
-                    {t("coursePlayer.homework.deadline")}:{" "}
-                    {selectedAssignment.deadline
-                      ? new Date(selectedAssignment.deadline).toLocaleDateString()
-                      : t("coursePlayer.homework.noDeadline")}
-                  </span>
-                  <span>
-                    {t("coursePlayer.homework.maxScore")}: {selectedAssignment.maxScore}
-                  </span>
-                </HomeworkMeta>
-                <HomeworkActions>
-                  <HomeworkButton
-                    type="button"
-                    $primary
-                    onClick={() => setIsSubmitModalOpen(true)}
-                  >
-                    {canResubmit
-                      ? t("coursePlayer.homework.resubmit")
-                      : t("coursePlayer.homework.submit")}
-                  </HomeworkButton>
-                </HomeworkActions>
-              </HomeworkCard>
-
-              {selectedAssignment.selfSubmission ? (
-                <HomeworkCard>
-                  <HomeworkTitle>
-                    {t("coursePlayer.homework.submit")}
-                  </HomeworkTitle>
-                  {selectedAssignment.selfSubmission?.feedback ? (
-                    <HomeworkBody>{selectedAssignment.selfSubmission.feedback}</HomeworkBody>
-                  ) : null}
-                  {renderStudentSubmissionForm()}
-                </HomeworkCard>
-              ) : null}
-            </>
-          ) : null
+          assignments.map(renderStudentAssignmentCard)
         ) : null}
       </HomeworkSection>
 

@@ -23,6 +23,8 @@ import {
   Users,
   X,
   Shield,
+  AlertCircle,
+  Star,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { useCourses } from "../../../contexts/CoursesContext";
@@ -123,6 +125,17 @@ import {
   ShareLabel,
   ShareButton,
   NotesArea,
+  NoteStatusText,
+  RatingForm,
+  RatingStars,
+  RatingStarButton,
+  ReviewSaveButton,
+  NotionSurface,
+  NotionSurfaceBody,
+  NotionSurfaceFrame,
+  NotionSurfaceHeader,
+  NotionSurfaceText,
+  NotionSurfaceTitle,
 } from "../player/styles/CoursePlayer.styles";
 import {
   formatCommentTime,
@@ -154,6 +167,382 @@ function hasLessonActivity(lesson) {
   return hasAttendanceProgress || hasHomeworkSubmission || hasLinkedTestProgress;
 }
 
+function normalizeNotionBlocks(recordMap) {
+  const blockMap = recordMap?.block || {};
+  const entries = Object.values(blockMap)
+    .map((entry) => entry?.value?.value || entry?.value || null)
+    .filter((entry) => entry && entry.id && entry.type);
+
+  if (!entries.length) {
+    return [];
+  }
+
+  const byId = new Map(entries.map((entry) => [entry.id, entry]));
+  const rootPage =
+    entries.find((entry) => entry?.type === "page" && Array.isArray(entry?.content)) ||
+    entries.find((entry) => entry?.type === "page") ||
+    null;
+
+  if (!rootPage) {
+    return entries;
+  }
+
+  const ordered = [rootPage];
+  const seen = new Set([rootPage.id]);
+
+  const visit = (blockId) => {
+    const child = byId.get(blockId);
+    if (!child || seen.has(child.id)) {
+      return;
+    }
+    ordered.push(child);
+    seen.add(child.id);
+    if (Array.isArray(child.content)) {
+      child.content.forEach(visit);
+    }
+  };
+
+  (Array.isArray(rootPage.content) ? rootPage.content : []).forEach(visit);
+
+  entries.forEach((entry) => {
+    if (!seen.has(entry.id)) {
+      ordered.push(entry);
+      seen.add(entry.id);
+    }
+  });
+
+  return ordered;
+}
+
+function getNotionTitleSegments(block) {
+  return Array.isArray(block?.properties?.title) ? block.properties.title : [];
+}
+
+function getNotionPlainText(block) {
+  return getNotionTitleSegments(block)
+    .map((segment) => String(segment?.[0] || ""))
+    .join("");
+}
+
+function renderRichTextSegments(segments, keyPrefix) {
+  if (!Array.isArray(segments) || !segments.length) {
+    return null;
+  }
+
+  return segments.map((segment, index) => {
+    const text = String(segment?.[0] || "");
+    const marks = Array.isArray(segment?.[1]) ? segment[1] : [];
+    const style = {};
+    let href = "";
+
+    marks.forEach((mark) => {
+      const [type, value] = Array.isArray(mark) ? mark : [];
+      if (type === "b") style.fontWeight = 700;
+      if (type === "i") style.fontStyle = "italic";
+      if (type === "s") style.textDecoration = "line-through";
+      if (type === "_") style.textDecoration = "underline";
+      if (type === "c") {
+        style.fontFamily = "ui-monospace, SFMono-Regular, Menlo, monospace";
+        style.background = "rgba(255,255,255,0.08)";
+        style.padding = "0.12em 0.35em";
+        style.borderRadius = "6px";
+        style.fontSize = "0.92em";
+      }
+      if (type === "a") href = String(value || "");
+    });
+
+    const content = text.split("\n").map((part, lineIndex, array) => (
+      <React.Fragment key={`${keyPrefix}-${index}-${lineIndex}`}>
+        {part}
+        {lineIndex < array.length - 1 ? <br /> : null}
+      </React.Fragment>
+    ));
+
+    if (href) {
+      return (
+        <a
+          key={`${keyPrefix}-${index}`}
+          href={href}
+          target="_blank"
+          rel="noreferrer"
+          style={style}
+        >
+          {content}
+        </a>
+      );
+    }
+
+    return (
+      <span key={`${keyPrefix}-${index}`} style={style}>
+        {content}
+      </span>
+    );
+  });
+}
+
+function NotionBlockRenderer({ recordMap }) {
+  const blocks = useMemo(() => normalizeNotionBlocks(recordMap), [recordMap]);
+
+  if (!blocks.length) {
+    return null;
+  }
+
+  const rendered = [];
+
+  for (let index = 0; index < blocks.length; index += 1) {
+    const block = blocks[index];
+    const type = String(block?.type || "");
+
+    if (type === "page") {
+      rendered.push(
+        <div key={block.id} className="jamm-notion-page-title">
+          {renderRichTextSegments(
+            getNotionTitleSegments(block),
+            `page-${block.id}`,
+          )}
+        </div>,
+      );
+      continue;
+    }
+
+    if (type === "bulleted_list" || type === "numbered_list") {
+      const isOrdered = type === "numbered_list";
+      const items = [];
+      let cursor = index;
+      while (cursor < blocks.length && blocks[cursor]?.type === type) {
+        const listBlock = blocks[cursor];
+        items.push(
+          <li key={listBlock.id}>
+            {renderRichTextSegments(
+              getNotionTitleSegments(listBlock),
+              `list-${listBlock.id}`,
+            )}
+          </li>,
+        );
+        cursor += 1;
+      }
+
+      rendered.push(
+        isOrdered ? (
+          <ol key={`list-${block.id}`} className="jamm-notion-list">
+            {items}
+          </ol>
+        ) : (
+          <ul key={`list-${block.id}`} className="jamm-notion-list">
+            {items}
+          </ul>
+        ),
+      );
+      index = cursor - 1;
+      continue;
+    }
+
+    if (type === "text" || type === "paragraph") {
+      rendered.push(
+        <p key={block.id} className="jamm-notion-paragraph">
+          {renderRichTextSegments(
+            getNotionTitleSegments(block),
+            `text-${block.id}`,
+          )}
+        </p>,
+      );
+      continue;
+    }
+
+    if (type === "header") {
+      rendered.push(
+        <h2 key={block.id} className="jamm-notion-heading jamm-notion-heading-lg">
+          {renderRichTextSegments(
+            getNotionTitleSegments(block),
+            `header-${block.id}`,
+          )}
+        </h2>,
+      );
+      continue;
+    }
+
+    if (type === "sub_header") {
+      rendered.push(
+        <h3 key={block.id} className="jamm-notion-heading jamm-notion-heading-md">
+          {renderRichTextSegments(
+            getNotionTitleSegments(block),
+            `subheader-${block.id}`,
+          )}
+        </h3>,
+      );
+      continue;
+    }
+
+    if (type === "sub_sub_header") {
+      rendered.push(
+        <h4 key={block.id} className="jamm-notion-heading jamm-notion-heading-sm">
+          {renderRichTextSegments(
+            getNotionTitleSegments(block),
+            `subsubheader-${block.id}`,
+          )}
+        </h4>,
+      );
+      continue;
+    }
+
+    if (type === "to_do") {
+      const checked = block?.properties?.checked?.[0]?.[0] === "Yes";
+      rendered.push(
+        <label key={block.id} className="jamm-notion-todo">
+          <input type="checkbox" checked={checked} readOnly />
+          <span>
+            {renderRichTextSegments(
+              getNotionTitleSegments(block),
+              `todo-${block.id}`,
+            )}
+          </span>
+        </label>,
+      );
+      continue;
+    }
+
+    if (type === "quote") {
+      rendered.push(
+        <blockquote key={block.id} className="jamm-notion-quote">
+          {renderRichTextSegments(
+            getNotionTitleSegments(block),
+            `quote-${block.id}`,
+          )}
+        </blockquote>,
+      );
+      continue;
+    }
+
+    if (type === "callout") {
+      rendered.push(
+        <div key={block.id} className="jamm-notion-callout">
+          <div className="jamm-notion-callout-icon">
+            {block?.format?.page_icon || "💡"}
+          </div>
+          <div className="jamm-notion-callout-text">
+            {renderRichTextSegments(
+              getNotionTitleSegments(block),
+              `callout-${block.id}`,
+            )}
+          </div>
+        </div>,
+      );
+      continue;
+    }
+
+    if (type === "divider") {
+      rendered.push(<hr key={block.id} className="jamm-notion-divider" />);
+      continue;
+    }
+
+    if (type === "code") {
+      rendered.push(
+        <pre key={block.id} className="jamm-notion-code">
+          <code>{getNotionPlainText(block)}</code>
+        </pre>,
+      );
+      continue;
+    }
+
+    if (type === "image") {
+      const src = block?.properties?.source?.[0]?.[0] || "";
+      if (!src) {
+        continue;
+      }
+      const absoluteUrl = src.startsWith("http")
+        ? src
+        : `https://www.notion.so/image/${encodeURIComponent(src)}`;
+      rendered.push(
+        <img
+          key={block.id}
+          className="jamm-notion-image"
+          src={absoluteUrl}
+          alt={getNotionPlainText(block) || "Notion image"}
+        />,
+      );
+      continue;
+    }
+  }
+
+  return <div className="jamm-notion-root">{rendered}</div>;
+}
+
+function LessonNotionSurface({ notionUrl, title, compact = false }) {
+  const { t } = useTranslation();
+  const [recordMap, setRecordMap] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (!notionUrl) return;
+    let cancelled = false;
+    setLoading(true);
+    setError("");
+    setRecordMap(null);
+
+    fetch(`${API_BASE_URL}/courses/proxy/notion?url=${encodeURIComponent(notionUrl)}`, {
+      credentials: "include",
+    })
+      .then(async (r) => {
+        if (!r.ok) {
+          let message = "Notion sahifani yuklab bo'lmadi";
+          try {
+            const payload = await r.json();
+            if (typeof payload?.message === "string" && payload.message.trim()) {
+              message = payload.message.trim();
+            } else if (Array.isArray(payload?.message) && payload.message.length > 0) {
+              message = String(payload.message[0] || message);
+            }
+          } catch {
+            try {
+              const text = await r.text();
+              if (text.trim()) {
+                message = text.trim();
+              }
+            } catch {
+              // ignore secondary parse failure
+            }
+          }
+          throw new Error(message);
+        }
+        return r.json();
+      })
+      .then((data) => {
+        if (cancelled) return;
+        setRecordMap(data?.recordMap || null);
+      })
+      .catch((nextError) => {
+        if (!cancelled) {
+          setError(
+            nextError instanceof Error && nextError.message.trim()
+              ? nextError.message.trim()
+              : "Notion sahifani yuklab bo'lmadi",
+          );
+        }
+      })
+      .finally(() => { if (!cancelled) setLoading(false); });
+
+    return () => { cancelled = true; };
+  }, [notionUrl]);
+
+  if (!notionUrl) return null;
+
+  return (
+    <NotionSurface $compact={compact}>
+      <NotionSurfaceBody $compact={compact}>
+        {loading && <NotionSurfaceText>{t("common.loading", { defaultValue: "Yuklanmoqda..." })}</NotionSurfaceText>}
+        {Boolean(error) && (
+          <NotionSurfaceText>
+            {error}.{" "}
+            <a href={notionUrl} target="_blank" rel="noreferrer">Bu yerda oching</a>
+          </NotionSurfaceText>
+        )}
+        {recordMap && <NotionBlockRenderer recordMap={recordMap} />}
+      </NotionSurfaceBody>
+    </NotionSurface>
+  );
+}
+
 
 const CoursePlayer = ({
   courseId,
@@ -178,6 +567,8 @@ const CoursePlayer = ({
     addComment,
     addReply,
     toggleLessonLike,
+    upsertLessonNote,
+    upsertCourseReview,
     joinCourseRoom,
     leaveCourseRoom,
   } = useCourses();
@@ -199,7 +590,14 @@ const CoursePlayer = ({
   const [isLoadingComments, setIsLoadingComments] = useState(false);
   const [playerTab, setPlayerTab] = useState("materials");
   const [notes, setNotes] = useState("");
+  const [noteStatus, setNoteStatus] = useState("");
+  const [courseReviewRating, setCourseReviewRating] = useState(0);
+  const [courseReviewText, setCourseReviewText] = useState("");
+  const [courseReviewSaving, setCourseReviewSaving] = useState(false);
   const clickActionTimerRef = useRef(null);
+  const noteSaveTimerRef = useRef(null);
+  const noteBaselineRef = useRef("");
+  const noteLessonKeyRef = useRef("");
   // Refs for attendance tracking — declared early so derived values below can write to them.
   const overallCurrentTimeRef = useRef(0);
   const totalLessonDurationRef = useRef(0);
@@ -285,6 +683,7 @@ const CoursePlayer = ({
   const currentLesson = lessons[activeLesson] || null;
   const currentLessonData = course?.lessons?.[activeLesson];
   const hasLessonTests = Boolean(currentLessonData?.linkedTests?.length);
+  const currentLessonNotionUrl = String(currentLessonData?.notionUrl || "").trim();
   const lessonMediaItems =
     Array.isArray(currentLessonData?.mediaItems) && currentLessonData.mediaItems.length
       ? currentLessonData.mediaItems
@@ -318,6 +717,10 @@ const CoursePlayer = ({
     currentLessonData?.id;
   const currentLessonHasMedia = Boolean(
     lessonMediaItems.length || currentLessonData?.videoUrl || currentLessonData?.fileUrl,
+  );
+  const currentLessonHasVideoMedia = currentLessonHasMedia;
+  const currentLessonHasRenderableContent = Boolean(
+    currentLessonHasVideoMedia || currentLessonNotionUrl,
   );
   const mediaKeys = useMemo(
     () =>
@@ -369,6 +772,98 @@ const CoursePlayer = ({
       toast.error("Dars havolasini nusxalab bo'lmadi");
     }
   }, [course, currentLessonData]);
+
+  useEffect(() => {
+    const lessonKey = String(
+      currentLessonData?._id ||
+        currentLessonData?.id ||
+        currentLessonData?.urlSlug ||
+        "",
+    );
+    const nextNote = String(currentLessonData?.selfNote?.text || "");
+    noteLessonKeyRef.current = lessonKey;
+    noteBaselineRef.current = nextNote;
+    setNotes(nextNote);
+    setNoteStatus("");
+
+    if (noteSaveTimerRef.current) {
+      clearTimeout(noteSaveTimerRef.current);
+      noteSaveTimerRef.current = null;
+    }
+  }, [
+    currentLessonData?._id,
+    currentLessonData?.id,
+    currentLessonData?.urlSlug,
+    currentLessonData?.selfNote?.text,
+  ]);
+
+  useEffect(
+    () => () => {
+      if (noteSaveTimerRef.current) {
+        clearTimeout(noteSaveTimerRef.current);
+      }
+    },
+    [],
+  );
+
+  useEffect(() => {
+    const lessonKey = noteLessonKeyRef.current;
+    if (!courseId || !lessonKey || notes === noteBaselineRef.current) return undefined;
+
+    setNoteStatus("Saqlanmoqda...");
+    if (noteSaveTimerRef.current) {
+      clearTimeout(noteSaveTimerRef.current);
+    }
+
+    noteSaveTimerRef.current = setTimeout(async () => {
+      try {
+        const saved = await upsertLessonNote(courseId, lessonKey, notes);
+        noteBaselineRef.current = String(saved?.text ?? notes);
+        setNoteStatus("Saqlandi");
+      } catch (error) {
+        setNoteStatus("Saqlab bo'lmadi");
+      }
+    }, 700);
+
+    return () => {
+      if (noteSaveTimerRef.current) {
+        clearTimeout(noteSaveTimerRef.current);
+      }
+    };
+  }, [courseId, notes, upsertLessonNote]);
+
+  useEffect(() => {
+    setCourseReviewRating(Number(course?.selfReview?.rating || 0));
+    setCourseReviewText(String(course?.selfReview?.text || ""));
+  }, [course?.selfReview?.rating, course?.selfReview?.text]);
+
+  const handleSaveCourseReview = useCallback(async () => {
+    if (!courseId || !courseReviewRating) return;
+    setCourseReviewSaving(true);
+    try {
+      await upsertCourseReview(courseId, {
+        rating: courseReviewRating,
+        text: courseReviewText,
+      });
+      toast.success(
+        course?.selfReview
+          ? "Rating va sharh yangilandi"
+          : "Rating va sharh saqlandi",
+      );
+    } catch (error) {
+      toast.error(
+        error?.response?.data?.message || "Ratingni saqlab bo'lmadi",
+      );
+    } finally {
+      setCourseReviewSaving(false);
+    }
+  }, [
+    course?.selfReview,
+    courseId,
+    courseReviewRating,
+    courseReviewText,
+    upsertCourseReview,
+  ]);
 
 
   useEffect(() => {
@@ -1332,12 +1827,6 @@ const CoursePlayer = ({
     };
   }, [currentMediaKey]);
 
-  useEffect(() => {
-    if (!isMobileViewport && showSettings) {
-      setShowSettings(false);
-    }
-  }, [isMobileViewport, showSettings]);
-
   useEffect(
     () => () => {
       if (clickActionTimerRef.current) {
@@ -1813,6 +2302,107 @@ const CoursePlayer = ({
   }
 
   const youtubeId = isYouTube ? getYouTubeId(currentLessonData.videoUrl) : null;
+  const handleLeaveCourse = async () => {
+    if (!courseId || !currentUserId) return;
+
+    try {
+      await removeUser(courseId, currentUserId);
+      toast.success(
+        t("coursePlayer.actions.leftCourse", {
+          defaultValue: "Kurs tark etildi",
+        }),
+      );
+    } catch (error) {
+      toast.error(
+        error?.response?.data?.message ||
+          t("coursePlayer.errors.leaveCourse", {
+            defaultValue: "Kursni tark etib bo'lmadi",
+          }),
+      );
+    }
+  };
+
+  const compactEnrollmentSection = (
+    <CompactEnrollmentSection>
+      <EnrollmentInfo>
+        <CreatorAvatar>
+          {course?.createdBy?.avatar ? (
+            <AvatarImage src={course.createdBy.avatar} alt="author" />
+          ) : (
+            (course?.createdBy?.name || course?.createdBy?.username || "?")
+              .charAt(0)
+              .toUpperCase()
+          )}
+        </CreatorAvatar>
+        <CreatorMeta>
+          <CreatorName>
+            {course?.createdBy?.name ||
+              course?.createdBy?.username ||
+              t("coursePlayer.creator.author")}
+          </CreatorName>
+        </CreatorMeta>
+      </EnrollmentInfo>
+      <EnrollmentActions>
+        {enrollStatus === "pending" ? (
+          <>
+            <RoundedEnrollButton $variant="pending">
+              <Clock size={16} />
+              {t("coursePlayer.actions.pending")}
+            </RoundedEnrollButton>
+            <RoundedEnrollButton
+              $variant="admin"
+              onClick={() => removeUser(courseId, currentUserId)}
+            >
+              {t("coursePlayer.actions.cancel")}
+            </RoundedEnrollButton>
+          </>
+        ) : enrollStatus === "approved" && !isOwner && !admin ? (
+          <RoundedEnrollButton $variant="leave" onClick={handleLeaveCourse}>
+            <X size={16} />
+            {t("coursePlayer.actions.leave", {
+              defaultValue: "Kursni tark etish",
+            })}
+          </RoundedEnrollButton>
+        ) : enrollStatus === "approved" || admin ? (
+          <RoundedEnrollButton $variant="enrolled">
+            <CheckCircle size={16} />
+            {t("coursePlayer.actions.enrolled")}
+          </RoundedEnrollButton>
+        ) : course?.accessType === "paid" && enrollStatus === "none" ? (
+          <RoundedEnrollButton
+            $variant="enroll"
+            onClick={async () => {
+              try {
+                await enrollInCourse(courseId);
+                const chatRes = await createChat({
+                  isGroup: false,
+                  memberIds: [ownerId],
+                });
+                if (chatRes) navigate(`/users/${chatRes?.jammId}`);
+              } catch (err) {
+                console.error(err);
+                toast.error(t("coursePlayer.errors.chatCreate"));
+              }
+            }}
+          >
+            <UserPlus size={16} />
+            {t("coursePlayer.actions.buy", {
+              price: course?.price?.toLocaleString() || 0,
+            })}
+          </RoundedEnrollButton>
+        ) : enrollStatus === "none" ? (
+          <RoundedEnrollButton
+            $variant="enroll"
+            onClick={() => enrollInCourse(courseId)}
+          >
+            <UserPlus size={16} />
+            {t("coursePlayer.actions.enroll")}{" "}
+            {course?.price > 0 && `(${course.price})`}
+          </RoundedEnrollButton>
+        ) : null}
+      </EnrollmentActions>
+    </CompactEnrollmentSection>
+  );
 
   const coursePlayerContextValue = {
     addComment,
@@ -1852,9 +2442,12 @@ const CoursePlayer = ({
       <PlayerContainer>
         <VideoSection>
           {/* VIDEO PLAYER */}
-          {canAccessLesson(activeLesson) && currentLessonData && currentLessonHasMedia ? (
+          {canAccessLesson(activeLesson) &&
+          currentLessonData &&
+          currentLessonHasRenderableContent ? (
             <>
-              {isYouTube && youtubeId ? (
+              {currentLessonHasVideoMedia ? (
+                isYouTube && youtubeId ? (
                 <VideoWrapper ref={videoWrapperRef}>
                   <YouTubeIframe
                     src={`https://www.youtube.com/embed/${youtubeId}?rel=0&modestbranding=1`}
@@ -1870,7 +2463,7 @@ const CoursePlayer = ({
                     </TopBar>
                   </TransparentVideoOverlay>
                 </VideoWrapper>
-              ) : (
+                ) : (
                 <VideoWrapper
                   ref={videoWrapperRef}
                   onMouseMove={showControlsHandler}
@@ -2070,6 +2663,12 @@ const CoursePlayer = ({
                     </ControlsBar>
                   </VideoOverlay>
                 </VideoWrapper>
+                )
+              ) : (
+                <LessonNotionSurface
+                  notionUrl={currentLessonNotionUrl}
+                  title={currentLessonData.title}
+                />
               )}
 
               {/* Video info */}
@@ -2109,6 +2708,15 @@ const CoursePlayer = ({
                   ) : null}
                 </VideoMeta>
               </VideoInfo>
+
+              {currentLessonHasVideoMedia && currentLessonNotionUrl ? (
+                <LessonNotionSurface
+                  notionUrl={currentLessonNotionUrl}
+                  title={currentLessonData.title}
+                />
+              ) : null}
+
+              {compactEnrollmentSection}
 
               {/* Player tabs */}
               <PlayerTabsBar>
@@ -2159,70 +2767,6 @@ const CoursePlayer = ({
                 {/* MORE TAB */}
                 {playerTab === "more" && (
                   <>
-                    <CompactEnrollmentSection>
-                      <EnrollmentInfo>
-                        <CreatorAvatar>
-                          {course?.createdBy?.avatar ? (
-                            <AvatarImage src={course.createdBy.avatar} alt="author" />
-                          ) : (
-                            (course?.createdBy?.name || course?.createdBy?.username || "?")
-                              .charAt(0)
-                              .toUpperCase()
-                          )}
-                        </CreatorAvatar>
-                        <CreatorMeta>
-                          <CreatorName>
-                            {course?.createdBy?.name ||
-                              course?.createdBy?.username ||
-                              t("coursePlayer.creator.author")}
-                          </CreatorName>
-                        </CreatorMeta>
-                      </EnrollmentInfo>
-                      <EnrollmentActions>
-                        {enrollStatus === "pending" ? (
-                          <EnrollmentActions>
-                            <RoundedEnrollButton $variant="pending">
-                              <Clock size={16} />
-                              {t("coursePlayer.actions.pending")}
-                            </RoundedEnrollButton>
-                            <RoundedEnrollButton
-                              $variant="admin"
-                              onClick={() => removeUser(courseId, currentUserId)}
-                            >
-                              {t("coursePlayer.actions.cancel")}
-                            </RoundedEnrollButton>
-                          </EnrollmentActions>
-                        ) : enrollStatus === "approved" || admin ? (
-                          <RoundedEnrollButton $variant="enrolled">
-                            <CheckCircle size={16} />
-                            {t("coursePlayer.actions.enrolled")}
-                          </RoundedEnrollButton>
-                        ) : course?.accessType === "paid" && enrollStatus === "none" ? (
-                          <RoundedEnrollButton
-                            $variant="enroll"
-                            onClick={async () => {
-                              try {
-                                await enrollInCourse(courseId);
-                                const chatRes = await createChat({ isGroup: false, memberIds: [ownerId] });
-                                if (chatRes) navigate(`/users/${chatRes?.jammId}`);
-                              } catch (err) {
-                                console.error(err);
-                                toast.error(t("coursePlayer.errors.chatCreate"));
-                              }
-                            }}
-                          >
-                            <UserPlus size={16} />
-                            {t("coursePlayer.actions.buy", { price: course?.price?.toLocaleString() || 0 })}
-                          </RoundedEnrollButton>
-                        ) : enrollStatus === "none" ? (
-                          <RoundedEnrollButton $variant="enroll" onClick={() => enrollInCourse(courseId)}>
-                            <UserPlus size={16} />
-                            {t("coursePlayer.actions.enroll")}{" "}
-                            {course?.price > 0 && `(${course.price})`}
-                          </RoundedEnrollButton>
-                        ) : null}
-                      </EnrollmentActions>
-                    </CompactEnrollmentSection>
                     <CourseInfoCard>
                       <CourseInfoTitle>{course.name}</CourseInfoTitle>
                       {course.description ? (
@@ -2264,12 +2808,60 @@ const CoursePlayer = ({
                       ) : null}
                     </CourseInfoCard>
                     <CourseInfoCard>
+                      <CourseInfoTitle>Kursga rating qo'ying</CourseInfoTitle>
+                      <CourseInfoDescription>
+                        Umumiy rating: {Number(course.rating || 0).toFixed(1)} ·{" "}
+                        {course.ratingCount || 0} ta sharh
+                      </CourseInfoDescription>
+                      <RatingForm>
+                        <RatingStars aria-label="Kurs ratingi">
+                          {[1, 2, 3, 4, 5].map((value) => (
+                            <RatingStarButton
+                              key={value}
+                              type="button"
+                              $active={value <= courseReviewRating}
+                              onClick={() => setCourseReviewRating(value)}
+                              aria-label={`${value} yulduz`}
+                            >
+                              <Star
+                                size={18}
+                                fill={
+                                  value <= courseReviewRating
+                                    ? "currentColor"
+                                    : "none"
+                                }
+                              />
+                            </RatingStarButton>
+                          ))}
+                        </RatingStars>
+                        <NotesArea
+                          placeholder="Kurs haqida qisqa sharh qoldiring..."
+                          value={courseReviewText}
+                          onChange={(event) =>
+                            setCourseReviewText(event.target.value)
+                          }
+                        />
+                        <ReviewSaveButton
+                          type="button"
+                          disabled={!courseReviewRating || courseReviewSaving}
+                          onClick={handleSaveCourseReview}
+                        >
+                          {courseReviewSaving
+                            ? "Saqlanmoqda..."
+                            : course?.selfReview
+                              ? "Sharhni yangilash"
+                              : "Sharh qoldirish"}
+                        </ReviewSaveButton>
+                      </RatingForm>
+                    </CourseInfoCard>
+                    <CourseInfoCard>
                       <CourseInfoTitle>{t("coursePlayer.tabs.notes")}</CourseInfoTitle>
                       <NotesArea
                         placeholder={t("coursePlayer.tabs.notesPlaceholder")}
                         value={notes}
                         onChange={(e) => setNotes(e.target.value)}
                       />
+                      <NoteStatusText>{noteStatus}</NoteStatusText>
                     </CourseInfoCard>
                   </>
                 )}

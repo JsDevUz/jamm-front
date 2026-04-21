@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import styled from "styled-components";
 import {
@@ -29,6 +29,7 @@ const Pane = styled.aside`
   background: var(--background-color);
   display: flex;
   flex-direction: column;
+  overflow: hidden;
   animation: slideInResultsPane 0.22s ease-out;
 
   @keyframes slideInResultsPane {
@@ -217,7 +218,6 @@ const TableWrap = styled.div`
   border: 1px solid var(--border-color);
   border-radius: 12px;
   background: var(--tertiary-color);
-  overflow: hidden;
 `;
 
 const TableScroller = styled.div`
@@ -428,6 +428,11 @@ const LoadingCard = styled.div`
   opacity: 0.7;
 `;
 
+const Sentinel = styled.div`
+  height: 1px;
+  width: 100%;
+`;
+
 const getQuestionKey = (entry, index) => {
   if (entry?.questionIndex !== undefined && entry?.questionIndex !== null) {
     return String(entry.questionIndex);
@@ -601,6 +606,27 @@ const ArenaResultsPane = ({
   const [searchTerm, setSearchTerm] = useState("");
   const [groupFilter, setGroupFilter] = useState("all");
   const [expandedRowId, setExpandedRowId] = useState(null);
+  const [visibleCount, setVisibleCount] = useState(50);
+  const sentinelRef = useRef(null);
+
+  useEffect(() => {
+    setVisibleCount(50);
+  }, [searchTerm, groupFilter, results]);
+
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          setVisibleCount((prev) => prev + 50);
+        }
+      },
+      { threshold: 0 },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
   const groupOptions = useMemo(
     () =>
@@ -740,7 +766,7 @@ const ArenaResultsPane = ({
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredResults.map((result) => {
+                    {filteredResults.slice(0, visibleCount).map((result) => {
                       const isExpanded = expandedRowId === result.id;
                       return (
                         <React.Fragment key={result.id}>
@@ -926,6 +952,7 @@ const ArenaResultsPane = ({
               </TableScroller>
             </TableWrap>
           )}
+          <Sentinel ref={sentinelRef} />
         </Content>
       </Pane>
     </Overlay>

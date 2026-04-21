@@ -1,22 +1,57 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import styled, { keyframes } from "styled-components";
 import { useTranslation } from "react-i18next";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
   BookOpen,
+  Camera,
+  Check,
   Clock3,
   Code2,
   GraduationCap,
+  Lock,
+  Loader,
+  MessageCircle,
   PencilRuler,
   PlayCircle,
+  Search,
+  Settings,
+  Shield,
+  Sparkles,
   Star,
+  X,
 } from "lucide-react";
+import { APP_LIMITS, getTierLimit, isPremiumUser } from "../../../constants/appLimits";
+import axiosInstance from "../../../api/axiosInstance";
 import { fetchCourses } from "../../../api/coursesApi";
+import { useTheme } from "../../../contexts/ThemeContext";
+import usePremiumUpgradeModalStore from "../../../app/store/usePremiumUpgradeModalStore";
+import ConfirmDialog from "../../../shared/ui/dialogs/ConfirmDialog";
+import toast from "react-hot-toast";
+import { ProfileUtilityPanel } from "../../profile/components";
 import useAuthStore from "../../../store/authStore";
+import { getCourseNavigationPath } from "../utils/courseNavigation";
+import NewSettingsModal from "./NewSettingsModal";
 
 const shimmer = keyframes`
   0% { background-position: 200% 0; }
   100% { background-position: -200% 0; }
+`;
+
+const modalOverlayIn = keyframes`
+  from { opacity: 0; }
+  to { opacity: 1; }
+`;
+
+const modalSurfaceIn = keyframes`
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 `;
 
 const iconPickers = [
@@ -30,17 +65,48 @@ const iconPickers = [
   },
 ];
 
+function formatPhone(value = "") {
+  const raw = String(value || "").trim();
+  const digits = raw.replace(/\D/g, "");
+
+  if (!digits.length) {
+    return "+998";
+  }
+
+  let localDigits = digits;
+  if (localDigits.startsWith("998")) {
+    localDigits = localDigits.slice(3);
+  }
+  localDigits = localDigits.slice(0, 9);
+
+  let formatted = "+998";
+  if (localDigits.length > 0) formatted += ` ${localDigits.slice(0, 2)}`;
+  if (localDigits.length > 2) formatted += ` ${localDigits.slice(2, 5)}`;
+  if (localDigits.length > 5) formatted += ` ${localDigits.slice(5, 7)}`;
+  if (localDigits.length > 7) formatted += ` ${localDigits.slice(7, 9)}`;
+
+  return formatted;
+}
+
+function normalizeProfileForm(data = {}) {
+  return {
+    nickname: data.nickname || "",
+    username: data.username || "",
+    phone: formatPhone(data.phone),
+    avatar: data.avatar || "",
+    bio: data.bio || "",
+  };
+}
+
+function normalizePhoneForPayload(value = "") {
+  return String(value || "").replace(/\s/g, "");
+}
+
 const PageRoot = styled.div`
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  background:
-    radial-gradient(
-      circle at top,
-      rgba(250, 166, 26, 0.12) 0%,
-      transparent 42%
-    ),
-    var(--background-color);
+  background: var(--background-color);
 `;
 
 const PageInner = styled.div`
@@ -57,6 +123,1291 @@ const PageInner = styled.div`
   @media (min-width: 1100px) {
     padding: 36px 32px 80px;
   }
+`;
+
+const HeroHeader = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 22px;
+
+  @media (min-width: 768px) {
+    margin-bottom: 30px;
+  }
+`;
+
+const HeroIdentity = styled.div`
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+`;
+
+const HeroAvatar = styled.button`
+  width: 54px;
+  height: 54px;
+  border-radius: 18px;
+  overflow: hidden;
+  flex-shrink: 0;
+  border: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(160deg, #6674ff 0%, #4f5bd5 100%);
+  color: #ffffff;
+  font-size: 1.15rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease;
+
+  &:hover {
+    transform: translateY(-1px);
+  }
+`;
+
+const HeroAvatarImage = styled.img`
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+`;
+
+const HeroText = styled.div`
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+`;
+
+const HeroGreeting = styled.div`
+  color: var(--text-color);
+  font-size: 1.05rem;
+  font-weight: 800;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+
+  @media (min-width: 768px) {
+    font-size: 1.2rem;
+  }
+`;
+
+const HeroSubtitle = styled.div`
+  color: var(--text-secondary-color);
+  font-size: 0.88rem;
+  line-height: 1.35;
+
+  @media (min-width: 768px) {
+    font-size: 0.95rem;
+  }
+`;
+
+const SearchButton = styled.button`
+  width: 48px;
+  height: 48px;
+  border: 1px solid var(--border-color);
+  border-radius: 18px;
+  background: var(--secondary-color);
+  color: var(--text-color);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  cursor: pointer;
+  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.08);
+  transition:
+    transform 0.18s ease,
+    border-color 0.18s ease,
+    background-color 0.18s ease,
+    color 0.18s ease;
+
+  &:hover {
+    transform: translateY(-1px);
+    border-color: color-mix(in srgb, var(--primary-color) 38%, var(--border-color));
+    color: var(--primary-color);
+    background: color-mix(in srgb, var(--secondary-color) 82%, white 18%);
+  }
+`;
+
+const ProfileOverlay = styled.div`
+  position: fixed;
+  inset: 0;
+  z-index: 1400;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  animation: ${modalOverlayIn} 0.18s ease;
+  opacity: ${(props) => (props.$closing ? 0 : 1)};
+  transition: opacity 0.18s ease;
+
+  @media (max-width: 768px) {
+    padding: 0;
+    align-items: stretch;
+  }
+`;
+
+const ProfileModal = styled.div`
+  width: min(920px, 100%);
+  min-height: min(620px, calc(100vh - 36px));
+  max-height: calc(100vh - 36px);
+  border-radius: 24px;
+  border: 1px solid color-mix(in srgb, var(--border-color) 82%, transparent);
+  background: color-mix(in srgb, var(--secondary-color) 92%, black 8%);
+  color: var(--text-color);
+  display: grid;
+  grid-template-columns: 320px minmax(0, 1fr);
+  overflow: hidden;
+  box-shadow: 0 32px 100px rgba(0, 0, 0, 0.45);
+  position: relative;
+  animation: ${modalSurfaceIn} 0.22s ease;
+  opacity: ${(props) => (props.$closing ? 0 : 1)};
+  transform: ${(props) =>
+    props.$closing ? "translateY(12px) scale(0.985)" : "translateY(0) scale(1)"};
+  transition:
+    opacity 0.18s ease,
+    transform 0.18s ease;
+
+  @media (max-width: 920px) {
+    grid-template-columns: 1fr;
+    min-height: min(720px, calc(100vh - 20px));
+    max-height: calc(100vh - 20px);
+    overflow-y: auto;
+  }
+
+  @media (max-width: 768px) {
+    width: 100vw;
+    min-height: 100vh;
+    max-height: 100vh;
+    border-radius: 0;
+    overflow-y: auto;
+  }
+`;
+
+const ProfileCloseButton = styled.button`
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--secondary-color) 82%, transparent);
+  color: var(--text-color);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 2;
+  transition:
+    background-color 0.18s ease,
+    transform 0.18s ease;
+
+  &:hover {
+    background: color-mix(in srgb, var(--hover-color) 82%, transparent);
+    transform: translateY(-1px);
+  }
+`;
+
+const ProfileSidebar = styled.div`
+  position: relative;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--secondary-color) 88%, var(--background-color)) 0%,
+    color-mix(in srgb, var(--tertiary-color) 86%, var(--background-color)) 100%
+  );
+  padding: 22px;
+  border-right: 1px solid color-mix(in srgb, var(--border-color) 82%, transparent);
+  display: flex;
+  flex-direction: column;
+
+  @media (max-width: 920px) {
+    border-right: none;
+    border-bottom: 1px solid color-mix(in srgb, var(--border-color) 82%, transparent);
+    padding: 58px 18px 18px;
+  }
+`;
+
+const ProfileBanner = styled.div`
+  height: 148px;
+  border-radius: 20px;
+  background: var(--primary-color);
+  position: relative;
+  margin-bottom: 56px;
+`;
+
+const ProfileBannerSettingsButton = styled.button`
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 38px;
+  height: 38px;
+  border: none;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--background-color) 52%, transparent);
+  color: var(--text-color);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  transition:
+    transform 0.18s ease,
+    background-color 0.18s ease;
+
+  &:hover {
+    transform: translateY(-1px);
+    background: color-mix(in srgb, var(--hover-color) 72%, transparent);
+  }
+`;
+
+const ProfileLargeAvatar = styled.div`
+  position: absolute;
+  left: 22px;
+  bottom: -34px;
+  width: 104px;
+  height: 104px;
+  border-radius: 50%;
+  padding: 6px;
+  background: color-mix(in srgb, var(--background-color) 92%, var(--secondary-color));
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.3);
+`;
+
+const ProfileLargeAvatarInner = styled.div`
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  overflow: hidden;
+  background: linear-gradient(
+    160deg,
+    color-mix(in srgb, var(--primary-color) 88%, white 12%) 0%,
+    color-mix(in srgb, var(--primary-color) 76%, black 24%) 100%
+  );
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.95rem;
+  font-weight: 800;
+`;
+
+const ProfileLargeAvatarImage = styled.img`
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+`;
+
+const ProfileStatus = styled.span`
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: var(--success-color);
+  border: 3px solid color-mix(in srgb, var(--background-color) 92%, var(--secondary-color));
+`;
+
+const ProfileName = styled.h3`
+  margin: 0;
+  font-size: 1.55rem;
+  font-weight: 800;
+  line-height: 1.08;
+  letter-spacing: -0.03em;
+`;
+
+const ProfileHandle = styled.div`
+  margin-top: 4px;
+  color: var(--text-secondary-color);
+  font-size: 0.92rem;
+`;
+
+const ProfileBio = styled.p`
+  margin: 16px 0 0;
+  color: var(--text-color);
+  font-size: 0.92rem;
+  line-height: 1.55;
+`;
+
+const ProfileMetaList = styled.div`
+  margin-top: 22px;
+  display: grid;
+  gap: 14px;
+`;
+
+const ProfileMetaItem = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+`;
+
+const ProfileMetaLabel = styled.div`
+  color: var(--text-muted-color);
+  font-size: 0.74rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+`;
+
+const ProfileMetaValue = styled.div`
+  color: var(--text-color);
+  font-size: 0.92rem;
+  font-weight: 700;
+`;
+
+const ProfileQuickActions = styled.div`
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+  flex-wrap: wrap;
+`;
+
+const ProfileMain = styled.div`
+  padding: 62px 24px 24px;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+
+  @media (max-width: 768px) {
+    padding: 20px 16px 18px;
+  }
+`;
+
+const ProfileTabs = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border-color) 82%, transparent);
+  margin-bottom: 18px;
+  overflow-x: auto;
+`;
+
+const ProfileTab = styled.button`
+  border: none;
+  background: transparent;
+  color: ${(props) =>
+    props.$active ? "var(--text-color)" : "var(--text-secondary-color)"};
+  font-size: 0.94rem;
+  font-weight: 800;
+  padding: 0 0 12px;
+  position: relative;
+  cursor: pointer;
+  white-space: nowrap;
+
+  &::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: -1px;
+    height: 3px;
+    border-radius: 999px;
+    background: var(--text-color);
+    opacity: ${(props) => (props.$active ? 1 : 0)};
+    transform: scaleX(${(props) => (props.$active ? 1 : 0.4)});
+    transition:
+      opacity 0.18s ease,
+      transform 0.18s ease;
+  }
+`;
+
+const ProfilePanel = styled.div`
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-height: 0;
+`;
+
+const ProfilePanelHeader = styled.div`
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+`;
+
+const ProfilePanelHeaderText = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 520px;
+  min-width: 0;
+`;
+
+const ProfilePanelTitle = styled.h4`
+  margin: 0;
+  font-size: 1.45rem;
+  font-weight: 800;
+  line-height: 1.12;
+  letter-spacing: -0.03em;
+`;
+
+const ProfilePanelText = styled.p`
+  margin: 0;
+  color: var(--text-secondary-color);
+  font-size: 0.92rem;
+  line-height: 1.55;
+`;
+
+const ProfilePanelActions = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-left: auto;
+
+  @media (max-width: 768px) {
+    width: 100%;
+    margin-left: 0;
+    justify-content: flex-start;
+  }
+`;
+
+const ProfilePanelActionButton = styled.button`
+  min-height: 40px;
+  padding: 0 14px;
+  border-radius: 12px;
+  border: 1px solid
+    ${(props) =>
+      props.$primary
+        ? "color-mix(in srgb, var(--primary-color) 68%, transparent)"
+        : "color-mix(in srgb, var(--border-color) 82%, transparent)"};
+  background: ${(props) =>
+    props.$primary
+      ? "color-mix(in srgb, var(--primary-color) 18%, transparent)"
+      : "color-mix(in srgb, var(--background-color) 10%, transparent)"};
+  color: ${(props) => (props.$primary ? "var(--primary-color)" : "var(--text-color)")};
+  font-size: 0.82rem;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  transition:
+    transform 0.18s ease,
+    background-color 0.18s ease,
+    border-color 0.18s ease;
+
+  &:hover {
+    transform: translateY(-1px);
+    border-color: ${(props) =>
+      props.$primary
+        ? "color-mix(in srgb, var(--primary-color) 100%, white 0%)"
+        : "var(--primary-color)"};
+    background: ${(props) =>
+      props.$primary
+        ? "color-mix(in srgb, var(--primary-color) 22%, transparent)"
+        : "color-mix(in srgb, var(--primary-color) 12%, transparent)"};
+  }
+`;
+
+const ProfileList = styled.div`
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-right: 4px;
+`;
+
+const ProfileListItem = styled.button`
+  width: 100%;
+  border: 1px solid color-mix(in srgb, var(--border-color) 82%, transparent);
+  border-radius: 18px;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--secondary-color) 92%, black 8%) 0%,
+    color-mix(in srgb, var(--tertiary-color) 90%, black 10%) 100%
+  );
+  color: inherit;
+  text-align: left;
+  padding: 14px;
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  gap: 12px;
+  cursor: ${(props) => (props.$clickable ? "pointer" : "default")};
+`;
+
+const ProfileListIcon = styled.div`
+  width: 48px;
+  height: 48px;
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--hover-color) 80%, transparent);
+  color: var(--text-color);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  font-size: 1rem;
+  font-weight: 800;
+`;
+
+const ProfileListImage = styled.img`
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+`;
+
+const ProfileListBody = styled.div`
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+`;
+
+const ProfileListTitle = styled.div`
+  color: var(--text-color);
+  font-size: 0.98rem;
+  font-weight: 800;
+  line-height: 1.2;
+`;
+
+const ProfileListSubtitle = styled.div`
+  color: var(--text-secondary-color);
+  font-size: 0.84rem;
+  line-height: 1.45;
+`;
+
+const ProfileListMeta = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+`;
+
+const ProfileMetaChip = styled.span`
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--hover-color) 78%, transparent);
+  color: var(--text-secondary-color);
+  font-size: 0.74rem;
+  font-weight: 700;
+`;
+
+const ProfileListEmpty = styled.div`
+  border-radius: 18px;
+  border: 1px dashed color-mix(in srgb, var(--border-color) 72%, transparent);
+  padding: 16px;
+  color: var(--text-secondary-color);
+  font-size: 0.9rem;
+  line-height: 1.55;
+`;
+
+const LoadMoreHint = styled.div`
+  padding: 8px 0 2px;
+  text-align: center;
+  color: var(--text-muted-color);
+  font-size: 0.78rem;
+  font-weight: 700;
+`;
+
+const AccountOverlay = styled.div`
+  position: fixed;
+  inset: 0;
+  z-index: 1500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  animation: ${modalOverlayIn} 0.18s ease;
+  opacity: ${(props) => (props.$closing ? 0 : 1)};
+  transition: opacity 0.18s ease;
+
+  @media (max-width: 768px) {
+    padding: 0;
+    align-items: stretch;
+  }
+`;
+
+const AccountModal = styled.div`
+  width: min(1180px, 100%);
+  min-height: min(700px, calc(100vh - 40px));
+  max-height: calc(100vh - 40px);
+  border-radius: 22px;
+  border: 1px solid color-mix(in srgb, var(--border-color) 82%, transparent);
+  background: color-mix(in srgb, var(--secondary-color) 92%, black 8%);
+  color: var(--text-color);
+  display: grid;
+  grid-template-columns: 248px minmax(0, 1fr);
+  overflow: hidden;
+  box-shadow: 0 30px 100px rgba(0, 0, 0, 0.45);
+  position: relative;
+  animation: ${modalSurfaceIn} 0.22s ease;
+  opacity: ${(props) => (props.$closing ? 0 : 1)};
+  transform: ${(props) =>
+    props.$closing ? "translateY(12px) scale(0.985)" : "translateY(0) scale(1)"};
+  transition:
+    opacity 0.18s ease,
+    transform 0.18s ease;
+
+  @media (max-width: 900px) {
+    grid-template-columns: 1fr;
+    overflow-y: auto;
+  }
+
+  @media (max-width: 768px) {
+    width: 100vw;
+    min-height: 100vh;
+    max-height: 100vh;
+    border-radius: 0;
+    overflow: hidden;
+  }
+`;
+
+const AccountSidebar = styled.div`
+  background: transparent;
+  border-right: 1px solid color-mix(in srgb, var(--border-color) 82%, transparent);
+  padding: 16px 14px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+
+  @media (max-width: 900px) {
+    border-right: none;
+    border-bottom: 1px solid color-mix(in srgb, var(--border-color) 82%, transparent);
+  }
+`;
+
+const AccountUserRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 10px;
+`;
+
+const AccountUserAvatar = styled.div`
+  width: 46px;
+  height: 46px;
+  border-radius: 15px;
+  overflow: hidden;
+  background: linear-gradient(
+    160deg,
+    color-mix(in srgb, var(--primary-color) 88%, white 12%) 0%,
+    color-mix(in srgb, var(--primary-color) 76%, black 24%) 100%
+  );
+  color: white;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  font-weight: 800;
+  flex-shrink: 0;
+`;
+
+const AccountUserAvatarImage = styled.img`
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+`;
+
+const AccountUserMeta = styled.div`
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+`;
+
+const AccountUserName = styled.div`
+  color: var(--text-color);
+  font-size: 0.95rem;
+  font-weight: 800;
+`;
+
+const AccountUserSub = styled.div`
+  color: var(--text-secondary-color);
+  font-size: 0.78rem;
+`;
+
+const AccountSearchStub = styled.div`
+  height: 44px;
+  border-radius: 14px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted-color);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 13px;
+  font-size: 0.92rem;
+  font-weight: 500;
+`;
+
+const AccountNavSection = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+`;
+
+const AccountNavLabel = styled.div`
+  color: var(--text-muted-color);
+  font-size: 0.74rem;
+  font-weight: 700;
+  padding: 0 8px;
+  margin-top: 2px;
+`;
+
+const AccountNavItem = styled.button`
+  width: 100%;
+  border: none;
+  border-radius: 14px;
+  padding: 11px 12px;
+  background: ${(props) =>
+    props.$active
+      ? "color-mix(in srgb, var(--hover-color) 88%, transparent)"
+      : "transparent"};
+  color: ${(props) =>
+    props.$danger
+      ? "var(--danger-color)"
+      : props.$active
+        ? "var(--text-color)"
+        : "var(--text-secondary-color)"};
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-family: var(--font-primary, "gg sans", "Noto Sans", "Helvetica Neue", Helvetica, Arial, sans-serif);
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 1.25;
+  text-align: left;
+  transition:
+    background-color 0.16s ease,
+    color 0.16s ease;
+
+  &:hover {
+    background: ${(props) =>
+      props.$active
+        ? "color-mix(in srgb, var(--hover-color) 88%, transparent)"
+        : "color-mix(in srgb, var(--hover-color) 72%, transparent)"};
+    color: ${(props) =>
+      props.$danger ? "var(--danger-color)" : "var(--text-color)"};
+  }
+`;
+
+const AccountNavDivider = styled.div`
+  height: 1px;
+  background: color-mix(in srgb, var(--border-color) 82%, transparent);
+  margin: 4px 0;
+`;
+
+const AccountMain = styled.div`
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  padding: 14px 18px 18px;
+
+  @media (max-width: 768px) {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    background: color-mix(in srgb, var(--secondary-color) 92%, black 8%);
+    padding: 14px;
+    transform: translateX(${(props) => (props.$mobileOpen ? "0" : "100%")});
+    opacity: ${(props) => (props.$mobileOpen ? 1 : 0)};
+    pointer-events: ${(props) => (props.$mobileOpen ? "auto" : "none")};
+    transition:
+      transform 0.22s ease,
+      opacity 0.22s ease;
+  }
+`;
+
+const AccountHeader = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border-color) 82%, transparent);
+`;
+
+const AccountHeaderLeft = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+`;
+
+const AccountBackButton = styled.button`
+  display: none;
+
+  @media (max-width: 768px) {
+    width: 36px;
+    height: 36px;
+    border: none;
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--hover-color) 72%, transparent);
+    color: var(--text-color);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+`;
+
+const AccountTitle = styled.h3`
+  margin: 0;
+  font-size: 1.28rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+`;
+
+const AccountCloseButton = styled.button`
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--hover-color) 72%, transparent);
+  color: var(--text-color);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition:
+    background-color 0.18s ease,
+    transform 0.18s ease;
+
+  &:hover {
+    background: color-mix(in srgb, var(--hover-color) 92%, transparent);
+    transform: translateY(-1px);
+  }
+
+  @media (max-width: 768px) {
+    display: none;
+  }
+`;
+
+const AccountContent = styled.div`
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-top: 16px;
+  padding-right: 4px;
+`;
+
+const AccountCard = styled.div`
+  border-radius: 18px;
+  background: transparent;
+  border: none;
+  overflow: hidden;
+`;
+
+const AccountCardBanner = styled.div`
+  height: 118px;
+  background: var(--scrollbar-thumb-color);
+`;
+
+const AccountCardBody = styled.div`
+  padding: 0 16px 16px;
+`;
+
+const AccountIdentityRow = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: -26px;
+  padding-bottom: 14px;
+
+  @media (max-width: 768px) {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+`;
+
+const AccountIdentityLeft = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 10px;
+`;
+
+const AccountIdentityAvatar = styled.div`
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  padding: 4px;
+  background: color-mix(in srgb, var(--background-color) 92%, var(--secondary-color));
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.3);
+`;
+
+const AccountIdentityAvatarInner = styled.div`
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  overflow: hidden;
+  background: linear-gradient(
+    160deg,
+    color-mix(in srgb, var(--primary-color) 88%, white 12%) 0%,
+    color-mix(in srgb, var(--primary-color) 76%, black 24%) 100%
+  );
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.35rem;
+  font-weight: 800;
+`;
+
+const AccountIdentityAvatarImage = styled.img`
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+`;
+
+const AccountIdentityName = styled.div`
+  color: var(--text-color);
+  font-size: 0.96rem;
+  font-weight: 800;
+`;
+
+const AccountActionButton = styled.button`
+  border: none;
+  border-radius: 12px;
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--primary-color) 88%, white 12%) 0%,
+    color-mix(in srgb, var(--primary-color) 78%, black 22%) 100%
+  );
+  color: #ffffff;
+  padding: 10px 14px;
+  font-size: 0.84rem;
+  font-weight: 800;
+  cursor: pointer;
+`;
+
+const AccountFieldList = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+`;
+
+const AccountFieldRow = styled.div`
+  display: grid;
+  grid-template-columns: ${(props) =>
+    props.$single ? "1fr" : "minmax(0, 1fr) auto"};
+  gap: 12px;
+  align-items: center;
+  padding: 13px 14px;
+  border-radius: 14px;
+  background: transparent;
+  border: none;
+
+  @media (max-width: 768px) {
+    grid-template-columns: 1fr;
+  }
+`;
+
+const AccountFieldMeta = styled.div`
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+`;
+
+const AccountFieldLabel = styled.div`
+  color: var(--text-color);
+  font-size: 0.84rem;
+  font-weight: 800;
+`;
+
+const AccountFieldValue = styled.div`
+  color: var(--text-secondary-color);
+  font-size: 0.84rem;
+  line-height: 1.5;
+`;
+
+const AccountGhostButton = styled.button`
+  border: none;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--hover-color) 72%, transparent);
+  color: var(--text-color);
+  padding: 10px 14px;
+  font-size: 0.82rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition:
+    background-color 0.18s ease,
+    transform 0.18s ease;
+
+  &:hover {
+    background: color-mix(in srgb, var(--hover-color) 92%, transparent);
+    transform: translateY(-1px);
+  }
+`;
+
+const AccountSection = styled.div`
+  margin-top: 18px;
+  border-radius: 18px;
+  border: none;
+  background: transparent;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+`;
+
+const AccountSectionHeader = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+`;
+
+const AccountSectionTitle = styled.div`
+  color: var(--text-color);
+  font-size: 0.92rem;
+  font-weight: 800;
+`;
+
+const AccountSectionText = styled.div`
+  color: var(--text-secondary-color);
+  font-size: 0.82rem;
+  line-height: 1.5;
+`;
+
+const AccountSelect = styled.select`
+  width: min(240px, 100%);
+  height: 42px;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--border-color) 82%, transparent);
+  background: color-mix(in srgb, var(--background-color) 18%, transparent);
+  color: var(--text-color);
+  padding: 0 12px;
+  font-size: 0.84rem;
+  font-weight: 700;
+  outline: none;
+`;
+
+const DangerButton = styled.button`
+  align-self: flex-start;
+  border: none;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--danger-color) 16%, transparent);
+  color: color-mix(in srgb, var(--danger-color) 76%, white 24%);
+  padding: 10px 14px;
+  font-size: 0.84rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition:
+    background-color 0.18s ease,
+    transform 0.18s ease;
+
+  &:hover {
+    background: color-mix(in srgb, var(--danger-color) 22%, transparent);
+    transform: translateY(-1px);
+  }
+`;
+
+const InlineProfileEditOverlay = styled.div`
+  position: fixed;
+  inset: 0;
+  z-index: 1650;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+
+  @media (max-width: 768px) {
+    padding: 10px;
+    align-items: stretch;
+  }
+`;
+
+const InlineProfileEditModal = styled.div`
+  width: min(560px, 100%);
+  max-height: calc(100vh - 36px);
+  border-radius: 22px;
+  border: 1px solid color-mix(in srgb, var(--border-color) 82%, transparent);
+  background: color-mix(in srgb, var(--secondary-color) 92%, black 8%);
+  color: var(--text-color);
+  overflow: hidden;
+  box-shadow: 0 30px 100px rgba(0, 0, 0, 0.42);
+  animation: ${modalSurfaceIn} 0.2s ease;
+
+  @media (max-width: 768px) {
+    width: 100%;
+    max-height: calc(100vh - 20px);
+  }
+`;
+
+const InlineProfileEditHeader = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 18px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border-color) 82%, transparent);
+`;
+
+const InlineProfileEditTitle = styled.h3`
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 800;
+`;
+
+const InlineProfileEditBody = styled.div`
+  max-height: calc(100vh - 120px);
+  overflow-y: auto;
+  padding: 18px;
+`;
+
+const InlineProfileAvatarWrap = styled.button`
+  position: relative;
+  width: 88px;
+  height: 88px;
+  border-radius: 50%;
+  border: none;
+  padding: 0;
+  margin-bottom: 18px;
+  background: none;
+  cursor: pointer;
+`;
+
+const InlineProfileAvatar = styled.div`
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  overflow: hidden;
+  background: linear-gradient(
+    160deg,
+    color-mix(in srgb, var(--primary-color) 88%, white 12%) 0%,
+    color-mix(in srgb, var(--primary-color) 76%, black 24%) 100%
+  );
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.7rem;
+  font-weight: 800;
+  color: #fff;
+
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+`;
+
+const InlineProfileAvatarOverlay = styled.div`
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  opacity: 0;
+  transition: opacity 0.18s ease;
+
+  ${InlineProfileAvatarWrap}:hover & {
+    opacity: 1;
+  }
+`;
+
+const InlineProfileField = styled.div`
+  margin-bottom: 14px;
+`;
+
+const InlineProfileLabel = styled.label`
+  display: block;
+  margin-bottom: 6px;
+  color: var(--text-muted-color);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+`;
+
+const InlineProfileInput = styled.input`
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  background: var(--input-color);
+  color: var(--text-color);
+  padding: 11px 13px;
+  font-size: 0.92rem;
+  outline: none;
+
+  &:focus {
+    border-color: var(--primary-color);
+  }
+`;
+
+const InlineProfileTextarea = styled.textarea`
+  width: 100%;
+  min-height: 96px;
+  box-sizing: border-box;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  background: var(--input-color);
+  color: var(--text-color);
+  padding: 11px 13px;
+  font-size: 0.92rem;
+  outline: none;
+  resize: vertical;
+
+  &:focus {
+    border-color: var(--primary-color);
+  }
+`;
+
+const InlineProfileActions = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 18px;
+
+  @media (max-width: 768px) {
+    flex-direction: column;
+    align-items: stretch;
+  }
+`;
+
+const InlineProfileSave = styled.button`
+  height: 42px;
+  padding: 0 16px;
+  border: none;
+  border-radius: 12px;
+  background: var(--primary-color);
+  color: #fff;
+  font-size: 0.9rem;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  opacity: ${(props) => (props.disabled ? 0.56 : 1)};
+  pointer-events: ${(props) => (props.disabled ? "none" : "auto")};
+`;
+
+const InlineProfileStatus = styled.div`
+  min-height: 20px;
+  color: ${(props) => (props.$error ? "var(--danger-color)" : "var(--success-color)")};
+  font-size: 0.82rem;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 `;
 
 const Section = styled.section`
@@ -108,8 +1459,8 @@ const ContinueGrid = styled.div`
 const ContinueCard = styled.button`
   width: 100%;
   border: 1px solid var(--border-color);
-  border-radius: 24px;
-  padding: 14px;
+  border-radius: 18px;
+  padding: 16px;
   background: var(--secondary-color);
   color: inherit;
   text-align: left;
@@ -117,12 +1468,18 @@ const ContinueCard = styled.button`
   flex-direction: column;
   gap: 14px;
   cursor: pointer;
-  box-shadow:
-    0 0 0 1px rgba(255, 255, 255, 0.04),
-    0 18px 40px rgba(0, 0, 0, 0.18);
+  box-shadow: 0 8px 18px var(--shadow-color, rgba(0, 0, 0, 0.08));
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease;
+
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 24px var(--shadow-color-strong, rgba(0, 0, 0, 0.12));
+  }
 
   @media (min-width: 768px) {
-    min-height: 220px;
+    min-height: 190px;
     padding: 18px;
     gap: 16px;
   }
@@ -137,12 +1494,12 @@ const ContinueHeader = styled.div`
 const ContinueIcon = styled.div`
   width: 42px;
   height: 42px;
-  border-radius: 14px;
+  border-radius: 12px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  background: rgba(250, 166, 26, 0.14);
+  background: color-mix(in srgb, var(--warning-color) 14%, var(--secondary-color));
   color: var(--warning-color);
 `;
 
@@ -177,7 +1534,7 @@ const ProgressTrack = styled.div`
   width: 100%;
   height: 10px;
   border-radius: 999px;
-  background: var(--tertiary-color);
+  background: color-mix(in srgb, var(--border-color) 72%, var(--secondary-color));
   overflow: hidden;
 `;
 
@@ -186,11 +1543,7 @@ const ProgressFill = styled.div`
   min-width: ${({ $value }) => ($value > 0 ? "22px" : "0px")};
   height: 100%;
   border-radius: inherit;
-  background: linear-gradient(
-    90deg,
-    #ffb347 0%,
-    var(--warning-color) 100%
-  );
+  background: var(--warning-color);
 `;
 
 const ContinueMeta = styled.div`
@@ -242,45 +1595,42 @@ const RecommendedGrid = styled.div`
 
 const RecommendedCard = styled.button`
   width: 100%;
-  padding: 12px;
+  padding: 0;
   border: 1px solid var(--border-color);
-  border-radius: 28px;
+  border-radius: 18px;
   background: var(--secondary-color);
   color: inherit;
   text-align: left;
   cursor: pointer;
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  box-shadow:
-    0 0 0 1px rgba(255, 255, 255, 0.04),
-    0 20px 44px rgba(0, 0, 0, 0.16);
+  gap: 8px;
+  overflow: hidden;
+  box-shadow: 0 10px 24px var(--shadow-color, rgba(0, 0, 0, 0.08));
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease;
+
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 14px 28px var(--shadow-color-strong, rgba(0, 0, 0, 0.12));
+  }
 
   @media (min-width: 768px) {
-    padding: 14px;
-    gap: 12px;
+    gap: 10px;
   }
 `;
 
 const CoverFrame = styled.div`
   position: relative;
-  aspect-ratio: 0.82;
+  aspect-ratio: 1.34;
   overflow: hidden;
-  border-radius: 20px;
-  border: 1px solid var(--border-color);
-  background:
-    radial-gradient(
-      circle at top left,
-      rgba(250, 166, 26, 0.18),
-      transparent 48%
-    ),
-    ${({ $gradient }) =>
-      $gradient ||
-      "linear-gradient(160deg, var(--secondary-color), var(--tertiary-color))"};
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+  border-radius: 0;
+  border: none;
+  background: var(--tertiary-color);
 
   @media (min-width: 768px) {
-    aspect-ratio: 0.9;
+    aspect-ratio: 1.34;
   }
 `;
 
@@ -297,13 +1647,13 @@ const CoverFallback = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
-  color: rgba(255, 255, 255, 0.86);
+  color: var(--warning-color);
 `;
 
 const CoverBadge = styled.div`
   position: absolute;
-  top: 10px;
-  left: 10px;
+  top: 12px;
+  left: 12px;
   padding: 5px 9px;
   border-radius: 999px;
   background: var(--warning-color);
@@ -333,11 +1683,11 @@ const CoverMetaPill = styled.div`
   align-items: center;
   gap: 6px;
   min-width: 0;
-  padding: 7px 9px;
+  padding: 5px 0;
   border-radius: 999px;
-  background: rgba(14, 18, 26, 0.58);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 `;
 
 const CourseTitle = styled.div`
@@ -350,9 +1700,11 @@ const CourseTitle = styled.div`
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+  padding: 0 14px;
 
   @media (min-width: 768px) {
     font-size: 1.06rem;
+    padding: 0 16px;
   }
 `;
 
@@ -361,6 +1713,11 @@ const CourseAuthor = styled.div`
   font-size: 0.82rem;
   line-height: 1.25;
   min-height: 1.1rem;
+  padding: 0 14px;
+
+  @media (min-width: 768px) {
+    padding: 0 16px;
+  }
 `;
 
 const CourseFooter = styled.div`
@@ -368,11 +1725,16 @@ const CourseFooter = styled.div`
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  padding: 0 14px 14px;
 
   @media (max-width: 430px) {
     flex-direction: column;
     align-items: flex-start;
     gap: 6px;
+  }
+
+  @media (min-width: 768px) {
+    padding: 0 16px 16px;
   }
 `;
 
@@ -406,27 +1768,30 @@ const SkeletonBlock = styled.div`
 `;
 
 const ContinueSkeleton = styled.div`
-  border-radius: 24px;
+  border-radius: 18px;
   border: 1px solid var(--border-color);
-  padding: 14px;
+  padding: 16px;
   display: flex;
   flex-direction: column;
   gap: 12px;
   background: var(--secondary-color);
-  box-shadow:
-    0 0 0 1px rgba(255, 255, 255, 0.04),
-    0 18px 40px rgba(0, 0, 0, 0.18);
+  box-shadow: 0 8px 18px var(--shadow-color, rgba(0, 0, 0, 0.08));
 
   @media (min-width: 768px) {
-    min-height: 220px;
+    min-height: 190px;
     padding: 18px;
   }
 `;
 
 const RecommendedSkeleton = styled.div`
+  border: 1px solid var(--border-color);
+  border-radius: 18px;
+  background: var(--secondary-color);
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
+  overflow: hidden;
+  box-shadow: 0 10px 24px var(--shadow-color, rgba(0, 0, 0, 0.08));
 `;
 
 const EmptyCard = styled.div`
@@ -500,15 +1865,19 @@ function formatPrice(price, accessType, t) {
   }).format(normalizedPrice);
 }
 
-function getCourseHref(course, lessonSlug) {
-  const base = `/my-courses/${course.urlSlug || course._id}`;
-  return lessonSlug ? `${base}/${lessonSlug}` : base;
-}
-
 function getEntityId(value) {
   if (!value) return "";
   if (typeof value === "string") return value;
   return value._id || value.id || value.userId || "";
+}
+
+function formatCreatedDate(value) {
+  if (!value) return "Yaqinda";
+  try {
+    return new Date(value).toLocaleDateString();
+  } catch {
+    return "Yaqinda";
+  }
 }
 
 function getMemberStatus(course, userId) {
@@ -631,8 +2000,10 @@ function toRecommendedCard(course) {
     gradient: course.gradient || "",
     thumbnailUrl: course.image || "",
     ownerName: "",
-    rating: Number(course.rating || 4.7),
-    ratingCount: Number(course.membersCount || course.members?.length || 0),
+    rating: Number(course.rating || 0),
+    ratingCount: Number(
+      course.ratingCount || course.membersCount || course.members?.length || 0,
+    ),
     price: Number(course.price || 0),
     accessType: course.accessType || "free_request",
     totalLessons: lessons.length,
@@ -641,14 +2012,42 @@ function toRecommendedCard(course) {
 }
 
 export default function CoursesHomePage() {
-  const { t } = useTranslation();
+  const MODAL_CLOSE_DURATION = 180;
+  const { t, i18n } = useTranslation();
   const navigate = useNavigate();
+  const location = useLocation();
+  const { theme, toggleTheme } = useTheme();
+  const openPremiumUpgradeModal = usePremiumUpgradeModalStore(
+    (state) => state.openPremiumUpgradeModal,
+  );
   const currentUser = useAuthStore((state) => state.user);
+  const setAuth = useAuthStore((state) => state.setAuth);
+  const logout = useAuthStore((state) => state.logout);
   const [dashboard, setDashboard] = useState({
     continueLearning: [],
     recommendedCourses: [],
   });
   const [loading, setLoading] = useState(true);
+  const [allCourses, setAllCourses] = useState([]);
+  const [isAccountSettingsOpen, setIsAccountSettingsOpen] = useState(false);
+  const [isProfileEditOpen, setIsProfileEditOpen] = useState(false);
+  const [isLogoutConfirmOpen, setIsLogoutConfirmOpen] = useState(false);
+  const [isAccountMobilePanelOpen, setIsAccountMobilePanelOpen] = useState(false);
+  const [isAccountSettingsClosing, setIsAccountSettingsClosing] = useState(false);
+  const [accountSettingsSection, setAccountSettingsSection] =
+    useState("my-account");
+  const [profileForm, setProfileForm] = useState(() =>
+    normalizeProfileForm(currentUser || {}),
+  );
+  const [initialProfileForm, setInitialProfileForm] = useState(() =>
+    normalizeProfileForm(currentUser || {}),
+  );
+  const [profileEditLoading, setProfileEditLoading] = useState(false);
+  const [profileEditSaving, setProfileEditSaving] = useState(false);
+  const [profileEditStatus, setProfileEditStatus] = useState(null);
+  const [pendingAvatarFile, setPendingAvatarFile] = useState(null);
+  const [avatarPreviewUrl, setAvatarPreviewUrl] = useState("");
+  const avatarInputRef = useRef(null);
 
   const loadDashboard = useCallback(async () => {
     setLoading(true);
@@ -659,6 +2058,7 @@ export default function CoursesHomePage() {
         : Array.isArray(response?.data)
           ? response.data
           : [];
+      setAllCourses(courses);
       const currentUserId = currentUser?._id || currentUser?.id || "";
       const continueLearning = courses
         .filter((course) => getMemberStatus(course, currentUserId) === "approved")
@@ -666,7 +2066,6 @@ export default function CoursesHomePage() {
         .filter(Boolean)
         .slice(0, 8);
       const recommendedCourses = courses
-        .filter((course) => getMemberStatus(course, currentUserId) === "none")
         .map(toRecommendedCard)
         .slice(0, 8);
 
@@ -688,21 +2087,461 @@ export default function CoursesHomePage() {
     loadDashboard();
   }, [loadDashboard]);
 
+  const displayName =
+    currentUser?.nickname || currentUser?.username || currentUser?.name || "User";
+  const avatarLetter = displayName.charAt(0).toUpperCase();
+  const currentUserId = currentUser?._id || currentUser?.id || "";
+  const settingsMenuItems = [
+    { id: "my-account", label: "My Account", icon: Settings },
+    { id: "appearance", label: t("profile.tabs.appearance"), icon: Settings },
+    { id: "language", label: t("profile.tabs.language"), icon: Search },
+    { id: "security", label: t("profile.tabs.security"), icon: BookOpen },
+    { id: "premium", label: t("profile.tabs.premium"), icon: Star },
+    { id: "support", label: t("profile.tabs.support"), icon: MessageCircle },
+    { id: "favorites", label: t("profile.tabs.favorites"), icon: Star },
+    { id: "learn", label: t("profile.tabs.learn"), icon: GraduationCap },
+  ];
+  const isPremiumActive = isPremiumUser(currentUser);
+  const createdAtTimeLabel = currentUser?.createdAt
+    ? new Date(currentUser.createdAt).toLocaleDateString()
+    : "Yaqinda";
+  const tierCourseLimit = getTierLimit(APP_LIMITS.coursesCreated, currentUser);
+  const tierArticleLimit = getTierLimit(APP_LIMITS.articlesPerUser, currentUser);
+  const tierGroupLimit = getTierLimit(APP_LIMITS.groupsCreated, currentUser);
+
+  const closeAccountSettings = useCallback(() => {
+    setIsAccountSettingsClosing(true);
+    window.setTimeout(() => {
+      setIsAccountSettingsOpen(false);
+      setIsAccountSettingsClosing(false);
+    }, MODAL_CLOSE_DURATION);
+  }, [MODAL_CLOSE_DURATION]);
+
+  const openProfilePreview = useCallback(() => {
+    navigate("/profile");
+  }, [navigate]);
+
+  const handleCourseNavigate = useCallback(
+    (course, lessonSlug = "") => {
+      const currentUserId = currentUser?._id || currentUser?.id || "";
+      navigate(getCourseNavigationPath(course, currentUserId, lessonSlug));
+    },
+    [currentUser?._id, currentUser?.id, navigate],
+  );
+
+  const openAccountSettings = useCallback(() => {
+    setIsAccountSettingsClosing(false);
+    setIsAccountSettingsOpen(true);
+    setIsAccountMobilePanelOpen(false);
+  }, []);
+
+  const openProfileEditDialog = useCallback(() => {
+    setIsProfileEditOpen(true);
+  }, []);
+
+  const handleAccountSectionSelect = useCallback((sectionId) => {
+    setAccountSettingsSection(sectionId);
+    setIsAccountMobilePanelOpen(true);
+  }, []);
+
+  const handleSettingsNavigate = useCallback(
+    (to) => {
+      closeAccountSettings();
+      window.setTimeout(() => navigate(to), MODAL_CLOSE_DURATION);
+    },
+    [closeAccountSettings, navigate, MODAL_CLOSE_DURATION],
+  );
+
+  const handleCopyValue = useCallback(async (value) => {
+    try {
+      await navigator.clipboard?.writeText?.(value);
+    } catch {
+      // no-op
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!isProfileEditOpen) return;
+
+    let cancelled = false;
+
+    const loadProfile = async () => {
+      setProfileEditLoading(true);
+      try {
+        const { data } = await axiosInstance.get("/users/me");
+        if (cancelled) return;
+        const normalized = normalizeProfileForm(data);
+        setProfileForm(normalized);
+        setInitialProfileForm(normalized);
+        setPendingAvatarFile(null);
+        setAvatarPreviewUrl("");
+        setAuth(data);
+      } catch {
+        if (cancelled) return;
+        const fallback = normalizeProfileForm(currentUser || {});
+        setProfileForm(fallback);
+        setInitialProfileForm(fallback);
+      } finally {
+        if (!cancelled) {
+          setProfileEditLoading(false);
+        }
+      }
+    };
+
+    loadProfile();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isProfileEditOpen, setAuth]);
+
+  useEffect(
+    () => () => {
+      if (avatarPreviewUrl?.startsWith("blob:")) {
+        URL.revokeObjectURL(avatarPreviewUrl);
+      }
+    },
+    [avatarPreviewUrl],
+  );
+
+  const closeProfileEditDialog = useCallback(() => {
+    if (avatarPreviewUrl?.startsWith("blob:")) {
+      URL.revokeObjectURL(avatarPreviewUrl);
+    }
+    setAvatarPreviewUrl("");
+    setPendingAvatarFile(null);
+    setProfileEditStatus(null);
+    setIsProfileEditOpen(false);
+  }, [avatarPreviewUrl]);
+
+  const handleProfileFormChange = useCallback((field, value) => {
+    setProfileForm((prev) => ({
+      ...prev,
+      [field]: field === "phone" ? formatPhone(value) : value,
+    }));
+  }, []);
+
+  const handleProfileAvatarChange = useCallback((event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error("Fayl hajmi juda katta (maksimum 2MB)");
+      return;
+    }
+
+    if (avatarPreviewUrl?.startsWith("blob:")) {
+      URL.revokeObjectURL(avatarPreviewUrl);
+    }
+
+    const objectUrl = URL.createObjectURL(file);
+    setPendingAvatarFile(file);
+    setAvatarPreviewUrl(objectUrl);
+  }, [avatarPreviewUrl]);
+
+  const handleProfileFormSave = useCallback(async () => {
+    const payload = {};
+
+    if (profileForm.nickname !== initialProfileForm.nickname) {
+      payload.nickname = profileForm.nickname;
+    }
+    if (profileForm.username !== initialProfileForm.username) {
+      payload.username = profileForm.username;
+    }
+    if ((profileForm.bio || "") !== (initialProfileForm.bio || "")) {
+      payload.bio = profileForm.bio || "";
+    }
+    if (
+      normalizePhoneForPayload(profileForm.phone) !==
+      normalizePhoneForPayload(initialProfileForm.phone)
+    ) {
+      payload.phone = normalizePhoneForPayload(profileForm.phone);
+    }
+
+    if (
+      payload.nickname &&
+      (payload.nickname.length < 3 || payload.nickname.length > APP_LIMITS.nicknameChars)
+    ) {
+      setProfileEditStatus({
+        type: "error",
+        message: `Nickname 3 tadan ${APP_LIMITS.nicknameChars} tagacha bo'lishi kerak`,
+      });
+      return;
+    }
+
+    if (
+      payload.username &&
+      !/^[a-zA-Z0-9]{8,30}$/.test(payload.username)
+    ) {
+      setProfileEditStatus({
+        type: "error",
+        message: "Username kamida 8 ta harf va raqamdan iborat bo'lishi kerak",
+      });
+      return;
+    }
+
+    if (payload.bio && payload.bio.length > APP_LIMITS.bioChars) {
+      setProfileEditStatus({
+        type: "error",
+        message: `Bio ko'pi bilan ${APP_LIMITS.bioChars} ta belgi bo'lishi kerak`,
+      });
+      return;
+    }
+
+    if (
+      Object.prototype.hasOwnProperty.call(payload, "phone") &&
+      profileForm.phone &&
+      !/^\+998 \d{2} \d{3} \d{2} \d{2}$/.test(profileForm.phone)
+    ) {
+      setProfileEditStatus({
+        type: "error",
+        message: "Telefon '+998 XX XXX XX XX' formatida bo'lishi kerak",
+      });
+      return;
+    }
+
+    if (!pendingAvatarFile && Object.keys(payload).length === 0) {
+      closeProfileEditDialog();
+      return;
+    }
+
+    setProfileEditSaving(true);
+    setProfileEditStatus(null);
+
+    try {
+      if (pendingAvatarFile) {
+        const formData = new FormData();
+        formData.append("file", pendingAvatarFile);
+        const { data: avatarData } = await axiosInstance.post(
+          "/users/upload-avatar",
+          formData,
+        );
+        payload.avatar = avatarData?.avatar || "";
+      }
+
+      const { data } = await axiosInstance.patch("/users/me", payload);
+      setAuth(data);
+      const normalized = normalizeProfileForm(data);
+      setProfileForm(normalized);
+      setInitialProfileForm(normalized);
+      setPendingAvatarFile(null);
+      setProfileEditStatus({ type: "success", message: "Profil saqlandi" });
+      window.setTimeout(() => {
+        closeProfileEditDialog();
+      }, 700);
+    } catch (error) {
+      const message = Array.isArray(error?.response?.data?.message)
+        ? error.response.data.message[0]
+        : error?.response?.data?.message || "Tarmoq xatosi yuz berdi";
+      setProfileEditStatus({ type: "error", message });
+    } finally {
+      setProfileEditSaving(false);
+    }
+  }, [
+    closeProfileEditDialog,
+    initialProfileForm,
+    pendingAvatarFile,
+    profileForm,
+    setAuth,
+  ]);
+
+  const renderAccountSettingsContent = () => {
+    if (accountSettingsSection === "appearance") {
+      return (
+        <AccountSection>
+          <AccountSectionHeader>
+            <AccountSectionTitle>
+              {t("profileUtility.appearance.groupTitle")}
+            </AccountSectionTitle>
+            <AccountSectionText>
+              {t("profileUtility.appearance.groupDescription")}
+            </AccountSectionText>
+          </AccountSectionHeader>
+          <AccountFieldRow>
+            <AccountFieldMeta>
+              <AccountFieldLabel>
+                {t("profileUtility.appearance.themeLabel")}
+              </AccountFieldLabel>
+              <AccountFieldValue>
+                {t("profileUtility.appearance.themeDescription")}
+              </AccountFieldValue>
+            </AccountFieldMeta>
+            <AccountSelect
+              value={theme}
+              onChange={(event) => toggleTheme(event.target.value)}
+            >
+              <option value="dark">{t("theme.dark")}</option>
+              <option value="light">{t("theme.light")}</option>
+            </AccountSelect>
+          </AccountFieldRow>
+        </AccountSection>
+      );
+    }
+
+    if (accountSettingsSection === "language") {
+      return (
+        <AccountSection>
+          <AccountSectionHeader>
+            <AccountSectionTitle>
+              {t("profileUtility.language.groupTitle")}
+            </AccountSectionTitle>
+            <AccountSectionText>
+              {t("profileUtility.language.groupDescription")}
+            </AccountSectionText>
+          </AccountSectionHeader>
+          <AccountFieldRow>
+            <AccountFieldMeta>
+              <AccountFieldLabel>
+                {t("profileUtility.language.languageLabel")}
+              </AccountFieldLabel>
+              <AccountFieldValue>
+                {t("profileUtility.language.languageDescription")}
+              </AccountFieldValue>
+            </AccountFieldMeta>
+            <AccountSelect
+              value={i18n.resolvedLanguage || "uz"}
+              onChange={(event) => {
+                localStorage.setItem("language", event.target.value);
+                i18n.changeLanguage(event.target.value);
+              }}
+            >
+              <option value="uz">{t("language.uz")}</option>
+              <option value="en">{t("language.en")}</option>
+              <option value="ru">{t("language.ru")}</option>
+            </AccountSelect>
+          </AccountFieldRow>
+        </AccountSection>
+      );
+    }
+
+    if (
+      ["security", "premium", "support", "favorites", "learn"].includes(
+        accountSettingsSection,
+      )
+    ) {
+      return (
+        <ProfileUtilityPanel
+          section={accountSettingsSection}
+          currentUser={currentUser}
+          onBack={() => setAccountSettingsSection("my-account")}
+          embedded
+        />
+      );
+    }
+
+    return (
+      <>
+        <AccountCard>
+          <AccountCardBanner />
+          <AccountCardBody>
+            <AccountIdentityRow>
+              <AccountIdentityLeft>
+                <AccountIdentityAvatar>
+                  <AccountIdentityAvatarInner>
+                    {currentUser?.avatar ? (
+                      <AccountIdentityAvatarImage
+                        src={currentUser.avatar}
+                        alt={displayName}
+                      />
+                    ) : (
+                      avatarLetter
+                    )}
+                  </AccountIdentityAvatarInner>
+                </AccountIdentityAvatar>
+                <AccountIdentityName>{displayName}</AccountIdentityName>
+              </AccountIdentityLeft>
+              <AccountActionButton type="button" onClick={openProfileEditDialog}>
+                Edit User Profile
+              </AccountActionButton>
+            </AccountIdentityRow>
+
+            <AccountFieldList>
+              <AccountFieldRow $single>
+                <AccountFieldMeta>
+                  <AccountFieldLabel>Display Name</AccountFieldLabel>
+                  <AccountFieldValue>{displayName}</AccountFieldValue>
+                </AccountFieldMeta>
+              </AccountFieldRow>
+
+              <AccountFieldRow $single>
+                <AccountFieldMeta>
+                  <AccountFieldLabel>Username</AccountFieldLabel>
+                  <AccountFieldValue>
+                    {currentUser?.username || currentUser?.nickname || "jamm-user"}
+                  </AccountFieldValue>
+                </AccountFieldMeta>
+              </AccountFieldRow>
+
+              <AccountFieldRow $single>
+                <AccountFieldMeta>
+                  <AccountFieldLabel>Email</AccountFieldLabel>
+                  <AccountFieldValue>
+                    {currentUser?.email || "Ko'rsatilmagan"}
+                  </AccountFieldValue>
+                </AccountFieldMeta>
+              </AccountFieldRow>
+            </AccountFieldList>
+          </AccountCardBody>
+        </AccountCard>
+      </>
+    );
+  };
+
   return (
     <PageRoot>
       <PageInner>
+        <HeroHeader>
+          <HeroIdentity>
+            <HeroAvatar
+              type="button"
+              aria-label="Open profile preview"
+              onClick={openProfilePreview}
+            >
+              {currentUser?.avatar ? (
+                <HeroAvatarImage src={currentUser.avatar} alt={displayName} />
+              ) : (
+                avatarLetter
+              )}
+            </HeroAvatar>
+
+            <HeroText>
+              <HeroGreeting>{`Salom ${displayName}`}</HeroGreeting>
+              <HeroSubtitle>Barchasini bir yerda toping.</HeroSubtitle>
+            </HeroText>
+          </HeroIdentity>
+
+          <SearchButton
+            type="button"
+            aria-label="Search courses"
+            data-tour="courses-search"
+            onClick={() =>
+              navigate("/search", {
+                state: { backgroundLocation: location, initialTab: "courses" },
+              })
+            }
+          >
+            <Search size={20} />
+          </SearchButton>
+        </HeroHeader>
+
         <Section>
           <SectionTitle>{t("coursesHome.continueLearning")}</SectionTitle>
           {loading ? (
             <ContinueGrid>
               {Array.from({ length: 4 }).map((_, index) => (
                 <ContinueSkeleton key={index}>
-                  <SkeletonBlock style={{ height: 42, width: 42, borderRadius: 14 }} />
-                  <SkeletonBlock style={{ height: 16 }} />
-                  <SkeletonBlock style={{ height: 10, width: "48%" }} />
+                  <ContinueHeader>
+                    <SkeletonBlock style={{ height: 42, width: 42, borderRadius: 12, flexShrink: 0 }} />
+                    <ContinueText>
+                      <SkeletonBlock style={{ height: 18, width: "78%", borderRadius: 8 }} />
+                      <SkeletonBlock style={{ height: 10, width: "38%", borderRadius: 8 }} />
+                    </ContinueText>
+                  </ContinueHeader>
                   <SkeletonBlock style={{ height: 10, borderRadius: 999 }} />
-                  <SkeletonBlock style={{ height: 12, width: "84%" }} />
-                  <SkeletonBlock style={{ height: 13, width: "56%" }} />
+                  <ContinueMeta>
+                    <SkeletonBlock style={{ height: 14, width: "88%", borderRadius: 8 }} />
+                    <SkeletonBlock style={{ height: 14, width: "74%", borderRadius: 8 }} />
+                  </ContinueMeta>
+                  <SkeletonBlock style={{ height: 16, width: "42%", borderRadius: 8, marginTop: "auto" }} />
                 </ContinueSkeleton>
               ))}
             </ContinueGrid>
@@ -714,9 +2553,7 @@ export default function CoursesHomePage() {
                   <ContinueCard
                     key={course._id}
                     type="button"
-                    onClick={() =>
-                      navigate(getCourseHref(course, course.resumeLessonSlug))
-                    }
+                    onClick={() => handleCourseNavigate(course, course.resumeLessonSlug)}
                   >
                     <ContinueHeader>
                       <ContinueIcon>
@@ -769,10 +2606,21 @@ export default function CoursesHomePage() {
             <RecommendedGrid>
               {Array.from({ length: 4 }).map((_, index) => (
                 <RecommendedSkeleton key={index}>
-                  <SkeletonBlock style={{ aspectRatio: "0.82", borderRadius: 24 }} />
-                  <SkeletonBlock style={{ height: 17 }} />
-                  <SkeletonBlock style={{ height: 13, width: "72%" }} />
-                  <SkeletonBlock style={{ height: 14, width: "88%" }} />
+                  <SkeletonBlock style={{ aspectRatio: "1.34", borderRadius: 0 }} />
+                  <SkeletonBlock style={{ height: 20, width: "78%", borderRadius: 8, margin: "0 14px" }} />
+                  <SkeletonBlock style={{ height: 14, width: "52%", borderRadius: 8, margin: "0 14px" }} />
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: 12,
+                      padding: "0 14px 14px",
+                    }}
+                  >
+                    <SkeletonBlock style={{ height: 14, width: "34%", borderRadius: 8 }} />
+                    <SkeletonBlock style={{ height: 16, width: "22%", borderRadius: 8 }} />
+                  </div>
                 </RecommendedSkeleton>
               ))}
             </RecommendedGrid>
@@ -785,7 +2633,7 @@ export default function CoursesHomePage() {
                   <RecommendedCard
                     key={course._id}
                     type="button"
-                    onClick={() => navigate(getCourseHref(course))}
+                    onClick={() => handleCourseNavigate(course)}
                   >
                     <CoverFrame $gradient={course.gradient}>
                       {course.thumbnailUrl ? (
@@ -839,6 +2687,138 @@ export default function CoursesHomePage() {
           )}
         </Section>
       </PageInner>
+
+      <NewSettingsModal
+        open={isAccountSettingsOpen}
+        closing={isAccountSettingsClosing}
+        currentUser={currentUser}
+        displayName={displayName}
+        avatarLetter={avatarLetter}
+        settingsMenuItems={settingsMenuItems}
+        accountSettingsSection={accountSettingsSection}
+        isAccountMobilePanelOpen={isAccountMobilePanelOpen}
+        content={renderAccountSettingsContent()}
+        onClose={closeAccountSettings}
+        onSectionSelect={handleAccountSectionSelect}
+        onBackMobile={() => setIsAccountMobilePanelOpen(false)}
+        onLogout={() => setIsLogoutConfirmOpen(true)}
+      />
+
+      {isProfileEditOpen ? (
+        <InlineProfileEditOverlay onClick={closeProfileEditDialog}>
+          <InlineProfileEditModal onClick={(event) => event.stopPropagation()}>
+            <InlineProfileEditHeader>
+              <InlineProfileEditTitle>Profilni tahrirlash</InlineProfileEditTitle>
+              <AccountCloseButton type="button" onClick={closeProfileEditDialog}>
+                <X size={18} />
+              </AccountCloseButton>
+            </InlineProfileEditHeader>
+
+            <InlineProfileEditBody>
+              <input
+                ref={avatarInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleProfileAvatarChange}
+                style={{ display: "none" }}
+              />
+
+              <InlineProfileAvatarWrap
+                type="button"
+                onClick={() => avatarInputRef.current?.click()}
+              >
+                <InlineProfileAvatar>
+                  {avatarPreviewUrl || profileForm.avatar ? (
+                    <img
+                      src={avatarPreviewUrl || profileForm.avatar}
+                      alt={displayName}
+                    />
+                  ) : (
+                    avatarLetter
+                  )}
+                </InlineProfileAvatar>
+                <InlineProfileAvatarOverlay>
+                  <Camera size={18} />
+                </InlineProfileAvatarOverlay>
+              </InlineProfileAvatarWrap>
+
+              {profileEditLoading ? (
+                <InlineProfileStatus>Yuklanmoqda...</InlineProfileStatus>
+              ) : (
+                <>
+                  <InlineProfileField>
+                    <InlineProfileLabel>Nickname</InlineProfileLabel>
+                    <InlineProfileInput
+                      value={profileForm.nickname}
+                      onChange={(event) =>
+                        handleProfileFormChange("nickname", event.target.value)
+                      }
+                    />
+                  </InlineProfileField>
+
+                  <InlineProfileField>
+                    <InlineProfileLabel>Username</InlineProfileLabel>
+                    <InlineProfileInput
+                      value={profileForm.username}
+                      onChange={(event) =>
+                        handleProfileFormChange("username", event.target.value)
+                      }
+                    />
+                  </InlineProfileField>
+
+                  <InlineProfileField>
+                    <InlineProfileLabel>Telefon</InlineProfileLabel>
+                    <InlineProfileInput
+                      value={profileForm.phone}
+                      onChange={(event) =>
+                        handleProfileFormChange("phone", event.target.value)
+                      }
+                    />
+                  </InlineProfileField>
+
+                  <InlineProfileField>
+                    <InlineProfileLabel>Bio</InlineProfileLabel>
+                    <InlineProfileTextarea
+                      value={profileForm.bio}
+                      onChange={(event) =>
+                        handleProfileFormChange("bio", event.target.value)
+                      }
+                    />
+                  </InlineProfileField>
+                </>
+              )}
+
+              <InlineProfileActions>
+                <InlineProfileSave
+                  type="button"
+                  disabled={profileEditLoading || profileEditSaving}
+                  onClick={handleProfileFormSave}
+                >
+                  {profileEditSaving ? <Loader size={16} className="spin" /> : <Check size={16} />}
+                  Saqlash
+                </InlineProfileSave>
+                <InlineProfileStatus $error={profileEditStatus?.type === "error"}>
+                  {profileEditStatus?.message || ""}
+                </InlineProfileStatus>
+              </InlineProfileActions>
+            </InlineProfileEditBody>
+          </InlineProfileEditModal>
+        </InlineProfileEditOverlay>
+      ) : null}
+
+      <ConfirmDialog
+        isOpen={isLogoutConfirmOpen}
+        onClose={() => setIsLogoutConfirmOpen(false)}
+        title="Hisobdan chiqilsinmi?"
+        description="Joriy qurilmadagi sessiya yopiladi va siz login sahifasiga qaytasiz."
+        confirmText="Log out"
+        cancelText="Bekor qilish"
+        isDanger
+        onConfirm={() => {
+          setIsLogoutConfirmOpen(false);
+          logout();
+        }}
+      />
     </PageRoot>
   );
 }

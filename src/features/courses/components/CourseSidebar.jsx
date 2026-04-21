@@ -15,6 +15,7 @@ import { useCourses } from "../../../contexts/CoursesContext";
 import InfiniteScroll from "react-infinite-scroll-component";
 import CreateCourseDialog from "./CreateCourseDialog";
 import SectionHeader from "../../../shared/ui/navigation/SectionHeader";
+import { getCourseNavigationPath } from "../utils/courseNavigation";
 
 const DEFAULT_COURSE_GRADIENT = "var(--background-color)";
 
@@ -279,6 +280,7 @@ const CourseSidebar = ({
   selectedCourse,
   onSelectCourse,
   onOpenPremium,
+  hideCreateCourse = false,
   viewMode = "courses",
   onToggleViewMode,
   activeArenaTab,
@@ -387,18 +389,19 @@ const CourseSidebar = ({
     () =>
       courses.filter((course) => {
         const status = isEnrolled(course._id);
-        return (
-          status === "admin" || status === "approved" || status === "pending"
-        );
+        return status === "admin" || status === "approved";
       }),
     [courses, isEnrolled],
   );
 
   const handleSelectCourse = (course) => {
     onSelectCourse(course._id);
+    navigate(getCourseNavigationPath(course, currentUser?.id || ""));
+  };
 
-    const slug = course.urlSlug || course._id;
-    navigate(`/my-courses/${slug}`);
+  const openCreateCourse = () => {
+    if (hideCreateCourse) return;
+    setIsCreateOpen(true);
   };
 
   return (
@@ -411,11 +414,12 @@ const CourseSidebar = ({
               : t("navigation.courses")
           }
           onSearch={() =>
-            navigate("/search?tab=courses", {
-              state: { from: `${location.pathname}${location.search}` },
+            navigate("/search", {
+              state: { backgroundLocation: location, initialTab: "courses" },
             })
           }
-          onAdd={() => setIsCreateOpen(true)}
+          onAdd={openCreateCourse}
+          hideAdd={hideCreateCourse}
           searchTitle={
             viewMode === "arena"
               ? t("courseSidebar.arena.searchPlaceholder", {
@@ -586,17 +590,19 @@ const CourseSidebar = ({
         )}
       </SidebarContainer>
 
-      <CreateCourseDialog
-        isOpen={isCreateOpen}
-        onClose={() => setIsCreateOpen(false)}
-        onCreated={(courseId) => {
-          setIsCreateOpen(false);
-          const c = courses.find((iter) => iter._id === courseId);
-          if (c) handleSelectCourse(c);
-          else onSelectCourse(courseId);
-        }}
-        onOpenPremium={onOpenPremium}
-      />
+      {!hideCreateCourse ? (
+        <CreateCourseDialog
+          isOpen={isCreateOpen}
+          onClose={() => setIsCreateOpen(false)}
+          onCreated={(courseId) => {
+            setIsCreateOpen(false);
+            const c = courses.find((iter) => iter._id === courseId);
+            if (c) handleSelectCourse(c);
+            else onSelectCourse(courseId);
+          }}
+          onOpenPremium={onOpenPremium}
+        />
+      ) : null}
 
     </>
   );
