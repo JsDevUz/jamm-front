@@ -348,7 +348,7 @@ const MainScroll = styled.div`
     padding:
       calc(12px + env(safe-area-inset-top, 0px))
       max(12px, env(safe-area-inset-right, 0px))
-      calc(132px + env(safe-area-inset-bottom, 0px))
+      calc(76px + env(safe-area-inset-bottom, 0px))
       max(12px, env(safe-area-inset-left, 0px));
   }
 `;
@@ -785,6 +785,7 @@ const FillPane = styled.div`
   @media (max-width: 960px) {
     min-height: 0;
     display: block;
+    overflow: auto;
   }
 `;
 
