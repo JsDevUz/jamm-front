@@ -126,20 +126,28 @@ const Shell = styled.div`
   flex: 1 1 auto;
   min-height: var(--app-height, 100dvh);
   background: var(--background-color);
+
+  @media (max-width: 700px) {
+    height: var(--app-height, 100dvh);
+    min-height: 0;
+    overflow: hidden;
+  }
 `;
 
 const Layout = styled.div`
-  height: var(--app-height);
+  height: var(--app-height, 100dvh);
   width: 100%;
   display: grid;
   grid-template-columns: 78px minmax(0, 1fr);
   align-items: stretch;
   min-width: 0;
+  min-height: 0;
 
   @media (max-width: 700px) {
-    height: var(--app-height);
+    height: var(--app-height, 100dvh);
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: minmax(0, 1fr) auto;
+    overflow: hidden;
   }
 `;
 
@@ -325,12 +333,19 @@ const MainScroll = styled.div`
   min-height: 0;
   padding: 16px;
   overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
   display: grid;
   gap: 12px;
   align-content: start;
 
   @media (max-width: 900px) {
     padding: 12px;
+  }
+
+  @media (max-width: 700px) {
+    padding-bottom: calc(92px + env(safe-area-inset-bottom, 0px));
   }
 `;
 
@@ -762,6 +777,11 @@ const FillPane = styled.div`
   min-height: 100%;
   display: flex;
   flex-direction: column;
+
+  @media (max-width: 960px) {
+    min-height: 0;
+    display: block;
+  }
 `;
 
 const CoursesGrid = styled.div`
@@ -1089,6 +1109,11 @@ const StudentTableCard = styled.div`
   display: flex;
   flex-direction: column;
   align-self: start;
+
+  @media (max-width: 960px) {
+    min-height: 0;
+    overflow: visible;
+  }
 `;
 
 const StudentTableHeader = styled.div`
@@ -1212,7 +1237,7 @@ const StudentTableScroll = styled.div`
   overflow-x: auto;
 
   @media (max-width: 960px) {
-    overflow-x: visible;
+    overflow: visible;
   }
 `;
 
