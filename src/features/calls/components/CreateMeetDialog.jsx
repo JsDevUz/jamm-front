@@ -24,7 +24,7 @@ const HeaderIcon = styled.div`
   width: 42px;
   height: 42px;
   border-radius: 14px;
-  background: color-mix(in srgb, var(--primary-color) 84%, white 16%);
+  background: var(--primary-color);
   color: white;
   display: inline-flex;
   align-items: center;
@@ -79,7 +79,7 @@ const UrlCard = styled.div`
   padding: 12px;
   border: 1px solid var(--border-color);
   border-radius: 16px;
-  background: color-mix(in srgb, var(--input-color) 84%, transparent);
+  background: var(--secondary-color);
 `;
 
 const UrlField = styled.div`
@@ -87,7 +87,7 @@ const UrlField = styled.div`
   min-width: 0;
   border-radius: 12px;
   padding: 12px 14px;
-  background: color-mix(in srgb, var(--secondary-color) 82%, transparent);
+  background: var(--input-color);
   color: var(--text-color);
   font-size: 14px;
   line-height: 1.45;
@@ -98,7 +98,7 @@ const CopyButton = styled.button`
   width: 48px;
   border: none;
   border-radius: 14px;
-  background: color-mix(in srgb, var(--hover-color) 82%, transparent);
+  background: var(--primary-color);
   color: white;
   display: inline-flex;
   align-items: center;
@@ -111,6 +111,7 @@ const CopyButton = styled.button`
 
   &:hover {
     transform: translateY(-1px);
+    filter: brightness(1.04);
   }
 
   &:active {
@@ -129,13 +130,14 @@ const Footer = styled.div`
   display: flex;
   justify-content: flex-end;
   padding: 0 18px 18px;
+  background: var(--secondary-color);
 `;
 
 const ErrorCard = styled.div`
   padding: 14px 16px;
   border-radius: 14px;
-  background: color-mix(in srgb, #ef4444 14%, transparent);
-  color: #fca5a5;
+  background: color-mix(in srgb, var(--danger-color) 12%, transparent);
+  color: var(--danger-color);
   font-size: 13px;
   line-height: 1.5;
 `;
@@ -243,7 +245,6 @@ const CreateMeetDialog = ({ isOpen, onClose, onStart }) => {
         $width="min(100%, 460px)"
         $maxHeight="min(88vh, 420px)"
         $mobileFull
-        $glass
         onClick={(event) => event.stopPropagation()}
       >
         <ModalHeader>

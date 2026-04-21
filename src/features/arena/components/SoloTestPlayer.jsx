@@ -8,15 +8,20 @@ import axios from "axios";
 import { API_BASE_URL } from "../../../config/env";
 
 const Container = styled.div`
-  max-width: 800px;
+  width: 100%;
+  max-width: 100%;
   margin: 0 auto;
-  padding: 32px;
-  background-color: var(--tertiary-color);
-  border: 1px solid var(--border-color);
-  border-radius: 12px;
+  min-height: min(680px, calc(100dvh - 150px));
+  padding: 28px;
+  background:
+    radial-gradient(circle at 16% 12%, color-mix(in srgb, var(--primary-color) 10%, transparent), transparent 30%),
+    linear-gradient(180deg, var(--secondary-color), var(--background-color));
+  border: none;
+  border-radius: inherit;
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 22px;
+  box-sizing: border-box;
 
   @media (max-width: 768px) {
     position: fixed;
@@ -25,9 +30,10 @@ const Container = styled.div`
     right: 0;
     bottom: 0;
     max-width: 100%;
+    min-height: 100dvh;
     border-radius: 0;
     border: none;
-    padding: calc(16px + env(safe-area-inset-top, 0px)) 16px 16px;
+    padding: calc(22px + env(safe-area-inset-top, 0px)) 16px 16px;
     z-index: 100;
     overflow-y: auto;
   }
@@ -36,33 +42,36 @@ const Container = styled.div`
 const Header = styled.div`
   display: flex;
   align-items: center;
-  gap: 16px;
-  padding-bottom: 16px;
-  border-bottom: 1px solid var(--border-color);
-  flex-wrap: wrap; /* allow wrapping on mobile */
-
+  gap: 12px;
+  padding: 0;
+  flex-wrap: wrap;
   position: sticky;
-  top: -32px;
-  margin-top: -32px;
-  padding-top: 32px;
-  background-color: var(--tertiary-color);
+  top: 0;
+  background: linear-gradient(180deg, var(--secondary-color), color-mix(in srgb, var(--secondary-color) 92%, transparent));
   z-index: 10;
+  border-radius: 20px;
+  padding: 12px;
+  border: 1px solid color-mix(in srgb, var(--border-color) 72%, transparent);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.08);
 
   @media (max-width: 768px) {
-    top: 0;
+    top: calc(8px + env(safe-area-inset-top, 0px));
     margin-top: 0;
-    padding-top: 0;
-    margin-left: -16px;
-    margin-right: -16px;
+    margin-left: 0;
+    margin-right: 0;
     padding-left: 16px;
     padding-right: 16px;
+    border-radius: 22px;
   }
 `;
 
 const BackBtn = styled.button`
-  background: transparent;
-  border: none;
-  color: var(--text-muted-color);
+  height: 38px;
+  padding: 0 12px;
+  background: var(--input-color);
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  color: var(--text-secondary-color);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -70,64 +79,94 @@ const BackBtn = styled.button`
   font-size: 1rem;
   &:hover {
     color: var(--text-color);
+    border-color: var(--primary-color);
   }
 `;
 
 const Title = styled.h2`
   margin: 0;
   color: var(--text-color);
-  font-size: 1.5rem;
-  flex: 1 1 100%; /* take full width on mobile if it wraps */
+  font-size: 1.35rem;
+  flex: 1 1 auto;
   display: flex;
   align-items: center;
   justify-content: center;
   text-align: center;
+  min-width: 0;
+  line-height: 1.25;
   @media (min-width: 768px) {
-    flex: 1; /* take remaining space next to back btn on desktop */
+    flex: 1;
   }
 `;
 
+const ProgressTrack = styled.div`
+  flex: 0 0 100%;
+  height: 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--border-color) 54%, transparent);
+  overflow: hidden;
+`;
+
+const ProgressFill = styled.div`
+  width: ${(props) => props.$value || "0%"};
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--primary-color), color-mix(in srgb, var(--primary-color) 72%, #22c55e));
+  transition: width 0.22s ease;
+`;
+
+const TestBody = styled.div`
+  width: min(680px, 100%);
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+`;
+
 const QuestionBox = styled.div`
-  background: var(--bg-color);
-  padding: 24px;
-  border-radius: 30px;
-  border: 1px solid var(--border-color);
-  margin-bottom: 24px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--input-color) 92%, white 8%), var(--input-color));
+  padding: 28px;
+  border-radius: 24px;
+  border: 1px solid color-mix(in srgb, var(--border-color) 70%, transparent);
+  margin-bottom: 0;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.08);
 
   @media (max-width: 768px) {
-    padding: 16px;
-    margin-bottom: 16px;
+    padding: 20px;
   }
 `;
 
 const QuestionText = styled.h3`
-  font-size: 1.1rem;
+  font-size: 1.22rem;
   line-height: 1.6;
   margin: 0;
   color: var(--text-color);
-  font-weight: 500;
+  font-weight: 800;
+  letter-spacing: -0.01em;
 `;
 
 const OptionsGrid = styled.div`
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
 `;
 
 const OptionBtn = styled.button`
   appearance: none;
   -webkit-appearance: none;
   -webkit-tap-highlight-color: transparent;
-  padding: 14px 20px;
-  border-radius: 30px;
+  padding: 16px;
+  border-radius: 18px;
   border: 1px solid
     ${(props) => {
       if (props.isRevealed && props.showResults) {
         if (props.isCorrect) return "#2ecc71"; // Green if correct
         if (props.isSelected) return "#e74c3c"; // Red if wrong and selected
       }
-      return props.isSelected ? "var(--primary-color)" : "var(--border-color)";
+      return props.isSelected
+        ? "var(--primary-color)"
+        : "color-mix(in srgb, var(--border-color) 72%, transparent)";
     }};
   background-color: ${(props) => {
     if (props.isRevealed && props.showResults) {
@@ -135,8 +174,8 @@ const OptionBtn = styled.button`
       if (props.isSelected) return "rgba(231, 76, 60, 0.05)";
     }
     return props.isSelected
-      ? "rgba(var(--primary-color-rgb), 0.05)"
-      : "var(--bg-color)";
+      ? "color-mix(in srgb, var(--primary-color) 12%, var(--input-color))"
+      : "var(--secondary-color)";
   }};
   color: var(--text-color);
   font-size: 1.05rem;
@@ -146,13 +185,18 @@ const OptionBtn = styled.button`
   display: flex;
   align-items: center;
   gap: 16px;
+  box-shadow: ${(props) =>
+    props.isSelected ? "0 16px 36px color-mix(in srgb, var(--primary-color) 18%, transparent)" : "0 10px 28px rgba(0, 0, 0, 0.04)"};
 
   @media (hover: hover) and (pointer: fine) {
     &:hover {
       border-color: ${(props) =>
         props.disabled ? "" : "var(--primary-color)"};
       background-color: ${(props) =>
-        props.disabled ? "" : "rgba(var(--primary-color-rgb), 0.02)"};
+        props.disabled
+          ? ""
+          : "color-mix(in srgb, var(--primary-color) 8%, var(--secondary-color))"};
+      transform: ${(props) => (props.disabled ? "none" : "translateY(-1px)")};
     }
   }
 
@@ -174,14 +218,14 @@ const OptionBtn = styled.button`
 `;
 
 const OptionLetter = styled.div`
-  width: 32px;
-  height: 32px;
+  width: 38px;
+  height: 38px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 0.95rem;
-  font-weight: 600;
+  font-weight: 800;
   flex-shrink: 0;
   border: 1px solid
     ${(props) => {
@@ -196,7 +240,7 @@ const OptionLetter = styled.div`
       if (props.isCorrect) return "#2ecc71";
       if (props.isSelected) return "#e74c3c";
     }
-    return props.isSelected ? "var(--primary-color)" : "transparent";
+    return props.isSelected ? "var(--primary-color)" : "var(--input-color)";
   }};
   color: ${(props) => {
     if (
@@ -340,14 +384,15 @@ const ResultOptionTag = styled.span`
 `;
 
 const PrimaryBtn = styled.button`
-  padding: 12px 24px;
-  border-radius: 8px;
+  padding: 13px 24px;
+  border-radius: 14px;
   background-color: var(--primary-color);
   color: white;
   border: none;
   font-size: 1.1rem;
   font-weight: bold;
   cursor: pointer;
+  box-shadow: 0 16px 40px color-mix(in srgb, var(--primary-color) 24%, transparent);
   &:hover {
     filter: brightness(1.1);
   }
@@ -501,6 +546,12 @@ const SoloTestPlayer = ({
 
   const questions = test.questions || [];
   const currentQ = questions[currentIdx];
+  const progressValue =
+    questions.length > 0
+      ? displayMode === "single"
+        ? `${((currentIdx + 1) / questions.length) * 100}%`
+        : `${(Object.keys(listAnswers).length / questions.length) * 100}%`
+      : "0%";
 
   // Build current answers array
   const getCurrentAnswers = useCallback(() => {
@@ -923,10 +974,13 @@ const SoloTestPlayer = ({
             : `${questions.length} ta savol`}
         </div>
         <Title>{test.title}</Title>
+        <ProgressTrack>
+          <ProgressFill $value={progressValue} />
+        </ProgressTrack>
       </Header>
 
       {displayMode === "single" ? (
-        <div>
+        <TestBody>
           <QuestionBox>
             <QuestionText>{currentQ.questionText}</QuestionText>
           </QuestionBox>
@@ -959,9 +1013,9 @@ const SoloTestPlayer = ({
               );
             })}
           </OptionsGrid>
-        </div>
+        </TestBody>
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: "32px" }}>
+        <TestBody style={{ width: "min(760px, 100%)" }}>
           {questions.map((q, qIndex) => (
             <div key={qIndex}>
               <QuestionBox>
@@ -1027,7 +1081,7 @@ const SoloTestPlayer = ({
           >
             Yakunlash
           </PrimaryBtn>
-        </div>
+        </TestBody>
       )}
 
       {/* Exit Confirmation Modal */}

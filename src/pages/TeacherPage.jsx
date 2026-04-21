@@ -6287,6 +6287,7 @@ export default function TeacherPage() {
             onSelectNav={handleSectionChange}
             displayName={currentUserName}
             avatar={currentUser?.avatar}
+            onProfileClick={() => navigate("/courses")}
           />
         </Sidebar>
 

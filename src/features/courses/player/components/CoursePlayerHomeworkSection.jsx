@@ -220,6 +220,7 @@ const HomeworkHlsVideoPreview = ({
 const CoursePlayerHomeworkSection = ({
   forceExpanded = false,
   showCollapseToggle = true,
+  onContentStateChange,
 }) => {
   const { t } = useTranslation();
   const {
@@ -235,7 +236,7 @@ const CoursePlayerHomeworkSection = ({
   const fileInputRef = useRef(null);
 
   const [homeworkData, setHomeworkData] = useState({ assignments: [] });
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [selectedAssignmentId, setSelectedAssignmentId] = useState(null);
   const [isAssignmentEditorOpen, setIsAssignmentEditorOpen] = useState(false);
   const [isStudentSectionOpen, setIsStudentSectionOpen] = useState(false);
@@ -280,7 +281,15 @@ const CoursePlayerHomeworkSection = ({
   }, [forceExpanded]);
 
   useEffect(() => {
-    if (!courseId || !lessonId) return;
+    onContentStateChange?.({ loading, count: assignments.length });
+  }, [assignments.length, loading, onContentStateChange]);
+
+  useEffect(() => {
+    if (!courseId || !lessonId) {
+      setHomeworkData({ assignments: [] });
+      setLoading(false);
+      return undefined;
+    }
     let cancelled = false;
 
     const loadHomework = async () => {

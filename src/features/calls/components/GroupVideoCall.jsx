@@ -454,8 +454,8 @@ const renderWhiteboardSurfaceToCanvas = (surface, targetCanvas, heartbeatValue =
 
 const Overlay = styled.div`
   --call-bg: var(--background-color);
-  --call-surface: color-mix(in srgb, var(--secondary-color) 92%, black 8%);
-  --call-panel: color-mix(in srgb, var(--input-color) 90%, black 10%);
+  --call-surface: var(--secondary-color);
+  --call-panel: var(--input-color);
   --call-border: color-mix(in srgb, var(--border-color) 80%, transparent);
   --call-text: var(--text-color);
   --call-muted: var(--text-muted-color);
@@ -463,6 +463,10 @@ const Overlay = styled.div`
   --call-warning: var(--warning-color);
   --call-danger: var(--danger-color);
   --call-primary: var(--primary-color);
+  --call-control: color-mix(in srgb, var(--secondary-color) 94%, transparent);
+  --call-control-hover: var(--hover-color);
+  --call-control-border: var(--border-color);
+  --call-shadow: color-mix(in srgb, var(--text-color) 14%, transparent);
   position: fixed;
   inset: ${(p) => (p.$minimized ? "auto 20px 20px auto" : "0")};
   width: ${(p) => (p.$minimized ? "320px" : "auto")};
@@ -485,7 +489,7 @@ const Overlay = styled.div`
           ? "0"
           : "env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px)"};
     box-sizing: border-box;
-    background: ${(p) => (p.$minimized ? "var(--call-bg)" : "transparent")};
+    background: var(--call-bg);
   }
 `;
 
@@ -981,9 +985,9 @@ const PiPBottomControls = styled.div`
   gap: 8px;
   padding: 10px 12px;
   border-radius: 20px;
-  background: rgba(22, 22, 24, 0.96);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.3);
+  background: var(--call-control);
+  border: 1px solid var(--call-control-border);
+  box-shadow: 0 16px 36px var(--call-shadow);
   margin: 12px 18px 18px;
   width: calc(100% - 36px);
   justify-content: center;
@@ -994,17 +998,17 @@ const PiPControlBtn = styled.button`
   width: 42px;
   height: 42px;
   border-radius: 14px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--call-control-border);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   background: ${(props) =>
     props.$danger
-      ? "#d64a3a"
+      ? "var(--call-danger)"
       : props.$off
         ? "rgba(247, 200, 204, 0.96)"
-        : "rgba(54, 54, 56, 0.98)"};
-  color: ${(props) => (props.$danger ? "white" : props.$off ? "#7b241f" : "#f5f5f5")};
+        : "var(--call-panel)"};
+  color: ${(props) => (props.$danger ? "white" : props.$off ? "#7b241f" : "var(--call-text)")};
   cursor: pointer;
 `;
 
@@ -1417,9 +1421,9 @@ const StageActionBtn = styled.button`
   width: 40px;
   height: 40px;
   border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(0, 0, 0, 0.58);
-  color: #fff;
+  border: 1px solid var(--call-control-border);
+  background: var(--call-control);
+  color: var(--call-text);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1430,7 +1434,7 @@ const StageActionBtn = styled.button`
 
   &:hover {
     transform: translateY(-1px);
-    background: rgba(0, 0, 0, 0.72);
+    background: var(--call-control-hover);
   }
 `;
 
@@ -1856,10 +1860,10 @@ const ControlBar = styled.div`
   width: max-content;
   max-width: calc(100% - 24px);
   padding: 12px 24px;
-  background: rgba(24, 24, 27, 0.65);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--call-control);
+  border: 1px solid var(--call-control-border);
   border-radius: 30px;
-  box-shadow: 0 16px 44px rgba(0, 0, 0, 0.32);
+  box-shadow: 0 16px 44px var(--call-shadow);
   flex-shrink: 0;
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
@@ -1922,14 +1926,14 @@ const ControlBarToggle = styled.button`
   pointer-events: auto;
   width: 48px;
   height: 32px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--call-control-border);
   border-radius: 999px;
-  background: rgba(24, 24, 27, 0.92);
-  color: #f5f5f5;
+  background: var(--call-control);
+  color: var(--call-text);
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.24);
+  box-shadow: 0 12px 28px var(--call-shadow);
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
   cursor: pointer;
@@ -1938,7 +1942,7 @@ const ControlBarToggle = styled.button`
 
   &:hover {
     transform: translateY(-1px);
-    background: rgba(32, 32, 35, 0.96);
+    background: var(--call-control-hover);
   }
 `;
 
@@ -1949,12 +1953,12 @@ const CtrlBtn = styled.button`
   border: 1px solid
     ${(p) =>
       p.$danger
-        ? "rgba(255,255,255,0.06)"
+        ? "color-mix(in srgb, var(--call-danger) 28%, transparent)"
         : p.$state === "off"
           ? "rgba(244, 114, 182, 0.16)"
           : p.$state === "accent"
             ? "rgba(250, 166, 26, 0.18)"
-            : "rgba(255,255,255,0.06)"};
+            : "var(--call-control-border)"};
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -1964,12 +1968,12 @@ const CtrlBtn = styled.button`
   flex-shrink: 0;
   ${(p) =>
     p.$danger
-      ? `background: #d64a3a; color: white; &:hover { background: #c63f30; transform: translateY(-1px); }`
+      ? `background: var(--call-danger); color: white; &:hover { filter: brightness(0.94); transform: translateY(-1px); }`
       : p.$state === "off"
         ? `background: rgba(247, 200, 204, 0.96); color: #7b241f; &:hover { background: rgba(248, 214, 217, 1); transform: translateY(-1px); }`
         : p.$state === "accent"
-          ? `background: rgba(54, 54, 56, 0.98); color: #faa61a; &:hover { background: rgba(66, 66, 68, 1); transform: translateY(-1px); }`
-          : `background: rgba(54, 54, 56, 0.98); color: #f5f5f5; &:hover { background: rgba(66, 66, 68, 1); transform: translateY(-1px); }`}
+          ? `background: var(--call-panel); color: var(--call-warning); &:hover { background: var(--call-control-hover); transform: translateY(-1px); }`
+          : `background: var(--call-panel); color: var(--call-text); &:hover { background: var(--call-control-hover); transform: translateY(-1px); }`}
 
   @media (max-width: 480px) {
     width: ${(p) => (p.$danger ? "84px" : "58px")};
@@ -1997,7 +2001,7 @@ const CtrlBtn = styled.button`
 const ControlDivider = styled.div`
   width: 1px;
   height: 34px;
-  background: rgba(255, 255, 255, 0.12);
+  background: var(--call-control-border);
   border-radius: 999px;
   flex-shrink: 0;
 
@@ -2012,16 +2016,16 @@ const MenuDialog = styled.div`
   left: 50%;
   transform: translateX(-50%);
   z-index: 10090;
-  background: rgba(32, 32, 36, 0.95);
+  background: var(--call-control);
   backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--call-control-border);
   border-radius: 16px;
   padding: 12px;
   display: flex;
   flex-direction: column;
   gap: 8px;
   min-width: 180px;
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 20px 50px var(--call-shadow);
 
   @media (max-width: 768px) {
     bottom: calc(100% + 8px);
@@ -2038,14 +2042,14 @@ const MenuItem = styled.button`
   border-radius: 10px;
   border: none;
   background: transparent;
-  color: white;
+  color: var(--call-text);
   font-size: 14px;
   cursor: pointer;
   transition: background 0.15s ease;
   white-space: nowrap;
 
   &:hover {
-    background: rgba(255, 255, 255, 0.1);
+    background: var(--call-control-hover);
   }
 
   svg {
@@ -2095,10 +2099,10 @@ const FullscreenBtn = styled.button`
   position: absolute;
   bottom: ${(p) => (p.$immersive ? "18px" : "8px")};
   right: ${(p) => (p.$immersive ? "14px" : "8px")};
-  background: rgba(0, 0, 0, 0.55);
-  border: none;
+  background: var(--call-control);
+  border: 1px solid var(--call-control-border);
   border-radius: 6px;
-  color: #fff;
+  color: var(--call-text);
   padding: 5px;
   cursor: pointer;
   opacity: ${(p) => (p.$visible ? 1 : 0.92)};
@@ -2106,7 +2110,7 @@ const FullscreenBtn = styled.button`
   z-index: 20;
   pointer-events: auto;
   &:hover {
-    background: rgba(114, 137, 218, 0.7);
+    background: var(--call-control-hover);
   }
 
   @media (max-width: 768px) {

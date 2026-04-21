@@ -946,7 +946,8 @@ export default function CoursePreviewPage() {
     () => normalizeLessonMediaItems(firstPreviewLesson, t),
     [firstPreviewLesson, t],
   );
-  const firstPreviewMedia = firstPreviewMediaItems[0] || null;
+  const firstPreviewMedia =
+    firstPreviewMediaItems.find((item) => Boolean(getMediaSource(item))) || null;
   const previewMediaUrl = getMediaSource(firstPreviewMedia);
   const previewYoutubeId = getYouTubeId(
     firstPreviewMedia?.videoUrl || firstPreviewLesson?.videoUrl || "",
@@ -1121,6 +1122,13 @@ export default function CoursePreviewPage() {
         <PreviewHeroVideo
           src={previewMediaUrl}
           streamType={firstPreviewMedia?.streamType || firstPreviewLesson?.streamType}
+          courseId={course?._id || course?.id || resourceId}
+          lessonId={
+            firstPreviewLesson?.urlSlug ||
+            firstPreviewLesson?._id ||
+            firstPreviewLesson?.id
+          }
+          mediaId={firstPreviewMedia?.mediaId || firstPreviewMedia?._id}
           poster={course.image}
         />
       );

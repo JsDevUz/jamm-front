@@ -589,6 +589,14 @@ const CoursePlayer = ({
   const [commentsHasMore, setCommentsHasMore] = useState(true);
   const [isLoadingComments, setIsLoadingComments] = useState(false);
   const [playerTab, setPlayerTab] = useState("materials");
+  const [materialsStatus, setMaterialsStatus] = useState({
+    loading: true,
+    count: 0,
+  });
+  const [homeworkStatus, setHomeworkStatus] = useState({
+    loading: true,
+    count: 0,
+  });
   const [notes, setNotes] = useState("");
   const [noteStatus, setNoteStatus] = useState("");
   const [courseReviewRating, setCourseReviewRating] = useState(0);
@@ -715,6 +723,12 @@ const CoursePlayer = ({
     currentLessonData?.urlSlug ||
     currentLessonData?._id ||
     currentLessonData?.id;
+  const shouldShowMaterialsEmptyState =
+    !hasLessonTests &&
+    !materialsStatus.loading &&
+    !homeworkStatus.loading &&
+    materialsStatus.count === 0 &&
+    homeworkStatus.count === 0;
   const currentLessonHasMedia = Boolean(
     lessonMediaItems.length || currentLessonData?.videoUrl || currentLessonData?.fileUrl,
   );
@@ -752,6 +766,11 @@ const CoursePlayer = ({
       : playbackStreamType === "direct"
         ? "Direct"
         : playbackStreamType || "Direct";
+
+  useEffect(() => {
+    setMaterialsStatus({ loading: true, count: 0 });
+    setHomeworkStatus({ loading: true, count: 0 });
+  }, [lessonIdentifier]);
 
   const handleCopyCurrentLessonLink = useCallback(async () => {
     const courseSlug = course?.urlSlug || course?._id || course?.id;
@@ -2753,7 +2772,10 @@ const CoursePlayer = ({
               <PlayerTabContent>
                 {/* MATERIALS TAB */}
                 <div style={{ display: playerTab === "materials" ? "contents" : "none" }}>
-                  <CoursePlayerMaterialsSection />
+                  <CoursePlayerMaterialsSection
+                    showEmptyState={shouldShowMaterialsEmptyState}
+                    onContentStateChange={setMaterialsStatus}
+                  />
                   {hasLessonTests ? (
                     <CoursePlayerLessonTestsSection
                       forceExpanded
@@ -2763,6 +2785,7 @@ const CoursePlayer = ({
                   <CoursePlayerHomeworkSection
                     forceExpanded
                     showCollapseToggle={false}
+                    onContentStateChange={setHomeworkStatus}
                   />
                 </div>
 

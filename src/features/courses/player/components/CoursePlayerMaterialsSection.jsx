@@ -87,7 +87,10 @@ const normalizeLessonMediaItems = (lesson) => {
 const getMaterialKey = (item) =>
   String(item?.materialId || item?._id || item?.id || item?.fileUrl || "");
 
-const CoursePlayerMaterialsSection = () => {
+const CoursePlayerMaterialsSection = ({
+  showEmptyState = true,
+  onContentStateChange,
+}) => {
   const { t } = useTranslation();
   const {
     getLessonMaterials,
@@ -142,6 +145,10 @@ const CoursePlayerMaterialsSection = () => {
   useEffect(() => {
     loadMaterials();
   }, [loadMaterials]);
+
+  useEffect(() => {
+    onContentStateChange?.({ loading, count: items.length });
+  }, [items.length, loading, onContentStateChange]);
 
   useEffect(() => {
     if (!items.length) {
@@ -391,7 +398,7 @@ const CoursePlayerMaterialsSection = () => {
     ) || items[0] || null;
   const isPreviewOpen = Boolean(getMaterialKey(previewMaterial)) && Boolean(previewMaterial?.fileUrl);
 
-  if (!admin && !loading && !items.length) {
+  if (!admin && showEmptyState && !loading && !items.length) {
     return (
       <EmptyMaterials>
         {t("coursePlayer.materials.empty", {

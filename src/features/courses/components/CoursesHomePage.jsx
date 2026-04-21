@@ -713,7 +713,6 @@ const ContinueCard = styled.button`
 
   &:hover {
     transform: translateY(-2px);
-    box-shadow: 0 12px 24px var(--shadow-color-strong, rgba(0, 0, 0, 0.12));
   }
 
   @media (min-width: 768px) {

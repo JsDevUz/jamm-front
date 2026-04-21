@@ -63,6 +63,7 @@ const ProfileOverlay = styled.div`
 
 const ProfileModal = styled.div`
   width: min(920px, 100%);
+  height: min(720px, calc(100vh - 36px));
   min-height: min(620px, calc(100vh - 36px));
   max-height: calc(100vh - 36px);
   border-radius: 24px;
@@ -84,6 +85,7 @@ const ProfileModal = styled.div`
 
   @media (max-width: 920px) {
     grid-template-columns: 1fr;
+    height: min(720px, calc(100vh - 20px));
     min-height: min(720px, calc(100vh - 20px));
     max-height: calc(100vh - 20px);
     overflow-y: auto;
@@ -159,11 +161,15 @@ const ProfileSidebar = styled.div`
   border-right: 1px solid color-mix(in srgb, var(--border-color) 82%, transparent);
   display: flex;
   flex-direction: column;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 
   @media (max-width: 920px) {
     border-right: none;
     border-bottom: 1px solid color-mix(in srgb, var(--border-color) 82%, transparent);
     padding: calc(58px + env(safe-area-inset-top, 0px)) 18px 18px;
+    overflow: visible;
   }
 `;
 
@@ -309,10 +315,13 @@ const ProfileMain = styled.div`
   padding: 62px 24px 24px;
   display: flex;
   flex-direction: column;
+  min-height: 0;
   min-width: 0;
+  overflow: hidden;
 
   @media (max-width: 768px) {
     padding: 20px 16px calc(28px + env(safe-area-inset-bottom, 0px));
+    overflow: visible;
   }
 `;
 
@@ -322,7 +331,8 @@ const ProfileTabs = styled.div`
   gap: 22px;
   border-bottom: 1px solid color-mix(in srgb, var(--border-color) 82%, transparent);
   margin-bottom: 18px;
-  overflow-x: auto;
+  flex-shrink: 0;
+  overflow: visible;
 `;
 
 const ProfileTab = styled.button`
@@ -368,6 +378,7 @@ const ProfilePanelHeader = styled.div`
   justify-content: space-between;
   gap: 14px;
   flex-wrap: wrap;
+  flex-shrink: 0;
 `;
 
 const ProfilePanelHeaderText = styled.div`
