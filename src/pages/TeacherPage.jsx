@@ -156,7 +156,7 @@ const Panel = styled.div`
   background: var(--secondary-color);
   border: 1px solid var(--border-color);
   min-height: 0;
-  height: calc(100vh - 36px);
+  height: 100%;
   overflow: hidden;
 `;
 
@@ -345,7 +345,11 @@ const MainScroll = styled.div`
   }
 
   @media (max-width: 700px) {
-    padding-bottom: calc(92px + env(safe-area-inset-bottom, 0px));
+    padding:
+      calc(12px + env(safe-area-inset-top, 0px))
+      max(12px, env(safe-area-inset-right, 0px))
+      calc(112px + env(safe-area-inset-bottom, 0px))
+      max(12px, env(safe-area-inset-left, 0px));
   }
 `;
 

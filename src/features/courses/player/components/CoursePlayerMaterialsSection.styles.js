@@ -1,7 +1,7 @@
 import styled from "styled-components";
 
 export const MaterialsSection = styled.div`
-  margin: ${(props) => (props.$admin ? "5px 8px" : "10px 16px 0")};
+  margin: ${(props) => (props.$admin ? "5px 8px" : "10px 16px 10px")};
   border-radius: ${(props) => (props.$admin ? "12px" : "0")};
   border: ${(props) => (props.$admin ? "1px solid var(--border-color)" : "none")};
   padding: ${(props) => (props.$admin ? "14px" : "0")};

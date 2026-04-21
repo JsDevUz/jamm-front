@@ -11,6 +11,14 @@ const Header = styled.div`
   gap: 12px;
   border-bottom: 1px solid var(--border-color);
   background: var(--secondary-color);
+
+  @media (max-width: 768px) {
+    padding:
+      calc(14px + env(safe-area-inset-top, 0px))
+      max(16px, env(safe-area-inset-right, 0px))
+      12px
+      max(16px, env(safe-area-inset-left, 0px));
+  }
 `;
 
 const HeaderPrimary = styled.div`
