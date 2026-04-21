@@ -24,13 +24,22 @@ const ScrollArea = styled.div`
 
 const skeletonPulse = keyframes`
   0% {
-    opacity: 0.58;
+    opacity: 0.64;
   }
   50% {
-    opacity: 0.9;
+    opacity: 0.96;
   }
   100% {
-    opacity: 0.58;
+    opacity: 0.64;
+  }
+`;
+
+const shimmer = keyframes`
+  0% {
+    transform: translateX(-120%);
+  }
+  100% {
+    transform: translateX(120%);
   }
 `;
 
@@ -433,18 +442,6 @@ const LoaderText = styled.h4`
   }
 `;
 
-const InitialLoaderState = styled.div`
-  flex: 1;
-  min-height: 220px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  color: var(--text-secondary-color);
-  font-size: 14px;
-  font-weight: 600;
-`;
-
 const EmptyState = styled.div`
   flex: 1;
   min-height: 220px;
@@ -464,11 +461,11 @@ const InitialLayoutSkeleton = styled.div`
   display: flex;
   flex-direction: column;
   justify-content: flex-start;
-  gap: 12px;
-  padding: 16px 8px calc(10px + env(safe-area-inset-bottom, 0px));
+  gap: 10px;
+  padding: 14px 12px calc(10px + env(safe-area-inset-bottom, 0px));
   background-image: url("/chat-area-bg.JPG");
-  background-size: 420px auto;
-  background-repeat: repeat;
+  background-size: cover;
+  background-repeat: no-repeat;
   background-position: center;
   pointer-events: none;
   overflow: hidden;
@@ -480,21 +477,35 @@ const InitialLayoutSkeleton = styled.div`
     background:
       linear-gradient(
         180deg,
-        rgba(8, 10, 18, 0.82) 0%,
-        rgba(8, 10, 18, 0.7) 18%,
-        rgba(8, 10, 18, 0.48) 44%,
-        rgba(8, 10, 18, 0.62) 100%
+        rgba(20, 24, 33, 0.7) 0%,
+        rgba(20, 24, 33, 0.48) 40%,
+        rgba(20, 24, 33, 0.66) 100%
       );
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+  }
+
+  [data-theme="light"] & {
+    background-image: url("/chat-area-bg-lite.jpg");
+  }
+
+  [data-theme="light"] &::before {
+    background:
+      linear-gradient(
+        180deg,
+        rgba(255, 255, 255, 0.7) 0%,
+        rgba(255, 255, 255, 0.46) 42%,
+        rgba(244, 246, 250, 0.72) 100%
+      );
   }
 
   @media (max-width: 768px) {
-    padding: 8px 8px calc(10px + env(safe-area-inset-bottom, 0px));
+    gap: 9px;
+    padding: 10px 10px calc(10px + env(safe-area-inset-bottom, 0px));
   }
 
   @media (max-width: 480px) {
-    padding: 4px 8px calc(10px + env(safe-area-inset-bottom, 0px));
+    padding: 8px 10px calc(10px + env(safe-area-inset-bottom, 0px));
   }
 `;
 
@@ -504,73 +515,113 @@ const SkeletonRow = styled.div`
   display: flex;
   align-items: flex-end;
   justify-content: ${(props) => (props.$isOwn ? "flex-end" : "flex-start")};
-  gap: 8px;
+  gap: 7px;
+  padding: 0 ${(props) => (props.$isOwn ? "4px" : "0")} 0
+    ${(props) => (props.$isOwn ? "0" : "4px")};
 `;
 
 const SkeletonIntroCard = styled.div`
   position: relative;
   z-index: 1;
-  align-self: center;
-  width: min(100%, 360px);
-  margin: 2px auto 10px;
-  padding: 16px 18px;
-  border-radius: 22px;
-  background:
-    linear-gradient(
-      180deg,
-      color-mix(in srgb, var(--surface-color) 92%, white 8%) 0%,
-      color-mix(in srgb, var(--surface-color) 84%, black 16%) 100%
-    );
-  border: 1px solid color-mix(in srgb, white 14%, var(--border-color));
-  box-shadow: 0 22px 48px rgba(0, 0, 0, 0.28);
-  text-align: center;
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  margin: 0 0 8px 4px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--secondary-color) 88%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border-color) 76%, transparent);
+  box-shadow:
+    0 12px 28px rgba(0, 0, 0, 0.16),
+    inset 0 1px 0 color-mix(in srgb, white 10%, transparent);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+
+  &::before {
+    content: "";
+    width: 8px;
+    height: 8px;
+    border-radius: 999px;
+    background: var(--primary-color);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--primary-color) 16%, transparent);
+    animation: ${skeletonPulse} 1.1s ease-in-out infinite;
+    flex-shrink: 0;
+  }
+
+  [data-theme="light"] & {
+    background: rgba(255, 255, 255, 0.82);
+    border-color: rgba(198, 204, 213, 0.72);
+    box-shadow:
+      0 12px 26px rgba(31, 41, 55, 0.1),
+      inset 0 1px 0 rgba(255, 255, 255, 0.78);
+  }
 `;
 
 const SkeletonIntroTitle = styled.div`
-  color: color-mix(in srgb, white 86%, var(--text-color));
-  font-size: 18px;
+  color: var(--text-color);
+  font-size: 13px;
   font-weight: 800;
   line-height: 1.2;
 `;
 
-const SkeletonIntroSubtitle = styled.div`
-  margin-top: 8px;
-  color: color-mix(in srgb, white 58%, var(--text-secondary-color));
-  font-size: 13px;
-  line-height: 1.45;
-`;
-
 const SkeletonAvatar = styled.div`
-  width: 34px;
-  height: 34px;
+  width: 28px;
+  height: 28px;
   border-radius: 999px;
-  background: color-mix(in srgb, white 16%, transparent);
-  margin-bottom: 8px;
+  background: color-mix(in srgb, var(--text-muted-color) 24%, transparent);
+  margin-bottom: 4px;
   flex-shrink: 0;
   animation: ${skeletonPulse} 1.35s ease-in-out infinite;
+
+  [data-theme="light"] & {
+    background: rgba(148, 163, 184, 0.24);
+  }
 `;
 
 const SkeletonAvatarSpacer = styled.div`
-  width: 34px;
+  width: 0;
   flex-shrink: 0;
 `;
 
 const SkeletonBubble = styled.div`
   width: ${(props) => props.$width};
   height: ${(props) => props.$height}px;
-  max-width: 88%;
-  border-radius: 18px;
-  background:
-    linear-gradient(
-      90deg,
-      color-mix(in srgb, white 10%, transparent) 0%,
-      color-mix(in srgb, white 18%, transparent) 50%,
-      color-mix(in srgb, white 10%, transparent) 100%
-    );
-  border: 1px solid color-mix(in srgb, white 9%, transparent);
-  box-shadow: inset 0 1px 0 color-mix(in srgb, white 8%, transparent);
+  max-width: 74%;
+  border-radius: ${(props) =>
+    props.$isOwn ? "18px 18px 6px 18px" : "18px 18px 18px 6px"};
+  background: color-mix(in srgb, var(--input-color) 72%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border-color) 58%, transparent);
+  box-shadow:
+    0 8px 22px rgba(0, 0, 0, 0.1),
+    inset 0 1px 0 color-mix(in srgb, white 10%, transparent);
+  overflow: hidden;
+  position: relative;
   animation: ${skeletonPulse} 1.35s ease-in-out infinite;
   animation-delay: ${(props) => props.$delay || "0s"};
+
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    transform: translateX(-120%);
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      color-mix(in srgb, white 18%, transparent) 48%,
+      transparent 100%
+    );
+    animation: ${shimmer} 1.8s ease-in-out infinite;
+    animation-delay: ${(props) => props.$delay || "0s"};
+  }
+
+  [data-theme="light"] & {
+    background: rgba(255, 255, 255, 0.74);
+    border-color: rgba(198, 204, 213, 0.62);
+    box-shadow:
+      0 8px 20px rgba(31, 41, 55, 0.08),
+      inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  }
 `;
 
 const ReceiptStatus = styled.span`
@@ -663,13 +714,12 @@ const NewMessagesChip = styled.span`
 
 const ChatAreaMessageList = ({ keyboardHeight = 0 }) => {
   const chatSkeletonItems = [
-    { id: "s1", own: false, width: "66%", height: 96, delay: "0s" },
-    { id: "s2", own: false, width: "54%", height: 84, delay: "0.08s" },
-    { id: "s3", own: true, width: "78%", height: 88, delay: "0.16s" },
-    { id: "s4", own: false, width: "61%", height: 92, delay: "0.24s" },
-    { id: "s5", own: true, width: "86%", height: 90, delay: "0.32s" },
-    { id: "s6", own: false, width: "71%", height: 92, delay: "0.4s" },
-    { id: "s7", own: true, width: "58%", height: 82, delay: "0.48s" },
+    { id: "s1", own: false, width: "58%", height: 44, delay: "0s" },
+    { id: "s2", own: false, width: "42%", height: 38, delay: "0.08s" },
+    { id: "s3", own: true, width: "64%", height: 48, delay: "0.16s" },
+    { id: "s4", own: false, width: "50%", height: 42, delay: "0.24s" },
+    { id: "s5", own: true, width: "72%", height: 54, delay: "0.32s" },
+    { id: "s6", own: false, width: "46%", height: 38, delay: "0.4s" },
   ];
   const {
     messages,
@@ -1137,9 +1187,6 @@ const ChatAreaMessageList = ({ keyboardHeight = 0 }) => {
         <InitialLayoutSkeleton>
           <SkeletonIntroCard>
             <SkeletonIntroTitle>Suhbat yuklanmoqda</SkeletonIntroTitle>
-            <SkeletonIntroSubtitle>
-              Xabarlar tayyorlanmoqda, hozir chat ochiladi.
-            </SkeletonIntroSubtitle>
           </SkeletonIntroCard>
           {chatSkeletonItems.map((item) => (
             <SkeletonRow key={item.id} $isOwn={item.own}>
@@ -1148,6 +1195,7 @@ const ChatAreaMessageList = ({ keyboardHeight = 0 }) => {
                 $width={item.width}
                 $height={item.height}
                 $delay={item.delay}
+                $isOwn={item.own}
               />
               {item.own ? <SkeletonAvatarSpacer /> : null}
             </SkeletonRow>

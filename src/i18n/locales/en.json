@@ -1003,7 +1003,9 @@
     "reply": "Reply",
     "replyingTo": "Reply",
     "replyPlaceholder": "Reply to @{{name}}...",
-    "commentPlaceholder": "Write a comment..."
+    "commentPlaceholder": "Write a comment...",
+    "deleteTitle": "Delete comment",
+    "deleteDescription": "This action cannot be undone."
   },
   "profile": {
     "avatarChange": "Change avatar",

@@ -4,8 +4,9 @@ export const PanelShell = styled.div`
   display: flex;
   flex-direction: column;
   min-height: 0;
+  min-width: 0;
   height: 100%;
-  background: var(--bg-color);
+  background: var(--background-color);
 `;
 
 export const PanelHeader = styled.div`
@@ -15,9 +16,11 @@ export const PanelHeader = styled.div`
   gap: 12px;
   padding: 14px 16px 10px;
   border-bottom: 1px solid var(--border-color);
+  min-width: 0;
 
   @media (max-width: 720px) {
     flex-direction: column;
+    padding: 12px 12px 10px;
   }
 `;
 
@@ -25,6 +28,8 @@ export const HeaderTitle = styled.div`
   display: flex;
   flex-direction: column;
   gap: 3px;
+  flex: 0 0 auto;
+  min-width: 180px;
 `;
 
 export const Title = styled.h2`
@@ -37,23 +42,33 @@ export const Title = styled.h2`
 export const Description = styled.p`
   margin: 0;
   font-size: 13px;
-  color: var(--text-secondary);
+  color: var(--text-secondary-color);
 `;
 
 export const HeaderActions = styled.div`
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) auto auto;
   gap: 8px;
-  flex-wrap: wrap;
-  justify-content: flex-end;
+  align-items: center;
   width: 100%;
+  min-width: 0;
+
+  @media (max-width: 900px) {
+    grid-template-columns: minmax(220px, 1fr) auto;
+  }
+
+  @media (max-width: 720px) {
+    grid-template-columns: minmax(0, 1fr);
+  }
 `;
 
 export const SearchInput = styled.input`
-  width: 220px;
+  width: 100%;
+  min-width: 0;
   height: 36px;
   border-radius: 10px;
   border: 1px solid var(--border-color);
-  background: var(--secondary-bg);
+  background: var(--secondary-color);
   color: var(--text-color);
   padding: 0 12px;
   outline: none;
@@ -65,12 +80,16 @@ export const SearchInput = styled.input`
 
 export const FilterSelect = styled.select`
   height: 36px;
-  min-width: 120px;
+  min-width: 150px;
   border-radius: 10px;
   border: 1px solid var(--border-color);
-  background: var(--secondary-bg);
+  background: var(--secondary-color);
   color: var(--text-color);
   padding: 0 10px;
+
+  @media (max-width: 720px) {
+    width: 100%;
+  }
 `;
 
 export const ActionButton = styled.button`
@@ -79,12 +98,17 @@ export const ActionButton = styled.button`
   border: 1px solid ${({ $variant }) =>
     $variant === "primary" ? "var(--primary-color)" : "var(--border-color)"};
   background: ${({ $variant }) =>
-    $variant === "primary" ? "var(--primary-color)" : "var(--secondary-bg)"};
+    $variant === "primary" ? "var(--primary-color)" : "var(--secondary-color)"};
   color: ${({ $variant }) =>
     $variant === "primary" ? "#fff" : "var(--text-color)"};
   padding: 0 12px;
   font-weight: 700;
   cursor: pointer;
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.58;
+  }
 `;
 
 export const TabRow = styled.div`
@@ -93,6 +117,11 @@ export const TabRow = styled.div`
   padding: 10px 16px;
   border-bottom: 1px solid var(--border-color);
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+
+  @media (max-width: 720px) {
+    padding: 10px 12px;
+  }
 `;
 
 export const TabButton = styled.button`
@@ -102,9 +131,11 @@ export const TabButton = styled.button`
     ${({ $active }) =>
       $active ? "var(--primary-color)" : "var(--border-color)"};
   background: ${({ $active }) =>
-    $active ? "rgba(var(--primary-rgb), 0.12)" : "var(--secondary-bg)"};
+    $active
+      ? "color-mix(in srgb, var(--primary-color) 12%, transparent)"
+      : "var(--secondary-color)"};
   color: ${({ $active }) =>
-    $active ? "var(--primary-color)" : "var(--text-secondary)"};
+    $active ? "var(--primary-color)" : "var(--text-secondary-color)"};
   padding: 0 12px;
   white-space: nowrap;
   font-weight: 700;
@@ -114,16 +145,27 @@ export const TabButton = styled.button`
 export const TableScroller = styled.div`
   flex: 1;
   min-height: 0;
-  overflow: auto;
+  min-width: 0;
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: auto;
   padding: 12px 16px 16px;
+  scrollbar-gutter: stable;
+  touch-action: pan-x pan-y;
+  -webkit-overflow-scrolling: touch;
+
+  @media (max-width: 720px) {
+    padding: 10px 12px 14px;
+  }
 `;
 
 export const StyledTable = styled.table`
   width: 100%;
-  min-width: 820px;
+  min-width: 960px;
   border-collapse: separate;
   border-spacing: 0;
-  background: var(--secondary-bg);
+  background: var(--secondary-color);
+  color: var(--text-color);
   border: 1px solid var(--border-color);
   border-radius: 14px;
   overflow: hidden;
@@ -136,16 +178,37 @@ export const StyledTable = styled.table`
     border-bottom: 1px solid var(--border-color);
   }
 
+  td {
+    background: color-mix(
+      in srgb,
+      var(--secondary-color) 72%,
+      var(--background-color)
+    );
+    color: var(--text-color);
+    opacity: 1;
+    font-weight: 600;
+  }
+
   th {
     position: sticky;
     top: 0;
     z-index: 1;
-    background: var(--tertiary-bg);
-    color: var(--text-secondary);
+    background: var(--tertiary-color);
+    color: var(--text-secondary-color);
   }
 
   tr:last-child td {
     border-bottom: none;
+  }
+
+  [data-theme="light"] & td {
+    background: #f5f6f8;
+    color: #2e3338;
+  }
+
+  [data-theme="dark"] & td {
+    background: color-mix(in srgb, var(--secondary-color) 88%, transparent);
+    color: var(--text-color);
   }
 `;
 
@@ -160,7 +223,7 @@ export const MetaBadge = styled.span`
       ? "rgba(34, 197, 94, 0.14)"
       : $tone === "danger"
         ? "rgba(239, 68, 68, 0.14)"
-        : "rgba(var(--primary-rgb), 0.12)"};
+        : "color-mix(in srgb, var(--primary-color) 12%, transparent)"};
   color: ${({ $tone }) =>
     $tone === "success"
       ? "var(--success-color)"
@@ -178,8 +241,8 @@ export const EmptyState = styled.div`
   min-height: 240px;
   border-radius: 14px;
   border: 1px dashed var(--border-color);
-  background: var(--secondary-bg);
-  color: var(--text-secondary);
+  background: var(--secondary-color);
+  color: var(--text-secondary-color);
 `;
 
 export const FooterBar = styled.div`
@@ -193,7 +256,7 @@ export const FooterBar = styled.div`
 
 export const FooterMeta = styled.div`
   font-size: 13px;
-  color: var(--text-secondary);
+  color: var(--text-secondary-color);
 `;
 
 export const Pager = styled.div`
@@ -217,7 +280,7 @@ export const ModalCard = styled.div`
   width: min(520px, 100%);
   border-radius: 18px;
   border: 1px solid var(--border-color);
-  background: var(--bg-color);
+  background: var(--background-color);
   overflow: hidden;
 `;
 
@@ -246,14 +309,14 @@ export const Field = styled.label`
   display: grid;
   gap: 6px;
   font-size: 13px;
-  color: var(--text-secondary);
+  color: var(--text-secondary-color);
 `;
 
 export const FieldInput = styled.input`
   height: 40px;
   border-radius: 10px;
   border: 1px solid var(--border-color);
-  background: var(--secondary-bg);
+  background: var(--secondary-color);
   color: var(--text-color);
   padding: 0 12px;
   outline: none;

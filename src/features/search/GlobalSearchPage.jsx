@@ -8,6 +8,7 @@ import { searchCourses } from "../../api/coursesApi";
 import { useChats } from "../../contexts/ChatsContext";
 import useAuthStore from "../../store/authStore";
 import { getCourseNavigationPath } from "../courses/utils/courseNavigation";
+import useHorizontalSwipeNavigation from "../../shared/hooks/useHorizontalSwipeNavigation";
 import {
   mobileFullscreenPane,
   mobileTopSafePadding,
@@ -308,6 +309,18 @@ export default function GlobalSearchPage() {
     typeof window !== "undefined" ? window.innerWidth <= 768 : false;
   const backgroundLocation = location.state?.backgroundLocation;
   const hasBackgroundLocation = Boolean(backgroundLocation);
+  const searchSwipeHandlers = useHorizontalSwipeNavigation({
+    onSwipeLeft: () => {
+      const currentIndex = SearchTabs.findIndex((tab) => tab.key === activeTab);
+      const nextTab = SearchTabs[currentIndex + 1];
+      if (nextTab) setActiveTab(nextTab.key);
+    },
+    onSwipeRight: () => {
+      const currentIndex = SearchTabs.findIndex((tab) => tab.key === activeTab);
+      const previousTab = SearchTabs[currentIndex - 1];
+      if (previousTab) setActiveTab(previousTab.key);
+    },
+  });
 
   useEffect(() => {
     let cancelled = false;
@@ -442,7 +455,7 @@ export default function GlobalSearchPage() {
       $standalone={!hasBackgroundLocation}
       onClick={!isMobile && hasBackgroundLocation ? handleBack : undefined}
     >
-      <Inner onClick={(event) => event.stopPropagation()}>
+      <Inner onClick={(event) => event.stopPropagation()} {...searchSwipeHandlers}>
         <Header>
           <BackButton type="button" onClick={handleBack}>
             <ArrowLeft size={25} />

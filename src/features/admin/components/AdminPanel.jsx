@@ -7,6 +7,7 @@ import {
   fetchAdminGroups,
   fetchAdminPromocodes,
   fetchAdminUsers,
+  updateAdminUserInstructor,
 } from "../../../api/adminApi";
 import useAuthStore from "../../../store/authStore";
 import {
@@ -68,6 +69,7 @@ export default function AdminPanel() {
   const [filterValue, setFilterValue] = React.useState("");
   const [data, setData] = React.useState({ items: [], total: 0, totalPages: 1 });
   const [loading, setLoading] = React.useState(false);
+  const [updatingUserId, setUpdatingUserId] = React.useState(null);
   const [promoOpen, setPromoOpen] = React.useState(false);
   const [promoForm, setPromoForm] = React.useState(initialPromoForm);
 
@@ -77,7 +79,7 @@ export default function AdminPanel() {
 
   React.useEffect(() => {
     setPage(1);
-  }, [activeTab, filterValue]);
+  }, [activeTab, filterValue, search]);
 
   React.useEffect(() => {
     const timer = window.setTimeout(async () => {
@@ -135,6 +137,27 @@ export default function AdminPanel() {
     }
   };
 
+  const handleMakeInstructor = async (user) => {
+    const userId = user?._id;
+    if (!userId || user.isInstructor) return;
+
+    setUpdatingUserId(userId);
+    try {
+      const updatedUser = await updateAdminUserInstructor(userId, true);
+      setData((prev) => ({
+        ...prev,
+        items: (prev.items || []).map((item) =>
+          item._id === userId ? { ...item, ...updatedUser } : item,
+        ),
+      }));
+      toast.success("User is now an instructor");
+    } catch (error) {
+      toast.error(error?.response?.data?.message || "Failed to update user");
+    } finally {
+      setUpdatingUserId(null);
+    }
+  };
+
   const renderFilter = () => {
     if (activeTab === "users") {
       return (
@@ -184,9 +207,11 @@ export default function AdminPanel() {
               <th>User</th>
               <th>Email</th>
               <th>Premium</th>
+              <th>Instructor</th>
               <th>Blocked</th>
               <th>Badge</th>
               <th>Created</th>
+              <th>Action</th>
             </tr>
           </thead>
           <tbody>
@@ -200,12 +225,29 @@ export default function AdminPanel() {
                   </MetaBadge>
                 </td>
                 <td>
+                  <MetaBadge $tone={item.isInstructor ? "success" : "default"}>
+                    {item.isInstructor ? "Instructor" : "User"}
+                  </MetaBadge>
+                </td>
+                <td>
                   <MetaBadge $tone={item.isBlocked ? "danger" : "success"}>
                     {item.isBlocked ? "Blocked" : "Open"}
                   </MetaBadge>
                 </td>
                 <td>{item.officialBadgeLabel || "—"}</td>
                 <td>{formatDate(item.createdAt)}</td>
+                <td>
+                  <ActionButton
+                    onClick={() => handleMakeInstructor(item)}
+                    disabled={item.isInstructor || updatingUserId === item._id}
+                  >
+                    {item.isInstructor
+                      ? "Done"
+                      : updatingUserId === item._id
+                        ? "Saving..."
+                        : "Make instructor"}
+                  </ActionButton>
+                </td>
               </tr>
             ))}
           </tbody>
@@ -313,7 +355,8 @@ export default function AdminPanel() {
           <SearchInput
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search..."
+            placeholder="Search users, email, groups, courses..."
+            aria-label="Search admin data"
           />
           {renderFilter()}
           {activeTab === "promocodes" ? (

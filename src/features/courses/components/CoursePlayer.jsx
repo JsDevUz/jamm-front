@@ -167,6 +167,37 @@ function hasLessonActivity(lesson) {
   return hasAttendanceProgress || hasHomeworkSubmission || hasLinkedTestProgress;
 }
 
+const getLessonLearningTaskStatus = (lesson) => {
+  const tests = Array.isArray(lesson?.linkedTests) ? lesson.linkedTests : [];
+  const homeworkAssignments = Array.isArray(lesson?.homework?.assignments)
+    ? lesson.homework.assignments
+    : [];
+
+  return {
+    tests: {
+      count: tests.length,
+      completed: tests.filter((test) => {
+        const progress = test?.selfProgress;
+        return (
+          Boolean(progress?.passed) ||
+          Number(progress?.attemptsCount || 0) > 0 ||
+          Number(progress?.percent || 0) > 0 ||
+          Boolean(progress?.completedAt)
+        );
+      }).length,
+    },
+    homework: {
+      count: homeworkAssignments.length,
+      completed: homeworkAssignments.filter((assignment) =>
+        Boolean(assignment?.selfSubmission),
+      ).length,
+    },
+  };
+};
+
+const clampPercent = (value) =>
+  Math.min(100, Math.max(0, Number(value || 0)));
+
 function normalizeNotionBlocks(recordMap) {
   const blockMap = recordMap?.block || {};
   const entries = Object.values(blockMap)
@@ -467,15 +498,40 @@ function NotionBlockRenderer({ recordMap }) {
   return <div className="jamm-notion-root">{rendered}</div>;
 }
 
-function LessonNotionSurface({ notionUrl, title, compact = false }) {
+function LessonNotionSurface({
+  notionUrl,
+  title,
+  compact = false,
+  onReadComplete,
+}) {
   const { t } = useTranslation();
+  const bodyRef = useRef(null);
   const [recordMap, setRecordMap] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const readCompleteRef = useRef(false);
+
+  const markReadComplete = useCallback(() => {
+    if (readCompleteRef.current) return;
+    readCompleteRef.current = true;
+    onReadComplete?.();
+  }, [onReadComplete]);
+
+  const checkReadCompletion = useCallback(() => {
+    const element = bodyRef.current;
+    if (!element || loading || error || !recordMap) return;
+
+    const remaining =
+      element.scrollHeight - element.scrollTop - element.clientHeight;
+    if (remaining <= 48) {
+      markReadComplete();
+    }
+  }, [error, loading, markReadComplete, recordMap]);
 
   useEffect(() => {
     if (!notionUrl) return;
     let cancelled = false;
+    readCompleteRef.current = false;
     setLoading(true);
     setError("");
     setRecordMap(null);
@@ -525,11 +581,21 @@ function LessonNotionSurface({ notionUrl, title, compact = false }) {
     return () => { cancelled = true; };
   }, [notionUrl]);
 
+  useEffect(() => {
+    if (!recordMap || loading || error) return undefined;
+    const frameId = window.requestAnimationFrame(checkReadCompletion);
+    return () => window.cancelAnimationFrame(frameId);
+  }, [checkReadCompletion, error, loading, recordMap]);
+
   if (!notionUrl) return null;
 
   return (
     <NotionSurface $compact={compact}>
-      <NotionSurfaceBody $compact={compact}>
+      <NotionSurfaceBody
+        ref={bodyRef}
+        $compact={compact}
+        onScroll={checkReadCompletion}
+      >
         {loading && <NotionSurfaceText>{t("common.loading", { defaultValue: "Yuklanmoqda..." })}</NotionSurfaceText>}
         {Boolean(error) && (
           <NotionSurfaceText>
@@ -596,6 +662,12 @@ const CoursePlayer = ({
   const [homeworkStatus, setHomeworkStatus] = useState({
     loading: true,
     count: 0,
+    completed: 0,
+  });
+  const [lessonTestsStatus, setLessonTestsStatus] = useState({
+    loading: true,
+    count: 0,
+    completed: 0,
   });
   const [notes, setNotes] = useState("");
   const [noteStatus, setNoteStatus] = useState("");
@@ -612,6 +684,10 @@ const CoursePlayer = ({
   const attendanceEligibleRef = useRef(false);
   const currentLessonIdRef = useRef("");
   const attendanceLastFlushedSecondRef = useRef({});
+  const attendanceLessonConfigRef = useRef({});
+  const attendanceNotionReadRef = useRef({});
+  const attendanceTestsStatusRef = useRef({});
+  const attendanceHomeworkStatusRef = useRef({});
 
   // Video player state
   const videoRef = useRef(null);
@@ -719,6 +795,9 @@ const CoursePlayer = ({
   const isLocalVideo = Boolean(
     currentMediaItem?.videoUrl || currentMediaItem?.fileUrl,
   );
+  const currentLessonAttendanceId =
+    currentLessonData?._id || currentLessonData?.id || currentLessonData?.urlSlug || "";
+  const currentLessonAttendanceKey = String(currentLessonAttendanceId || "");
   const lessonIdentifier =
     currentLessonData?.urlSlug ||
     currentLessonData?._id ||
@@ -769,7 +848,8 @@ const CoursePlayer = ({
 
   useEffect(() => {
     setMaterialsStatus({ loading: true, count: 0 });
-    setHomeworkStatus({ loading: true, count: 0 });
+    setHomeworkStatus({ loading: true, count: 0, completed: 0 });
+    setLessonTestsStatus({ loading: true, count: 0, completed: 0 });
   }, [lessonIdentifier]);
 
   const handleCopyCurrentLessonLink = useCallback(async () => {
@@ -999,9 +1079,7 @@ const CoursePlayer = ({
       });
     };
   }, [
-    API_BASE_URL,
     courseId,
-    getLessonPlaybackToken,
     lessonIdentifier,
     lessonMediaItems,
     mediaKeys,
@@ -1167,6 +1245,8 @@ const CoursePlayer = ({
     [admin, canAccessLessons, hasPassedRequiredTestsBeforeLesson, isOwner],
   );
   const canAccessActiveLesson = canAccessLesson(activeLesson);
+  const canTrackOwnAttendance =
+    canAccessActiveLesson && (enrollStatus === "approved" || isOwner);
   const resumeLessonIndex = useMemo(() => {
     if (!course?.lessons?.length) return 0;
 
@@ -1294,6 +1374,79 @@ const CoursePlayer = ({
   const attendancePendingPercentRef = useRef({});
   const attendanceLastTimeRef = useRef({});
   const attendanceSessionLoggedRef = useRef("");
+  const attendanceInFlightPayloadRef = useRef(new Set());
+  const attendanceLastSentPayloadRef = useRef({});
+
+  useEffect(() => {
+    if (!currentLessonAttendanceKey) return;
+
+    const taskStatus = getLessonLearningTaskStatus(currentLessonData);
+    attendanceLessonConfigRef.current[currentLessonAttendanceKey] = {
+      hasVideo: currentLessonHasVideoMedia,
+      hasNotion: Boolean(currentLessonNotionUrl),
+    };
+    attendanceTestsStatusRef.current[currentLessonAttendanceKey] = taskStatus.tests;
+    attendanceHomeworkStatusRef.current[currentLessonAttendanceKey] =
+      taskStatus.homework;
+  }, [
+    currentLessonAttendanceKey,
+    currentLessonData,
+    currentLessonHasVideoMedia,
+    currentLessonNotionUrl,
+  ]);
+
+  useEffect(() => {
+    if (!currentLessonAttendanceKey || lessonTestsStatus.loading) return;
+    attendanceTestsStatusRef.current[currentLessonAttendanceKey] = {
+      count: Number(lessonTestsStatus.count || 0),
+      completed: Number(lessonTestsStatus.completed || 0),
+    };
+  }, [currentLessonAttendanceKey, lessonTestsStatus]);
+
+  useEffect(() => {
+    if (!currentLessonAttendanceKey || homeworkStatus.loading) return;
+    attendanceHomeworkStatusRef.current[currentLessonAttendanceKey] = {
+      count: Number(homeworkStatus.count || 0),
+      completed: Number(homeworkStatus.completed || 0),
+    };
+  }, [currentLessonAttendanceKey, homeworkStatus]);
+
+  const getCompositeAttendancePercent = useCallback((lessonKey) => {
+    const config = attendanceLessonConfigRef.current[lessonKey] || {};
+    const units = [];
+
+    if (config.hasVideo) {
+      units.push(clampPercent(attendanceTrackedPercentRef.current[lessonKey]));
+    }
+
+    if (config.hasNotion) {
+      units.push(attendanceNotionReadRef.current[lessonKey] ? 100 : 0);
+    }
+
+    const testsStatus = attendanceTestsStatusRef.current[lessonKey] || {};
+    const testsCount = Number(testsStatus.count || 0);
+    if (testsCount > 0) {
+      units.push(
+        clampPercent((Number(testsStatus.completed || 0) / testsCount) * 100),
+      );
+    }
+
+    const homeworkTaskStatus =
+      attendanceHomeworkStatusRef.current[lessonKey] || {};
+    const homeworkCount = Number(homeworkTaskStatus.count || 0);
+    if (homeworkCount > 0) {
+      units.push(
+        clampPercent(
+          (Number(homeworkTaskStatus.completed || 0) / homeworkCount) * 100,
+        ),
+      );
+    }
+
+    if (!units.length) return 0;
+    return clampPercent(
+      units.reduce((sum, value) => sum + value, 0) / units.length,
+    );
+  }, []);
 
   useEffect(() => {
     setIsPlaying(false);
@@ -1314,6 +1467,7 @@ const CoursePlayer = ({
       attendanceTrackedPercentRef.current[key] = 0;
       attendancePendingPercentRef.current[key] = 0;
       attendanceLastFlushedSecondRef.current[key] = 0;
+      attendanceNotionReadRef.current[key] = false;
     }
     attendanceSessionLoggedRef.current = "";
   }, [activeLesson, courseId]);
@@ -1353,16 +1507,13 @@ const CoursePlayer = ({
       const lessonKey = String(lessonId || "");
       if (!lessonKey) return;
 
-      // Send the absolute tracked percent for this session (not a delta).
-      // Backend stores Math.max(existing, incoming) so re-watches don't inflate the total.
-      const trackedPercent = Math.min(
-        100,
-        Number(attendanceTrackedPercentRef.current[lessonKey] || 0),
-      );
+      // Send the composite lesson progress. Each available lesson part
+      // (video, Notion page, linked tests, homework) contributes equally.
+      const progressPercent = getCompositeAttendancePercent(lessonKey);
       const normalizedLastPosition = Number(lastPositionSeconds || 0);
       const shouldSendPosition = normalizedLastPosition > 0;
       const shouldSendWatchIncrement = Number(watchIncrement || 0) > 0;
-      const shouldSendProgress = trackedPercent > 0;
+      const shouldSendProgress = progressPercent > 0;
 
       if (
         !shouldSendProgress &&
@@ -1372,26 +1523,118 @@ const CoursePlayer = ({
         return;
       }
 
-      if (!force && trackedPercent < 10 && !shouldSendWatchIncrement) return;
+      if (!force && progressPercent < 10 && !shouldSendWatchIncrement) return;
 
-      // Reset pending accumulator — tracked stays so we can keep comparing.
+      const requestPayload = {
+        progressPercent: Number(progressPercent.toFixed(2)),
+        lastPositionSeconds: shouldSendPosition
+          ? Math.floor(normalizedLastPosition)
+          : undefined,
+        lessonDurationSeconds:
+          Number(lessonDurationSeconds || 0) > 0
+            ? Math.floor(Number(lessonDurationSeconds))
+            : undefined,
+        watchIncrement: shouldSendWatchIncrement ? 1 : 0,
+      };
+      const payloadKey = JSON.stringify(requestPayload);
+      const inFlightKey = `${courseId}:${lessonKey}:${payloadKey}`;
+
+      if (
+        attendanceInFlightPayloadRef.current.has(inFlightKey) ||
+        (!shouldSendWatchIncrement &&
+          attendanceLastSentPayloadRef.current[lessonKey] === payloadKey)
+      ) {
+        return;
+      }
+
+      // Reset pending accumulator - tracked stays so we can keep comparing.
       attendancePendingPercentRef.current[lessonKey] = 0;
+      attendanceInFlightPayloadRef.current.add(inFlightKey);
 
       try {
-        await markOwnAttendance(courseId, lessonKey, Number(trackedPercent.toFixed(2)), {
-          lastPositionSeconds: shouldSendPosition ? normalizedLastPosition : undefined,
-          lessonDurationSeconds:
-            Number(lessonDurationSeconds || 0) > 0
-              ? Number(lessonDurationSeconds)
-              : undefined,
-          watchIncrement: shouldSendWatchIncrement ? 1 : 0,
+        await markOwnAttendance(courseId, lessonKey, requestPayload.progressPercent, {
+          lastPositionSeconds: requestPayload.lastPositionSeconds,
+          lessonDurationSeconds: requestPayload.lessonDurationSeconds,
+          watchIncrement: requestPayload.watchIncrement,
         });
+        if (!shouldSendWatchIncrement) {
+          attendanceLastSentPayloadRef.current[lessonKey] = payloadKey;
+        }
       } catch (error) {
         console.error(error);
+      } finally {
+        attendanceInFlightPayloadRef.current.delete(inFlightKey);
       }
     },
-    [courseId, markOwnAttendance],
+    [courseId, getCompositeAttendancePercent, markOwnAttendance],
   );
+
+  const handleNotionReadComplete = useCallback(() => {
+    const lessonKey = currentLessonAttendanceKey;
+    if (
+      !lessonKey ||
+      !canTrackOwnAttendance
+    ) {
+      return;
+    }
+
+    attendanceNotionReadRef.current[lessonKey] = true;
+    flushOwnAttendance(lessonKey, {
+      force: true,
+      lastPositionSeconds: overallCurrentTimeRef.current,
+      lessonDurationSeconds: totalLessonDurationRef.current,
+    });
+  }, [
+    canTrackOwnAttendance,
+    currentLessonAttendanceKey,
+    flushOwnAttendance,
+  ]);
+
+  useEffect(() => {
+    if (
+      !currentLessonAttendanceKey ||
+      !canTrackOwnAttendance ||
+      lessonTestsStatus.loading ||
+      Number(lessonTestsStatus.count || 0) <= 0 ||
+      Number(lessonTestsStatus.completed || 0) <= 0
+    ) {
+      return;
+    }
+
+    flushOwnAttendance(currentLessonAttendanceKey, {
+      force: true,
+      lastPositionSeconds: overallCurrentTimeRef.current,
+      lessonDurationSeconds: totalLessonDurationRef.current,
+    });
+  }, [
+    canTrackOwnAttendance,
+    currentLessonAttendanceKey,
+    flushOwnAttendance,
+    lessonTestsStatus,
+  ]);
+
+  useEffect(() => {
+    if (
+      !currentLessonAttendanceKey ||
+      !canTrackOwnAttendance ||
+      homeworkStatus.loading ||
+      Number(homeworkStatus.count || 0) <= 0 ||
+      Number(homeworkStatus.completed || 0) <= 0
+    ) {
+      return;
+    }
+
+    flushOwnAttendance(currentLessonAttendanceKey, {
+      force: true,
+      lastPositionSeconds: overallCurrentTimeRef.current,
+      lessonDurationSeconds: totalLessonDurationRef.current,
+    });
+  }, [
+    canTrackOwnAttendance,
+    currentLessonAttendanceKey,
+    flushOwnAttendance,
+    homeworkStatus,
+  ]);
 
   useEffect(() => {
     const lessonId =
@@ -1430,15 +1673,23 @@ const CoursePlayer = ({
 
   // Sync eligibility flag — cheap effect, no time-varying deps.
   useEffect(() => {
-    const lessonId = currentLessonData?._id || currentLessonData?.id || currentLessonData?.urlSlug;
+    const hasTrackableLessonWork =
+      currentLessonHasVideoMedia ||
+      Boolean(currentLessonNotionUrl) ||
+      Number(lessonTestsStatus.count || 0) > 0 ||
+      Number(homeworkStatus.count || 0) > 0;
     attendanceEligibleRef.current =
-      Boolean(lessonId) &&
-      !admin &&
-      enrollStatus === "approved" &&
-      currentLessonHasMedia &&
-      Boolean(totalLessonDuration) &&
-      canAccessLesson(activeLesson);
-  }, [activeLesson, admin, canAccessLesson, currentLessonData, currentLessonHasMedia, enrollStatus, totalLessonDuration]);
+      Boolean(currentLessonAttendanceKey) &&
+      canTrackOwnAttendance &&
+      hasTrackableLessonWork;
+  }, [
+    canTrackOwnAttendance,
+    currentLessonAttendanceKey,
+    currentLessonHasVideoMedia,
+    currentLessonNotionUrl,
+    homeworkStatus.count,
+    lessonTestsStatus.count,
+  ]);
 
   // Flush when video pauses — fire only when isPlaying transitions to false.
   const wasPLayingRef = useRef(false);
@@ -1449,69 +1700,57 @@ const CoursePlayer = ({
     }
     if (!wasPLayingRef.current) return; // was already paused, skip
     wasPLayingRef.current = false;
-    const lessonId =
-      currentLessonData?._id || currentLessonData?.id || currentLessonData?.urlSlug;
-    if (!lessonId) return;
-    flushOwnAttendance(lessonId, {
+    if (!currentLessonAttendanceKey) return;
+    flushOwnAttendance(currentLessonAttendanceKey, {
       force: true,
       lastPositionSeconds: overallCurrentTimeRef.current,
       lessonDurationSeconds: totalLessonDurationRef.current,
     });
-  }, [currentLessonData, flushOwnAttendance, isPlaying]);
+  }, [currentLessonAttendanceKey, flushOwnAttendance, isPlaying]);
 
   const handlePlay = useCallback(() => {
     setIsPlaying(true);
 
-    const lessonId =
-      currentLessonData?._id || currentLessonData?.id || currentLessonData?.urlSlug;
-
     if (
-      !lessonId ||
-      admin ||
-      enrollStatus !== "approved" ||
-      !currentLessonHasMedia ||
-      !canAccessLesson(activeLesson)
+      !currentLessonAttendanceKey ||
+      !canTrackOwnAttendance ||
+      !currentLessonHasMedia
     ) {
       return;
     }
 
-    const sessionKey = `${courseId}:${lessonId}`;
+    const sessionKey = `${courseId}:${currentLessonAttendanceKey}`;
     if (attendanceSessionLoggedRef.current === sessionKey) {
       return;
     }
 
     attendanceSessionLoggedRef.current = sessionKey;
-    flushOwnAttendance(lessonId, {
+    flushOwnAttendance(currentLessonAttendanceKey, {
       force: true,
       watchIncrement: 1,
       lastPositionSeconds: overallCurrentTimeRef.current,
       lessonDurationSeconds: totalLessonDurationRef.current,
     });
   }, [
-    activeLesson,
-    admin,
-    canAccessLesson,
+    canTrackOwnAttendance,
     courseId,
-    currentLessonData,
+    currentLessonAttendanceKey,
     currentLessonHasMedia,
-    enrollStatus,
     flushOwnAttendance,
   ]);
 
   // Flush on lesson unmount (lesson switch or component teardown).
   useEffect(() => {
-    const lessonId =
-      currentLessonData?._id || currentLessonData?.id || currentLessonData?.urlSlug;
     return () => {
-      if (lessonId) {
-        flushOwnAttendance(lessonId, {
+      if (currentLessonAttendanceKey) {
+        flushOwnAttendance(currentLessonAttendanceKey, {
           force: true,
           lastPositionSeconds: overallCurrentTimeRef.current,
           lessonDurationSeconds: totalLessonDurationRef.current,
         });
       }
     };
-  }, [currentLessonData, flushOwnAttendance]);
+  }, [currentLessonAttendanceKey, flushOwnAttendance]);
 
   // Video player handlers
   const togglePlay = useCallback(() => {
@@ -2025,18 +2264,18 @@ const CoursePlayer = ({
     return () => window.removeEventListener("keydown", handleKey);
   }, [togglePlay, toggleFullscreen, toggleMute]);
 
-  const handleLessonClick = (index) => {
-    const lessonData = course.lessons[index];
+  const handleLessonClick = useCallback((index) => {
+    const lessonData = course?.lessons?.[index];
     if (!lessonData) return;
 
     setActiveLesson(index);
     setPlayerTab("materials");
-    if (!inlineMode && lessonData) {
+    if (!inlineMode) {
       const lessonSlug = lessonData.urlSlug || lessonData._id || lessonData.id;
       const courseSlug = course.urlSlug || course._id || course.id;
       navigate(`/my-courses/${courseSlug}/${lessonSlug}`);
     }
-  };
+  }, [course, inlineMode, navigate]);
 
   const playNextLesson = useCallback(() => {
     if (activeMediaIndex < lessonMediaItems.length - 1) {
@@ -2404,10 +2643,13 @@ const CoursePlayer = ({
                   isGroup: false,
                   memberIds: [ownerId],
                 });
-                if (chatRes) navigate(`/users/${chatRes?.jammId}`);
+                if (chatRes?.jammId) navigate(`/users/${chatRes.jammId}`);
               } catch (err) {
                 console.error(err);
-                toast.error(t("coursePlayer.errors.chatCreate"));
+                toast.error(
+                  err?.response?.data?.message ||
+                    t("coursePlayer.errors.chatCreate"),
+                );
               }
             }}
           >
@@ -2694,6 +2936,7 @@ const CoursePlayer = ({
                 <LessonNotionSurface
                   notionUrl={currentLessonNotionUrl}
                   title={currentLessonData.title}
+                  onReadComplete={handleNotionReadComplete}
                 />
               )}
 
@@ -2739,6 +2982,7 @@ const CoursePlayer = ({
                 <LessonNotionSurface
                   notionUrl={currentLessonNotionUrl}
                   title={currentLessonData.title}
+                  onReadComplete={handleNotionReadComplete}
                 />
               ) : null}
 
@@ -2780,6 +3024,7 @@ const CoursePlayer = ({
                     <CoursePlayerLessonTestsSection
                       forceExpanded
                       showCollapseToggle={false}
+                      onContentStateChange={setLessonTestsStatus}
                     />
                   ) : null}
                   <CoursePlayerHomeworkSection

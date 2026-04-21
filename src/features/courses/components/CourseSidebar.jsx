@@ -15,6 +15,7 @@ import { useCourses } from "../../../contexts/CoursesContext";
 import InfiniteScroll from "react-infinite-scroll-component";
 import CreateCourseDialog from "./CreateCourseDialog";
 import SectionHeader from "../../../shared/ui/navigation/SectionHeader";
+import useHorizontalSwipeNavigation from "../../../shared/hooks/useHorizontalSwipeNavigation";
 import { getCourseNavigationPath } from "../utils/courseNavigation";
 
 const DEFAULT_COURSE_IMAGE = "/default-course-image.jpg";
@@ -402,7 +403,8 @@ const CourseSidebar = ({
 
   const handleSelectCourse = (course) => {
     onSelectCourse(course._id);
-    navigate(getCourseNavigationPath(course, currentUser?.id || ""));
+    const userId = currentUser?._id || currentUser?.id || "";
+    navigate(getCourseNavigationPath(course, userId));
   };
 
   const openCreateCourse = () => {
@@ -410,9 +412,23 @@ const CourseSidebar = ({
     setIsCreateOpen(true);
   };
 
+  const tabSwipeHandlers = useHorizontalSwipeNavigation({
+    onSwipeLeft: () => {
+      if (viewMode === "arena") return;
+      if (onToggleViewMode) onToggleViewMode("arena");
+      onSelectCourse(null);
+      navigate("/arena");
+    },
+    onSwipeRight: () => {
+      if (viewMode === "courses") return;
+      if (onToggleViewMode) onToggleViewMode("courses");
+      navigate("/my-courses");
+    },
+  });
+
   return (
     <>
-      <SidebarContainer>
+      <SidebarContainer {...tabSwipeHandlers}>
         <SectionHeader
           title={
             viewMode === "arena"
@@ -548,18 +564,22 @@ const CourseSidebar = ({
                         onClick={() => handleSelectCourse(course)}
                       >
                         <CourseThumbnail>
-                          {course.image || DEFAULT_COURSE_IMAGE ? (
+                          {course.image ? (
                             <CourseThumbnailImage
-                              src={course.image || DEFAULT_COURSE_IMAGE}
+                              src={course.image}
                               alt={course.name}
+                              onError={(e) => {
+                                e.currentTarget.style.display = "none";
+                                e.currentTarget.nextSibling.style.display = "flex";
+                              }}
                             />
-                          ) : (
-                            <CourseThumbnailFallback
-                              $gradient={getCourseGradientCss(course.gradient)}
-                            >
-                              {course.name.charAt(0)}
-                            </CourseThumbnailFallback>
-                          )}
+                          ) : null}
+                          <CourseThumbnailFallback
+                            $gradient={getCourseGradientCss(course.gradient)}
+                            style={{ display: course.image ? "none" : "flex" }}
+                          >
+                            {course.name.charAt(0)}
+                          </CourseThumbnailFallback>
                         </CourseThumbnail>
                         <CourseInfo>
                           <CourseName>{course.name}</CourseName>

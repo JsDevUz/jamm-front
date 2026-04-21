@@ -273,6 +273,12 @@ const CoursePlayerHomeworkSection = ({
     selectedAssignment?.selfSubmission?.status === "needs_revision";
   const hasLockedSubmission =
     Boolean(selectedAssignment?.selfSubmission) && !canResubmit;
+  const completedAssignmentsCount = useMemo(
+    () =>
+      assignments.filter((assignment) => Boolean(assignment?.selfSubmission))
+        .length,
+    [assignments],
+  );
 
   useEffect(() => {
     if (forceExpanded) {
@@ -281,8 +287,17 @@ const CoursePlayerHomeworkSection = ({
   }, [forceExpanded]);
 
   useEffect(() => {
-    onContentStateChange?.({ loading, count: assignments.length });
-  }, [assignments.length, loading, onContentStateChange]);
+    onContentStateChange?.({
+      loading,
+      count: assignments.length,
+      completed: completedAssignmentsCount,
+    });
+  }, [
+    assignments.length,
+    completedAssignmentsCount,
+    loading,
+    onContentStateChange,
+  ]);
 
   useEffect(() => {
     if (!courseId || !lessonId) {

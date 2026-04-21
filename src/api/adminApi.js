@@ -24,3 +24,10 @@ export const createAdminPromocode = async (payload) => {
   const { data } = await axiosInstance.post("/admin/promocodes", payload);
   return data;
 };
+
+export const updateAdminUserInstructor = async (userId, isInstructor) => {
+  const { data } = await axiosInstance.patch(`/admin/users/${userId}/instructor`, {
+    isInstructor,
+  });
+  return data;
+};

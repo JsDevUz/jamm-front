@@ -72,10 +72,21 @@ const EMPTY_FORM = {
   requiredToUnlock: true,
 };
 
+const hasCompletedLinkedTest = (item) => {
+  const progress = item?.selfProgress;
+  return (
+    Boolean(progress?.passed) ||
+    Number(progress?.attemptsCount || 0) > 0 ||
+    Number(progress?.percent || 0) > 0 ||
+    Boolean(progress?.completedAt)
+  );
+};
+
 const CoursePlayerLessonTestsSection = ({
   adminMode = false,
   forceExpanded = false,
   showCollapseToggle = true,
+  onContentStateChange,
 }) => {
   const { t } = useTranslation();
   const {
@@ -257,6 +268,26 @@ const CoursePlayerLessonTestsSection = ({
             sentenceBuilderAnswers,
           },
         );
+        const nextSelfProgress = {
+          ...(activeLinkedTest.selfProgress || {}),
+          attemptsCount:
+            Number(result?.attemptsCount) ||
+            Number(activeLinkedTest.selfProgress?.attemptsCount || 0) + 1,
+          percent: Number(result?.percent || 0),
+          passed: Boolean(result?.passed),
+          completedAt: result?.completedAt || new Date().toISOString(),
+        };
+        const nextItems = items.map((item) =>
+          item.linkedTestId === activeLinkedTest.linkedTestId
+            ? { ...item, selfProgress: nextSelfProgress }
+            : item,
+        );
+        setItems(nextItems);
+        onContentStateChange?.({
+          loading: false,
+          count: nextItems.length,
+          completed: nextItems.filter(hasCompletedLinkedTest).length,
+        });
         await loadItems();
 
         if (result?.passed) {
@@ -281,17 +312,26 @@ const CoursePlayerLessonTestsSection = ({
     [
       activeLinkedTest,
       courseId,
+      items,
       lessonId,
       loadItems,
+      onContentStateChange,
       submitLessonLinkedTestAttempt,
       t,
     ],
   );
 
   const completedCount = useMemo(
-    () => items.filter((item) => item?.selfProgress?.passed).length,
+    () => items.filter(hasCompletedLinkedTest).length,
     [items],
   );
+  useEffect(() => {
+    onContentStateChange?.({
+      loading,
+      count: items.length,
+      completed: completedCount,
+    });
+  }, [completedCount, items.length, loading, onContentStateChange]);
   const linkedTestLimit = useMemo(
     () =>
       isPremiumUser(currentUser)

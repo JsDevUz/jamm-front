@@ -71,6 +71,13 @@ export const getComments = async (postId, page = 1, limit = 10) => {
   return data;
 };
 
+export const deleteComment = async ({ postId, commentId }) => {
+  const { data } = await axiosInstance.delete(
+    `/posts/${postId}/comments/${commentId}`,
+  );
+  return data;
+};
+
 // --- User posts ---
 export const fetchUserPosts = async (userId) => {
   const { data } = await axiosInstance.get(`/posts/user/${userId}`);

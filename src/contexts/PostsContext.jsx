@@ -18,6 +18,7 @@ const defaultPostsContextValue = {
   addComment: async () => {},
   getComments: async () => [],
   addReply: async () => null,
+  deleteComment: async () => null,
   fetchUserPosts: async () => [],
   fetchLikedPosts: async () => [],
   deletePost: async () => {},
@@ -168,6 +169,25 @@ export const PostsProvider = ({ children }) => {
     [],
   );
 
+  const deleteComment = useCallback(async (postId, commentId) => {
+    try {
+      const result = await postsApi.deleteComment({ postId, commentId });
+      if (typeof result?.comments === "number") {
+        const updater = (prev) =>
+          prev.map((p) =>
+            p._id === postId ? { ...p, comments: result.comments } : p,
+          );
+        setForYouPosts(updater);
+        setFollowingPosts(updater);
+        setUserPosts(updater);
+      }
+      return result;
+    } catch (e) {
+      console.error("deleteComment error:", e);
+      throw e;
+    }
+  }, []);
+
   /* ── Fetch user posts ── */
   const fetchUserPosts = useCallback(async (userId) => {
     try {
@@ -239,6 +259,7 @@ export const PostsProvider = ({ children }) => {
     addComment,
     getComments,
     addReply,
+    deleteComment,
     fetchUserPosts,
     fetchLikedPosts,
     deletePost,

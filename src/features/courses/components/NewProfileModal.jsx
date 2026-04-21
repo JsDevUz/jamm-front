@@ -11,6 +11,7 @@ import {
   Star,
   X,
 } from "lucide-react";
+import UserNameWithDecoration from "../../../shared/ui/users/UserNameWithDecoration";
 
 const DEFAULT_COURSE_IMAGE = "/default-course-image.jpg";
 
@@ -92,15 +93,16 @@ const ProfileModal = styled.div`
   }
 
   @media (max-width: 768px) {
+    display: flex;
+    flex-direction: column;
     width: 100vw;
     height: 100%;
     min-height: 0;
     max-height: 100%;
     border-radius: 0;
-    overflow-y: auto;
     overscroll-behavior: contain;
+    overflow-y: auto;
     -webkit-overflow-scrolling: touch;
-    scroll-padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px));
   }
 `;
 
@@ -129,9 +131,12 @@ const ProfileCloseButton = styled.button`
   }
 
   @media (max-width: 768px) {
-    top: calc(14px + env(safe-area-inset-top, 0px));
-    left: 14px;
+    top: calc(12px + env(safe-area-inset-top, 0px));
+    left: 12px;
     right: auto;
+    width: 38px;
+    height: 38px;
+    border-radius: 13px;
     background: color-mix(in srgb, var(--hover-color) 72%, transparent);
   }
 `;
@@ -171,6 +176,12 @@ const ProfileSidebar = styled.div`
     padding: calc(58px + env(safe-area-inset-top, 0px)) 18px 18px;
     overflow: visible;
   }
+
+  @media (max-width: 768px) {
+    flex: 0 0 auto;
+    padding: calc(54px + env(safe-area-inset-top, 0px)) 16px 14px;
+    overflow: visible;
+  }
 `;
 
 const ProfileBanner = styled.div`
@@ -179,6 +190,13 @@ const ProfileBanner = styled.div`
   background: var(--primary-color);
   position: relative;
   margin-bottom: 56px;
+
+  @media (max-width: 768px) {
+    height: 112px;
+    min-height: 112px;
+    border-radius: 18px;
+    margin-bottom: 44px;
+  }
 `;
 
 const ProfileBannerSettingsButton = styled.button`
@@ -205,6 +223,12 @@ const ProfileBannerSettingsButton = styled.button`
     transform: translateY(-1px);
     background: color-mix(in srgb, var(--hover-color) 72%, transparent);
   }
+
+  @media (max-width: 768px) {
+    width: 36px;
+    height: 36px;
+    border-radius: 13px;
+  }
 `;
 
 const ProfileLargeAvatar = styled.div`
@@ -217,6 +241,14 @@ const ProfileLargeAvatar = styled.div`
   padding: 6px;
   background: color-mix(in srgb, var(--background-color) 92%, var(--secondary-color));
   box-shadow: 0 14px 30px rgba(0, 0, 0, 0.3);
+
+  @media (max-width: 768px) {
+    left: 18px;
+    bottom: -30px;
+    width: 92px;
+    height: 92px;
+    padding: 5px;
+  }
 `;
 
 const ProfileLargeAvatarInner = styled.div`
@@ -235,6 +267,10 @@ const ProfileLargeAvatarInner = styled.div`
   justify-content: center;
   font-size: 1.95rem;
   font-weight: 800;
+
+  @media (max-width: 768px) {
+    font-size: 1.7rem;
+  }
 `;
 
 const ProfileLargeAvatarImage = styled.img`
@@ -253,6 +289,11 @@ const ProfileStatus = styled.span`
   border-radius: 999px;
   background: var(--success-color);
   border: 3px solid color-mix(in srgb, var(--background-color) 92%, var(--secondary-color));
+
+  @media (max-width: 768px) {
+    right: 6px;
+    bottom: 6px;
+  }
 `;
 
 const ProfileName = styled.h3`
@@ -261,12 +302,32 @@ const ProfileName = styled.h3`
   font-weight: 800;
   line-height: 1.08;
   letter-spacing: -0.03em;
+
+  @media (max-width: 768px) {
+    font-size: 1.36rem;
+    letter-spacing: 0;
+  }
+`;
+
+const ProfileDecoratedName = styled(UserNameWithDecoration)`
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+
+  span:first-child {
+    overflow-wrap: anywhere;
+  }
 `;
 
 const ProfileHandle = styled.div`
   margin-top: 4px;
   color: var(--text-secondary-color);
   font-size: 0.92rem;
+
+  @media (max-width: 768px) {
+    font-size: 0.88rem;
+  }
 `;
 
 const ProfileBio = styled.p`
@@ -274,12 +335,23 @@ const ProfileBio = styled.p`
   color: var(--text-color);
   font-size: 0.92rem;
   line-height: 1.55;
+
+  @media (max-width: 768px) {
+    margin-top: 12px;
+    font-size: 0.88rem;
+    line-height: 1.45;
+  }
 `;
 
 const ProfileMetaList = styled.div`
   margin-top: 22px;
   display: grid;
   gap: 14px;
+
+  @media (max-width: 768px) {
+    margin-top: 16px;
+    gap: 10px;
+  }
 `;
 
 const ProfileMetaItem = styled.div`
@@ -300,6 +372,11 @@ const ProfileMetaValue = styled.div`
   color: var(--text-color);
   font-size: 0.92rem;
   font-weight: 700;
+  overflow-wrap: anywhere;
+
+  @media (max-width: 768px) {
+    font-size: 0.88rem;
+  }
 `;
 
 const ProfileQuickActions = styled.div`
@@ -309,6 +386,11 @@ const ProfileQuickActions = styled.div`
   justify-content: flex-start;
   gap: 10px;
   flex-wrap: wrap;
+
+  @media (max-width: 768px) {
+    margin: 0 0 14px;
+    gap: 8px;
+  }
 `;
 
 const ProfileMain = styled.div`
@@ -320,7 +402,9 @@ const ProfileMain = styled.div`
   overflow: hidden;
 
   @media (max-width: 768px) {
-    padding: 20px 16px calc(28px + env(safe-area-inset-bottom, 0px));
+    flex: 0 0 auto;
+    min-height: auto;
+    padding: 14px 16px calc(18px + env(safe-area-inset-bottom, 0px));
     overflow: visible;
   }
 `;
@@ -333,6 +417,18 @@ const ProfileTabs = styled.div`
   margin-bottom: 18px;
   flex-shrink: 0;
   overflow: visible;
+
+  @media (max-width: 768px) {
+    gap: 18px;
+    margin: 0 -16px 14px;
+    padding: 0 16px;
+    overflow-x: auto;
+    scrollbar-width: none;
+
+    &::-webkit-scrollbar {
+      display: none;
+    }
+  }
 `;
 
 const ProfileTab = styled.button`
@@ -362,6 +458,11 @@ const ProfileTab = styled.button`
       opacity 0.18s ease,
       transform 0.18s ease;
   }
+
+  @media (max-width: 768px) {
+    font-size: 0.9rem;
+    padding-bottom: 10px;
+  }
 `;
 
 const ProfilePanel = styled.div`
@@ -370,6 +471,12 @@ const ProfilePanel = styled.div`
   flex-direction: column;
   gap: 16px;
   min-height: 0;
+
+  @media (max-width: 768px) {
+    flex: 0 0 auto;
+    min-height: auto;
+    gap: 12px;
+  }
 `;
 
 const ProfilePanelHeader = styled.div`
@@ -395,6 +502,11 @@ const ProfilePanelTitle = styled.h4`
   font-weight: 800;
   line-height: 1.12;
   letter-spacing: -0.03em;
+
+  @media (max-width: 768px) {
+    font-size: 1.24rem;
+    letter-spacing: 0;
+  }
 `;
 
 const ProfilePanelText = styled.p`
@@ -402,6 +514,11 @@ const ProfilePanelText = styled.p`
   color: var(--text-secondary-color);
   font-size: 0.92rem;
   line-height: 1.55;
+
+  @media (max-width: 768px) {
+    font-size: 0.86rem;
+    line-height: 1.45;
+  }
 `;
 
 const ProfilePanelActionButton = styled.button`
@@ -440,6 +557,13 @@ const ProfilePanelActionButton = styled.button`
       props.$primary
         ? "color-mix(in srgb, var(--primary-color) 22%, transparent)"
         : "color-mix(in srgb, var(--primary-color) 12%, transparent)"};
+  }
+
+  @media (max-width: 768px) {
+    min-height: 38px;
+    padding: 0 12px;
+    border-radius: 11px;
+    font-size: 0.78rem;
   }
 `;
 
@@ -504,6 +628,14 @@ const ProfileList = styled.div`
   flex-direction: column;
   gap: 12px;
   padding-right: 4px;
+
+  @media (max-width: 768px) {
+    flex: 0 0 auto;
+    min-height: auto;
+    overflow: visible;
+    padding-right: 0;
+    padding-bottom: 4px;
+  }
 `;
 
 const ProfileListItem = styled.button`
@@ -736,7 +868,13 @@ export default function NewProfileModal({
             </ProfileQuickActions>
           ) : null}
 
-          <ProfileName>{displayName}</ProfileName>
+          <ProfileName>
+            <ProfileDecoratedName
+              user={{ ...currentUser, name: displayName }}
+              fallback={displayName}
+              size="lg"
+            />
+          </ProfileName>
           <ProfileHandle>
             @{currentUser?.username || currentUser?.nickname || "jamm-user"}
           </ProfileHandle>

@@ -182,6 +182,19 @@ export const ReplyButton = styled.button`
   }
 `;
 
+export const DeleteButton = styled(ReplyButton)`
+  color: var(--danger-color);
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
+
+  &:hover:not(:disabled) {
+    color: var(--danger-color);
+  }
+`;
+
 export const RepliesContainer = styled.div`
   margin-top: 10px;
   padding-left: 4px;

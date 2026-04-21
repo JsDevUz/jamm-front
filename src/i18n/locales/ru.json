@@ -1003,7 +1003,9 @@
     "reply": "Ответить",
     "replyingTo": "Ответ",
     "replyPlaceholder": "Ответ для @{{name}}...",
-    "commentPlaceholder": "Напишите комментарий..."
+    "commentPlaceholder": "Напишите комментарий...",
+    "deleteTitle": "Удалить комментарий",
+    "deleteDescription": "Это действие нельзя отменить."
   },
   "profile": {
     "avatarChange": "Изменить аватар",

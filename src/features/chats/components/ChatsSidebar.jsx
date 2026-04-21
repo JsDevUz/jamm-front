@@ -17,6 +17,7 @@ import { useChats } from "../../../contexts/ChatsContext";
 import { usePresence } from "../../../contexts/PresenceContext";
 import useAuthStore from "../../../store/authStore";
 import SectionHeader from "../../../shared/ui/navigation/SectionHeader";
+import useHorizontalSwipeNavigation from "../../../shared/hooks/useHorizontalSwipeNavigation";
 import {
   AvatarImage,
   AvatarWrapper,
@@ -454,6 +455,21 @@ const ChatsSidebar = ({
       ? t("chatsSidebar.tabs.groups")
       : t("navigation.chats", { defaultValue: "Chatlar" });
 
+  const tabSwipeHandlers = useHorizontalSwipeNavigation({
+    onSwipeLeft: () => {
+      if (!["chats", "users", "groups"].includes(selectedNav)) return;
+      if (effectiveChatTab === "group") return;
+      setChatTab("group");
+      navigate("/groups");
+    },
+    onSwipeRight: () => {
+      if (!["chats", "users", "groups"].includes(selectedNav)) return;
+      if (effectiveChatTab === "private") return;
+      setChatTab("private");
+      navigate("/users");
+    },
+  });
+
   const renderAvatarContent = (chat) => {
     if (chat.isSavedMessages) {
       return <Bookmark size={18} color="white" fill="white" />;
@@ -509,7 +525,7 @@ const ChatsSidebar = ({
   };
 
   return (
-    <SidebarContainer>
+    <SidebarContainer {...tabSwipeHandlers}>
       <SectionHeader
         title={headerTitle}
         onSearch={() =>

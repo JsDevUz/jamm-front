@@ -1005,7 +1005,9 @@
     "reply": "Javob berish",
     "replyingTo": "Javob",
     "replyPlaceholder": "@{{name}} ga javob...",
-    "commentPlaceholder": "Izoh yozing..."
+    "commentPlaceholder": "Izoh yozing...",
+    "deleteTitle": "Izohni o'chirish",
+    "deleteDescription": "Bu amalni ortga qaytarib bo'lmaydi."
   },
   "profile": {
     "avatarChange": "Avatarni o'zgartirish",

@@ -152,9 +152,8 @@ export const CoursesProvider = ({ children }) => {
       transports: ["websocket"],
     });
 
-    const handleEvent = (data) => {
-      console.log("Course socket event receive:", data);
-      fetchCourses();
+    const handleEvent = () => {
+      fetchCourses(1);
     };
 
     socketRef.current.on("course_enrolled", handleEvent);
@@ -592,7 +591,7 @@ export const CoursesProvider = ({ children }) => {
         throw err;
       }
     },
-    [authUser],
+    [],
   );
 
   const setLessonAttendanceStatus = useCallback(
@@ -865,16 +864,7 @@ export const CoursesProvider = ({ children }) => {
 
   const value = {
     courses,
-    currentUser: currentUser
-      ? {
-          id: getEntityId(currentUser),
-          name: currentUser.nickname || currentUser.username,
-          avatar: (currentUser.nickname || currentUser.username || "")
-            .substring(0, 2)
-            .toUpperCase(),
-          isAdmin: true,
-        }
-      : null,
+    currentUser,
     createCourse,
     removeCourse,
     addLesson,

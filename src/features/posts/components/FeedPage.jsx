@@ -25,6 +25,7 @@ import SectionHeader from "../../../shared/ui/navigation/SectionHeader";
 import { renderInlineMarkup } from "../../../shared/utils/renderInlineMarkup";
 import UserNameWithDecoration from "../../../shared/ui/users/UserNameWithDecoration";
 import ImageLightbox from "../../../shared/ui/media/ImageLightbox";
+import useHorizontalSwipeNavigation from "../../../shared/hooks/useHorizontalSwipeNavigation";
 import CreatePostDialog from "./CreatePostDialog";
 import PostComments from "./PostComments";
 import {
@@ -247,6 +248,14 @@ const FeedPage = () => {
   const viewedRef = useRef(new Set());
   const viewTimeoutsRef = useRef(new Map());
   const feedScrollRef = useRef(null);
+  const feedSwipeHandlers = useHorizontalSwipeNavigation({
+    onSwipeLeft: () => {
+      if (activeTab !== "following") setActiveTab("following");
+    },
+    onSwipeRight: () => {
+      if (activeTab !== "foryou") setActiveTab("foryou");
+    },
+  });
 
   useEffect(() => {
     if (
@@ -398,7 +407,7 @@ const FeedPage = () => {
         </FeedHeaderInner>
       </FeedHeader>
 
-      <FeedScroll id="scrollableFeed" ref={feedScrollRef}>
+      <FeedScroll id="scrollableFeed" ref={feedScrollRef} {...feedSwipeHandlers}>
         <FeedInner $swipeHintDirection={swipeHintDirection}>
           <FeedList
             dataLength={activePosts.length}
