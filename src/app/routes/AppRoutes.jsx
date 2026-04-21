@@ -11,7 +11,7 @@ const SlugResolver = lazy(() => import("./SlugResolver"));
 const TeacherPage = lazy(() => import("../../pages/TeacherPage"));
 const CoursePreviewPage = lazy(() => import("../../pages/CoursePreviewPage"));
 
-// Public-only route component - redirects authenticated users to chats
+// Public-only route component - redirects authenticated users to courses
 const PublicRoute = ({ children }) => {
   const user = useAuthStore((state) => state.user);
   const initialized = useAuthStore((state) => state.initialized);
@@ -21,7 +21,7 @@ const PublicRoute = ({ children }) => {
   }
   
   if (user) {
-    return <Navigate to="/chats" replace />;
+    return <Navigate to="/courses" replace />;
   }
   
   return children;
@@ -79,7 +79,7 @@ export default function AppRoutes() {
           path="/"
           element={
             <ProtectedRoute>
-              <Navigate to="/chats" replace />
+              <Navigate to="/courses" replace />
             </ProtectedRoute>
           }
         />

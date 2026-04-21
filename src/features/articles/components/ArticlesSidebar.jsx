@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Copy } from "lucide-react";
+import { Copy, Newspaper } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
@@ -229,7 +229,9 @@ const ArticlesSidebar = ({ selectedArticleId }) => {
                   <Cover>
                     {article.coverImage ? (
                       <img src={article.coverImage} alt={article.title} />
-                    ) : null}
+                    ) : (
+                      <Newspaper size={26} strokeWidth={2.1} />
+                    )}
                   </Cover>
                   <Content>
                     <Title>{article.title}</Title>

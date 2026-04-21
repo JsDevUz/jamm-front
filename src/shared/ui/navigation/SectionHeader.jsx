@@ -2,7 +2,6 @@ import React, { useMemo, useState } from "react";
 import styled from "styled-components";
 import { Plus, Search } from "lucide-react";
 import useAuthStore from "../../../store/authStore";
-import SettingsDialog from "../../../app/components/SettingsDialog";
 
 const Header = styled.div`
   padding: 14px 16px 12px;
@@ -147,14 +146,7 @@ export default function SectionHeader({
           ) : null}
         </Actions>
       </Header>
-
-      {showProfile ? (
-        <SettingsDialog
-          isOpen={isSettingsOpen}
-          onClose={() => setIsSettingsOpen(false)}
-          initialSection="my-account"
-        />
-      ) : null}
+     
     </>
   );
 }

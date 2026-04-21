@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import toast from "react-hot-toast";
 import {
   BookOpen,
   Globe,
@@ -19,6 +20,7 @@ import {
 import useAuthStore from "../../../store/authStore";
 import { usePosts } from "../../../contexts/PostsContext";
 import { useCourses } from "../../../contexts/CoursesContext";
+import { useChats } from "../../../contexts/ChatsContext";
 import { fetchUserArticles as fetchProfileArticles } from "../../../api/articlesApi";
 import NewProfileModal from "../../courses/components/NewProfileModal";
 import NewSettingsModal from "../../courses/components/NewSettingsModal";
@@ -52,6 +54,7 @@ const ProfilePage = ({ profileUserId, onClose }) => {
   const logout = useAuthStore((state) => state.logout);
   const { userPosts, fetchUserPosts, getPublicProfile, toggleFollow } = usePosts();
   const { courses } = useCourses();
+  const { getUserByUsername, createChat, fetchChats } = useChats();
   const [targetUser, setTargetUser] = useState(null);
   const [isFollowing, setIsFollowing] = useState(false);
   const [isProfileEditOpen, setIsProfileEditOpen] = useState(false);
@@ -278,6 +281,21 @@ const ProfilePage = ({ profileUserId, onClose }) => {
     toggleFollow,
   ]);
 
+  const handleContactJammSupport = useCallback(async () => {
+    try {
+      const user = await getUserByUsername("jamm");
+      if (!user) return;
+      const chat = await createChat({
+        isGroup: false,
+        memberIds: [user._id || user.id],
+      });
+      await fetchChats();
+      navigate(`/groups/${chat.urlSlug || chat.jammId || chat._id || chat.id}`);
+    } catch {
+      toast.error(t("profileUtility.support.chatError"));
+    }
+  }, [createChat, fetchChats, getUserByUsername, navigate, t]);
+
   const profileActions = useMemo(() => {
     if (isOwnProfile) return [];
 
@@ -401,7 +419,14 @@ const ProfilePage = ({ profileUserId, onClose }) => {
         onOpenAccountSettings={openAccountSettings}
         profileActions={profileActions}
         showTeacherAction={Boolean(targetUser?.isInstructor)}
+        showBecomeTeacherAction={isOwnProfile && !targetUser?.isInstructor}
         showAdminAction={isOwnProfile && targetUser?.officialBadgeKey === "ceo"}
+        becomeTeacherTitle={t("profile.teacherRequest.title")}
+        becomeTeacherDescription={t("profile.teacherRequest.description")}
+        becomeTeacherActionLabel={t("profile.teacherRequest.action")}
+        becomeTeacherContactLabel={t("profile.teacherRequest.contact")}
+        becomeTeacherBackLabel={t("profile.teacherRequest.back")}
+        onContactJammSupport={handleContactJammSupport}
         onClose={closeProfile}
         onSetTab={setActiveTabId}
         onListScroll={handleListScroll}

@@ -1,6 +1,13 @@
 import React, { createContext, useContext, useState, useEffect } from 'react'
 
 const ThemeContext = createContext()
+const DEFAULT_THEME = 'light'
+const SUPPORTED_THEMES = new Set(['light', 'dark'])
+
+const normalizeTheme = (value) => {
+  const theme = String(value || '').trim().toLowerCase()
+  return SUPPORTED_THEMES.has(theme) ? theme : DEFAULT_THEME
+}
 
 export const useTheme = () => {
   const context = useContext(ThemeContext)
@@ -14,19 +21,26 @@ export const ThemeProvider = ({ children }) => {
   const [theme, setTheme] = useState(() => {
     // Get theme from localStorage or default to light
     const savedTheme = localStorage.getItem('theme')
-    return savedTheme || 'light'
+    return normalizeTheme(savedTheme)
   })
 
   useEffect(() => {
+    const normalizedTheme = normalizeTheme(theme)
+
+    if (normalizedTheme !== theme) {
+      setTheme(normalizedTheme)
+      return
+    }
+
     // Apply theme to document
-    document.documentElement.setAttribute('data-theme', theme)
+    document.documentElement.setAttribute('data-theme', normalizedTheme)
     
     // Save to localStorage
-    localStorage.setItem('theme', theme)
+    localStorage.setItem('theme', normalizedTheme)
   }, [theme])
 
   const toggleTheme = (newTheme) => {
-    setTheme(newTheme)
+    setTheme(normalizeTheme(newTheme))
   }
 
   const themes = {

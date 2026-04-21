@@ -10,6 +10,8 @@ import {
   ProfilePaneTitle,
 } from "../ui";
 
+const DEFAULT_COURSE_IMAGE = "/default-course-image.jpg";
+
 const MobileBackBtn = styled(ProfileMobileBackButton)``;
 
 const Grid = styled.div`
@@ -106,8 +108,8 @@ const ProfileCoursesPane = ({ courses, onBack, onOpenCourse }) => {
                 key={course._id || course.id}
                 onClick={() => onOpenCourse(course)}
               >
-                <Thumb $image={course.image}>
-                  {!course.image && (course.name || "?").charAt(0)}
+                <Thumb $image={course.image || DEFAULT_COURSE_IMAGE}>
+                  {!course.image && !DEFAULT_COURSE_IMAGE && (course.name || "?").charAt(0)}
                 </Thumb>
                 <Content>
                   <Title>{course.name}</Title>

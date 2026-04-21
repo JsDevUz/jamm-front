@@ -52,6 +52,25 @@ import {
 } from "../styles/ChatsSidebar.styles";
 
 const CHAT_SIDEBAR_SCROLL_CACHE_PREFIX = "jamm.chats.sidebar.scroll";
+const CHAT_AVATAR_GRADIENTS = [
+  "linear-gradient(135deg, #f59e0b 0%, #f97316 100%)",
+  "linear-gradient(135deg, #06b6d4 0%, #3b82f6 100%)",
+  "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)",
+  "linear-gradient(135deg, #22c55e 0%, #14b8a6 100%)",
+  "linear-gradient(135deg, #ef4444 0%, #f97316 100%)",
+  "linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)",
+  "linear-gradient(135deg, #0ea5e9 0%, #2563eb 100%)",
+  "linear-gradient(135deg, #84cc16 0%, #22c55e 100%)",
+];
+
+const getAvatarGradient = (value) => {
+  const source = String(value || "chat");
+  let hash = 0;
+  for (let index = 0; index < source.length; index += 1) {
+    hash = (hash * 31 + source.charCodeAt(index)) >>> 0;
+  }
+  return CHAT_AVATAR_GRADIENTS[hash % CHAT_AVATAR_GRADIENTS.length];
+};
 
 const ChatsSidebar = ({
   onOpenCreateGroup,
@@ -454,6 +473,11 @@ const ChatsSidebar = ({
       .join("");
   };
 
+  const getChatAvatarBg = (chat) => {
+    if (chat.isSavedMessages || chat.avatar?.length > 1) return undefined;
+    return getAvatarGradient(chat.urlSlug || chat.id || chat.name);
+  };
+
   const timeAgo = (timestamp) => {
     if (!timestamp) return t("chatsSidebar.timeAgo.now");
     const parsedTimestamp =
@@ -603,7 +627,16 @@ const ChatsSidebar = ({
                       >
                         <SearchResultItem>
                           <AvatarWrapper>
-                            <ChatAvatar $isGroup>
+                            <ChatAvatar
+                              $isGroup
+                              $fallbackBg={
+                                result.avatar?.length > 1
+                                  ? undefined
+                                  : getAvatarGradient(
+                                      result.urlSlug || result.id || result.name,
+                                    )
+                              }
+                            >
                               {result.avatar?.length > 1 ? (
                                 <AvatarImage
                                   src={result.avatar}
@@ -634,7 +667,15 @@ const ChatsSidebar = ({
                       onClick={() => handleStartPrivateChat(result)}
                     >
                       <AvatarWrapper>
-                        <ChatAvatar>
+                        <ChatAvatar
+                          $fallbackBg={
+                            result.avatar?.length > 1
+                              ? undefined
+                              : getAvatarGradient(
+                                  result.username || result.id || result.name,
+                                )
+                          }
+                        >
                           {result.avatar?.length > 1 ? (
                             <AvatarImage
                               src={result.avatar}
@@ -721,6 +762,7 @@ const ChatsSidebar = ({
                           <ChatAvatar
                             $isGroup={chat.isGroup}
                             $isSavedMessages={chat.isSavedMessages}
+                            $fallbackBg={getChatAvatarBg(chat)}
                           >
                             {renderAvatarContent(chat)}
                           </ChatAvatar>
@@ -764,7 +806,6 @@ const ChatsSidebar = ({
                 })}
               </StyledInfiniteScroll>
             )}
-
           </>
       </ChatList>
     </SidebarContainer>

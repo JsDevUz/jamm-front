@@ -33,6 +33,7 @@ export const SidebarContainer = styled.div`
     backdrop-filter: blur(18px);
     box-shadow: 0 -10px 32px rgba(0, 0, 0, 0.22);
     overflow: hidden;
+    pointer-events: none;
   }
 `;
 
@@ -78,7 +79,7 @@ export const NavButton = styled.button`
     width: 6px;
     height: ${(props) => (props.$active ? "30px" : "16px")};
     border-radius: 999px;
-    background: #ffffff;
+    background: var(--text-color);
     transform: translateY(-50%)
       scaleY(${(props) => (props.$active ? 1 : 0)});
     opacity: ${(props) => (props.$active ? 1 : 0)};
@@ -175,6 +176,8 @@ export const NavButton = styled.button`
     & > span:first-child::after {
       display: none;
     }
+
+    pointer-events: auto;
   }
 `;
 
@@ -207,10 +210,6 @@ export const IconSlot = styled.div`
     width: 40px;
     height: 40px;
     border-radius: 14px;
-    background: ${(props) =>
-      props.$active
-        ? "color-mix(in srgb, var(--primary-color) 18%, var(--secondary-color))"
-        : "transparent"};
     box-shadow: none;
   }
 `;
@@ -302,7 +301,7 @@ export const AvatarButton = styled.button`
     width: 6px;
     height: ${(props) => (props.$active ? "30px" : "16px")};
     border-radius: 999px;
-    background: #ffffff;
+    background: var(--text-color);
     transform: translateY(-50%)
       scaleY(${(props) => (props.$active ? 1 : 0)});
     opacity: ${(props) => (props.$active ? 1 : 0)};
@@ -405,6 +404,8 @@ export const AvatarButton = styled.button`
     &:focus-visible {
       background: transparent;
     }
+
+    pointer-events: auto;
   }
 `;
 

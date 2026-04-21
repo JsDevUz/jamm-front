@@ -16,7 +16,6 @@ import {
 
 const ArenaDashboard = ({ activeTab = "tests", initialId, onBack }) => {
   const { t } = useTranslation();
-console.log(activeTab);
 
   return (
     <ArenaContainer>

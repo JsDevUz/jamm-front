@@ -35,7 +35,7 @@ export const AppContainer = styled.div`
   box-sizing: border-box;
 
   @media (max-width: 700px) {
-    flex-direction: column-reverse;
+    flex-direction: column;
   }
 `;
 
@@ -161,10 +161,15 @@ export const AppLockDescription = styled.p`
 export const MainContent = styled.div`
   display: flex;
   flex: 1;
-  height: 100%;
   min-width: 0;
   min-height: 0;
   overflow: hidden;
+
+  @media (max-width: 700px) {
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+  }
 `;
 
 export const PaneDivider = styled.div`

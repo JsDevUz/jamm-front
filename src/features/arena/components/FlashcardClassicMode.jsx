@@ -18,6 +18,7 @@ export default function FlashcardClassicMode({
   setClassicQueue,
   setClassicAnswers,
   setClassicCompleted,
+  onClose,
   handleClassicReplay,
   handleClassicKeyboardSwipe,
   getClassicStackLayout,
@@ -185,6 +186,10 @@ export default function FlashcardClassicMode({
             <ClassicTopIconButton
               type="button"
               onClick={() => {
+                if (onClose) {
+                  onClose();
+                  return;
+                }
                 setClassicDeck(null);
                 setClassicQueue([]);
                 setClassicAnswers([]);
@@ -330,7 +335,7 @@ export default function FlashcardClassicMode({
                                   lineHeight: 1.12,
                                   fontWeight: 300,
                                   textAlign: "center",
-                                  color: "#F3F5F9",
+                                  color: "var(--text-color)",
                                   letterSpacing: "0",
                                 }}
                               >

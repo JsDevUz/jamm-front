@@ -269,77 +269,6 @@ const FeedPage = () => {
   }, []);
 
   useEffect(() => {
-    if (typeof window === "undefined" || window.innerWidth > 768) return undefined;
-
-    const element = feedScrollRef.current;
-    if (!element) return undefined;
-
-    let startX = 0;
-    let startY = 0;
-    let tracking = false;
-
-    const orderedTabs = ["foryou", "following"];
-
-    const triggerSwipeHint = (direction) => {
-      setSwipeHintDirection(direction);
-      window.setTimeout(() => {
-        setSwipeHintDirection((current) =>
-          current === direction ? null : current,
-        );
-      }, 180);
-    };
-
-    const handleTouchStart = (event) => {
-      if (event.touches.length !== 1) return;
-
-      const target =
-        event.target instanceof Element ? event.target : event.target?.parentElement;
-      if (
-        target &&
-        target.closest(
-          "input, textarea, button, a, [role='button'], [contenteditable='true'], [data-disable-feed-tab-swipe]",
-        )
-      ) {
-        tracking = false;
-        return;
-      }
-
-      const touch = event.touches[0];
-      startX = touch.clientX;
-      startY = touch.clientY;
-      tracking = true;
-    };
-
-    const handleTouchEnd = (event) => {
-      if (!tracking || event.changedTouches.length !== 1) return;
-      tracking = false;
-
-      const touch = event.changedTouches[0];
-      const deltaX = touch.clientX - startX;
-      const deltaY = touch.clientY - startY;
-
-      if (Math.abs(deltaX) < 70 || Math.abs(deltaY) > 50) return;
-      if (Math.abs(deltaX) < Math.abs(deltaY)) return;
-
-      const currentIndex = orderedTabs.indexOf(activeTab);
-      const nextIndex = currentIndex + (deltaX < 0 ? 1 : -1);
-
-      if (nextIndex < 0 || nextIndex >= orderedTabs.length) return;
-
-      triggerSwipeHint(deltaX < 0 ? "left" : "right");
-      setActiveTab(orderedTabs[nextIndex]);
-    };
-
-    element.addEventListener("touchstart", handleTouchStart, { passive: true });
-    element.addEventListener("touchend", handleTouchEnd, { passive: true });
-
-    return () => {
-      element.removeEventListener("touchstart", handleTouchStart);
-      element.removeEventListener("touchend", handleTouchEnd);
-    };
-  }, [activeTab]);
-
-  useEffect(() => {
     const scrollRoot = document.getElementById("scrollableFeed");
     if (!scrollRoot || activePosts.length === 0) return undefined;
 
@@ -446,7 +375,6 @@ const FeedPage = () => {
         <FeedHeaderInner>
           <SectionHeader
             title={t("feed.title")}
-            showProfile
             onSearch={() =>
               navigate("/search", {
                 state: { backgroundLocation: location, initialTab: "private" },

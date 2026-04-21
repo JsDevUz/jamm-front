@@ -123,6 +123,10 @@ export const Cover = styled.div`
   border-radius: 14px;
   overflow: hidden;
   background: var(--input-color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted-color);
 
   img {
     width: 100%;

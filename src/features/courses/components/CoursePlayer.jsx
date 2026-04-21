@@ -2343,7 +2343,14 @@ const CoursePlayer = ({
         </CreatorMeta>
       </EnrollmentInfo>
       <EnrollmentActions>
-        {enrollStatus === "pending" ? (
+        {isOwner ? (
+          <RoundedEnrollButton $variant="owner">
+            <CheckCircle size={16} />
+            {t("coursePlayer.actions.ownerCourse", {
+              defaultValue: "Sizning kursingiz",
+            })}
+          </RoundedEnrollButton>
+        ) : enrollStatus === "pending" ? (
           <>
             <RoundedEnrollButton $variant="pending">
               <Clock size={16} />

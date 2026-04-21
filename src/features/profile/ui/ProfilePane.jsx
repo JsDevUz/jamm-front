@@ -30,7 +30,6 @@ export const ProfilePaneTitle = styled.h2`
 `;
 
 export const ProfilePaneBody = styled.div`
-  padding: 16px 18px 18px;
   display: flex;
   flex-direction: column;
   gap: 12px;

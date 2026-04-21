@@ -15,8 +15,8 @@ const fadeSlide = keyframes`
 
 export const FeedContainer = styled.div`
   flex: 1;
-  height: 100vh;
   min-height: 0;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   background: var(--background-color);
@@ -25,16 +25,21 @@ export const FeedContainer = styled.div`
 
 export const FeedScroll = styled.div`
   flex: 1;
+  height: 100%;
   min-height: 0;
   width: 100%;
   overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
+  overflow-x: hidden;
   padding-bottom: 40px;
   -webkit-overflow-scrolling: touch;
-  overscroll-behavior-y: contain;
   touch-action: pan-y;
+  position: relative;
+
+  @media (max-width: 700px) {
+    height: 100%;
+    min-height: 0;
+    padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px) + 16px);
+  }
 
   &::-webkit-scrollbar {
     width: 0;
@@ -44,7 +49,9 @@ export const FeedScroll = styled.div`
 export const FeedInner = styled.div`
   width: 100%;
   max-width: 680px;
+  margin: 0 auto;
   padding: 0 16px;
+  touch-action: pan-y;
   transition: transform 0.18s ease-out;
   transform: translateX(
     ${(props) =>
@@ -176,6 +183,7 @@ export const FeedList = styled(InfiniteScroll)`
   flex-direction: column;
   overflow: visible;
   width: 100%;
+  touch-action: pan-y;
 `;
 
 export const ListStatus = styled.div`
@@ -196,6 +204,7 @@ export const PostCard = styled.div`
   transition: none;
   -webkit-tap-highlight-color: transparent;
   user-select: none;
+  touch-action: pan-y;
 
   &:hover,
   &:active,

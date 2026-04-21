@@ -745,7 +745,7 @@ const AuthPage = () => {
 
       // Success! Auto-login
       setAuth(data.user);
-      navigate("/chats");
+      navigate("/courses");
     } catch (err) {
       setError(err.message);
     } finally {
@@ -826,7 +826,7 @@ const AuthPage = () => {
       } else {
         // Login success
         setAuth(data.user);
-        navigate("/chats");
+        navigate("/courses");
       }
     } catch (err) {
       setError(err.message);

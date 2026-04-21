@@ -1115,21 +1115,34 @@ export default function useChatAreaController({
 
   const showContextMenu = (message, event) => {
     const menuWidth = 180;
-    const menuHeight = message.user === "You" ? 120 : 40;
+    const isOwnMessage =
+      message.user === "You" ||
+      String(message.senderId || "") === String(currentUser?._id || currentUser?.id || "");
+    const menuHeight = isOwnMessage ? 152 : 58;
+    const viewport = window.visualViewport;
+    const viewportLeft = viewport?.offsetLeft || 0;
+    const viewportTop = viewport?.offsetTop || 0;
+    const viewportWidth = viewport?.width || window.innerWidth;
+    const viewportHeight = viewport?.height || window.innerHeight;
+    const safeMargin = 12;
+    const minX = viewportLeft + safeMargin;
+    const minY = viewportTop + safeMargin;
+    const maxX = viewportLeft + viewportWidth - menuWidth - safeMargin;
+    const maxY = viewportTop + viewportHeight - menuHeight - safeMargin;
     let x = event.clientX;
     let y = event.clientY;
 
-    if (x + menuWidth > window.innerWidth) {
-      x = window.innerWidth - menuWidth - 10;
+    if (x > maxX) {
+      x = maxX;
     }
 
-    if (y + menuHeight > window.innerHeight) {
-      y = window.innerHeight - menuHeight - 10;
+    if (y > maxY) {
+      y = maxY;
     }
 
     setContextMenu({
-      x: Math.max(x, 10),
-      y: Math.max(y, 10),
+      x: Math.max(x, minX),
+      y: Math.max(y, minY),
       message,
     });
   };

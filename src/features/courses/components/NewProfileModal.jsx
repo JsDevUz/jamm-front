@@ -12,6 +12,8 @@ import {
   X,
 } from "lucide-react";
 
+const DEFAULT_COURSE_IMAGE = "/default-course-image.jpg";
+
 const modalOverlayIn = keyframes`
   from { opacity: 0; }
   to { opacity: 1; }
@@ -430,6 +432,59 @@ const ProfilePanelActionButton = styled.button`
   }
 `;
 
+const ProfilePromptOverlay = styled.div`
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  background: rgba(9, 11, 18, 0.62);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+`;
+
+const ProfilePromptCard = styled.div`
+  width: min(420px, 100%);
+  border-radius: 24px;
+  border: 1px solid color-mix(in srgb, var(--border-color) 82%, transparent);
+  background: color-mix(in srgb, var(--secondary-color) 94%, black 6%);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.35);
+  padding: 22px;
+  display: grid;
+  gap: 14px;
+
+  @media (max-width: 768px) {
+    margin-top: auto;
+    width: 100%;
+    border-radius: 24px 24px 0 0;
+    padding-bottom: calc(22px + env(safe-area-inset-bottom, 0px));
+  }
+`;
+
+const ProfilePromptTitle = styled.h5`
+  margin: 0;
+  font-size: 1.22rem;
+  font-weight: 800;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+`;
+
+const ProfilePromptText = styled.p`
+  margin: 0;
+  color: var(--text-secondary-color);
+  font-size: 0.94rem;
+  line-height: 1.6;
+`;
+
+const ProfilePromptActions = styled.div`
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+`;
+
 const ProfileList = styled.div`
   flex: 1;
   min-height: 0;
@@ -444,11 +499,6 @@ const ProfileListItem = styled.button`
   width: 100%;
   border: 1px solid color-mix(in srgb, var(--border-color) 82%, transparent);
   border-radius: 18px;
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--secondary-color) 92%, black 8%) 0%,
-    color-mix(in srgb, var(--tertiary-color) 90%, black 10%) 100%
-  );
   color: inherit;
   text-align: left;
   padding: 14px;
@@ -571,7 +621,14 @@ export default function NewProfileModal({
   showSettingsButton = Boolean(onOpenAccountSettings),
   profileActions = [],
   showTeacherAction = true,
+  showBecomeTeacherAction = false,
   showAdminAction = isCeoUser,
+  becomeTeacherTitle = "Ustoz profilini yaratish",
+  becomeTeacherDescription = "",
+  becomeTeacherActionLabel = "Ustoz bo'lish",
+  becomeTeacherContactLabel = "@Jamm ga yozish",
+  becomeTeacherBackLabel = "Orqaga qaytish",
+  onContactJammSupport,
   onSetTab,
   onListScroll,
   onNavigate,
@@ -580,6 +637,8 @@ export default function NewProfileModal({
   getMemberStatus,
   formatCreatedDate,
 }) {
+  const [isBecomeTeacherPromptOpen, setIsBecomeTeacherPromptOpen] = React.useState(false);
+
   if (!open) return null;
 
   return (
@@ -617,7 +676,10 @@ export default function NewProfileModal({
             </ProfileLargeAvatar>
           </ProfileBanner>
 
-          {profileActions.length || showTeacherAction || showAdminAction ? (
+          {profileActions.length ||
+          showTeacherAction ||
+          showBecomeTeacherAction ||
+          showAdminAction ? (
             <ProfileQuickActions>
               {profileActions.map((action) => {
                 const ActionIcon = action.icon;
@@ -642,10 +704,18 @@ export default function NewProfileModal({
                   Ustoz sahifasi
                 </ProfilePanelActionButton>
               ) : null}
+              {showBecomeTeacherAction ? (
+                <ProfilePanelActionButton
+                  type="button"
+                  onClick={() => setIsBecomeTeacherPromptOpen(true)}
+                >
+                  <GraduationCap size={16} />
+                  {becomeTeacherActionLabel}
+                </ProfilePanelActionButton>
+              ) : null}
               {showAdminAction ? (
                 <ProfilePanelActionButton
                   type="button"
-                  $primary
                   onClick={() => onNavigate("/admin")}
                 >
                   <Shield size={16} />
@@ -799,8 +869,11 @@ export default function NewProfileModal({
                       onClick={() => onCourseNavigate(course)}
                     >
                       <ProfileListIcon>
-                        {course.image ? (
-                          <ProfileListImage src={course.image} alt={course.name} />
+                        {course.image || DEFAULT_COURSE_IMAGE ? (
+                          <ProfileListImage
+                            src={course.image || DEFAULT_COURSE_IMAGE}
+                            alt={course.name}
+                          />
                         ) : (
                           <GraduationCap size={18} />
                         )}
@@ -849,6 +922,33 @@ export default function NewProfileModal({
             </ProfileList>
           </ProfilePanel>
         </ProfileMain>
+
+        {isBecomeTeacherPromptOpen ? (
+          <ProfilePromptOverlay onClick={() => setIsBecomeTeacherPromptOpen(false)}>
+            <ProfilePromptCard onClick={(event) => event.stopPropagation()}>
+              <ProfilePromptTitle>{becomeTeacherTitle}</ProfilePromptTitle>
+              <ProfilePromptText>{becomeTeacherDescription}</ProfilePromptText>
+              <ProfilePromptActions>
+                <ProfilePanelActionButton
+                  type="button"
+                  onClick={() => setIsBecomeTeacherPromptOpen(false)}
+                >
+                  {becomeTeacherBackLabel}
+                </ProfilePanelActionButton>
+                <ProfilePanelActionButton
+                  type="button"
+                  $primary
+                  onClick={() => {
+                    setIsBecomeTeacherPromptOpen(false);
+                    onContactJammSupport?.();
+                  }}
+                >
+                  {becomeTeacherContactLabel}
+                </ProfilePanelActionButton>
+              </ProfilePromptActions>
+            </ProfilePromptCard>
+          </ProfilePromptOverlay>
+        ) : null}
       </ProfileModal>
     </ProfileOverlay>
   );

@@ -13,7 +13,7 @@ export const Pane = styled.div`
   overflow: hidden;
   background: var(--background-color);
 
-  @media (max-width: 1024px) {
+  @media (max-width: 700px) {
     position: absolute;
     top: 0;
     right: 0;

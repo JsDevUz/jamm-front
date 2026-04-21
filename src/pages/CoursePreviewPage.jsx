@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import styled from "styled-components";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "react-router-dom";
@@ -21,7 +21,9 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { useCourses } from "../contexts/CoursesContext";
+import { getLessonPlaybackToken } from "../api/coursesApi";
 import { getCourseMemberStatus } from "../features/courses/utils/courseNavigation";
+import { API_BASE_URL } from "../config/env";
 
 const PageShell = styled.div`
   width: 100vw;
@@ -587,6 +589,9 @@ function normalizeLessonMediaItems(lesson, t) {
         t("coursePreview.videoNumber", { count: index + 1 }),
       videoUrl: item?.videoUrl || "",
       fileUrl: item?.fileUrl || "",
+      streamType: item?.streamType || lesson?.streamType || "direct",
+      streamAssets: Array.isArray(item?.streamAssets) ? item.streamAssets : [],
+      hlsKeyAsset: item?.hlsKeyAsset || lesson?.hlsKeyAsset || "",
     }));
   }
 
@@ -597,6 +602,9 @@ function normalizeLessonMediaItems(lesson, t) {
         title: lesson?.title || t("coursePreview.video"),
         videoUrl: lesson?.videoUrl || "",
         fileUrl: lesson?.fileUrl || "",
+        streamType: lesson?.streamType || "direct",
+        streamAssets: Array.isArray(lesson?.streamAssets) ? lesson.streamAssets : [],
+        hlsKeyAsset: lesson?.hlsKeyAsset || "",
       },
     ];
   }
@@ -618,6 +626,155 @@ function getYouTubeId(value = "") {
   if (embedMatch?.[1]) return embedMatch[1];
 
   return "";
+}
+
+function toAbsoluteMediaUrl(value = "") {
+  const target = String(value || "").trim();
+  if (!target) return "";
+  if (/^https?:\/\//i.test(target)) return target;
+  return API_BASE_URL ? `${API_BASE_URL}${target.startsWith("/") ? "" : "/"}${target}` : target;
+}
+
+function isHlsMedia(url = "", streamType = "") {
+  const normalizedUrl = String(url || "").split("?")[0].toLowerCase();
+  return streamType === "hls" || normalizedUrl.endsWith(".m3u8");
+}
+
+function getMediaSource(item) {
+  if (item?.videoUrl) return item.videoUrl;
+  if (Array.isArray(item?.streamAssets) && item.streamAssets.length) {
+    return String(item.streamAssets[0] || "");
+  }
+  return item?.fileUrl || "";
+}
+
+function PreviewHeroVideo({ src, streamType, poster, courseId, lessonId, mediaId }) {
+  const videoRef = useRef(null);
+  const fallbackSrc = useMemo(() => toAbsoluteMediaUrl(src), [src]);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || (!fallbackSrc && !(courseId && lessonId))) return undefined;
+    let cancelled = false;
+    let hlsInstance = null;
+
+    const attachSource = async (sourceUrl, sourceStreamType) => {
+      const resolvedSource = toAbsoluteMediaUrl(sourceUrl);
+      const shouldUseHls = isHlsMedia(resolvedSource, sourceStreamType);
+
+      if (!shouldUseHls) {
+        video.removeAttribute("crossorigin");
+        video.src = resolvedSource;
+        return;
+      }
+
+      video.crossOrigin = "anonymous";
+
+      if (video.canPlayType("application/vnd.apple.mpegurl")) {
+        video.src = resolvedSource;
+        return;
+      }
+
+      const module = await import("hls.js");
+      if (cancelled) return;
+
+      const Hls = module.default;
+      if (!Hls?.isSupported?.()) {
+        video.src = resolvedSource;
+        return;
+      }
+
+      const DefaultLoader = Hls.DefaultConfig.loader;
+      class SegmentCacheFriendlyLoader extends DefaultLoader {
+        load(context, config, callbacks) {
+          const requestUrl = String(context?.url || "");
+          const isCdnAsset = /^https?:\/\/files\.jamm\.uz\//i.test(requestUrl);
+          if (isCdnAsset) {
+            delete context.rangeStart;
+            delete context.rangeEnd;
+          }
+          return super.load(context, config, callbacks);
+        }
+      }
+
+      const hls = new Hls({
+        enableWorker: true,
+        lowLatencyMode: false,
+        manifestLoadingMaxRetry: 4,
+        manifestLoadingRetryDelay: 1000,
+        levelLoadingMaxRetry: 4,
+        levelLoadingRetryDelay: 1000,
+        fragLoadingMaxRetry: 6,
+        fragLoadingRetryDelay: 1000,
+        loader: SegmentCacheFriendlyLoader,
+        xhrSetup: (xhr, url) => {
+          const requestUrl = String(url || "");
+          const isCdnAsset = /^https?:\/\/files\.jamm\.uz\//i.test(requestUrl);
+          xhr.withCredentials = !isCdnAsset;
+        },
+        fetchSetup: (context, initParams) => {
+          const requestUrl = String(context?.url || "");
+          const isCdnAsset = /^https?:\/\/files\.jamm\.uz\//i.test(requestUrl);
+          const headers = new Headers(initParams?.headers || {});
+          if (isCdnAsset) {
+            headers.delete("Range");
+          }
+          return new Request(requestUrl, {
+            ...initParams,
+            credentials: isCdnAsset ? "omit" : "include",
+            headers,
+          });
+        },
+      });
+
+      hlsInstance = hls;
+      hls.loadSource(resolvedSource);
+      hls.attachMedia(video);
+    };
+
+    const preparePreviewPlayback = async () => {
+      let nextSrc = fallbackSrc;
+      let nextStreamType = streamType || "direct";
+
+      if (courseId && lessonId) {
+        try {
+          const { streamUrl, streamType: tokenStreamType } =
+            await getLessonPlaybackToken(courseId, lessonId, mediaId);
+          if (!cancelled && streamUrl) {
+            nextSrc = streamUrl;
+            nextStreamType = tokenStreamType || nextStreamType;
+          }
+        } catch {
+          nextSrc = fallbackSrc;
+        }
+      }
+
+      if (!cancelled && nextSrc) {
+        attachSource(nextSrc, nextStreamType);
+      }
+    };
+
+    preparePreviewPlayback();
+
+    return () => {
+      cancelled = true;
+      if (hlsInstance) {
+        hlsInstance.destroy();
+      }
+      video.removeAttribute("src");
+      video.load();
+    };
+  }, [courseId, fallbackSrc, lessonId, mediaId, streamType]);
+
+  return (
+    <HeroVideo
+      ref={videoRef}
+      controls
+      preload="metadata"
+      playsInline
+      poster={poster || undefined}
+    />
+  );
 }
 
 function extractDescriptionItems(description = "") {
@@ -790,8 +947,7 @@ export default function CoursePreviewPage() {
     [firstPreviewLesson, t],
   );
   const firstPreviewMedia = firstPreviewMediaItems[0] || null;
-  const previewMediaUrl =
-    firstPreviewMedia?.fileUrl || firstPreviewMedia?.videoUrl || "";
+  const previewMediaUrl = getMediaSource(firstPreviewMedia);
   const previewYoutubeId = getYouTubeId(
     firstPreviewMedia?.videoUrl || firstPreviewLesson?.videoUrl || "",
   );
@@ -962,12 +1118,10 @@ export default function CoursePreviewPage() {
 
     if (previewMediaUrl) {
       return (
-        <HeroVideo
+        <PreviewHeroVideo
           src={previewMediaUrl}
-          controls
-          preload="metadata"
-          playsInline
-          poster={course.image || undefined}
+          streamType={firstPreviewMedia?.streamType || firstPreviewLesson?.streamType}
+          poster={course.image}
         />
       );
     }

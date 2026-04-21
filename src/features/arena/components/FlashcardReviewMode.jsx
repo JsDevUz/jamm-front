@@ -10,9 +10,9 @@ const hotkeyBadgeStyle = {
   height: "24px",
   padding: "0 8px",
   borderRadius: "8px",
-  background: "rgba(255, 255, 255, 0.08)",
-  border: "1px solid rgba(255, 255, 255, 0.14)",
-  color: "rgba(255, 255, 255, 0.88)",
+  background: "color-mix(in srgb, var(--text-color) 8%, transparent)",
+  border: "1px solid var(--border-color)",
+  color: "var(--text-color)",
   fontSize: "12px",
   fontWeight: 700,
   lineHeight: 1,
@@ -33,6 +33,7 @@ export default function FlashcardReviewMode({
   showingBack,
   setStudyingDeck,
   setShowingBack,
+  onClose,
   getPromptImage,
   getPromptText,
   getAnswerImage,
@@ -132,7 +133,7 @@ export default function FlashcardReviewMode({
   return (
     <Container>
       <StudyArea>
-        <BackBtn onClick={() => setStudyingDeck(null)}>
+        <BackBtn onClick={() => (onClose ? onClose() : setStudyingDeck(null))}>
           <ArrowLeft size={20} /> Orqaga
         </BackBtn>
         <Title>
@@ -195,7 +196,7 @@ export default function FlashcardReviewMode({
                 bottom: "clamp(20px, 5vh, 42px)",
                 width: "min(100% - 36px, 480px)",
                 textAlign: "center",
-                color: "var(--muted-text-color, rgba(255,255,255,0.72))",
+                color: "var(--text-muted-color)",
                 fontSize: "18px",
                 lineHeight: 1.5,
                 fontWeight: 700,

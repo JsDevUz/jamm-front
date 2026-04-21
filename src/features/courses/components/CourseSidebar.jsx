@@ -17,7 +17,10 @@ import CreateCourseDialog from "./CreateCourseDialog";
 import SectionHeader from "../../../shared/ui/navigation/SectionHeader";
 import { getCourseNavigationPath } from "../utils/courseNavigation";
 
-const DEFAULT_COURSE_GRADIENT = "var(--background-color)";
+const DEFAULT_COURSE_IMAGE = "/default-course-image.jpg";
+
+const DEFAULT_COURSE_GRADIENT =
+  "linear-gradient(135deg, color-mix(in srgb, var(--primary-color) 16%, var(--secondary-color)) 0%, color-mix(in srgb, var(--primary-color) 8%, var(--secondary-color)) 100%)";
 
 const getCourseGradientCss = (gradient) => {
   const matches = String(gradient || "").match(
@@ -131,7 +134,7 @@ const CourseThumbnail = styled.div`
   width: 48px;
   height: 48px;
   border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--border-color);
   background-color: var(--secondary-color);
   display: flex;
   align-items: center;
@@ -158,8 +161,11 @@ const CourseThumbnailFallback = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
-  background: ${(props) => DEFAULT_COURSE_GRADIENT};
-  color: white;
+  background: ${(props) => props.$gradient || DEFAULT_COURSE_GRADIENT};
+  color: ${(props) =>
+    props.$gradient && props.$gradient !== DEFAULT_COURSE_GRADIENT
+      ? "white"
+      : "var(--primary-color)"};
   font-weight: 700;
   font-size: 18px;
 `;
@@ -345,40 +351,40 @@ const CourseSidebar = ({
         key: "tests",
         title: t("courseSidebar.arena.testsTitle"),
         description: t("courseSidebar.arena.testsDescription"),
-        icon: <BookOpen size={20} color="white" />,
-        gradient: "linear-gradient(135deg, #FF6B6B 0%, #FF8E53 100%)",
+        icon: <BookOpen size={20} />,
+        gradient: "var(--primary-color)",
         path: "/arena/quiz",
       },
       {
         key: "flashcards",
         title: t("courseSidebar.arena.flashcardsTitle"),
         description: t("courseSidebar.arena.flashcardsDescription"),
-        icon: <Layers size={20} color="white" />,
-        gradient: "linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)",
+        icon: <Layers size={20} />,
+        gradient: "var(--primary-color)",
         path: "/arena/flashcard",
       },
       {
         key: "sentenceBuilders",
         title: t("courseSidebar.arena.sentencesTitle"),
         description: t("courseSidebar.arena.sentencesDescription"),
-        icon: <Type size={20} color="white" />,
-        gradient: "linear-gradient(135deg, #22c55e 0%, #14b8a6 100%)",
+        icon: <Type size={20} />,
+        gradient: "var(--primary-color)",
         path: "/arena/sentence-builder",
       },
       {
         key: "mnemonics",
         title: t("courseSidebar.arena.mnemonicsTitle"),
         description: t("courseSidebar.arena.mnemonicsDescription"),
-        icon: <Brain size={20} color="white" />,
-        gradient: "linear-gradient(135deg, #64748b 0%, #334155 100%)",
+        icon: <Brain size={20} />,
+        gradient: "var(--primary-color)",
         path: "/arena/minemonika",
       },
       {
         key: "battles",
         title: t("courseSidebar.arena.battlesTitle"),
         description: t("courseSidebar.arena.battlesDescription"),
-        icon: <Swords size={20} color="white" />,
-        gradient: "linear-gradient(135deg, #a18cd1 0%, #fbc2eb 100%)",
+        icon: <Swords size={20} />,
+        gradient: "var(--primary-color)",
         path: "/arena/battle",
       },
     ],
@@ -466,7 +472,7 @@ const CourseSidebar = ({
                 }}
               >
                 <CourseThumbnail>
-                  <CourseThumbnailFallback $gradient={DEFAULT_COURSE_GRADIENT}>
+                  <CourseThumbnailFallback $gradient={item.gradient}>
                     {item.icon}
                   </CourseThumbnailFallback>
                 </CourseThumbnail>
@@ -542,8 +548,11 @@ const CourseSidebar = ({
                         onClick={() => handleSelectCourse(course)}
                       >
                         <CourseThumbnail>
-                          {course.image ? (
-                            <CourseThumbnailImage src={course.image} alt={course.name} />
+                          {course.image || DEFAULT_COURSE_IMAGE ? (
+                            <CourseThumbnailImage
+                              src={course.image || DEFAULT_COURSE_IMAGE}
+                              alt={course.name}
+                            />
                           ) : (
                             <CourseThumbnailFallback
                               $gradient={getCourseGradientCss(course.gradient)}

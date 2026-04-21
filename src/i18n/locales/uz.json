@@ -569,6 +569,7 @@
       "pending": "Kutilmoqda",
       "cancel": "Bekor qilish",
       "enrolled": "Obuna bo'lingan",
+      "ownerCourse": "Sizning kursingiz",
       "leave": "Kursni tark etish",
       "leftCourse": "Kurs tark etildi",
       "buy": "Sotib olish: {{price}} so'm",
@@ -1013,6 +1014,13 @@
     "following": "Obunasiz",
     "follow": "Obuna bo'lish",
     "settings": "Sozlamalar",
+    "teacherRequest": {
+      "action": "Ustoz bo'lish",
+      "title": "Ustoz profilini yaratish",
+      "description": "Jamm platformasiga o'z kurslaringizni joylamoqchimisiz? Unday bo'lsa ustoz profilini yaratishingiz kerak. Buning uchun @Jamm ga aloqaga chiqing.",
+      "contact": "@Jamm ga yozish",
+      "back": "Orqaga qaytish"
+    },
     "tabs": {
       "groups": "Gurunglar",
       "articles": "Maqolalar",

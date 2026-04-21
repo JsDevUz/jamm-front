@@ -53,6 +53,7 @@ export default function TeacherSidebarExpanded({
   onSelectNav,
   displayName,
   avatar,
+  onProfileClick,
 }) {
   const { t } = useTranslation();
   const avatarLetter = (displayName || "U").charAt(0).toUpperCase();
@@ -83,9 +84,9 @@ export default function TeacherSidebarExpanded({
 
       <AvatarButton
         type="button"
-        as="div"
         $active={false}
         $premium={false}
+        onClick={onProfileClick}
         data-tooltip={displayName}
         aria-label={displayName}
         title={displayName}

@@ -184,10 +184,10 @@ export const ChatAvatar = styled.div`
   border-radius: 50%;
   background: ${(props) =>
     props.$isGroup
-      ? "var(--tertiary-color)"
+      ? props.$fallbackBg || "var(--tertiary-color)"
       : props.$isSavedMessages
         ? "var(--primary-color)"
-        : "var(--tertiary-color)"};
+        : props.$fallbackBg || "var(--tertiary-color)"};
   display: flex;
   align-items: center;
   justify-content: center;

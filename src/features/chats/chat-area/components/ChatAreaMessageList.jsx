@@ -307,8 +307,15 @@ const MessageBubble = styled.div`
   border-radius: ${(props) => (props.$hasReply ? "10px" : "10px")};
   word-wrap: break-word;
   background-color: ${(props) =>
-    props.$isOwn ? "var(--input-color)" : "var(--input-color)"};
-  color: ${(props) => (props.$isOwn ? "white" : "var(--text-color)")};
+    props.$isOwn
+      ? "color-mix(in srgb, var(--primary-color) 14%, var(--input-color))"
+      : "var(--input-color)"};
+  color: var(--text-color);
+  border: 1px solid
+    ${(props) =>
+      props.$isOwn
+        ? "color-mix(in srgb, var(--primary-color) 26%, var(--border-color))"
+        : "transparent"};
   /* text-align: ${(props) => (props.$isOwn ? "right" : "left")}; */
   transform: translateX(${(props) => props.$swipeOffset ?? 0}px);
   transition:
@@ -368,7 +375,7 @@ const InlineTimestamp = styled.span`
   line-height: 1;
   color: ${(props) =>
     props.$isOwn
-      ? "color-mix(in srgb, white 74%, transparent)"
+      ? "color-mix(in srgb, var(--text-color) 56%, transparent)"
       : "var(--text-secondary-color)"};
 `;
 
@@ -697,6 +704,8 @@ const ChatAreaMessageList = ({ keyboardHeight = 0 }) => {
   } = useChatAreaContext();
   const suppressClickRef = useRef(false);
   const swipeGestureRef = useRef(null);
+  const longPressTimerRef = useRef(null);
+  const longPressTriggeredRef = useRef(false);
   const scrollContainerRef = useRef(null);
   const shouldStickToBottomRef = useRef(true);
   const previousContainerHeightRef = useRef(0);
@@ -706,10 +715,10 @@ const ChatAreaMessageList = ({ keyboardHeight = 0 }) => {
   const scrollPersistTimeoutRef = useRef(null);
   const [swipeState, setSwipeState] = useState({ messageId: null, offset: 0 });
   const [pendingNewMessageIds, setPendingNewMessageIds] = useState([]);
-  const [messageListVisible, setMessageListVisible] = useState(false);
+  const [contentReady, setContentReady] = useState(false);
   const keyboardOpen = keyboardHeight > 0;
   const showInitialLoader =
-    !messageListVisible &&
+    !contentReady &&
     (!messagesCacheHydrated ||
       !initialHistoryReady ||
       (isLoadingMessages && messages.length === 0));
@@ -720,7 +729,6 @@ const ChatAreaMessageList = ({ keyboardHeight = 0 }) => {
 
   const isNearBottom = (element, threshold = 96) => {
     if (!element) return true;
-
     return (
       element.scrollHeight - element.scrollTop - element.clientHeight <= threshold
     );
@@ -730,6 +738,7 @@ const ChatAreaMessageList = ({ keyboardHeight = 0 }) => {
     messagesEndRef.current?.scrollIntoView({ behavior, block: "end" });
   };
 
+  // Chat o'zgarganda barcha state larni reset qilish
   useEffect(() => {
     previousLastMessageIdRef.current = null;
     previousMessageCountRef.current = 0;
@@ -738,17 +747,23 @@ const ChatAreaMessageList = ({ keyboardHeight = 0 }) => {
       window.clearTimeout(scrollPersistTimeoutRef.current);
       scrollPersistTimeoutRef.current = null;
     }
+    if (longPressTimerRef.current) {
+      window.clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
     setPendingNewMessageIds([]);
-    setMessageListVisible(false);
+    setContentReady(false);
   }, [currentChat?.id]);
 
+  // Unmount da scroll pozitsiyasini saqlash
   useEffect(() => {
     return () => {
       if (scrollPersistTimeoutRef.current) {
         window.clearTimeout(scrollPersistTimeoutRef.current);
-        scrollPersistTimeoutRef.current = null;
       }
-
+      if (longPressTimerRef.current) {
+        window.clearTimeout(longPressTimerRef.current);
+      }
       const scrollContainer = scrollContainerRef.current;
       if (scrollContainer) {
         persistScrollOffset(scrollContainer.scrollTop || 0);
@@ -756,157 +771,83 @@ const ChatAreaMessageList = ({ keyboardHeight = 0 }) => {
     };
   }, [persistScrollOffset]);
 
+  // Bitta markazlashgan scroll anchor logikasi
   useEffect(() => {
-    if (savedScrollOffset == null) return;
+    if (contentReady) return;
     if (!messagesCacheHydrated || !initialHistoryReady) return;
-    if (messageListVisible) return;
+    if (isLoadingMessages && messages.length === 0) return;
     if (initialAnchorResolvedRef.current) return;
 
-    const scrollContainer = scrollContainerRef.current;
-    if (!scrollContainer) return;
+    initialAnchorResolvedRef.current = true;
 
-    const frameId = window.requestAnimationFrame(() => {
+    const scrollContainer = scrollContainerRef.current;
+
+    // 1. Saqlangan scroll pozitsiya bo'lsa — uni restore qilish
+    if (savedScrollOffset != null && scrollContainer) {
       scrollContainer.scrollTop = savedScrollOffset;
       shouldStickToBottomRef.current = isNearBottom(scrollContainer);
       if (shouldStickToBottomRef.current) {
         setPendingNewMessageIds([]);
       }
-      initialAnchorResolvedRef.current = true;
-      setMessageListVisible(true);
-    });
+      setContentReady(true);
+      return;
+    }
 
-    return () => window.cancelAnimationFrame(frameId);
-  }, [
-    initialHistoryReady,
-    messageListVisible,
-    messagesCacheHydrated,
-    savedScrollOffset,
-  ]);
-
-  useEffect(() => {
-    if (savedScrollOffset != null) return;
-    if (!initialScrollTargetMessageId) return;
-
-    const frameId = window.requestAnimationFrame(() => {
+    // 2. Specific message target bo'lsa
+    if (initialScrollTargetMessageId) {
       if (initialScrollTargetMessageId === "__bottom__") {
         shouldStickToBottomRef.current = true;
         scrollToBottom("auto");
-        initialAnchorResolvedRef.current = true;
-        setInitialScrollTargetMessageId(null);
-        return;
+      } else {
+        const targetElement = messageRefs.current[initialScrollTargetMessageId];
+        if (targetElement) {
+          shouldStickToBottomRef.current = false;
+          setPendingNewMessageIds([]);
+          targetElement.scrollIntoView({ behavior: "auto", block: "center" });
+        } else {
+          shouldStickToBottomRef.current = true;
+          scrollToBottom("auto");
+        }
       }
-
-      const targetElement = messageRefs.current[initialScrollTargetMessageId];
-      if (!targetElement) {
-        initialAnchorResolvedRef.current = true;
-        setInitialScrollTargetMessageId(null);
-        return;
-      }
-
-      shouldStickToBottomRef.current = false;
-      setPendingNewMessageIds([]);
-      targetElement.scrollIntoView({
-        behavior: "auto",
-        block: "center",
-      });
-      initialAnchorResolvedRef.current = true;
       setInitialScrollTargetMessageId(null);
-    });
+      setContentReady(true);
+      return;
+    }
 
-    return () => window.cancelAnimationFrame(frameId);
+    // 3. Default: pastga scroll
+    shouldStickToBottomRef.current = true;
+    scrollToBottom("auto");
+    setContentReady(true);
   }, [
+    contentReady,
     initialHistoryReady,
     initialScrollTargetMessageId,
+    isLoadingMessages,
     messageRefs,
-    messages,
+    messages.length,
+    messagesCacheHydrated,
     savedScrollOffset,
     setInitialScrollTargetMessageId,
   ]);
 
-  useEffect(() => {
-    if (messageListVisible) return;
-    if (!messagesCacheHydrated || !initialHistoryReady) return;
-    if (isLoadingMessages) return;
-    if (messages.length === 0) return;
-    if (initialAnchorResolvedRef.current) return;
-
-    initialAnchorResolvedRef.current = true;
-
-    const frameId = window.requestAnimationFrame(() => {
-      setMessageListVisible(true);
-    });
-
-    return () => window.cancelAnimationFrame(frameId);
-  }, [
-    initialHistoryReady,
-    isLoadingMessages,
-    messageListVisible,
-    messages.length,
-    messagesCacheHydrated,
-  ]);
-
-  useEffect(() => {
-    if (isLoadingMessages || messageListVisible) return;
-    if (!messagesCacheHydrated || !initialHistoryReady) return;
-
-    const frameId = window.requestAnimationFrame(() => {
-      setMessageListVisible(true);
-    });
-
-    return () => window.cancelAnimationFrame(frameId);
-  }, [
-    initialHistoryReady,
-    isLoadingMessages,
-    messageListVisible,
-    messagesCacheHydrated,
-  ]);
-
-  useEffect(() => {
-    if (messageListVisible) return;
-    if (isLoadingMessages) return;
-    if (!messagesCacheHydrated || !initialHistoryReady) return;
-    if (initialScrollTargetMessageId) return;
-    if (savedScrollOffset != null) return;
-    if (initialAnchorResolvedRef.current) return;
-
-    initialAnchorResolvedRef.current = true;
-
-    const frameId = window.requestAnimationFrame(() => {
-      setMessageListVisible(true);
-    });
-
-    return () => window.cancelAnimationFrame(frameId);
-  }, [
-    initialHistoryReady,
-    initialScrollTargetMessageId,
-    isLoadingMessages,
-    messageListVisible,
-    messagesCacheHydrated,
-    savedScrollOffset,
-  ]);
-
-  useEffect(() => {
-    if (messageListVisible) return;
-    if (!initialAnchorResolvedRef.current) return;
-    if (isLoadingMessages) return;
-
-    const frameId = window.requestAnimationFrame(() => {
-      setMessageListVisible(true);
-    });
-
-    return () => window.cancelAnimationFrame(frameId);
-  }, [
-    isLoadingMessages,
-    messageListVisible,
-  ]);
+  const clearLongPressTimer = () => {
+    if (longPressTimerRef.current) {
+      window.clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  };
 
   const resetSwipeState = () => {
+    clearLongPressTimer();
     swipeGestureRef.current = null;
     setSwipeState({ messageId: null, offset: 0 });
   };
 
   const handleTouchStart = (group, event) => {
     if (!event.touches?.length) return;
+
+    longPressTriggeredRef.current = false;
+    clearLongPressTimer();
 
     const touch = event.touches[0];
     swipeGestureRef.current = {
@@ -917,15 +858,17 @@ const ChatAreaMessageList = ({ keyboardHeight = 0 }) => {
       isHorizontal: false,
     };
     setSwipeState({ messageId: group.id, offset: 0 });
+
     longPressTimerRef.current = window.setTimeout(() => {
       longPressTriggeredRef.current = true;
       suppressClickRef.current = true;
-      resetSwipeState();
+      swipeGestureRef.current = null;
+      setSwipeState({ messageId: null, offset: 0 });
       showContextMenu(group, {
         clientX: touch.clientX,
         clientY: touch.clientY,
       });
-    }, 3000);
+    }, 600);
   };
 
   const triggerReply = (message) => {
@@ -952,12 +895,14 @@ const ChatAreaMessageList = ({ keyboardHeight = 0 }) => {
       Math.abs(deltaY) > Math.abs(deltaX) &&
       Math.abs(deltaY) > 10
     ) {
+      clearLongPressTimer();
       resetSwipeState();
       return;
     }
 
     if (Math.abs(deltaX) < 10) return;
 
+    clearLongPressTimer();
     swipeGestureRef.current.isHorizontal = true;
 
     const nextOffset = Math.max(-92, Math.min(0, deltaX));
@@ -966,25 +911,30 @@ const ChatAreaMessageList = ({ keyboardHeight = 0 }) => {
   };
 
   const handleTouchEnd = (group) => {
+    if (longPressTriggeredRef.current) {
+      longPressTriggeredRef.current = false;
+      swipeGestureRef.current = null;
+      return;
+    }
+
+    clearLongPressTimer();
     const finalOffset = swipeGestureRef.current?.offset ?? 0;
     const shouldReply = finalOffset <= -72;
 
-    resetSwipeState();
+    swipeGestureRef.current = null;
+    setSwipeState({ messageId: null, offset: 0 });
 
     if (shouldReply) {
       suppressClickRef.current = true;
       triggerReply(group);
-    }
-
-    if (shouldReply) {
       window.setTimeout(() => {
         suppressClickRef.current = false;
-      }, 0);
+      }, 300);
     }
   };
 
   const handleMessagesScroll = (event) => {
-    if (!messageListVisible) {
+    if (!contentReady) {
       return;
     }
 
@@ -1114,21 +1064,6 @@ const ChatAreaMessageList = ({ keyboardHeight = 0 }) => {
   };
 
   useEffect(() => {
-    if (!keyboardHeight || !shouldStickToBottomRef.current) return;
-
-    const isIOS =
-      typeof navigator !== "undefined" &&
-      /iPad|iPhone|iPod/.test(navigator.userAgent) &&
-      !window.MSStream;
-    const delay = isIOS ? 360 : 80;
-    const timer = window.setTimeout(() => {
-      scrollToBottom("smooth");
-    }, delay);
-
-    return () => window.clearTimeout(timer);
-  }, [keyboardHeight]);
-
-  useEffect(() => {
     const scrollContainer = scrollContainerRef.current;
     if (!scrollContainer || typeof ResizeObserver === "undefined") {
       return undefined;
@@ -1151,10 +1086,6 @@ const ChatAreaMessageList = ({ keyboardHeight = 0 }) => {
 
       window.requestAnimationFrame(() => {
         scrollToBottom("auto");
-
-        window.setTimeout(() => {
-          scrollToBottom("smooth");
-        }, 120);
       });
     });
 
@@ -1229,7 +1160,7 @@ const ChatAreaMessageList = ({ keyboardHeight = 0 }) => {
         $keyboardOpen={keyboardOpen}
         onContextMenu={(event) => event.preventDefault()}
         onScroll={handleMessagesScroll}
-        style={showInitialLoader ? { visibility: "hidden" } : undefined}
+        style={showInitialLoader ? { opacity: 0, pointerEvents: "none" } : { opacity: 1 }}
       >
         {isLoadingMessages && messages.length > 0 ? (
           <LoaderText>Oldingi xabarlar yuklanmoqda...</LoaderText>

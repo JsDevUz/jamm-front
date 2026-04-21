@@ -569,6 +569,7 @@
       "pending": "Pending",
       "cancel": "Cancel",
       "enrolled": "Enrolled",
+      "ownerCourse": "Your course",
       "buy": "Buy: {{price}} UZS",
       "enroll": "Enroll",
       "approve": "Approve",
@@ -1011,6 +1012,13 @@
     "following": "Following",
     "follow": "Follow",
     "settings": "Settings",
+    "teacherRequest": {
+      "action": "Become a teacher",
+      "title": "Create a teacher profile",
+      "description": "Do you want to publish your own courses on the Jamm platform? Then you need to create a teacher profile. For that, contact @Jamm.",
+      "contact": "Message @Jamm",
+      "back": "Go back"
+    },
     "tabs": {
       "groups": "Posts",
       "articles": "Articles",

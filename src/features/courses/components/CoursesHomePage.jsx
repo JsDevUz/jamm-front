@@ -33,6 +33,8 @@ import useAuthStore from "../../../store/authStore";
 import { getCourseNavigationPath } from "../utils/courseNavigation";
 import NewSettingsModal from "./NewSettingsModal";
 
+const DEFAULT_COURSE_IMAGE = "/default-course-image.jpg";
+
 const shimmer = keyframes`
   0% { background-position: 200% 0; }
   100% { background-position: -200% 0; }
@@ -229,778 +231,6 @@ const SearchButton = styled.button`
     color: var(--primary-color);
     background: color-mix(in srgb, var(--secondary-color) 82%, white 18%);
   }
-`;
-
-const ProfileOverlay = styled.div`
-  position: fixed;
-  inset: 0;
-  z-index: 1400;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 18px;
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  animation: ${modalOverlayIn} 0.18s ease;
-  opacity: ${(props) => (props.$closing ? 0 : 1)};
-  transition: opacity 0.18s ease;
-
-  @media (max-width: 768px) {
-    padding: 0;
-    align-items: stretch;
-  }
-`;
-
-const ProfileModal = styled.div`
-  width: min(920px, 100%);
-  min-height: min(620px, calc(100vh - 36px));
-  max-height: calc(100vh - 36px);
-  border-radius: 24px;
-  border: 1px solid color-mix(in srgb, var(--border-color) 82%, transparent);
-  background: color-mix(in srgb, var(--secondary-color) 92%, black 8%);
-  color: var(--text-color);
-  display: grid;
-  grid-template-columns: 320px minmax(0, 1fr);
-  overflow: hidden;
-  box-shadow: 0 32px 100px rgba(0, 0, 0, 0.45);
-  position: relative;
-  animation: ${modalSurfaceIn} 0.22s ease;
-  opacity: ${(props) => (props.$closing ? 0 : 1)};
-  transform: ${(props) =>
-    props.$closing ? "translateY(12px) scale(0.985)" : "translateY(0) scale(1)"};
-  transition:
-    opacity 0.18s ease,
-    transform 0.18s ease;
-
-  @media (max-width: 920px) {
-    grid-template-columns: 1fr;
-    min-height: min(720px, calc(100vh - 20px));
-    max-height: calc(100vh - 20px);
-    overflow-y: auto;
-  }
-
-  @media (max-width: 768px) {
-    width: 100vw;
-    min-height: 100vh;
-    max-height: 100vh;
-    border-radius: 0;
-    overflow-y: auto;
-  }
-`;
-
-const ProfileCloseButton = styled.button`
-  position: absolute;
-  top: 14px;
-  right: 14px;
-  width: 40px;
-  height: 40px;
-  border: none;
-  border-radius: 14px;
-  background: color-mix(in srgb, var(--secondary-color) 82%, transparent);
-  color: var(--text-color);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  z-index: 2;
-  transition:
-    background-color 0.18s ease,
-    transform 0.18s ease;
-
-  &:hover {
-    background: color-mix(in srgb, var(--hover-color) 82%, transparent);
-    transform: translateY(-1px);
-  }
-`;
-
-const ProfileSidebar = styled.div`
-  position: relative;
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--secondary-color) 88%, var(--background-color)) 0%,
-    color-mix(in srgb, var(--tertiary-color) 86%, var(--background-color)) 100%
-  );
-  padding: 22px;
-  border-right: 1px solid color-mix(in srgb, var(--border-color) 82%, transparent);
-  display: flex;
-  flex-direction: column;
-
-  @media (max-width: 920px) {
-    border-right: none;
-    border-bottom: 1px solid color-mix(in srgb, var(--border-color) 82%, transparent);
-    padding: 58px 18px 18px;
-  }
-`;
-
-const ProfileBanner = styled.div`
-  height: 148px;
-  border-radius: 20px;
-  background: var(--primary-color);
-  position: relative;
-  margin-bottom: 56px;
-`;
-
-const ProfileBannerSettingsButton = styled.button`
-  position: absolute;
-  top: 12px;
-  right: 12px;
-  width: 38px;
-  height: 38px;
-  border: none;
-  border-radius: 14px;
-  background: color-mix(in srgb, var(--background-color) 52%, transparent);
-  color: var(--text-color);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  transition:
-    transform 0.18s ease,
-    background-color 0.18s ease;
-
-  &:hover {
-    transform: translateY(-1px);
-    background: color-mix(in srgb, var(--hover-color) 72%, transparent);
-  }
-`;
-
-const ProfileLargeAvatar = styled.div`
-  position: absolute;
-  left: 22px;
-  bottom: -34px;
-  width: 104px;
-  height: 104px;
-  border-radius: 50%;
-  padding: 6px;
-  background: color-mix(in srgb, var(--background-color) 92%, var(--secondary-color));
-  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.3);
-`;
-
-const ProfileLargeAvatarInner = styled.div`
-  width: 100%;
-  height: 100%;
-  border-radius: inherit;
-  overflow: hidden;
-  background: linear-gradient(
-    160deg,
-    color-mix(in srgb, var(--primary-color) 88%, white 12%) 0%,
-    color-mix(in srgb, var(--primary-color) 76%, black 24%) 100%
-  );
-  color: #ffffff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.95rem;
-  font-weight: 800;
-`;
-
-const ProfileLargeAvatarImage = styled.img`
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-`;
-
-const ProfileStatus = styled.span`
-  position: absolute;
-  right: 8px;
-  bottom: 8px;
-  width: 18px;
-  height: 18px;
-  border-radius: 999px;
-  background: var(--success-color);
-  border: 3px solid color-mix(in srgb, var(--background-color) 92%, var(--secondary-color));
-`;
-
-const ProfileName = styled.h3`
-  margin: 0;
-  font-size: 1.55rem;
-  font-weight: 800;
-  line-height: 1.08;
-  letter-spacing: -0.03em;
-`;
-
-const ProfileHandle = styled.div`
-  margin-top: 4px;
-  color: var(--text-secondary-color);
-  font-size: 0.92rem;
-`;
-
-const ProfileBio = styled.p`
-  margin: 16px 0 0;
-  color: var(--text-color);
-  font-size: 0.92rem;
-  line-height: 1.55;
-`;
-
-const ProfileMetaList = styled.div`
-  margin-top: 22px;
-  display: grid;
-  gap: 14px;
-`;
-
-const ProfileMetaItem = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-`;
-
-const ProfileMetaLabel = styled.div`
-  color: var(--text-muted-color);
-  font-size: 0.74rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-`;
-
-const ProfileMetaValue = styled.div`
-  color: var(--text-color);
-  font-size: 0.92rem;
-  font-weight: 700;
-`;
-
-const ProfileQuickActions = styled.div`
-  margin-top: 4px;
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  gap: 10px;
-  flex-wrap: wrap;
-`;
-
-const ProfileMain = styled.div`
-  padding: 62px 24px 24px;
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-
-  @media (max-width: 768px) {
-    padding: 20px 16px 18px;
-  }
-`;
-
-const ProfileTabs = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 22px;
-  border-bottom: 1px solid color-mix(in srgb, var(--border-color) 82%, transparent);
-  margin-bottom: 18px;
-  overflow-x: auto;
-`;
-
-const ProfileTab = styled.button`
-  border: none;
-  background: transparent;
-  color: ${(props) =>
-    props.$active ? "var(--text-color)" : "var(--text-secondary-color)"};
-  font-size: 0.94rem;
-  font-weight: 800;
-  padding: 0 0 12px;
-  position: relative;
-  cursor: pointer;
-  white-space: nowrap;
-
-  &::after {
-    content: "";
-    position: absolute;
-    left: 0;
-    right: 0;
-    bottom: -1px;
-    height: 3px;
-    border-radius: 999px;
-    background: var(--text-color);
-    opacity: ${(props) => (props.$active ? 1 : 0)};
-    transform: scaleX(${(props) => (props.$active ? 1 : 0.4)});
-    transition:
-      opacity 0.18s ease,
-      transform 0.18s ease;
-  }
-`;
-
-const ProfilePanel = styled.div`
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  min-height: 0;
-`;
-
-const ProfilePanelHeader = styled.div`
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 14px;
-  flex-wrap: wrap;
-`;
-
-const ProfilePanelHeaderText = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  max-width: 520px;
-  min-width: 0;
-`;
-
-const ProfilePanelTitle = styled.h4`
-  margin: 0;
-  font-size: 1.45rem;
-  font-weight: 800;
-  line-height: 1.12;
-  letter-spacing: -0.03em;
-`;
-
-const ProfilePanelText = styled.p`
-  margin: 0;
-  color: var(--text-secondary-color);
-  font-size: 0.92rem;
-  line-height: 1.55;
-`;
-
-const ProfilePanelActions = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 10px;
-  flex-wrap: wrap;
-  margin-left: auto;
-
-  @media (max-width: 768px) {
-    width: 100%;
-    margin-left: 0;
-    justify-content: flex-start;
-  }
-`;
-
-const ProfilePanelActionButton = styled.button`
-  min-height: 40px;
-  padding: 0 14px;
-  border-radius: 12px;
-  border: 1px solid
-    ${(props) =>
-      props.$primary
-        ? "color-mix(in srgb, var(--primary-color) 68%, transparent)"
-        : "color-mix(in srgb, var(--border-color) 82%, transparent)"};
-  background: ${(props) =>
-    props.$primary
-      ? "color-mix(in srgb, var(--primary-color) 18%, transparent)"
-      : "color-mix(in srgb, var(--background-color) 10%, transparent)"};
-  color: ${(props) => (props.$primary ? "var(--primary-color)" : "var(--text-color)")};
-  font-size: 0.82rem;
-  font-weight: 800;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  cursor: pointer;
-  transition:
-    transform 0.18s ease,
-    background-color 0.18s ease,
-    border-color 0.18s ease;
-
-  &:hover {
-    transform: translateY(-1px);
-    border-color: ${(props) =>
-      props.$primary
-        ? "color-mix(in srgb, var(--primary-color) 100%, white 0%)"
-        : "var(--primary-color)"};
-    background: ${(props) =>
-      props.$primary
-        ? "color-mix(in srgb, var(--primary-color) 22%, transparent)"
-        : "color-mix(in srgb, var(--primary-color) 12%, transparent)"};
-  }
-`;
-
-const ProfileList = styled.div`
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding-right: 4px;
-`;
-
-const ProfileListItem = styled.button`
-  width: 100%;
-  border: 1px solid color-mix(in srgb, var(--border-color) 82%, transparent);
-  border-radius: 18px;
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--secondary-color) 92%, black 8%) 0%,
-    color-mix(in srgb, var(--tertiary-color) 90%, black 10%) 100%
-  );
-  color: inherit;
-  text-align: left;
-  padding: 14px;
-  display: grid;
-  grid-template-columns: 48px minmax(0, 1fr);
-  gap: 12px;
-  cursor: ${(props) => (props.$clickable ? "pointer" : "default")};
-`;
-
-const ProfileListIcon = styled.div`
-  width: 48px;
-  height: 48px;
-  border-radius: 16px;
-  background: color-mix(in srgb, var(--hover-color) 80%, transparent);
-  color: var(--text-color);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
-  font-size: 1rem;
-  font-weight: 800;
-`;
-
-const ProfileListImage = styled.img`
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-`;
-
-const ProfileListBody = styled.div`
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-`;
-
-const ProfileListTitle = styled.div`
-  color: var(--text-color);
-  font-size: 0.98rem;
-  font-weight: 800;
-  line-height: 1.2;
-`;
-
-const ProfileListSubtitle = styled.div`
-  color: var(--text-secondary-color);
-  font-size: 0.84rem;
-  line-height: 1.45;
-`;
-
-const ProfileListMeta = styled.div`
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-`;
-
-const ProfileMetaChip = styled.span`
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 10px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--hover-color) 78%, transparent);
-  color: var(--text-secondary-color);
-  font-size: 0.74rem;
-  font-weight: 700;
-`;
-
-const ProfileListEmpty = styled.div`
-  border-radius: 18px;
-  border: 1px dashed color-mix(in srgb, var(--border-color) 72%, transparent);
-  padding: 16px;
-  color: var(--text-secondary-color);
-  font-size: 0.9rem;
-  line-height: 1.55;
-`;
-
-const LoadMoreHint = styled.div`
-  padding: 8px 0 2px;
-  text-align: center;
-  color: var(--text-muted-color);
-  font-size: 0.78rem;
-  font-weight: 700;
-`;
-
-const AccountOverlay = styled.div`
-  position: fixed;
-  inset: 0;
-  z-index: 1500;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 18px;
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-  animation: ${modalOverlayIn} 0.18s ease;
-  opacity: ${(props) => (props.$closing ? 0 : 1)};
-  transition: opacity 0.18s ease;
-
-  @media (max-width: 768px) {
-    padding: 0;
-    align-items: stretch;
-  }
-`;
-
-const AccountModal = styled.div`
-  width: min(1180px, 100%);
-  min-height: min(700px, calc(100vh - 40px));
-  max-height: calc(100vh - 40px);
-  border-radius: 22px;
-  border: 1px solid color-mix(in srgb, var(--border-color) 82%, transparent);
-  background: color-mix(in srgb, var(--secondary-color) 92%, black 8%);
-  color: var(--text-color);
-  display: grid;
-  grid-template-columns: 248px minmax(0, 1fr);
-  overflow: hidden;
-  box-shadow: 0 30px 100px rgba(0, 0, 0, 0.45);
-  position: relative;
-  animation: ${modalSurfaceIn} 0.22s ease;
-  opacity: ${(props) => (props.$closing ? 0 : 1)};
-  transform: ${(props) =>
-    props.$closing ? "translateY(12px) scale(0.985)" : "translateY(0) scale(1)"};
-  transition:
-    opacity 0.18s ease,
-    transform 0.18s ease;
-
-  @media (max-width: 900px) {
-    grid-template-columns: 1fr;
-    overflow-y: auto;
-  }
-
-  @media (max-width: 768px) {
-    width: 100vw;
-    min-height: 100vh;
-    max-height: 100vh;
-    border-radius: 0;
-    overflow: hidden;
-  }
-`;
-
-const AccountSidebar = styled.div`
-  background: transparent;
-  border-right: 1px solid color-mix(in srgb, var(--border-color) 82%, transparent);
-  padding: 16px 14px 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-
-  @media (max-width: 900px) {
-    border-right: none;
-    border-bottom: 1px solid color-mix(in srgb, var(--border-color) 82%, transparent);
-  }
-`;
-
-const AccountUserRow = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 10px;
-`;
-
-const AccountUserAvatar = styled.div`
-  width: 46px;
-  height: 46px;
-  border-radius: 15px;
-  overflow: hidden;
-  background: linear-gradient(
-    160deg,
-    color-mix(in srgb, var(--primary-color) 88%, white 12%) 0%,
-    color-mix(in srgb, var(--primary-color) 76%, black 24%) 100%
-  );
-  color: white;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1rem;
-  font-weight: 800;
-  flex-shrink: 0;
-`;
-
-const AccountUserAvatarImage = styled.img`
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-`;
-
-const AccountUserMeta = styled.div`
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-`;
-
-const AccountUserName = styled.div`
-  color: var(--text-color);
-  font-size: 0.95rem;
-  font-weight: 800;
-`;
-
-const AccountUserSub = styled.div`
-  color: var(--text-secondary-color);
-  font-size: 0.78rem;
-`;
-
-const AccountSearchStub = styled.div`
-  height: 44px;
-  border-radius: 14px;
-  border: none;
-  background: transparent;
-  color: var(--text-muted-color);
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 0 13px;
-  font-size: 0.92rem;
-  font-weight: 500;
-`;
-
-const AccountNavSection = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-`;
-
-const AccountNavLabel = styled.div`
-  color: var(--text-muted-color);
-  font-size: 0.74rem;
-  font-weight: 700;
-  padding: 0 8px;
-  margin-top: 2px;
-`;
-
-const AccountNavItem = styled.button`
-  width: 100%;
-  border: none;
-  border-radius: 14px;
-  padding: 11px 12px;
-  background: ${(props) =>
-    props.$active
-      ? "color-mix(in srgb, var(--hover-color) 88%, transparent)"
-      : "transparent"};
-  color: ${(props) =>
-    props.$danger
-      ? "var(--danger-color)"
-      : props.$active
-        ? "var(--text-color)"
-        : "var(--text-secondary-color)"};
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  font-family: var(--font-primary, "gg sans", "Noto Sans", "Helvetica Neue", Helvetica, Arial, sans-serif);
-  font-size: 16px;
-  font-weight: 500;
-  line-height: 1.25;
-  text-align: left;
-  transition:
-    background-color 0.16s ease,
-    color 0.16s ease;
-
-  &:hover {
-    background: ${(props) =>
-      props.$active
-        ? "color-mix(in srgb, var(--hover-color) 88%, transparent)"
-        : "color-mix(in srgb, var(--hover-color) 72%, transparent)"};
-    color: ${(props) =>
-      props.$danger ? "var(--danger-color)" : "var(--text-color)"};
-  }
-`;
-
-const AccountNavDivider = styled.div`
-  height: 1px;
-  background: color-mix(in srgb, var(--border-color) 82%, transparent);
-  margin: 4px 0;
-`;
-
-const AccountMain = styled.div`
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  overflow: hidden;
-  padding: 14px 18px 18px;
-
-  @media (max-width: 768px) {
-    position: absolute;
-    inset: 0;
-    z-index: 2;
-    background: color-mix(in srgb, var(--secondary-color) 92%, black 8%);
-    padding: 14px;
-    transform: translateX(${(props) => (props.$mobileOpen ? "0" : "100%")});
-    opacity: ${(props) => (props.$mobileOpen ? 1 : 0)};
-    pointer-events: ${(props) => (props.$mobileOpen ? "auto" : "none")};
-    transition:
-      transform 0.22s ease,
-      opacity 0.22s ease;
-  }
-`;
-
-const AccountHeader = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid color-mix(in srgb, var(--border-color) 82%, transparent);
-`;
-
-const AccountHeaderLeft = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-width: 0;
-`;
-
-const AccountBackButton = styled.button`
-  display: none;
-
-  @media (max-width: 768px) {
-    width: 36px;
-    height: 36px;
-    border: none;
-    border-radius: 12px;
-    background: color-mix(in srgb, var(--hover-color) 72%, transparent);
-    color: var(--text-color);
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    flex-shrink: 0;
-  }
-`;
-
-const AccountTitle = styled.h3`
-  margin: 0;
-  font-size: 1.28rem;
-  font-weight: 800;
-  letter-spacing: -0.03em;
-`;
-
-const AccountCloseButton = styled.button`
-  width: 36px;
-  height: 36px;
-  border: none;
-  border-radius: 12px;
-  background: color-mix(in srgb, var(--hover-color) 72%, transparent);
-  color: var(--text-color);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition:
-    background-color 0.18s ease,
-    transform 0.18s ease;
-
-  &:hover {
-    background: color-mix(in srgb, var(--hover-color) 92%, transparent);
-    transform: translateY(-1px);
-  }
-
-  @media (max-width: 768px) {
-    display: none;
-  }
-`;
-
-const AccountContent = styled.div`
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  overflow-x: hidden;
-  padding-top: 16px;
-  padding-right: 4px;
 `;
 
 const AccountCard = styled.div`
@@ -1442,22 +672,29 @@ const SectionTitle = styled.h2`
 `;
 
 const ContinueGrid = styled.div`
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  display: flex;
   gap: 12px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 2px 2px 8px;
+  margin: 0 -2px;
+  scroll-snap-type: x proximity;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
 
-  @media (min-width: 768px) {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 16px;
+  &::-webkit-scrollbar {
+    display: none;
   }
 
-  @media (min-width: 1200px) {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+  @media (min-width: 768px) {
+    gap: 16px;
+    padding-bottom: 10px;
   }
 `;
 
 const ContinueCard = styled.button`
-  width: 100%;
+  width: 320px;
+  min-width: 320px;
   border: 1px solid var(--border-color);
   border-radius: 18px;
   padding: 16px;
@@ -1467,8 +704,9 @@ const ContinueCard = styled.button`
   display: flex;
   flex-direction: column;
   gap: 14px;
+  flex: 0 0 auto;
   cursor: pointer;
-  box-shadow: 0 8px 18px var(--shadow-color, rgba(0, 0, 0, 0.08));
+  scroll-snap-align: start;
   transition:
     transform 0.18s ease,
     box-shadow 0.18s ease;
@@ -1581,6 +819,7 @@ const ContinueAction = styled.div`
 const RecommendedGrid = styled.div`
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
   gap: 14px;
 
   @media (max-width: 430px) {
@@ -1599,6 +838,7 @@ const RecommendedGrid = styled.div`
 
 const RecommendedCard = styled.button`
   width: 100%;
+  align-self: start;
   padding: 0;
   border: 1px solid var(--border-color);
   border-radius: 18px;
@@ -1628,6 +868,7 @@ const RecommendedCard = styled.button`
 const CoverFrame = styled.div`
   position: relative;
   aspect-ratio: 1.34;
+  min-height: 0;
   overflow: hidden;
   border-radius: 0;
   border: none;
@@ -1638,7 +879,8 @@ const CoverFrame = styled.div`
   }
 
   @media (max-width: 430px) {
-    aspect-ratio: 1.22;
+    aspect-ratio: auto;
+    height: clamp(104px, 29vw, 132px);
   }
 `;
 
@@ -1825,10 +1067,11 @@ const ContinueSkeleton = styled.div`
   border: 1px solid var(--border-color);
   padding: 16px;
   display: flex;
+  min-width: 320px;
+  height: 160px;
   flex-direction: column;
   gap: 12px;
   background: var(--secondary-color);
-  box-shadow: 0 8px 18px var(--shadow-color, rgba(0, 0, 0, 0.08));
 
   @media (min-width: 768px) {
     min-height: 190px;
@@ -2028,7 +1271,7 @@ function toContinueCard(course) {
     title: course.name || course.title,
     category: course.category || "Course",
     gradient: course.gradient || "",
-    thumbnailUrl: course.image || "",
+    thumbnailUrl: course.image || DEFAULT_COURSE_IMAGE,
     totalLessons: lessons.length,
     completedLessons,
     progressPercent,
@@ -2051,7 +1294,7 @@ function toRecommendedCard(course) {
     title: course.name || course.title,
     category: course.category || "Course",
     gradient: course.gradient || "",
-    thumbnailUrl: course.image || "",
+    thumbnailUrl: course.image || DEFAULT_COURSE_IMAGE,
     ownerName: "",
     rating: Number(course.rating || 0),
     ratingCount: Number(

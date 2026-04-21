@@ -10,9 +10,9 @@ const hotkeyBadgeStyle = {
   height: "24px",
   padding: "0 8px",
   borderRadius: "8px",
-  background: "rgba(255, 255, 255, 0.08)",
-  border: "1px solid rgba(255, 255, 255, 0.14)",
-  color: "rgba(255, 255, 255, 0.88)",
+  background: "color-mix(in srgb, var(--text-color) 8%, transparent)",
+  border: "1px solid var(--border-color)",
+  color: "var(--text-color)",
   fontSize: "12px",
   fontWeight: 700,
   lineHeight: 1,
@@ -28,9 +28,9 @@ const hotkeyHintStyle = {
   marginBottom: "8px",
   padding: "8px 12px",
   borderRadius: "999px",
-  background: "rgba(255, 255, 255, 0.05)",
-  border: "1px solid rgba(255, 255, 255, 0.08)",
-  color: "rgba(255, 255, 255, 0.72)",
+  background: "color-mix(in srgb, var(--text-color) 6%, transparent)",
+  border: "1px solid var(--border-color)",
+  color: "var(--text-muted-color)",
   fontSize: "13px",
   fontWeight: 600,
 };
@@ -55,6 +55,7 @@ export default function FlashcardTestMode({
   setTestQueue,
   setTestAnswers,
   setTestCompleted,
+  onClose,
   handleTestAnswer,
   restartTestMissed,
   restartTestAll,
@@ -148,6 +149,10 @@ export default function FlashcardTestMode({
       <StudyArea>
         <BackBtn
           onClick={() => {
+            if (onClose) {
+              onClose();
+              return;
+            }
             setTestDeck(null);
             setTestQueue([]);
             setTestAnswers([]);
@@ -278,6 +283,10 @@ export default function FlashcardTestMode({
             </StudyBtn>
             <StudyBtn
               onClick={() => {
+                if (onClose) {
+                  onClose();
+                  return;
+                }
                 setTestDeck(null);
                 setTestQueue([]);
                 setTestAnswers([]);

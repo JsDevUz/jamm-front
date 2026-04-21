@@ -626,9 +626,9 @@ const FooterContent = styled.div`
   max-width: 1200px;
   margin: 0 auto;
   display: grid;
-  grid-template-columns: 2fr 1fr 1fr 1fr;
+  grid-template-columns: 2fr 1fr 1fr;
   gap: 40px;
-  @media (max-width: 968px) {
+  @media (max-width: 768px) {
     grid-template-columns: 1fr 1fr;
   }
   @media (max-width: 640px) {
@@ -691,7 +691,7 @@ const LandingPage = () => {
 
   useEffect(() => {
     if (user) {
-      navigate("/chats", { replace: true });
+      navigate("/courses", { replace: true });
     }
   }, [user, navigate]);
 
@@ -756,21 +756,21 @@ const LandingPage = () => {
 
   const testimonials = [
     {
-      quote: "Jamm Arena bilan ingliz tilidagi 2000+ so'zni 3 oyda yodladim. Flashcardlar juda qulay!",
+      quote: "Platformani endigina sinab ko'rdim — flashcardlar va testlar bilan ingliz so'zlarini o'rganish juda qulay ekan. Uzoq vaqt izlagan narsam shu edi.",
       name: "Azizbek K.",
       role: "Talaba",
       initial: "A",
     },
     {
-      quote: "Guruh chatlar va video qo'ng'iroqlar bilan dars guruhimiz bilan samarali ishlashimiz osonlashdi.",
+      quote: "Guruh chat va maqolalar yozish funksiyasi juda yaxshi. Hali yangi platforma bo'lsa ham, ishlatish qulay va toza dizayn.",
       name: "Nilufar R.",
       role: "O'qituvchi",
       initial: "N",
     },
     {
-      quote: "Kurslar yaratish va darslarni qo'shish juda oson. O'quvchilarim uchun mukammal platforma.",
+      quote: "Arena rejimidagi bilim jangi o'qishni qiziqarli qilib qo'ydi. Kurs materiallarini ham shunda birga tayyorlayapman.",
       name: "Jasur M.",
-      role: "Kurs muallifi",
+      role: "Dasturchi, beta foydalanuvchi",
       initial: "J",
     },
   ];
@@ -790,13 +790,13 @@ const LandingPage = () => {
         </Logo>
         <NavLinks>
           <NavLink href="#features" onClick={(e) => { e.preventDefault(); scrollToFeatures(); }}>
-            Features
+            Xususiyatlar
           </NavLink>
           <NavLink href="#how-it-works" onClick={(e) => { e.preventDefault(); document.getElementById("how-it-works")?.scrollIntoView({ behavior: "smooth" }); }}>
-            How it Works
+            Arena
           </NavLink>
           <NavLink href="#testimonials" onClick={(e) => { e.preventDefault(); document.getElementById("testimonials")?.scrollIntoView({ behavior: "smooth" }); }}>
-            Testimonials
+            Fikrlar
           </NavLink>
         </NavLinks>
         <NavButtons>
@@ -831,20 +831,20 @@ const LandingPage = () => {
             </HeroCTA>
             <Stats>
               <Stat>
-                <StatValue>10K+</StatValue>
+                <StatValue>200+</StatValue>
                 <StatLabel>Foydalanuvchilar</StatLabel>
               </Stat>
               <Stat>
-                <StatValue>500+</StatValue>
+                <StatValue>15+</StatValue>
                 <StatLabel>Kurslar</StatLabel>
               </Stat>
               <Stat>
-                <StatValue>50K+</StatValue>
+                <StatValue>1K+</StatValue>
                 <StatLabel>Flashcardlar</StatLabel>
               </Stat>
               <Stat>
-                <StatValue>99%</StatValue>
-                <StatLabel>Mamnunlik</StatLabel>
+                <StatValue>Bepul</StatValue>
+                <StatLabel>Hozircha</StatLabel>
               </Stat>
             </Stats>
           </HeroLeft>
@@ -929,7 +929,7 @@ const LandingPage = () => {
           <SectionHeader>
             <SectionTitle>Foydalanuvchilar nima deydi?</SectionTitle>
             <SectionSubtitle>
-              Butun dunyo bo'ylab minglab foydalanuvchilar Jamm bilan o'rganishni tanlashmoqda
+              Beta foydalanuvchilarimiz platformani sinab ko'rdi va birinchi taassurotlarini baham ko'rdi
             </SectionSubtitle>
           </SectionHeader>
           <TestimonialsGrid>
@@ -967,7 +967,9 @@ const LandingPage = () => {
         <FooterContent>
           <FooterBrand>
             <Logo>
-              <LogoIcon>J</LogoIcon>
+              <LogoIcon>
+                <img src="/fav.png" alt="Jamm" />
+              </LogoIcon>
               jamm
             </Logo>
             <FooterText>
@@ -978,32 +980,21 @@ const LandingPage = () => {
           <FooterColumn>
             <FooterTitle>Platforma</FooterTitle>
             <FooterLinks>
-              <FooterLink href="#features">Features</FooterLink>
-              <FooterLink href="#how-it-works">How it Works</FooterLink>
-              <FooterLink href="#testimonials">Testimonials</FooterLink>
-              <FooterLink href="#">Pricing</FooterLink>
+              <FooterLink href="#features">Xususiyatlar</FooterLink>
+              <FooterLink href="#how-it-works">Arena</FooterLink>
+              <FooterLink href="#testimonials">Fikrlar</FooterLink>
             </FooterLinks>
           </FooterColumn>
           <FooterColumn>
-            <FooterTitle>Resurslar</FooterTitle>
+            <FooterTitle>Huquqiy</FooterTitle>
             <FooterLinks>
-              <FooterLink href="#">Help Center</FooterLink>
-              <FooterLink href="#">Blog</FooterLink>
-              <FooterLink href="#">Community</FooterLink>
-              <FooterLink href="#">Contact</FooterLink>
-            </FooterLinks>
-          </FooterColumn>
-          <FooterColumn>
-            <FooterTitle>Legal</FooterTitle>
-            <FooterLinks>
-              <FooterLink href="#">Privacy</FooterLink>
-              <FooterLink href="#">Terms</FooterLink>
-              <FooterLink href="#">Cookies</FooterLink>
+              <FooterLink href="/privacy">Maxfiylik</FooterLink>
+              <FooterLink href="/terms">Foydalanish shartlari</FooterLink>
             </FooterLinks>
           </FooterColumn>
         </FooterContent>
         <FooterBottom>
-          © 2024 Jamm. Barcha huquqlar himoyalangan.
+          © 2026 Jamm. Barcha huquqlar himoyalangan.
         </FooterBottom>
       </Footer>
     </Page>

@@ -8,6 +8,7 @@ export default function FlashcardGameMode({
   promptSide,
   setGameDeck,
   setGameQueue,
+  onClose,
 }) {
   const { Container, StudyArea } = ui;
 
@@ -19,10 +20,18 @@ export default function FlashcardGameMode({
           queue={gameQueue}
           promptSide={promptSide}
           onBack={() => {
+            if (onClose) {
+              onClose();
+              return;
+            }
             setGameDeck(null);
             setGameQueue([]);
           }}
           onFinish={() => {
+            if (onClose) {
+              onClose();
+              return;
+            }
             setGameDeck(null);
             setGameQueue([]);
           }}

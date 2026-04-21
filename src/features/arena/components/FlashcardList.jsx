@@ -47,13 +47,10 @@ import {
   FlashcardTrainingPickerDialog,
 } from "./FlashcardDialogs";
 import { APP_LIMITS, isPremiumUser } from "../../../constants/appLimits";
+import { mobileFullscreenPane } from "../../../shared/styles/mobileSafeArea";
 
 const FLASHCARD_PROMPT_SIDE_STORAGE_KEY = "jamm-flashcard-prompt-side-v1";
 
-// ─── AnimatedShell ─────────────────────────────────────────────────────────
-// Animatsiya shu yerda — faqat bir marta mount bo'ladi.
-// classicIndex yoki boshqa state o'zgansa qayta render qilmaydi,
-// chunki u asosiy ro'yxat sahifasida ekan (classicDeck === null).
 const slideInFromRight = keyframes`
   from {
     transform: translateX(100%);
@@ -63,34 +60,19 @@ const slideInFromRight = keyframes`
   }
 `;
 
-const AnimatedShell = styled.div`
-  display: contents;
-
-  @media (max-width: 768px) {
-    display: block;
-    width: 100%;
-    height: 100%;
-    animation: ${slideInFromRight} 0.3s ease-out;
-  }
-`;
-
-// ─── Container ─────────────────────────────────────────────────────────────
-// Animatsiyasiz — faqat layout va pozitsiya.
 const Container = styled.div`
   display: flex;
   flex-direction: column;
   width: 100%;
 
   @media (max-width: 768px) {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    width: 100%;
-    height: ${(props) => (props.$fullscreen ? "var(--app-height, 100dvh)" : "100vh")};
+    ${mobileFullscreenPane};
     z-index: 9999;
     background-color: var(--background-color);
+    animation: ${(props) =>
+      props.$disableEntryAnimation
+        ? "none"
+        : css`${slideInFromRight} 0.3s ease-out`};
     padding: ${(props) => (props.$fullscreen ? "0" : "20px")};
     overflow-y: ${(props) => (props.$fullscreen ? "hidden" : "auto")};
     overflow-x: hidden;
@@ -758,9 +740,9 @@ const ClassicTopIconButton = styled.button`
   width: 44px;
   height: 44px;
   border-radius: 14px;
-  border: 1px solid rgba(118, 133, 166, 0.16);
-  background: rgba(20, 29, 48, 0.24);
-  color: rgba(244, 246, 250, 0.72);
+  border: 1px solid color-mix(in srgb, var(--border-color) 76%, transparent);
+  background: color-mix(in srgb, var(--secondary-color) 86%, transparent);
+  color: var(--text-muted-color);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -773,6 +755,7 @@ const ClassicTopIconButton = styled.button`
   &:hover {
     background: color-mix(in srgb, var(--secondary-color) 86%, transparent);
     border-color: color-mix(in srgb, var(--text-muted-color) 32%, transparent);
+    color: var(--text-color);
     transform: translateY(-1px);
   }
 `;
@@ -843,7 +826,7 @@ const ClassicSummaryPill = styled.div`
       ? "rgba(121, 241, 203, 0.1)"
       : props.$tone === "danger"
         ? "rgba(255, 164, 87, 0.1)"
-        : "rgba(255, 255, 255, 0.04)"};
+        : "color-mix(in srgb, var(--text-color) 5%, transparent)"};
   color: var(--text-color);
   display: flex;
   flex-direction: column;
@@ -906,8 +889,12 @@ const ClassicStackCard = styled.div`
   max-height: min(520px, calc(100% - 48px));
   max-width: min(380px, calc(100% - 48px));
   border-radius: 32px;
-  background: linear-gradient(145deg, #2a3447 0%, #232d3e 100%);
-  border: 1px solid rgba(118, 133, 166, 0.2);
+  background: linear-gradient(
+    145deg,
+    color-mix(in srgb, var(--secondary-color) 94%, var(--text-color) 6%) 0%,
+    var(--secondary-color) 100%
+  );
+  border: 1px solid color-mix(in srgb, var(--border-color) 72%, transparent);
   transform: translate(-50%, -50%)
              translate3d(${(props) => props.$offsetX || 0}px, ${(props) => props.$offsetY || 0}px, -100px)
              rotate(${(props) => props.$rotate || 0}deg)
@@ -929,8 +916,8 @@ const ClassicStackCard = styled.div`
 
 const classicCardSurfaceCss = css`
   border-radius: 44px;
-  border: 1px solid rgba(118, 133, 166, 0.24);
-  background: #232d3e;
+  border: 1px solid color-mix(in srgb, var(--border-color) 76%, transparent);
+  background: var(--secondary-color);
   box-shadow: none;
 `;
 
@@ -943,8 +930,12 @@ const ClassicNextPreviewCard = styled.div`
   max-height: min(520px, calc(100% - 48px));
   max-width: min(380px, calc(100% - 48px));
   border-radius: 32px;
-  background: linear-gradient(145deg, #2a3447 0%, #232d3e 100%);
-  border: 1px solid rgba(118, 133, 166, 0.24);
+  background: linear-gradient(
+    145deg,
+    color-mix(in srgb, var(--secondary-color) 94%, var(--text-color) 6%) 0%,
+    var(--secondary-color) 100%
+  );
+  border: 1px solid color-mix(in srgb, var(--border-color) 76%, transparent);
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -977,7 +968,7 @@ const ClassicNextPreviewWord = styled.div`
   font-size: clamp(32px, 6vw, 56px);
   line-height: 1.08;
   font-weight: 700;
-  color: #f4f6fa;
+  color: var(--text-color);
   text-align: center;
   word-break: break-word;
   letter-spacing: -0.02em;
@@ -997,9 +988,13 @@ const ClassicSwipeCard = styled.div`
   transform-style: preserve-3d;
   will-change: transform, opacity;
   backface-visibility: hidden;
-  background: linear-gradient(145deg, #2a3447 0%, #232d3e 100%);
+  background: linear-gradient(
+    145deg,
+    color-mix(in srgb, var(--secondary-color) 94%, var(--text-color) 6%) 0%,
+    var(--secondary-color) 100%
+  );
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.32);
-  border: 1px solid rgba(118, 133, 166, 0.24);
+  border: 1px solid color-mix(in srgb, var(--border-color) 76%, transparent);
 
   /* Transform – asosiy harakatlar uchun */
   transform: ${(props) => {
@@ -1074,11 +1069,15 @@ const ClassicFlipLayer = styled.div`
   will-change: transform;
   padding: 20px 18px 24px;
   border-radius: 32px;
-  background: linear-gradient(145deg, #2a3447 0%, #232d3e 100%);
+  background: linear-gradient(
+    145deg,
+    color-mix(in srgb, var(--secondary-color) 94%, var(--text-color) 6%) 0%,
+    var(--secondary-color) 100%
+  );
   transition: transform 0.34s cubic-bezier(0.22, 1, 0.36, 1);
   transform: rotateY(${(props) => (props.$flipped ? 180 : 0)}deg) translateZ(0);
-  border: 1px solid rgba(118, 133, 166, 0.24);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  border: 1px solid color-mix(in srgb, var(--border-color) 76%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--text-color) 6%, transparent);
 
   @media (max-width: 768px) {
     border-radius: 28px;
@@ -1130,7 +1129,7 @@ const ClassicCardToolbar = styled.div`
   -webkit-backface-visibility: hidden;
   padding: 4px;
   border-radius: 12px;
-  background: rgba(0, 0, 0, 0.12);
+  background: color-mix(in srgb, var(--text-color) 8%, transparent);
 
   @media (max-width: 768px) {
     top: 14px;
@@ -1154,7 +1153,7 @@ const ClassicToolbarIcon = styled.button`
   border-radius: 10px;
   border: none;
   background: transparent;
-  color: rgba(244, 246, 250, 0.5);
+  color: var(--text-muted-color);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1163,8 +1162,8 @@ const ClassicToolbarIcon = styled.button`
   transition: all 0.2s ease;
 
   &:hover {
-    background: rgba(255, 255, 255, 0.1);
-    color: rgba(244, 246, 250, 0.8);
+    background: color-mix(in srgb, var(--text-color) 10%, transparent);
+    color: var(--text-color);
   }
 `;
 
@@ -1230,7 +1229,7 @@ const ClassicCardWord = styled.div`
   font-size: clamp(42px, 7vw, 72px);
   line-height: 1.08;
   font-weight: 700;
-  color: #f4f6fa;
+  color: var(--text-color);
   text-align: center;
   word-break: break-word;
   filter: blur(${(props) => `${(props.$blur || 0).toFixed(2)}px`});
@@ -1254,7 +1253,7 @@ const ClassicPromptHint = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
-  color: rgba(197, 204, 219, 0.65);
+  color: var(--text-muted-color);
   font-size: clamp(12px, 1.1vw, 13px);
   letter-spacing: 0.15em;
   text-transform: uppercase;
@@ -1369,8 +1368,8 @@ const ClassicGhostAction = styled.button`
   height: 56px;
   border-radius: 18px;
   border: 1px solid rgba(118, 133, 166, 0.25);
-  background: rgba(35, 45, 62, 0.8);
-  color: rgba(244, 246, 250, 0.85);
+  background: color-mix(in srgb, var(--secondary-color) 88%, transparent);
+  color: var(--text-color);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1379,8 +1378,8 @@ const ClassicGhostAction = styled.button`
   backdrop-filter: blur(8px);
 
   &:hover {
-    background: rgba(42, 52, 71, 0.95);
-    border-color: rgba(118, 133, 166, 0.4);
+    background: color-mix(in srgb, var(--secondary-color) 96%, var(--text-color) 4%);
+    border-color: color-mix(in srgb, var(--border-color) 82%, var(--text-color) 18%);
     transform: translateY(-2px);
   }
 
@@ -1685,6 +1684,8 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
   const [selectedTestOption, setSelectedTestOption] = useState(null);
   const [gameDeck, setGameDeck] = useState(null);
   const [gameQueue, setGameQueue] = useState([]);
+  const [skipNextListEntryAnimation, setSkipNextListEntryAnimation] =
+    useState(false);
   const [promptSide, setPromptSide] = useState(() => {
     if (typeof window === "undefined") return "front";
     const saved = window.localStorage.getItem(
@@ -1704,8 +1705,106 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
   const classicHistoryRef = useRef([]);
   const classicMissedIdsRef = useRef(new Set());
   const speechVoicesRef = useRef([]);
+  const internalBackStatePushedRef = useRef(false);
+  const closingFromBrowserBackRef = useRef(false);
+  const closingFromManualActionRef = useRef(false);
 
   const isPremium = isPremiumUser(user);
+  const hasActiveTrainingMode = Boolean(
+    studyingDeck || classicDeck || testDeck || gameDeck,
+  );
+
+  const closeActiveTrainingMode = () => {
+    setSkipNextListEntryAnimation(true);
+    setStudyingDeck(null);
+    setShowingBack(false);
+    setTrainingPickerDeck(null);
+    setClassicDeck(null);
+    setClassicQueue([]);
+    setClassicIndex(0);
+    setClassicShowBack(false);
+    setClassicAnswers([]);
+    setClassicCompleted(false);
+    setClassicDragX(0);
+    setClassicDragging(false);
+    setClassicExitDirection(null);
+    setClassicExitFlipped(false);
+    setTestDeck(null);
+    setTestQueue([]);
+    setTestIndex(0);
+    setTestAnswers([]);
+    setTestCompleted(false);
+    setSelectedTestOption(null);
+    setGameDeck(null);
+    setGameQueue([]);
+  };
+
+  const closeActiveTrainingModeManually = () => {
+    closingFromManualActionRef.current = true;
+    closeActiveTrainingMode();
+  };
+
+  useEffect(() => {
+    if (typeof window === "undefined" || window.innerWidth > 768) {
+      return undefined;
+    }
+
+    const handlePopState = () => {
+      if (!internalBackStatePushedRef.current || !hasActiveTrainingMode) return;
+      closingFromBrowserBackRef.current = true;
+      internalBackStatePushedRef.current = false;
+      closeActiveTrainingMode();
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, [hasActiveTrainingMode]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || window.innerWidth > 768) return;
+
+    if (hasActiveTrainingMode && !internalBackStatePushedRef.current) {
+      window.history.pushState(
+        { ...(window.history.state || {}), flashcardTrainingLayer: true },
+        "",
+        window.location.href,
+      );
+      internalBackStatePushedRef.current = true;
+      return;
+    }
+
+    if (!hasActiveTrainingMode && internalBackStatePushedRef.current) {
+      if (closingFromBrowserBackRef.current) {
+        closingFromBrowserBackRef.current = false;
+        internalBackStatePushedRef.current = false;
+        return;
+      }
+
+      if (closingFromManualActionRef.current) {
+        closingFromManualActionRef.current = false;
+        internalBackStatePushedRef.current = false;
+        window.history.replaceState(
+          { ...(window.history.state || {}), flashcardTrainingLayer: false },
+          "",
+          window.location.href,
+        );
+        return;
+      }
+
+      internalBackStatePushedRef.current = false;
+      window.history.back();
+    }
+  }, [hasActiveTrainingMode]);
+
+  useEffect(() => {
+    if (hasActiveTrainingMode || !skipNextListEntryAnimation) return;
+
+    const clearAnimationSkip = window.setTimeout(() => {
+      setSkipNextListEntryAnimation(false);
+    }, 0);
+
+    return () => window.clearTimeout(clearAnimationSkip);
+  }, [hasActiveTrainingMode, skipNextListEntryAnimation]);
   const limit = isPremium
     ? APP_LIMITS.flashcardsCreated.premium
     : APP_LIMITS.flashcardsCreated.ordinary;
@@ -2728,6 +2827,7 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
         showingBack={showingBack}
         setStudyingDeck={setStudyingDeck}
         setShowingBack={setShowingBack}
+        onClose={closeActiveTrainingModeManually}
         getPromptImage={getPromptImage}
         getPromptText={getPromptText}
         getAnswerImage={getAnswerImage}
@@ -2755,6 +2855,7 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
         setClassicQueue={setClassicQueue}
         setClassicAnswers={setClassicAnswers}
         setClassicCompleted={setClassicCompleted}
+        onClose={closeActiveTrainingModeManually}
         handleClassicReplay={handleClassicReplay}
         handleClassicKeyboardSwipe={handleClassicKeyboardSwipe}
         getClassicStackLayout={getClassicStackLayout}
@@ -2788,6 +2889,7 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
         setTestQueue={setTestQueue}
         setTestAnswers={setTestAnswers}
         setTestCompleted={setTestCompleted}
+        onClose={closeActiveTrainingModeManually}
         handleTestAnswer={handleTestAnswer}
         restartTestMissed={restartTestMissed}
         restartTestAll={restartTestAll}
@@ -2807,17 +2909,13 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
         promptSide={promptSide}
         setGameDeck={setGameDeck}
         setGameQueue={setGameQueue}
+        onClose={closeActiveTrainingModeManually}
       />
     );
   }
 
-  // ─── Asosiy ro'yxat sahifasi ───────────────────────────────────────────────
-  // AnimatedShell faqat shu yerda — bir marta mount bo'ladi.
-  // classicIndex o'zgansa bu branch render bo'lmaydi (classicDeck === null),
-  // shuning uchun slideInFromRight animatsiyasi qayta ishlamaydi.
   return (
-    <AnimatedShell>
-      <Container>
+      <Container $disableEntryAnimation={skipNextListEntryAnimation}>
         <ArenaHeader
           title="Flashcards"
           count={currentCount}
@@ -3177,7 +3275,6 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
           isDanger
         />
       </Container>
-    </AnimatedShell>
   );
 };
 

@@ -122,8 +122,9 @@ const SearchField = styled.label`
   gap: 12px;
   padding: 0 18px;
   border-radius: 28px;
-  background: #202225;
+  background: var(--input-color);
   color: var(--text-muted-color);
+  border: 1px solid var(--border-color);
 `;
 
 const SearchInput = styled.input`

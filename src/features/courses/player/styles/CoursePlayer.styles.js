@@ -423,8 +423,8 @@ export const SpeedMenu = styled.div`
   position: absolute;
   bottom: 46px;
   right: 0;
-  background: rgba(15, 15, 20, 0.97);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--secondary-color);
+  border: 1px solid var(--border-color);
   border-radius: 14px;
   overflow: hidden;
   min-width: 220px;
@@ -520,11 +520,11 @@ export const MobileSettingsSheetBody = styled.div`
 export const SpeedMenuHeader = styled.div`
   padding: 8px 12px;
   font-size: 11px;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--text-muted-color);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 1px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid var(--border-color);
 `;
 
 export const SpeedOption = styled.button`
@@ -534,7 +534,8 @@ export const SpeedOption = styled.button`
   cursor: pointer;
   border: none;
   text-align: left;
-  color: ${(props) => (props.$active ? "var(--primary-color)" : "white")};
+  color: ${(props) =>
+    props.$active ? "var(--primary-color)" : "var(--text-color)"};
   font-weight: ${(props) => (props.$active ? 700 : 400)};
   background: ${(props) =>
     props.$active
@@ -546,7 +547,7 @@ export const SpeedOption = styled.button`
     background: ${(props) =>
       props.$active
         ? "color-mix(in srgb, var(--primary-color) 16%, transparent)"
-        : "rgba(255, 255, 255, 0.06)"};
+        : "var(--hover-color)"};
   }
 `;
 
@@ -555,7 +556,7 @@ export const SpeedSection = styled.div`
 `;
 
 export const SegmentList = styled.div`
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-top: 1px solid var(--border-color);
   display: grid;
 `;
 
@@ -577,19 +578,20 @@ export const SegmentOption = styled.button`
     background: ${(props) =>
       props.$active
         ? "color-mix(in srgb, var(--primary-color) 16%, transparent)"
-        : "rgba(255, 255, 255, 0.06)"};
+        : "var(--hover-color)"};
   }
 `;
 
 export const SegmentOptionTitle = styled.div`
-  color: ${(props) => (props.$active ? "var(--primary-color)" : "white")};
+  color: ${(props) =>
+    props.$active ? "var(--primary-color)" : "var(--text-color)"};
   font-size: 13px;
   font-weight: ${(props) => (props.$active ? 700 : 600)};
   line-height: 1.3;
 `;
 
 export const SegmentOptionMeta = styled.div`
-  color: rgba(255, 255, 255, 0.62);
+  color: var(--text-muted-color);
   font-size: 11px;
   font-weight: 500;
 `;
@@ -1009,6 +1011,12 @@ export const EnrollButton = styled.button`
         return `
           background: color-mix(in srgb, var(--success-color) 15%, transparent);
           color: var(--success-color);
+          cursor: default;
+        `;
+      case "owner":
+        return `
+          background: color-mix(in srgb, var(--primary-color) 14%, transparent);
+          color: var(--primary-color);
           cursor: default;
         `;
       case "leave":
@@ -1438,7 +1446,7 @@ export const NotionSurfaceText = styled.div`
 export const NotionSurfaceBody = styled.div`
   border: 1px solid var(--border-color);
   border-radius: 16px;
-  background: var(--secondary-color);
+  background: var(--background-color);
   min-height: ${(props) => (props.$compact ? "420px" : "calc(100vh - 320px)")};
   padding: 18px;
   overflow: auto;
@@ -1525,7 +1533,7 @@ export const NotionSurfaceBody = styled.div`
   .jamm-notion-quote {
     margin: 16px 0 18px;
     padding: 4px 0 4px 16px;
-    border-left: 3px solid rgba(255, 255, 255, 0.22);
+    border-left: 3px solid color-mix(in srgb, var(--text-color) 18%, transparent);
     color: var(--text-secondary-color);
     font-size: 1rem;
     line-height: 1.7;
@@ -1538,7 +1546,7 @@ export const NotionSurfaceBody = styled.div`
     margin: 16px 0 18px;
     padding: 14px 16px;
     border-radius: 16px;
-    background: rgba(255, 255, 255, 0.05);
+    background: color-mix(in srgb, var(--hover-color) 72%, var(--background-color));
     border: 1px solid var(--border-color);
   }
 
@@ -1563,8 +1571,8 @@ export const NotionSurfaceBody = styled.div`
     margin: 16px 0 20px;
     padding: 16px 18px;
     border-radius: 16px;
-    background: rgba(0, 0, 0, 0.22);
-    border: 1px solid rgba(255, 255, 255, 0.06);
+    background: color-mix(in srgb, var(--input-color) 88%, var(--background-color));
+    border: 1px solid color-mix(in srgb, var(--border-color) 92%, transparent);
     overflow-x: auto;
   }
 
@@ -1572,7 +1580,7 @@ export const NotionSurfaceBody = styled.div`
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
     font-size: 0.95rem;
     line-height: 1.65;
-    color: #f3f4f6;
+    color: var(--text-color);
     white-space: pre-wrap;
   }
 
@@ -1604,5 +1612,5 @@ export const NotionSurfaceFrame = styled.iframe`
   height: 100%;
   border: 0;
   border-radius: 12px;
-  background: #fff;
+  background: var(--background-color);
 `;

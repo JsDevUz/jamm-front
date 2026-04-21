@@ -140,6 +140,9 @@ const MnemonicsPanel = ({ onBack }) => {
   const [currentUserBest, setCurrentUserBest] = useState(null);
   const [leaderboardLoading, setLeaderboardLoading] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const internalBackStatePushedRef = useRef(false);
+  const closingFromBrowserBackRef = useRef(false);
+  const closingFromManualActionRef = useRef(false);
 
   const parsedAutoAdvance = useMemo(() => {
     if (!autoAdvanceSeconds) return null;
@@ -347,7 +350,7 @@ const MnemonicsPanel = ({ onBack }) => {
     }
   };
 
-  const resetTraining = () => {
+  const closeDialogState = () => {
     setPhase("setup");
     setItems([]);
     setEnteredItems([]);
@@ -358,16 +361,69 @@ const MnemonicsPanel = ({ onBack }) => {
     setIsDialogOpen(false);
   };
 
-  const closeDialog = () => {
-    setIsDialogOpen(false);
-    setPhase("setup");
-    setItems([]);
-    setEnteredItems([]);
-    setCurrentIndex(0);
-    setStageSeconds(PREPARE_SECONDS);
-    setElapsedMemorizeMs(0);
-    setResult(null);
+  const resetTraining = () => {
+    closingFromManualActionRef.current = true;
+    closeDialogState();
   };
+
+  const closeDialog = ({ fromBrowserBack = false } = {}) => {
+    if (!fromBrowserBack) {
+      closingFromManualActionRef.current = true;
+    }
+    closeDialogState();
+  };
+
+  useEffect(() => {
+    if (typeof window === "undefined" || window.innerWidth > 768) {
+      return undefined;
+    }
+
+    const handlePopState = () => {
+      if (!internalBackStatePushedRef.current || !isDialogOpen) return;
+      closingFromBrowserBackRef.current = true;
+      internalBackStatePushedRef.current = false;
+      closeDialog({ fromBrowserBack: true });
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, [isDialogOpen]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || window.innerWidth > 768) return;
+
+    if (isDialogOpen && !internalBackStatePushedRef.current) {
+      window.history.pushState(
+        { ...(window.history.state || {}), mnemonicsTrainingLayer: true },
+        "",
+        window.location.href,
+      );
+      internalBackStatePushedRef.current = true;
+      return;
+    }
+
+    if (!isDialogOpen && internalBackStatePushedRef.current) {
+      if (closingFromBrowserBackRef.current) {
+        closingFromBrowserBackRef.current = false;
+        internalBackStatePushedRef.current = false;
+        return;
+      }
+
+      if (closingFromManualActionRef.current) {
+        closingFromManualActionRef.current = false;
+        internalBackStatePushedRef.current = false;
+        window.history.replaceState(
+          { ...(window.history.state || {}), mnemonicsTrainingLayer: false },
+          "",
+          window.location.href,
+        );
+        return;
+      }
+
+      internalBackStatePushedRef.current = false;
+      window.history.back();
+    }
+  }, [isDialogOpen]);
 
   const moveCurrentIndex = (direction) => {
     setCurrentIndex((prev) => clamp(prev + direction, 0, items.length - 1));
