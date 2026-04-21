@@ -348,7 +348,7 @@ const MainScroll = styled.div`
     padding:
       calc(12px + env(safe-area-inset-top, 0px))
       max(12px, env(safe-area-inset-right, 0px))
-      calc(112px + env(safe-area-inset-bottom, 0px))
+      calc(132px + env(safe-area-inset-bottom, 0px))
       max(12px, env(safe-area-inset-left, 0px));
   }
 `;
@@ -1115,6 +1115,7 @@ const StudentTableCard = styled.div`
   align-self: start;
 
   @media (max-width: 960px) {
+    flex: 0 0 auto;
     min-height: 0;
     overflow: visible;
   }
@@ -1129,6 +1130,11 @@ const StudentTableHeader = styled.div`
   border-radius: 22px 22px 0 0;
   display: grid;
   gap: 8px;
+
+  @media (max-width: 960px) {
+    overflow: visible;
+    padding: 14px;
+  }
 `;
 
 const StudentTableToolbar = styled.div`
@@ -1145,15 +1151,14 @@ const StudentTableInfo = styled.div`
 
 const StudentTableControls = styled.div`
   width: 100%;
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 240px);
   align-items: center;
   gap: 12px;
   min-width: 0;
-  flex-wrap: wrap;
 
-  @media (max-width: 960px) {
-    flex-direction: column;
-    align-items: stretch;
+  @media (max-width: 1180px) {
+    grid-template-columns: minmax(0, 1fr);
   }
 `;
 
@@ -1171,37 +1176,36 @@ const StudentTableSubtitle = styled.div`
 
 const StudentSearchWrap = styled.div`
   position: relative;
-  flex: 1 1 360px;
+  width: 100%;
   max-width: 100%;
-  min-width: 220px;
-
-  @media (max-width: 960px) {
-    flex-basis: 100%;
-    min-width: 0;
-  }
+  min-width: 0;
 `;
 
 const StudentFilterSelect = styled.select`
-  flex: 0 0 240px;
+  width: 100%;
   height: 44px;
-  min-width: 200px;
+  min-width: 0;
   border-radius: 14px;
   border: 1px solid var(--border-color);
   background: var(--secondary-color);
   color: var(--text-color);
-  padding: 0 14px;
+  padding: 0 40px 0 14px;
   font-size: 14px;
   outline: none;
   cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--text-muted-color) 50%),
+    linear-gradient(135deg, var(--text-muted-color) 50%, transparent 50%);
+  background-position:
+    calc(100% - 18px) calc(50% - 2px),
+    calc(100% - 12px) calc(50% - 2px);
+  background-size: 6px 6px, 6px 6px;
+  background-repeat: no-repeat;
 
   &:focus {
     border-color: var(--primary-color);
-  }
-
-  @media (max-width: 960px) {
-    flex-basis: 100%;
-    min-width: 0;
-    width: 100%;
   }
 `;
 
@@ -1241,6 +1245,8 @@ const StudentTableScroll = styled.div`
   overflow-x: auto;
 
   @media (max-width: 960px) {
+    flex: 0 0 auto;
+    min-height: auto;
     overflow: visible;
   }
 `;
@@ -1298,7 +1304,7 @@ const StudentTableBody = styled.div`
 
   @media (max-width: 960px) {
     gap: 12px;
-    padding: 12px;
+    padding: 12px 12px 18px;
   }
 `;
 
