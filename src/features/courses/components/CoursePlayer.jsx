@@ -753,9 +753,7 @@ const CoursePlayer = ({
   const [courseReviewRating, setCourseReviewRating] = useState(0);
   const [courseReviewText, setCourseReviewText] = useState("");
   const [courseReviewSaving, setCourseReviewSaving] = useState(false);
-  const [isCourseReviewEditing, setIsCourseReviewEditing] = useState(
-    () => !course?.selfReview,
-  );
+  const [isCourseReviewEditing, setIsCourseReviewEditing] = useState(false);
   const clickActionTimerRef = useRef(null);
   const noteSaveTimerRef = useRef(null);
   const noteBaselineRef = useRef("");
