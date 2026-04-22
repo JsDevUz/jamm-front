@@ -25,6 +25,11 @@ export const createCourse = async (payload) => {
   return data;
 };
 
+export const updateCourse = async (courseId, payload) => {
+  const { data } = await axiosInstance.patch(`/courses/${courseId}`, payload);
+  return data;
+};
+
 export const uploadCourseImage = async (file) => {
   const formData = new FormData();
   formData.append("file", file);

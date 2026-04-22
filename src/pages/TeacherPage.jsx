@@ -3302,6 +3302,7 @@ export default function TeacherPage() {
   const [isDeletingArenaItem, setIsDeletingArenaItem] = useState(false);
   const [showSbDialog, setShowSbDialog] = useState(false);
   const [sbEditingDeck, setSbEditingDeck] = useState(null);
+  const [editingCourse, setEditingCourse] = useState(null);
   // Share link dialog state
   const [shareDeck, setShareDeck] = useState(null);
   const [shareMode, setShareMode] = useState("persist");
@@ -4356,6 +4357,11 @@ export default function TeacherPage() {
     }
   }, []);
 
+  const openCourseEditor = useCallback((course) => {
+    setEditingCourse(course);
+    setCreateOpen(false);
+  }, []);
+
   const openCourseLessonCreator = useCallback(() => {
     setEditingCourseLesson(null);
     setCourseLessonDialogOpen(true);
@@ -5030,7 +5036,13 @@ export default function TeacherPage() {
                   </StudentTableSubtitle>
                 </StudentTableInfo>
 
-                <PrimaryButton type="button" onClick={() => setCreateOpen(true)}>
+                <PrimaryButton
+                  type="button"
+                  onClick={() => {
+                    setEditingCourse(null);
+                    setCreateOpen(true);
+                  }}
+                >
                   <Plus size={15} />
                   {t("teacher.workspace.addCourseMenu", {
                     defaultValue: "Yangi qo'shish",
@@ -5132,7 +5144,7 @@ export default function TeacherPage() {
                           type="button"
                           title={t("common.edit")}
                           aria-label={t("common.edit")}
-                          onClick={() => openCourseWorkspace(courseId)}
+                          onClick={() => openCourseEditor(course)}
                         >
                           <Pencil size={15} />
                         </CourseMenuButton>
@@ -5188,6 +5200,16 @@ export default function TeacherPage() {
                   <ChevronLeft size={16} />
                   {t("common.back", {
                     defaultValue: "Orqaga",
+                  })}
+                </GhostButton>
+
+                <GhostButton
+                  type="button"
+                  onClick={() => openCourseEditor(selectedCourse)}
+                >
+                  <Pencil size={15} />
+                  {t("common.edit", {
+                    defaultValue: "Tahrirlash",
                   })}
                 </GhostButton>
 
@@ -6342,13 +6364,26 @@ export default function TeacherPage() {
 
       <Suspense fallback={null}>
         <CreateCourseDialog
-          isOpen={createOpen}
-          onClose={() => setCreateOpen(false)}
+          isOpen={createOpen || !!editingCourse}
+          course={editingCourse}
+          onClose={() => {
+            setCreateOpen(false);
+            setEditingCourse(null);
+          }}
           onCreated={(courseId) => {
             setCreateOpen(false);
+            setEditingCourse(null);
             setSelectedCourseId(String(courseId));
             setActiveSection("courses");
             navigate(`/teacher/courses/${courseId}`);
+          }}
+          onUpdated={(updatedCourse) => {
+            const updatedCourseId = getCourseId(updatedCourse || editingCourse);
+            setCreateOpen(false);
+            setEditingCourse(null);
+            if (updatedCourseId && String(selectedCourseId || "") === String(updatedCourseId)) {
+              setSelectedCourseId(String(updatedCourseId));
+            }
           }}
         />
       </Suspense>

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import styled from "styled-components";
+import styled, { keyframes } from "styled-components";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "react-router-dom";
 import {
@@ -25,6 +25,28 @@ import { getLessonPlaybackToken } from "../api/coursesApi";
 import { getCourseMemberStatus } from "../features/courses/utils/courseNavigation";
 import { API_BASE_URL } from "../config/env";
 
+const previewPageFadeIn = keyframes`
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+`;
+
+const previewPageSlideIn = keyframes`
+  from {
+    opacity: 0;
+    transform: translateY(20px) scale(0.985);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+`;
+
 const PageShell = styled.div`
   width: 100vw;
   flex: 1 1 auto;
@@ -35,6 +57,11 @@ const PageShell = styled.div`
   -webkit-overflow-scrolling: touch;
   background: var(--background-color);
   color: var(--text-color);
+  animation: ${previewPageFadeIn} 0.2s ease-out;
+
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
 `;
 
 const PageInner = styled.div`
@@ -44,6 +71,12 @@ const PageInner = styled.div`
   display: grid;
   grid-template-columns: minmax(0, 1.25fr) minmax(320px, 0.75fr);
   gap: 28px;
+  animation: ${previewPageSlideIn} 0.26s cubic-bezier(0.22, 1, 0.36, 1);
+  transform-origin: top center;
+
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
 
   @media (max-width: 980px) {
     grid-template-columns: minmax(0, 1fr);

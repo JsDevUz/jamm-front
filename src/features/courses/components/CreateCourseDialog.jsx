@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import styled from "styled-components";
 import {
@@ -299,9 +299,16 @@ const resetState = {
   descriptionMode: "write",
 };
 
-const CreateCourseDialog = ({ isOpen, onClose, onCreated, onOpenPremium }) => {
+const CreateCourseDialog = ({
+  isOpen,
+  onClose,
+  onCreated,
+  onUpdated,
+  onOpenPremium,
+  course = null,
+}) => {
   const { t } = useTranslation();
-  const { createCourse } = useCourses();
+  const { createCourse, updateCourse } = useCourses();
   const [name, setName] = useState(resetState.name);
   const [description, setDescription] = useState(resetState.description);
   const [imageUrl, setImageUrl] = useState(resetState.imageUrl);
@@ -321,6 +328,8 @@ const CreateCourseDialog = ({ isOpen, onClose, onCreated, onOpenPremium }) => {
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const fileInputRef = useRef(null);
   const descriptionInputRef = useRef(null);
+  const isEditMode = Boolean(course);
+  const courseId = course?._id || course?.id || course?.urlSlug || null;
 
   const categoryOptions = useMemo(
     () =>
@@ -331,14 +340,53 @@ const CreateCourseDialog = ({ isOpen, onClose, onCreated, onOpenPremium }) => {
     [t],
   );
 
-  if (!isOpen) return null;
-
   const parseLineItems = (value) =>
     String(value || "")
       .split("\n")
       .map((item) => item.trim())
       .filter(Boolean)
       .slice(0, 8);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    if (course) {
+      setName(course.name || course.title || "");
+      setDescription(course.description || "");
+      setImageUrl(course.image || "");
+      setCategory(course.category || resetState.category);
+      setLessonLanguage(course.lessonLanguage || resetState.lessonLanguage);
+      setPreviewLearn(
+        Array.isArray(course.previewLearn) ? course.previewLearn.join("\n") : "",
+      );
+      setPreviewRequirements(
+        Array.isArray(course.previewRequirements)
+          ? course.previewRequirements.join("\n")
+          : "",
+      );
+      setDeliveryType(course.deliveryType || resetState.deliveryType);
+      setPrice(Number(course.price || 0));
+      setAccessType(course.accessType || resetState.accessType);
+      setImageMode(course.image ? "link" : resetState.imageMode);
+      setDescriptionMode(resetState.descriptionMode);
+      setError("");
+      return;
+    }
+
+    setName(resetState.name);
+    setDescription(resetState.description);
+    setImageUrl(resetState.imageUrl);
+    setCategory(resetState.category);
+    setLessonLanguage(resetState.lessonLanguage);
+    setPreviewLearn(resetState.previewLearn);
+    setPreviewRequirements(resetState.previewRequirements);
+    setDeliveryType(resetState.deliveryType);
+    setPrice(resetState.price);
+    setAccessType(resetState.accessType);
+    setImageMode(resetState.imageMode);
+    setDescriptionMode(resetState.descriptionMode);
+    setError("");
+  }, [course, isOpen]);
 
   const resetForm = () => {
     setName(resetState.name);
@@ -418,35 +466,53 @@ const CreateCourseDialog = ({ isOpen, onClose, onCreated, onOpenPremium }) => {
     }
   };
 
-  const handleCreate = async () => {
+  const handleSubmit = async () => {
     if (!name.trim()) return;
 
     setError("");
     setIsSubmitting(true);
 
-    try {
-      const courseId = await createCourse({
-        name: name.trim(),
-        description: description.trim(),
-        image: imageUrl.trim(),
-        category: category.trim(),
-        lessonLanguage: lessonLanguage.trim(),
-        previewLearn: parseLineItems(previewLearn),
-        previewRequirements: parseLineItems(previewRequirements),
-        deliveryType,
-        price: accessType === "paid" ? Number(price || 0) : 0,
-        accessType,
-      });
+    const payload = {
+      name: name.trim(),
+      description: description.trim(),
+      image: imageUrl.trim(),
+      category: category.trim(),
+      lessonLanguage: lessonLanguage.trim(),
+      previewLearn: parseLineItems(previewLearn),
+      previewRequirements: parseLineItems(previewRequirements),
+      deliveryType,
+      price: accessType === "paid" ? Number(price || 0) : 0,
+      accessType,
+    };
 
-      resetForm();
-      onCreated(courseId);
+    try {
+      if (isEditMode && courseId) {
+        const updatedCourse = await updateCourse(courseId, payload);
+        resetForm();
+        onUpdated?.(updatedCourse);
+      } else {
+        const createdCourseId = await createCourse(payload);
+        resetForm();
+        onCreated?.(createdCourseId);
+      }
+
     } catch (err) {
       const message = err?.message || "";
-      if (message.includes("Premium") || message.includes("maksimal")) {
+      if (
+        !isEditMode &&
+        (message.includes("Premium") || message.includes("maksimal"))
+      ) {
         onClose();
         if (onOpenPremium) onOpenPremium();
       } else {
-        setError(message || t("createCourse.error"));
+        setError(
+          message ||
+            t("createCourse.error", {
+              defaultValue: isEditMode
+                ? "Kursni tahrirlashda xatolik yuz berdi"
+                : "Kurs yaratishda xatolik yuz berdi",
+            }),
+        );
       }
     } finally {
       setIsSubmitting(false);
@@ -456,6 +522,8 @@ const CreateCourseDialog = ({ isOpen, onClose, onCreated, onOpenPremium }) => {
   const handleKeyDown = (e) => {
     if (e.key === "Escape") handleClose();
   };
+
+  if (!isOpen) return null;
 
   return (
     <ModalOverlay onClick={handleClose} onKeyDown={handleKeyDown}>
@@ -467,7 +535,13 @@ const CreateCourseDialog = ({ isOpen, onClose, onCreated, onOpenPremium }) => {
         onClick={(e) => e.stopPropagation()}
       >
         <ModalHeader $padding="16px 18px">
-          <ModalTitle>{t("createCourse.title")}</ModalTitle>
+          <ModalTitle>
+            {isEditMode
+              ? t("createCourse.editTitle", {
+                  defaultValue: "Kursni tahrirlash",
+                })
+              : t("createCourse.title")}
+          </ModalTitle>
           <ModalCloseButton onClick={handleClose} disabled={isSubmitting || isUploadingImage}>
             <X size={18} />
           </ModalCloseButton>
@@ -806,10 +880,18 @@ const CreateCourseDialog = ({ isOpen, onClose, onCreated, onOpenPremium }) => {
           </DialogActionButton>
           <DialogActionButton
             $variant="primary"
-            onClick={handleCreate}
+            onClick={handleSubmit}
             disabled={!name.trim() || isSubmitting || isUploadingImage}
           >
-            {isSubmitting ? t("createCourse.creating") : t("common.create")}
+            {isSubmitting
+              ? t("createCourse.submitting", {
+                  defaultValue: isEditMode ? "Saqlanmoqda..." : t("createCourse.creating"),
+                })
+              : isEditMode
+                ? t("createCourse.saveChanges", {
+                    defaultValue: "O'zgarishlarni saqlash",
+                  })
+                : t("common.create")}
           </DialogActionButton>
         </ModalFooter>
       </ModalPanel>

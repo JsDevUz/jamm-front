@@ -681,6 +681,7 @@ const CoursePlayer = ({
   // Refs for attendance tracking — declared early so derived values below can write to them.
   const overallCurrentTimeRef = useRef(0);
   const totalLessonDurationRef = useRef(0);
+  const elapsedBeforeCurrentMediaRef = useRef(0);
   const attendanceEligibleRef = useRef(false);
   const currentLessonIdRef = useRef("");
   const attendanceLastFlushedSecondRef = useRef({});
@@ -691,6 +692,10 @@ const CoursePlayer = ({
 
   // Video player state
   const videoRef = useRef(null);
+  const youtubeIframeRef = useRef(null);
+  const youtubePlayerRef = useRef(null);
+  const youtubeTickTimerRef = useRef(null);
+  const youtubeApiPromiseRef = useRef(null);
   const videoWrapperRef = useRef(null);
   const playerContainerRef = useRef(null);
   const hlsRef = useRef(null);
@@ -1145,6 +1150,7 @@ const CoursePlayer = ({
         .reduce((sum, item) => sum + Number(item || 0), 0),
     [activeMediaIndex, playbackSegmentDurations],
   );
+  elapsedBeforeCurrentMediaRef.current = elapsedBeforeCurrentMedia;
   const overallCurrentTime = elapsedBeforeCurrentMedia + currentTime;
   overallCurrentTimeRef.current = overallCurrentTime;
   totalLessonDurationRef.current = totalLessonDuration;
@@ -1588,6 +1594,74 @@ const CoursePlayer = ({
     },
     [courseId, getCompositeAttendancePercent, markOwnAttendance],
   );
+  const flushOwnAttendanceRef = useRef(flushOwnAttendance);
+  useEffect(() => {
+    flushOwnAttendanceRef.current = flushOwnAttendance;
+  }, [flushOwnAttendance]);
+
+  const trackAttendancePlayback = useCallback((absoluteTime, lessonDuration) => {
+    if (!attendanceEligibleRef.current) return;
+    const lessonKey = currentLessonIdRef.current;
+    if (!lessonKey) return;
+
+    const now = Math.max(0, Number(absoluteTime || 0));
+    const totalDur = Math.max(0, Number(lessonDuration || totalLessonDurationRef.current || 0));
+    if (!totalDur) return;
+
+    const lastTrackedTime = Number(attendanceLastTimeRef.current[lessonKey] ?? now);
+    const timeDelta = now - lastTrackedTime;
+    attendanceLastTimeRef.current[lessonKey] = now;
+
+    if (timeDelta <= 0 || timeDelta > 2.5) return;
+
+    const watchedPercentDelta = (timeDelta / totalDur) * 100;
+    if (watchedPercentDelta <= 0) return;
+
+    const prevTrackedPercent = Number(attendanceTrackedPercentRef.current[lessonKey] || 0);
+    const nextTrackedPercent = Math.min(100, prevTrackedPercent + watchedPercentDelta);
+    attendanceTrackedPercentRef.current[lessonKey] = nextTrackedPercent;
+
+    const lastFlushedSecond = Number(attendanceLastFlushedSecondRef.current[lessonKey] || 0);
+    const crossedTenSecondMark =
+      now >= 10 && Math.floor(now / 10) > Math.floor(lastFlushedSecond / 10);
+
+    if (crossedTenSecondMark) {
+      attendanceLastFlushedSecondRef.current[lessonKey] = now;
+      flushOwnAttendanceRef.current(lessonKey, {
+        force: false,
+        lastPositionSeconds: now,
+        lessonDurationSeconds: totalDur,
+      });
+    }
+  }, []);
+
+  const logAttendanceSessionStart = useCallback(() => {
+    if (
+      !currentLessonAttendanceKey ||
+      !canTrackOwnAttendance ||
+      !currentLessonHasMedia
+    ) {
+      return;
+    }
+
+    const sessionKey = `${courseId}:${currentLessonAttendanceKey}`;
+    if (attendanceSessionLoggedRef.current === sessionKey) {
+      return;
+    }
+
+    attendanceSessionLoggedRef.current = sessionKey;
+    flushOwnAttendanceRef.current(currentLessonAttendanceKey, {
+      force: true,
+      watchIncrement: 1,
+      lastPositionSeconds: overallCurrentTimeRef.current,
+      lessonDurationSeconds: totalLessonDurationRef.current,
+    });
+  }, [
+    canTrackOwnAttendance,
+    courseId,
+    currentLessonAttendanceKey,
+    currentLessonHasMedia,
+  ]);
 
   const handleNotionReadComplete = useCallback(() => {
     const lessonKey = currentLessonAttendanceKey;
@@ -1687,10 +1761,6 @@ const CoursePlayer = ({
     incrementViews,
   ]);
 
-  // Keep a ref so handleTimeUpdate can access flushOwnAttendance without stale closure.
-  const flushOwnAttendanceRef = useRef(flushOwnAttendance);
-  useEffect(() => { flushOwnAttendanceRef.current = flushOwnAttendance; }, [flushOwnAttendance]);
-
   // Sync eligibility flag — cheap effect, no time-varying deps.
   useEffect(() => {
     const hasTrackableLessonWork =
@@ -1730,34 +1800,8 @@ const CoursePlayer = ({
 
   const handlePlay = useCallback(() => {
     setIsPlaying(true);
-
-    if (
-      !currentLessonAttendanceKey ||
-      !canTrackOwnAttendance ||
-      !currentLessonHasMedia
-    ) {
-      return;
-    }
-
-    const sessionKey = `${courseId}:${currentLessonAttendanceKey}`;
-    if (attendanceSessionLoggedRef.current === sessionKey) {
-      return;
-    }
-
-    attendanceSessionLoggedRef.current = sessionKey;
-    flushOwnAttendance(currentLessonAttendanceKey, {
-      force: true,
-      watchIncrement: 1,
-      lastPositionSeconds: overallCurrentTimeRef.current,
-      lessonDurationSeconds: totalLessonDurationRef.current,
-    });
-  }, [
-    canTrackOwnAttendance,
-    courseId,
-    currentLessonAttendanceKey,
-    currentLessonHasMedia,
-    flushOwnAttendance,
-  ]);
+    logAttendanceSessionStart();
+  }, [logAttendanceSessionStart]);
 
   // Flush on lesson unmount (lesson switch or component teardown).
   useEffect(() => {
@@ -1874,7 +1918,8 @@ const CoursePlayer = ({
 
   const handleTimeUpdate = useCallback(() => {
     if (!videoRef.current) return;
-    setCurrentTime(videoRef.current.currentTime);
+    const nextCurrentTime = Number(videoRef.current.currentTime || 0);
+    setCurrentTime(nextCurrentTime);
 
     // Update buffered
     const video = videoRef.current;
@@ -1884,42 +1929,11 @@ const CoursePlayer = ({
       );
     }
 
-    // Progress tracking — runs every video frame but only sends network request
-    // when 10% accumulates or the 70% threshold is crossed. All reads come from
-    // refs so this callback never needs to be recreated.
-    if (!attendanceEligibleRef.current) return;
-    const lessonKey = currentLessonIdRef.current;
-    if (!lessonKey) return;
-    const now = overallCurrentTimeRef.current;
-    const totalDur = totalLessonDurationRef.current;
-    if (!totalDur) return;
-
-    const lastTrackedTime = Number(attendanceLastTimeRef.current[lessonKey] ?? now);
-    const timeDelta = now - lastTrackedTime;
-    attendanceLastTimeRef.current[lessonKey] = now;
-
-    if (timeDelta <= 0 || timeDelta > 2.5) return;
-
-    const watchedPercentDelta = (timeDelta / totalDur) * 100;
-    if (watchedPercentDelta <= 0) return;
-
-    const prevTrackedPercent = Number(attendanceTrackedPercentRef.current[lessonKey] || 0);
-    const nextTrackedPercent = Math.min(100, prevTrackedPercent + watchedPercentDelta);
-    attendanceTrackedPercentRef.current[lessonKey] = nextTrackedPercent;
-
-    const lastFlushedSecond = Number(attendanceLastFlushedSecondRef.current[lessonKey] || 0);
-    const crossedTenSecondMark =
-      now >= 10 && Math.floor(now / 10) > Math.floor(lastFlushedSecond / 10);
-
-    if (crossedTenSecondMark) {
-      attendanceLastFlushedSecondRef.current[lessonKey] = now;
-      flushOwnAttendanceRef.current(lessonKey, {
-        force: false,
-        lastPositionSeconds: now,
-        lessonDurationSeconds: totalDur,
-      });
-    }
-  }, []);
+    trackAttendancePlayback(
+      elapsedBeforeCurrentMediaRef.current + nextCurrentTime,
+      totalLessonDurationRef.current || Number(video.duration || 0),
+    );
+  }, [trackAttendancePlayback]);
 
   const handleDuration = useCallback((duration) => {
     setDuration(duration);
@@ -1931,6 +1945,15 @@ const CoursePlayer = ({
     setPlaybackError(null);
     setPlaybackUrl(null);
     setPlaybackStreamType("direct");
+
+    if (youtubeTickTimerRef.current) {
+      clearInterval(youtubeTickTimerRef.current);
+      youtubeTickTimerRef.current = null;
+    }
+    if (youtubePlayerRef.current?.destroy) {
+      youtubePlayerRef.current.destroy();
+    }
+    youtubePlayerRef.current = null;
 
     if (hlsRef.current) {
       hlsRef.current.destroy();
@@ -2297,17 +2320,69 @@ const CoursePlayer = ({
     }
   }, [course, inlineMode, navigate]);
 
-  const playNextLesson = useCallback(() => {
-    if (activeMediaIndex < lessonMediaItems.length - 1) {
-      shouldAutoplayNextMediaRef.current = true;
-      resetActiveMediaPlayback();
-      setActiveMediaIndex((prev) => prev + 1);
-      return;
-    }
-    if (course && activeLesson < course.lessons.length - 1) {
-      setActiveLesson((prev) => prev + 1);
-    }
-  }, [activeLesson, activeMediaIndex, course, lessonMediaItems.length, resetActiveMediaPlayback]);
+  const flushEndedMediaAttendance = useCallback(
+    async ({ completedLesson = false } = {}) => {
+      const lessonKey = currentLessonIdRef.current;
+      if (!lessonKey || !canTrackOwnAttendance || !currentLessonHasMedia) {
+        return;
+      }
+
+      const mediaEndTime = Math.max(
+        Number(overallCurrentTimeRef.current || 0),
+        Number(elapsedBeforeCurrentMediaRef.current || 0) + Number(videoRef.current?.duration || 0),
+        Number(elapsedBeforeCurrentMediaRef.current || 0) + Number(duration || 0),
+      );
+      const lessonEndTime = Math.max(
+        Number(totalLessonDurationRef.current || 0),
+        mediaEndTime,
+      );
+      const finalPositionSeconds = completedLesson ? lessonEndTime : mediaEndTime;
+      const progressPercent = lessonEndTime
+        ? Math.min(100, (finalPositionSeconds / lessonEndTime) * 100)
+        : 0;
+
+      attendanceTrackedPercentRef.current[lessonKey] = Math.max(
+        Number(attendanceTrackedPercentRef.current[lessonKey] || 0),
+        progressPercent,
+      );
+      attendanceLastTimeRef.current[lessonKey] = finalPositionSeconds;
+      attendanceLastFlushedSecondRef.current[lessonKey] = finalPositionSeconds;
+
+      await flushOwnAttendanceRef.current(lessonKey, {
+        force: true,
+        lastPositionSeconds: finalPositionSeconds,
+        lessonDurationSeconds: lessonEndTime || finalPositionSeconds,
+      });
+    },
+    [canTrackOwnAttendance, currentLessonHasMedia, duration],
+  );
+
+  const handleLessonPlaybackEnded = useCallback(() => {
+    const hasNextMedia = activeMediaIndex < lessonMediaItems.length - 1;
+
+    setIsPlaying(false);
+    void (async () => {
+      await flushEndedMediaAttendance({ completedLesson: !hasNextMedia });
+
+      if (hasNextMedia) {
+        shouldAutoplayNextMediaRef.current = true;
+        resetActiveMediaPlayback();
+        setActiveMediaIndex((prev) => prev + 1);
+        return;
+      }
+
+      if (course && activeLesson < course.lessons.length - 1) {
+        setActiveLesson((prev) => prev + 1);
+      }
+    })();
+  }, [
+    activeLesson,
+    activeMediaIndex,
+    course,
+    flushEndedMediaAttendance,
+    lessonMediaItems.length,
+    resetActiveMediaPlayback,
+  ]);
 
   // Derived values needed for secure playback setup.
   const isHlsVideo =
@@ -2565,6 +2640,195 @@ const CoursePlayer = ({
     };
   }, [isHlsVideo, isIgnorablePlaybackError, playbackUrl]);
 
+  const youtubeId = isYouTube ? getYouTubeId(currentLessonData.videoUrl) : null;
+  const youtubeEmbedSrc = useMemo(() => {
+    if (!youtubeId) return "";
+
+    const params = new URLSearchParams({
+      enablejsapi: "1",
+      playsinline: "1",
+      rel: "0",
+      modestbranding: "1",
+    });
+
+    if (typeof window !== "undefined" && window.location?.origin) {
+      params.set("origin", window.location.origin);
+    }
+
+    return `https://www.youtube.com/embed/${youtubeId}?${params.toString()}`;
+  }, [youtubeId]);
+
+  useEffect(() => {
+    if (!isYouTube || !youtubeId || typeof window === "undefined") {
+      return undefined;
+    }
+
+    const clearTickTimer = () => {
+      if (youtubeTickTimerRef.current) {
+        clearInterval(youtubeTickTimerRef.current);
+        youtubeTickTimerRef.current = null;
+      }
+    };
+
+    const syncYouTubeMetrics = () => {
+      const player = youtubePlayerRef.current;
+      if (!player) return { absoluteTime: 0, totalDuration: 0, playerDuration: 0 };
+
+      const playerDuration = Math.max(0, Number(player.getDuration?.() || 0));
+      const playerCurrentTime = Math.max(0, Number(player.getCurrentTime?.() || 0));
+      const absoluteTime = elapsedBeforeCurrentMediaRef.current + playerCurrentTime;
+      const totalDuration = Math.max(
+        totalLessonDurationRef.current || 0,
+        elapsedBeforeCurrentMediaRef.current + playerDuration,
+        playerDuration,
+      );
+
+      setDuration(playerDuration);
+      setCurrentTime(playerCurrentTime);
+      trackAttendancePlayback(absoluteTime, totalDuration);
+
+      return { absoluteTime, totalDuration, playerDuration };
+    };
+
+    const startTickTimer = () => {
+      clearTickTimer();
+      syncYouTubeMetrics();
+      youtubeTickTimerRef.current = setInterval(syncYouTubeMetrics, 1000);
+    };
+
+    const loadYouTubeIframeApi = () => {
+      if (window.YT?.Player) {
+        return Promise.resolve(window.YT);
+      }
+
+      if (youtubeApiPromiseRef.current) {
+        return youtubeApiPromiseRef.current;
+      }
+
+      youtubeApiPromiseRef.current = new Promise((resolve, reject) => {
+        const previousReadyHandler = window.onYouTubeIframeAPIReady;
+        const script =
+          document.querySelector('script[data-jamm-youtube-iframe-api="true"]') ||
+          document.createElement("script");
+
+        const handleReady = () => {
+          if (typeof previousReadyHandler === "function") {
+            previousReadyHandler();
+          }
+          resolve(window.YT);
+        };
+
+        window.onYouTubeIframeAPIReady = handleReady;
+
+        if (!script.getAttribute("src")) {
+          script.src = "https://www.youtube.com/iframe_api";
+          script.async = true;
+          script.setAttribute("data-jamm-youtube-iframe-api", "true");
+          script.onerror = () => reject(new Error("YouTube iframe API yuklanmadi"));
+          document.body.appendChild(script);
+        }
+      });
+
+      return youtubeApiPromiseRef.current;
+    };
+
+    let disposed = false;
+
+    loadYouTubeIframeApi()
+      .then((YT) => {
+        if (disposed || !YT?.Player || !youtubeIframeRef.current) {
+          return;
+        }
+
+        if (youtubePlayerRef.current?.destroy) {
+          youtubePlayerRef.current.destroy();
+        }
+
+        youtubePlayerRef.current = new YT.Player(youtubeIframeRef.current, {
+          events: {
+            onReady: () => {
+              setPlaybackError(null);
+              syncYouTubeMetrics();
+            },
+            onStateChange: (event) => {
+              const state = Number(event?.data);
+
+              if (state === 1) {
+                setPlaybackError(null);
+                setIsBuffering(false);
+                setIsPlaying(true);
+                logAttendanceSessionStart();
+                startTickTimer();
+                return;
+              }
+
+              if (state === 3) {
+                setIsBuffering(true);
+                startTickTimer();
+                return;
+              }
+
+              if (state === 2 || state === -1 || state === 5) {
+                syncYouTubeMetrics();
+                clearTickTimer();
+                setIsBuffering(false);
+                setIsPlaying(false);
+                return;
+              }
+
+              if (state === 0) {
+                const lessonKey = currentLessonIdRef.current;
+                const { totalDuration } = syncYouTubeMetrics();
+                if (lessonKey && totalDuration > 0) {
+                  attendanceTrackedPercentRef.current[lessonKey] = 100;
+                  attendanceLastTimeRef.current[lessonKey] = totalDuration;
+                  attendanceLastFlushedSecondRef.current[lessonKey] = totalDuration;
+                  flushOwnAttendanceRef.current(lessonKey, {
+                    force: true,
+                    lastPositionSeconds: totalDuration,
+                    lessonDurationSeconds: totalDuration,
+                  });
+                }
+                clearTickTimer();
+                setIsBuffering(false);
+                setIsPlaying(false);
+              }
+            },
+            onError: (event) => {
+              clearTickTimer();
+              setIsBuffering(false);
+              setIsPlaying(false);
+              setPlaybackError(
+                t("coursePlayer.errors.playbackWithReason", {
+                  reason: `YouTube xatosi (${Number(event?.data || 0)})`,
+                  defaultValue: `YouTube videoni ishga tushirib bo'lmadi (${Number(event?.data || 0)})`,
+                }),
+              );
+            },
+          },
+        });
+      })
+      .catch((error) => {
+        if (!disposed) {
+          console.error(error);
+          setPlaybackError(
+            t("coursePlayer.errors.playback", {
+              defaultValue: "Videoni ishga tushirib bo'lmadi.",
+            }),
+          );
+        }
+      });
+
+    return () => {
+      disposed = true;
+      clearTickTimer();
+      if (youtubePlayerRef.current?.destroy) {
+        youtubePlayerRef.current.destroy();
+      }
+      youtubePlayerRef.current = null;
+    };
+  }, [isYouTube, logAttendanceSessionStart, t, trackAttendancePlayback, youtubeId]);
+
   if (!course) {
     return (
       <NoCourseSelected>
@@ -2579,7 +2843,6 @@ const CoursePlayer = ({
     );
   }
 
-  const youtubeId = isYouTube ? getYouTubeId(currentLessonData.videoUrl) : null;
   const handleLeaveCourse = async () => {
     if (!courseId || !currentUserId) return;
 
@@ -2738,7 +3001,9 @@ const CoursePlayer = ({
                 isYouTube && youtubeId ? (
                 <VideoWrapper ref={videoWrapperRef}>
                   <YouTubeIframe
-                    src={`https://www.youtube.com/embed/${youtubeId}?rel=0&modestbranding=1`}
+                    key={currentMediaKey}
+                    ref={youtubeIframeRef}
+                    src={youtubeEmbedSrc}
                     allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture; web-share"
                     allowFullScreen
                     title={currentLessonData.title}
@@ -2822,7 +3087,7 @@ const CoursePlayer = ({
                           t("coursePlayer.errors.playback"),
                         );
                     }}
-                    onEnded={playNextLesson}
+                    onEnded={handleLessonPlaybackEnded}
                   />
 
                   <VideoOverlay

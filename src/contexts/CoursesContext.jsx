@@ -196,6 +196,20 @@ export const CoursesProvider = ({ children }) => {
     [fetchCourses],
   );
 
+  const updateCourse = useCallback(
+    async (courseId, payload) => {
+      try {
+        const data = await coursesApi.updateCourse(courseId, payload);
+        await fetchCourses();
+        return data;
+      } catch (err) {
+        console.error("Error updating course:", err);
+        throw err;
+      }
+    },
+    [fetchCourses],
+  );
+
   const removeCourse = useCallback(
     async (courseId) => {
       try {
@@ -866,6 +880,7 @@ export const CoursesProvider = ({ children }) => {
     courses,
     currentUser,
     createCourse,
+    updateCourse,
     removeCourse,
     addLesson,
     updateLesson,

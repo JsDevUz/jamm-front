@@ -267,6 +267,7 @@ export default function useChatAreaController({
   const [initialHistoryReady, setInitialHistoryReady] = useState(false);
   const [replyMessage, setReplyMessage] = useState(null);
   const [editingMessage, setEditingMessage] = useState(null);
+  const [pendingDeleteMessage, setPendingDeleteMessage] = useState(null);
   const [contextMenu, setContextMenu] = useState(null);
   const [clickCount, setClickCount] = useState(0);
   const [clickedMessageId, setClickedMessageId] = useState(null);
@@ -1150,14 +1151,7 @@ export default function useChatAreaController({
   const handleContextMenuAction = async (action, message) => {
     switch (action) {
       case "delete":
-        try {
-          dismissLocalMessage(message.id);
-          if (!message.isLocalOnly && message.deliveryStatus !== "failed") {
-            await deleteMessage(message.id);
-          }
-        } catch (error) {
-          console.error("Failed to delete message", error);
-        }
+        setPendingDeleteMessage(message);
         break;
       case "edit":
         if (message.isDeleted) return;
@@ -1191,6 +1185,28 @@ export default function useChatAreaController({
     }
 
     setContextMenu(null);
+  };
+
+  const closeMessageDeleteDialog = () => {
+    setPendingDeleteMessage(null);
+  };
+
+  const confirmDeleteMessage = async () => {
+    if (!pendingDeleteMessage) return;
+
+    try {
+      dismissLocalMessage(pendingDeleteMessage.id);
+      if (
+        !pendingDeleteMessage.isLocalOnly &&
+        pendingDeleteMessage.deliveryStatus !== "failed"
+      ) {
+        await deleteMessage(pendingDeleteMessage.id);
+      }
+    } catch (error) {
+      console.error("Failed to delete message", error);
+    } finally {
+      setPendingDeleteMessage(null);
+    }
   };
 
   const cancelEditMessage = () => {
@@ -1733,6 +1749,8 @@ export default function useChatAreaController({
 
   return {
     closeEditGroupDialog,
+    closeMessageDeleteDialog,
+    confirmDeleteMessage,
     contextValue,
     currentChat,
     currentChatName,
@@ -1753,6 +1771,7 @@ export default function useChatAreaController({
     lastSeenText,
     onlineCount,
     otherMember,
+    pendingDeleteMessage,
     startPrivateVideoCall,
     typingText,
   };

@@ -35,6 +35,24 @@ const TeacherSidebarShell = styled(SidebarContainer)`
     min-height: 78px;
     height: auto;
     border-right: 1px solid var(--border-color);
+    justify-content: flex-start;
+    align-items: stretch;
+    gap: 10px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    pointer-events: auto;
+
+    &::-webkit-scrollbar {
+      display: none;
+    }
+
+    & > button {
+      flex: 0 0 auto;
+      width: 76px;
+      min-width: 76px;
+    }
   }
 `;
 

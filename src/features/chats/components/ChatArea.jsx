@@ -1,4 +1,5 @@
 import React from "react";
+import ConfirmDialog from "../../../shared/ui/dialogs/ConfirmDialog";
 import { OutgoingCallRequest } from "../../calls/components";
 import EditGroupDialog from "./EditGroupDialog";
 import {
@@ -28,6 +29,8 @@ const ChatArea = ({
 }) => {
   const {
     closeEditGroupDialog,
+    closeMessageDeleteDialog,
+    confirmDeleteMessage,
     contextValue,
     currentChat,
     currentChatName,
@@ -50,6 +53,7 @@ const ChatArea = ({
     startPrivateVideoCall,
     typingText,
     otherMember,
+    pendingDeleteMessage,
   } = useChatAreaController({
     selectedChatId,
     selectedNav,
@@ -121,6 +125,16 @@ const ChatArea = ({
           currentChat={currentChat}
           currentUser={currentUser}
           onConfirm={handleDeleteChat}
+        />
+
+        <ConfirmDialog
+          isOpen={Boolean(pendingDeleteMessage)}
+          onClose={closeMessageDeleteDialog}
+          title="Xabarni o'chirish"
+          description="Siz haqiqatan ham ushbu xabarni o'chirmoqchimisiz?"
+          confirmText="O'chirish"
+          onConfirm={confirmDeleteMessage}
+          isDanger
         />
       </OuterChatWrapper>
     </ChatAreaProvider>
