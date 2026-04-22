@@ -84,7 +84,7 @@ const WHITEBOARD_RECORDING_WEBM_VIDEO_ONLY_MIME_TYPES = [
   "video/webm;codecs=h264",
   "video/webm",
 ];
-const RECORDING_AUTOSAVE_SEGMENT_MS = 1000;
+const RECORDING_AUTOSAVE_SEGMENT_MS = 5000;
 
 const resolvePeerMediaState = (peerState) => {
   const actualHasVideo = peerState?.actualHasVideo === true;
@@ -397,9 +397,14 @@ const renderWhiteboardSurfaceToCanvas = (surface, targetCanvas, heartbeatValue =
     return false;
   }
 
-  const pixelRatio = Math.min(2, window.devicePixelRatio || 1);
-  const targetWidth = Math.round(width * pixelRatio);
-  const targetHeight = Math.round(height * pixelRatio);
+  // Recording uses 1x pixel ratio — 2x doubles file size with no perceptible quality gain
+  const MAX_RECORD_WIDTH = 1280;
+  const MAX_RECORD_HEIGHT = 720;
+  const scaleX = width > MAX_RECORD_WIDTH ? MAX_RECORD_WIDTH / width : 1;
+  const scaleY = height > MAX_RECORD_HEIGHT ? MAX_RECORD_HEIGHT / height : 1;
+  const recordScale = Math.min(scaleX, scaleY, 1);
+  const targetWidth = Math.max(1, Math.round(width * recordScale));
+  const targetHeight = Math.max(1, Math.round(height * recordScale));
   if (targetCanvas.width !== targetWidth || targetCanvas.height !== targetHeight) {
     targetCanvas.width = targetWidth;
     targetCanvas.height = targetHeight;
@@ -410,7 +415,7 @@ const renderWhiteboardSurfaceToCanvas = (surface, targetCanvas, heartbeatValue =
     return false;
   }
 
-  ctx.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+  ctx.setTransform(recordScale, 0, 0, recordScale, 0, 0);
   ctx.clearRect(0, 0, width, height);
 
   if (surface.dataset.recordSurfaceType === "board") {
@@ -453,33 +458,37 @@ const renderWhiteboardSurfaceToCanvas = (surface, targetCanvas, heartbeatValue =
 // ─── Layout ───────────────────────────────────────────────────────────────────
 
 const Overlay = styled.div`
-  --call-bg: var(--background-color);
-  --call-surface: var(--secondary-color);
-  --call-panel: var(--input-color);
-  --call-border: color-mix(in srgb, var(--border-color) 80%, transparent);
-  --call-text: var(--text-color);
-  --call-muted: var(--text-muted-color);
-  --call-success: var(--success-color);
-  --call-warning: var(--warning-color);
-  --call-danger: var(--danger-color);
-  --call-primary: var(--primary-color);
-  --call-control: color-mix(in srgb, var(--secondary-color) 94%, transparent);
-  --call-control-hover: var(--hover-color);
-  --call-control-border: var(--border-color);
-  --call-shadow: color-mix(in srgb, var(--text-color) 14%, transparent);
+  /* ── Google Meet exact colors ── */
+  --call-bg: #202124;
+  --call-surface: #3c4043;
+  --call-panel: #3c4043;
+  --call-border: rgba(255, 255, 255, 0.1);
+  --call-text: #e8eaed;
+  --call-muted: #9aa0a6;
+  --call-success: #34a853;
+  --call-warning: #fbbc04;
+  --call-danger: #ea4335;
+  --call-primary: #1a73e8;
+  --call-control: #3c4043;
+  --call-control-hover: rgba(255, 255, 255, 0.1);
+  --call-control-border: rgba(255, 255, 255, 0.12);
+  --call-shadow: rgba(0, 0, 0, 0.4);
+  --call-tile-radius: 8px;
+  --call-bar-radius: 999px;
+  --call-speaker-ring: #1a73e8;
   position: fixed;
   inset: ${(p) => (p.$minimized ? "auto 20px 20px auto" : "0")};
   width: ${(p) => (p.$minimized ? "320px" : "auto")};
   height: ${(p) => (p.$minimized ? "180px" : "auto")};
   z-index: 10000;
-  background: var(--call-bg);
+  background: #202124;
   display: flex;
   flex-direction: column;
   animation: ${slideIn} 0.3s ease-out;
-  border-radius: ${(p) => (p.$minimized ? "18px" : "0")};
-  border: ${(p) => (p.$minimized ? "1px solid var(--call-border)" : "none")};
+  border-radius: ${(p) => (p.$minimized ? "16px" : "0")};
+  border: ${(p) => (p.$minimized ? "1px solid rgba(255,255,255,0.12)" : "none")};
   box-shadow: ${(p) =>
-    p.$minimized ? "0 20px 50px rgba(0,0,0,0.45)" : "none"};
+    p.$minimized ? "0 8px 40px rgba(0,0,0,0.6)" : "none"};
   overflow: hidden;
 
   @media (max-width: 768px) {
@@ -506,21 +515,20 @@ const FloatingActionBar = styled.div`
 const FloatingActionBtn = styled.button`
   width: 40px;
   height: 40px;
-  border-radius: 12px;
-  border: 1px solid var(--call-border);
-  background: color-mix(in srgb, var(--call-surface) 74%, transparent);
-  backdrop-filter: blur(10px);
-  color: var(--call-text);
+  border-radius: 50%;
+  border: none;
+  background: #3c4043;
+  color: #e8eaed;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   pointer-events: auto;
-  transition: background 0.16s ease, transform 0.16s ease;
+  transition: background 0.2s ease, transform 0.2s ease;
 
   &:hover {
-    background: color-mix(in srgb, var(--call-panel) 92%, transparent);
-    transform: translateY(-1px);
+    background: #5f6368;
+    transform: scale(1.06);
   }
 `;
 
@@ -760,25 +768,28 @@ const ScreenClickOverlay = styled.div`
 `;
 
 const PiPFrame = styled.div`
-  --call-bg: var(--background-color);
-  --call-surface: var(--secondary-color);
-  --call-panel: var(--input-color);
-  --call-border: color-mix(in srgb, var(--border-color) 80%, transparent);
-  --call-text: var(--text-color);
-  --call-muted: var(--text-muted-color);
-  --call-success: var(--success-color);
-  --call-warning: var(--warning-color);
-  --call-danger: var(--danger-color);
-  --call-primary: var(--primary-color);
-  --call-control: color-mix(in srgb, var(--secondary-color) 94%, transparent);
-  --call-control-hover: var(--hover-color);
-  --call-control-border: var(--border-color);
-  --call-shadow: color-mix(in srgb, var(--text-color) 14%, transparent);
+  --call-bg: #202124;
+  --call-surface: #3c4043;
+  --call-panel: #3c4043;
+  --call-border: rgba(255, 255, 255, 0.1);
+  --call-text: #e8eaed;
+  --call-muted: #9aa0a6;
+  --call-success: #34a853;
+  --call-warning: #fbbc04;
+  --call-danger: #ea4335;
+  --call-primary: #1a73e8;
+  --call-control: #3c4043;
+  --call-control-hover: rgba(255, 255, 255, 0.1);
+  --call-control-border: rgba(255, 255, 255, 0.12);
+  --call-shadow: rgba(0, 0, 0, 0.4);
+  --call-tile-radius: 8px;
+  --call-bar-radius: 999px;
+  --call-speaker-ring: #1a73e8;
   width: 100%;
   height: 100%;
   min-width: 300px;
   min-height: 300px;
-  background: var(--call-bg);
+  background: #202124;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -787,8 +798,8 @@ const PiPFrame = styled.div`
 const MinimizedBody = styled.button`
   flex: 1;
   border: none;
-  background: var(--call-surface);
-  color: var(--call-text);
+  background: #202124;
+  color: #e8eaed;
   padding: 0;
   display: flex;
   flex-direction: column;
@@ -800,12 +811,13 @@ const MinimizedBody = styled.button`
 `;
 
 const MiniTitle = styled.div`
-  font-size: 16px;
-  font-weight: 700;
+  font-size: 15px;
+  font-weight: 500;
+  color: #e8eaed;
 `;
 
 const MiniMeta = styled.div`
-  color: var(--call-muted);
+  color: #9aa0a6;
   font-size: 12px;
   line-height: 1.5;
 `;
@@ -819,7 +831,7 @@ const MiniActions = styled.div`
 const MiniPreview = styled.div`
   position: absolute;
   inset: 0;
-  background: color-mix(in srgb, var(--call-panel) 88%, black 12%);
+  background: #202124;
 `;
 
 const MiniPreviewVideo = styled.video`
@@ -837,7 +849,7 @@ const MiniPreviewFallback = styled.div`
   align-items: center;
   justify-content: center;
   color: white;
-  background: ${(props) => props.$bg || "#315f14"};
+  background: ${(props) => props.$bg || "#202124"};
 `;
 
 const MiniPreviewAvatar = styled.div`
@@ -895,7 +907,7 @@ const PiPStageInner = styled.div`
   min-height: 0;
   border-radius: 24px;
   overflow: hidden;
-  background: #234f10;
+  background: #202124;
 `;
 
 const PiPMobileGrid = styled.div`
@@ -917,7 +929,7 @@ const PiPMobileCard = styled.div`
   min-height: 0;
   border-radius: 24px;
   overflow: hidden;
-  background: ${(props) => props.$bg || "#234f10"};
+  background: ${(props) => props.$bg || "#202124"};
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
 `;
 
@@ -935,7 +947,7 @@ const PiPMobileFallback = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
-  background: ${(props) => props.$bg || "#234f10"};
+  background: ${(props) => props.$bg || "#202124"};
   color: white;
 `;
 
@@ -969,14 +981,14 @@ const PiPMobileMuteBadge = styled.div`
   top: 14px;
   right: 14px;
   z-index: 2;
-  width: 40px;
-  height: 40px;
+  width: 36px;
+  height: 36px;
   border-radius: 999px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: rgba(30, 58, 10, 0.72);
-  color: #d7f5b0;
+  background: rgba(234, 67, 53, 0.85);
+  color: #fff;
 `;
 
 const PiPMobileAloneCard = styled.div`
@@ -999,9 +1011,9 @@ const PiPBottomControls = styled.div`
   gap: 8px;
   padding: 10px 12px;
   border-radius: 20px;
-  background: var(--call-control);
-  border: 1px solid var(--call-control-border);
-  box-shadow: 0 16px 36px var(--call-shadow);
+  background: #3c4043;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
   margin: 12px 18px 18px;
   width: calc(100% - 36px);
   justify-content: center;
@@ -1012,17 +1024,17 @@ const PiPControlBtn = styled.button`
   width: 42px;
   height: 42px;
   border-radius: 14px;
-  border: 1px solid var(--call-control-border);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   background: ${(props) =>
     props.$danger
-      ? "var(--call-danger)"
+      ? "#ea4335"
       : props.$off
-        ? "rgba(247, 200, 204, 0.96)"
-        : "var(--call-panel)"};
-  color: ${(props) => (props.$danger ? "white" : props.$off ? "#7b241f" : "var(--call-text)")};
+        ? "rgba(234, 67, 53, 0.18)"
+        : "#3c4043"};
+  color: ${(props) => (props.$danger ? "#fff" : props.$off ? "#ea4335" : "#e8eaed")};
   cursor: pointer;
 `;
 
@@ -2153,7 +2165,7 @@ const FullscreenBtn = styled.button`
   }
 `;
 
-const VideoEl = ({
+const VideoEl = React.memo(({
   stream,
   muted = false,
   isLocal = false,
@@ -2331,7 +2343,7 @@ const VideoEl = ({
       </TileLabel>
     </VideoTile>
   );
-};
+});
 
 const HiddenAudioEl = ({ stream, livekitTrack = null }) => {
   const ref = useRef(null);
@@ -2866,13 +2878,24 @@ const GroupVideoCall = ({
 
   const createSafeRecorder = useCallback((stream, options = {}) => {
     const preferredMimeType = String(options?.preferredMimeType || "").trim();
+    const isWhiteboardRecording = options?.kind === "whiteboard";
+    // Whiteboard: low bitrate (static content, 8fps, 720p max) — 300kbps video is plenty
+    // Meet: moderate bitrate for screen/webcam video
+    const videoBitsPerSecond = isWhiteboardRecording ? 300_000 : 1_200_000;
+    const audioBitsPerSecond = 48_000;
     let recorder = null;
     let selectedMimeType = "";
+
+    const recorderOptions = (mimeType) => ({
+      ...(mimeType ? { mimeType } : {}),
+      videoBitsPerSecond,
+      audioBitsPerSecond,
+    });
 
     try {
       if (preferredMimeType && MediaRecorder.isTypeSupported(preferredMimeType)) {
         selectedMimeType = preferredMimeType;
-        recorder = new MediaRecorder(stream, { mimeType: selectedMimeType });
+        recorder = new MediaRecorder(stream, recorderOptions(selectedMimeType));
       }
     } catch (preferredMimeError) {
       console.error("Failed to create recorder with preferred mime type:", preferredMimeError);
@@ -2882,13 +2905,13 @@ const GroupVideoCall = ({
 
     if (!recorder) {
       try {
-        recorder = new MediaRecorder(stream);
+        recorder = new MediaRecorder(stream, recorderOptions(""));
       } catch (defaultError) {
         selectedMimeType = resolveSupportedRecorderMimeType(stream);
         if (!selectedMimeType) {
           throw defaultError;
         }
-        recorder = new MediaRecorder(stream, { mimeType: selectedMimeType });
+        recorder = new MediaRecorder(stream, recorderOptions(selectedMimeType));
       }
     }
 
@@ -3301,10 +3324,22 @@ const GroupVideoCall = ({
     whiteboardRecordCanvasRef.current = null;
   }, []);
 
-  const renderWhiteboardRecordingFrame = useCallback(() => {
+  const whiteboardRecordLastFrameTimeRef = useRef(0);
+  const WHITEBOARD_RECORD_TARGET_FPS = 8;
+  const WHITEBOARD_RECORD_FRAME_INTERVAL = 1000 / WHITEBOARD_RECORD_TARGET_FPS;
+
+  const renderWhiteboardRecordingFrame = useCallback((timestamp) => {
     if (!whiteboardRecordCanvasRef.current) {
       return;
     }
+
+    // Throttle to target FPS to reduce CPU and file size
+    const elapsed = timestamp - whiteboardRecordLastFrameTimeRef.current;
+    if (elapsed < WHITEBOARD_RECORD_FRAME_INTERVAL) {
+      whiteboardRenderFrameRef.current = window.requestAnimationFrame(renderWhiteboardRecordingFrame);
+      return;
+    }
+    whiteboardRecordLastFrameTimeRef.current = timestamp;
 
     const surface = whiteboardSurfaceRef.current;
     if (surface) {
@@ -3431,7 +3466,7 @@ const GroupVideoCall = ({
       document.body.appendChild(recordCanvasHost);
       whiteboardRecordCanvasHostRef.current = recordCanvasHost;
 
-      const videoStream = recordCanvas.captureStream(30);
+      const videoStream = recordCanvas.captureStream(8);
       whiteboardRecordVideoTrackRef.current = videoStream.getVideoTracks?.()?.[0] || null;
       if (whiteboardRecordVideoTrackRef.current) {
         whiteboardRecordVideoTrackRef.current.contentHint = "detail";
@@ -3491,6 +3526,7 @@ const GroupVideoCall = ({
       const preferredMimeType = resolveSupportedRecorderMimeType(combinedStream);
       const { recorder, mimeType, fileExtension } = createSafeRecorder(combinedStream, {
         preferredMimeType,
+        kind: "whiteboard",
       });
       whiteboardRecordingSessionRef.current = await createServerRecordingTransport(
         "whiteboard",
@@ -4110,6 +4146,7 @@ const GroupVideoCall = ({
   }, [
     displayName,
     isCamOn,
+    isMicOn,
     localStream,
     livekitLocalMedia,
     raisedHands,

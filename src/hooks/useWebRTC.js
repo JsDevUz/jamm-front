@@ -406,7 +406,7 @@ const WHITEBOARD_DEFAULT_COLOR = "#0f172a";
 const WHITEBOARD_DEFAULT_SIZE = 4;
 const WHITEBOARD_MAX_STROKES = 320;
 const WHITEBOARD_MAX_POINTS_PER_STROKE = 1200;
-const WHITEBOARD_APPEND_BATCH_LIMIT = 24;
+const WHITEBOARD_APPEND_BATCH_LIMIT = 32;
 const WHITEBOARD_MAX_TEXT_CHARS = 240;
 const WHITEBOARD_BOARD_TAB_ID = "board";
 const WHITEBOARD_TAB_ID_PATTERN = /^[a-zA-Z0-9_-]{1,80}$/;
@@ -1559,24 +1559,25 @@ const resolveCallQualityProfile = ({
     navigatorState.effectiveType === "2g" ||
     (navigatorState.downlink > 0 && navigatorState.downlink < 1);
 
+  const isWeakNetwork =
+    isVeryWeakNetwork ||
+    networkQuality === "limited" ||
+    navigatorState.effectiveType === "3g" ||
+    (navigatorState.downlink > 0 && navigatorState.downlink < 3);
+
   if (isScreenSharing) {
-    if (isVeryWeakNetwork || peerCount >= 8) {
-      return CALL_QUALITY_PROFILES.screenPoor;
-    }
-    if (
-      networkQuality === "limited" ||
-      navigatorState.effectiveType === "3g" ||
-      peerCount >= 5
-    ) {
-      return CALL_QUALITY_PROFILES.screenLimited;
-    }
+    // 10+ people or very weak network: minimum quality
+    if (isVeryWeakNetwork || peerCount >= 10) return CALL_QUALITY_PROFILES.screenPoor;
+    // 5-9 people or weak network: limited quality
+    if (isWeakNetwork || peerCount >= 5) return CALL_QUALITY_PROFILES.screenLimited;
     return CALL_QUALITY_PROFILES.screen;
   }
 
   if (isVeryWeakNetwork) return CALL_QUALITY_PROFILES.poor;
-  if (peerCount >= 6 || networkQuality === "limited") {
-    return CALL_QUALITY_PROFILES.crowded;
-  }
+  // 20+ people: very poor (audio priority)
+  if (peerCount >= 20) return CALL_QUALITY_PROFILES.poor;
+  // 6-19 people or weak network: crowded mode
+  if (peerCount >= 6 || isWeakNetwork) return CALL_QUALITY_PROFILES.crowded;
   return CALL_QUALITY_PROFILES.balanced;
 };
 
@@ -1665,6 +1666,7 @@ export function useWebRTC({
   const screenShareAbortControllerRef = useRef(null);
   // Guard against onended + interval both calling toggleScreenShare concurrently
   const screenShareStoppingRef = useRef(false);
+  const isScreenSharingRef = useRef(false);
   const remoteStreamsRef = useRef([]);
   const compositeRemoteStreamsRef = useRef({});
   const knownStreamsRef = useRef({});
@@ -1687,6 +1689,9 @@ export function useWebRTC({
   const cameraFacingModeRef = useRef("user");
   const whiteboardStateRef = useRef(createInitialWhiteboardState());
   const whiteboardCursorRef = useRef(null);
+  // Batch incoming stroke-append updates into one RAF to avoid flooding React with setState
+  const pendingStrokeAppendsRef = useRef([]);
+  const strokeAppendRafRef = useRef(0);
   const storedPdfLibraryRef = useRef([]);
   const lastWhiteboardUpdatedAtRef = useRef(
     Number(createInitialWhiteboardState()?.updatedAt) || 0,
@@ -1754,6 +1759,7 @@ export function useWebRTC({
     const nextStream = nextTracks.length > 0 ? new MediaStream(nextTracks) : null;
     screenStreamRef.current = nextStream;
     setScreenStream(nextStream);
+    isScreenSharingRef.current = nextTracks.length > 0;
     setIsScreenSharing(nextTracks.length > 0);
     return nextStream;
   }, []);
@@ -2673,11 +2679,21 @@ export function useWebRTC({
             syncRemote();
           })
           .on(RoomEvent.TrackSubscriptionFailed, (trackSid, participant, error) => {
-            logRtcWarn("LiveKit track subscription failed", {
+            logRtcWarn("LiveKit track subscription failed — retrying", {
               trackSid: String(trackSid || ""),
               participant: participant?.identity || participant?.name || "unknown",
               error: error instanceof Error ? error.message : String(error || ""),
             });
+            // Retry subscription after a short delay
+            setTimeout(() => {
+              if (participant?.trackPublications) {
+                participant.trackPublications.forEach((pub) => {
+                  if (pub.trackSid === trackSid && typeof pub.setSubscribed === "function") {
+                    pub.setSubscribed(true);
+                  }
+                });
+              }
+            }, 2000);
             syncRemote();
           })
           .on(RoomEvent.TrackStreamStateChanged, (publication, streamState, participant) => {
@@ -2734,6 +2750,27 @@ export function useWebRTC({
             syncRemote();
             attachLivekitIceCandidateErrorLogging(room);
             logLivekitTransportDiagnostics(room, "reconnected");
+            // Ensure all remote participants are subscribed after reconnect
+            room.remoteParticipants.forEach((p) => ensureLivekitParticipantSubscriptions(p));
+            // If we were screen sharing before disconnect, re-publish
+            if (isScreenSharingRef.current && screenStreamRef.current) {
+              const screenTracks = screenStreamRef.current.getVideoTracks();
+              if (screenTracks.length > 0 && screenTracks[0].readyState === "live") {
+                room.localParticipant
+                  .setScreenShareEnabled(
+                    true,
+                    buildLivekitScreenShareOptions(qualityProfileRef.current),
+                    buildLivekitScreenSharePublishOptions(qualityProfileRef.current),
+                  )
+                  .catch((err) => logRtcWarn("Screen share restore on reconnect failed", { err: err?.message }));
+              } else {
+                // Track is dead — clean up screen share state
+                isScreenSharingRef.current = false;
+                setIsScreenSharing(false);
+                setScreenStream(null);
+                screenStreamRef.current = null;
+              }
+            }
           })
           .on(RoomEvent.Disconnected, (reason) => {
             logRtcWarn("LiveKit disconnected", {
@@ -4227,9 +4264,10 @@ export function useWebRTC({
           `${SIGNAL_URL}/video`,
           buildSocketOptions({
             reconnection: true,
-            reconnectionAttempts: 5,
-            reconnectionDelay: 2000,
-            reconnectionDelayMax: 10000,
+            reconnectionAttempts: Infinity,
+            reconnectionDelay: 1000,
+            reconnectionDelayMax: 8000,
+            randomizationFactor: 0.4,
           }),
         );
         socketRef.current = socket;
@@ -4244,7 +4282,13 @@ export function useWebRTC({
           mainHandlers.push([event, handler]);
         };
         const detachMain = () => {
-          mainHandlers.forEach(([event, handler]) => socket.off(event, handler));
+          mainHandlers.forEach(([event, handler]) => {
+            if (event === "__online__") {
+              window.removeEventListener("online", handler);
+            } else {
+              socket.off(event, handler);
+            }
+          });
           mainHandlers.length = 0;
         };
         socketDetachRef.current = () => {
@@ -4256,7 +4300,35 @@ export function useWebRTC({
         reg("reconnect", () => {
           detachSignaling?.();
           attachSignalingListeners(socket);
+          // Re-emit join/create so server knows we're back
+          if (isCreator) {
+            socket.emit("create-room", { roomId, displayName, isPrivate, title: chatTitle });
+          } else {
+            socket.emit("join-room", { roomId, displayName });
+          }
+          // Sync LiveKit if it dropped during disconnect
+          const room = livekitRoomRef.current;
+          if (room && shouldUseLiveKit) {
+            syncLivekitLocalState(room);
+            syncLivekitRemoteParticipants(room);
+          }
         });
+
+        // Network online: trigger socket reconnect when internet restored
+        const handleOnline = () => {
+          logRtcInfo("Tarmoq qayta ulandi, socket ulanishi tekshirilmoqda");
+          if (socketRef.current && !socketRef.current.connected) {
+            socketRef.current.connect();
+          }
+          // LiveKit has its own reconnect; nudge it too
+          const room = livekitRoomRef.current;
+          if (room && shouldUseLiveKit) {
+            syncLivekitLocalState(room);
+            syncLivekitRemoteParticipants(room);
+          }
+        };
+        window.addEventListener("online", handleOnline);
+        mainHandlers.push(["__online__", handleOnline]); // cleaned up in detachMain
 
         // 4. Creator: knock-request listener
         if (isCreator) {
@@ -4437,14 +4509,27 @@ export function useWebRTC({
             return;
           }
 
-          commitWhiteboardState((prev) =>
-            appendWhiteboardStrokePointsInState(prev, {
-              tabId: payload?.tabId,
-              pageNumber: payload?.pageNumber,
-              strokeId: payload.strokeId,
-              points: normalizedPoints,
-            }),
-          );
+          // Batch all appends within the same animation frame into a single setState
+          pendingStrokeAppendsRef.current.push({
+            tabId: payload?.tabId,
+            pageNumber: payload?.pageNumber,
+            strokeId: payload.strokeId,
+            points: normalizedPoints,
+          });
+
+          if (!strokeAppendRafRef.current) {
+            strokeAppendRafRef.current = window.requestAnimationFrame(() => {
+              strokeAppendRafRef.current = 0;
+              const batch = pendingStrokeAppendsRef.current.splice(0);
+              if (batch.length === 0) return;
+              commitWhiteboardState((prev) =>
+                batch.reduce(
+                  (state, append) => appendWhiteboardStrokePointsInState(state, append),
+                  prev,
+                ),
+              );
+            });
+          }
         });
 
         reg("whiteboard-stroke-removed", (payload) => {
@@ -4610,9 +4695,11 @@ export function useWebRTC({
         });
 
         reg("connect_error", (err) => {
+          // Don't reset joinStatus on transient errors — socket.io will retry automatically
           if (isMounted) {
-            setError("Serverga ulanib bo'lmadi: " + err.message);
-            setJoinStatus("idle");
+            logRtcWarn("Signal server ulanish xatosi (qayta urinilmoqda)", {
+              message: err?.message || String(err),
+            });
           }
         });
 
@@ -4719,6 +4806,11 @@ export function useWebRTC({
 
     return () => {
       isMounted = false;
+      if (strokeAppendRafRef.current) {
+        window.cancelAnimationFrame(strokeAppendRafRef.current);
+        strokeAppendRafRef.current = 0;
+        pendingStrokeAppendsRef.current = [];
+      }
       Object.values(peerConnectionsRef.current).forEach((pc) => pc.close());
       peerConnectionsRef.current = {};
       Object.values(screenPeerConnectionsRef.current).forEach((pc) => pc.close());
@@ -4738,6 +4830,7 @@ export function useWebRTC({
         screenStreamRef.current.getTracks().forEach((t) => { t.onended = null; t.stop(); });
         screenStreamRef.current = null;
         setScreenStream(null);
+        isScreenSharingRef.current = false;
         setIsScreenSharing(false);
         screenShareStoppingRef.current = false;
       }
@@ -5057,6 +5150,7 @@ export function useWebRTC({
     } finally {
       setLocalStream(null);
       setScreenStream(null);
+      isScreenSharingRef.current = false;
       setIsScreenSharing(false);
       setRemoteStreams([]);
       setRemoteScreenStreams([]);
@@ -5147,6 +5241,7 @@ export function useWebRTC({
       });
       screenStreamRef.current = null;
       setScreenStream(null);
+      isScreenSharingRef.current = false;
       setIsScreenSharing(false);
       // Close all screen peer connections
       Object.values(screenPeerConnectionsRef.current).forEach((pc) => {
@@ -5194,6 +5289,7 @@ export function useWebRTC({
       });
       screenStreamRef.current = screen;
       setScreenStream(screen);
+      isScreenSharingRef.current = true;
       setIsScreenSharing(true);
       qualityProfileRef.current = nextScreenProfile;
       setQualityProfile(nextScreenProfile);
@@ -5215,8 +5311,8 @@ export function useWebRTC({
           track.onended = () => {
             endedCount++;
             if (originalOnEnded) originalOnEnded();
-            // When all tracks end, cleanup screen share
-            if (endedCount >= totalTracks && isScreenSharing) {
+            // Use ref to avoid stale closure — state may not have updated yet
+            if (endedCount >= totalTracks && isScreenSharingRef.current) {
               triggerStop();
             }
           };
@@ -5225,13 +5321,14 @@ export function useWebRTC({
         // Also monitor via stream events for browser-native stop
         const checkTrackState = () => {
           const liveTracks = screen.getTracks().filter((t) => t.readyState === 'live');
-          if (liveTracks.length === 0 && isScreenSharing) {
+          // Use ref to avoid stale closure
+          if (liveTracks.length === 0 && isScreenSharingRef.current) {
             triggerStop();
           }
         };
 
-        // Check every 500ms for track state changes
-        const intervalId = setInterval(checkTrackState, 500);
+        // Check every 2 seconds — 500ms is too aggressive, wastes CPU
+        const intervalId = setInterval(checkTrackState, 2000);
         screenShareAbortControllerRef.current = {
           abort: () => {
             clearInterval(intervalId);

@@ -43,7 +43,7 @@ import {
 } from "../../../shared/ui/dialogs/ModalShell";
 import Spinner from "../../../shared/ui/feedback/Spinner";
 
-const WHITEBOARD_APPEND_BATCH_LIMIT = 24;
+const WHITEBOARD_APPEND_BATCH_LIMIT = 32;
 const WHITEBOARD_SWATCHES = [
   "#0f172a",
   "#dc2626",
@@ -960,13 +960,22 @@ const drawStroke = (ctx, stroke, width, height, zoomScale = 1, surfaceMode = "pa
   ctx.restore();
 };
 
+// Minimum squared distance between stored points (normalized 0-1 space)
+// 0.0003 ≈ 0.03% of canvas — filters jitter without visible quality loss
+const POINT_SIMPLIFY_SQ_DIST = 0.0003 * 0.0003;
+
 const appendDistinctPoint = (points, point) => {
-  if (!point) {
-    return false;
-  }
+  if (!point) return false;
 
   const lastPoint = points[points.length - 1];
-  if (lastPoint && lastPoint.x === point.x && lastPoint.y === point.y) {
+  if (!lastPoint) {
+    points.push(point);
+    return true;
+  }
+
+  const dx = point.x - lastPoint.x;
+  const dy = point.y - lastPoint.y;
+  if (dx * dx + dy * dy < POINT_SIMPLIFY_SQ_DIST) {
     return false;
   }
 
@@ -3244,39 +3253,72 @@ const StrokeCanvas = ({
     return fallbackMeasureCanvasRef.current?.getContext("2d") || null;
   }, []);
 
-  const redrawCanvas = useCallback(() => {
+  // Keep refs to avoid stale closure in RAF — avoids triggering new RAF on every state change
+  const redrawRafRef = useRef(0);
+  const redrawPendingRef = useRef(false);
+  const strokesRef = useRef(strokes);
+  const shapePreviewStrokeRef = useRef(shapePreviewStroke);
+  const zoomScaleRef = useRef(zoomScale);
+  const surfaceModeRef = useRef(surfaceMode);
+  const textEditorStrokeIdRef = useRef(textEditor?.strokeId || "");
+
+  strokesRef.current = strokes;
+  shapePreviewStrokeRef.current = shapePreviewStroke;
+  zoomScaleRef.current = zoomScale;
+  surfaceModeRef.current = surfaceMode;
+  textEditorStrokeIdRef.current = textEditor?.strokeId || "";
+
+  const performRedraw = useCallback(() => {
+    redrawPendingRef.current = false;
+    redrawRafRef.current = 0;
+
     const canvas = canvasRef.current;
     const { width, height } = canvasSizeRef.current;
-    if (!canvas || width <= 0 || height <= 0) {
-      return;
-    }
+    if (!canvas || width <= 0 || height <= 0) return;
 
     const ctx = canvas.getContext("2d");
-    if (!ctx) {
-      return;
-    }
+    if (!ctx) return;
+
+    const currentStrokes = strokesRef.current;
+    const currentShapePreview = shapePreviewStrokeRef.current;
+    const currentZoom = zoomScaleRef.current;
+    const currentSurfaceMode = surfaceModeRef.current;
+    const editingStrokeId = textEditorStrokeIdRef.current;
+    const previewShapeStrokeId = currentShapePreview?.id || "";
+    const draftStrokeId = draftStrokeRef.current?.id || "";
 
     ctx.clearRect(0, 0, width, height);
-    const editingStrokeId = textEditor?.strokeId || "";
-    const previewShapeStrokeId = shapePreviewStroke?.id || "";
-    const draftStrokeId = draftStrokeRef.current?.id || "";
-    (Array.isArray(strokes) ? strokes : []).forEach((stroke) => {
+    (Array.isArray(currentStrokes) ? currentStrokes : []).forEach((stroke) => {
       if (
         (editingStrokeId && stroke?.id === editingStrokeId) ||
         (previewShapeStrokeId && stroke?.id === previewShapeStrokeId) ||
         (draftStrokeId && stroke?.id === draftStrokeId)
-      ) {
-        return;
-      }
-      drawStroke(ctx, stroke, width, height, zoomScale, surfaceMode);
+      ) return;
+      drawStroke(ctx, stroke, width, height, currentZoom, currentSurfaceMode);
     });
-    if (shapePreviewStroke) {
-      drawStroke(ctx, shapePreviewStroke, width, height, zoomScale, surfaceMode);
+    if (currentShapePreview) {
+      drawStroke(ctx, currentShapePreview, width, height, currentZoom, currentSurfaceMode);
     }
     if (draftStrokeRef.current) {
-      drawStroke(ctx, draftStrokeRef.current, width, height, zoomScale, surfaceMode);
+      drawStroke(ctx, draftStrokeRef.current, width, height, currentZoom, currentSurfaceMode);
     }
-  }, [shapePreviewStroke, strokes, surfaceMode, textEditor?.strokeId, zoomScale]);
+  }, []);
+
+  const redrawCanvas = useCallback(() => {
+    // Skip if RAF already scheduled — batches multiple sync calls into one frame
+    if (redrawRafRef.current) return;
+    redrawPendingRef.current = true;
+    redrawRafRef.current = window.requestAnimationFrame(performRedraw);
+  }, [performRedraw]);
+
+  // Immediate redraw (no RAF) used for resize only
+  const redrawCanvasImmediate = useCallback(() => {
+    if (redrawRafRef.current) {
+      window.cancelAnimationFrame(redrawRafRef.current);
+      redrawRafRef.current = 0;
+    }
+    performRedraw();
+  }, [performRedraw]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -3311,7 +3353,7 @@ const StrokeCanvas = ({
       ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
       canvasSizeRef.current = { width, height };
       setSurfaceSize({ width, height });
-      redrawCanvas();
+      redrawCanvasImmediate();
     };
 
     resizeCanvas();
@@ -3322,12 +3364,17 @@ const StrokeCanvas = ({
 
     return () => {
       resizeObserver.disconnect();
+      if (redrawRafRef.current) {
+        window.cancelAnimationFrame(redrawRafRef.current);
+        redrawRafRef.current = 0;
+      }
     };
-  }, [redrawCanvas]);
+  }, [redrawCanvasImmediate]);
 
+  // Trigger redraw when strokes/zoom/mode change — RAF-batched so rapid updates don't pile up
   useEffect(() => {
     redrawCanvas();
-  }, [redrawCanvas]);
+  }, [redrawCanvas, strokes, zoomScale, surfaceMode, shapePreviewStroke]);
 
   useEffect(() => {
     redrawCanvas();
@@ -3444,7 +3491,7 @@ const StrokeCanvas = ({
     flushTimeoutRef.current = window.setTimeout(() => {
       flushTimeoutRef.current = null;
       flushPendingPoints();
-    }, 24);
+    }, 40);
   }, [flushPendingPoints]);
 
   useEffect(
@@ -4903,6 +4950,8 @@ const WhiteboardTile = ({
   });
   const cursorBroadcastRafRef = useRef(0);
   const cursorBroadcastPointRef = useRef(null);
+  const cursorBroadcastLastTimeRef = useRef(0);
+  const CURSOR_BROADCAST_INTERVAL_MS = 80; // ~12.5 updates/s — smooth enough, not spammy
 
   const tabs = Array.isArray(workspace?.tabs) ? workspace.tabs : [];
   const pdfLibrary = Array.isArray(workspace?.pdfLibrary) ? workspace.pdfLibrary : [];
@@ -5245,7 +5294,7 @@ const WhiteboardTile = ({
   useEffect(() => {
     return () => {
       if (cursorBroadcastRafRef.current) {
-        window.cancelAnimationFrame(cursorBroadcastRafRef.current);
+        window.clearTimeout(cursorBroadcastRafRef.current);
         cursorBroadcastRafRef.current = 0;
       }
       if (pdfViewportSyncTimeoutRef.current) {
@@ -5581,18 +5630,28 @@ const WhiteboardTile = ({
         y: (event.clientY - rect.top) / rect.height,
       };
 
+      // Throttle to CURSOR_BROADCAST_INTERVAL_MS — RAF alone fires at 60fps which floods socket
       if (cursorBroadcastRafRef.current) {
         return;
       }
 
-      cursorBroadcastRafRef.current = window.requestAnimationFrame(() => {
-        cursorBroadcastRafRef.current = 0;
-        const nextPoint = cursorBroadcastPointRef.current;
-        if (!nextPoint) {
-          return;
-        }
-        emitCursorPosition(nextPoint.x, nextPoint.y);
-      });
+      const now = performance.now();
+      const elapsed = now - cursorBroadcastLastTimeRef.current;
+      if (elapsed < CURSOR_BROADCAST_INTERVAL_MS) {
+        // Schedule for when the interval expires
+        const remaining = CURSOR_BROADCAST_INTERVAL_MS - elapsed;
+        cursorBroadcastRafRef.current = window.setTimeout(() => {
+          cursorBroadcastRafRef.current = 0;
+          const nextPoint = cursorBroadcastPointRef.current;
+          if (!nextPoint) return;
+          cursorBroadcastLastTimeRef.current = performance.now();
+          emitCursorPosition(nextPoint.x, nextPoint.y);
+        }, remaining);
+        return;
+      }
+
+      cursorBroadcastLastTimeRef.current = now;
+      emitCursorPosition(cursorBroadcastPointRef.current.x, cursorBroadcastPointRef.current.y);
     },
     [emitCursorPosition, interactive, isActive],
   );
@@ -5600,7 +5659,7 @@ const WhiteboardTile = ({
   const handleWorkspacePointerLeave = useCallback(() => {
     cursorBroadcastPointRef.current = null;
     if (cursorBroadcastRafRef.current) {
-      window.cancelAnimationFrame(cursorBroadcastRafRef.current);
+      window.clearTimeout(cursorBroadcastRafRef.current);
       cursorBroadcastRafRef.current = 0;
     }
 
