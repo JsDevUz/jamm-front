@@ -581,6 +581,8 @@
       "cancel": "Cancel",
       "enrolled": "Enrolled",
       "ownerCourse": "Your course",
+      "leave": "Leave course",
+      "leftCourse": "You left the course",
       "buy": "Buy: {{price}} UZS",
       "enroll": "Enroll",
       "approve": "Approve",

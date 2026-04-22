@@ -61,6 +61,7 @@ import {
   LikeButton,
   LoadingOverlay,
   LessonDescriptionBody,
+  LessonDescriptionMarkdown,
   LessonDescriptionCard,
   LessonDescriptionHeader,
   LessonDescriptionTitle,
@@ -121,6 +122,7 @@ import {
   CourseInfoCard,
   CourseInfoTitle,
   CourseInfoDescription,
+  CourseInfoMarkdown,
   CourseInfoMeta,
   CourseInfoMetaItem,
   ShareRow,
@@ -751,6 +753,9 @@ const CoursePlayer = ({
   const [courseReviewRating, setCourseReviewRating] = useState(0);
   const [courseReviewText, setCourseReviewText] = useState("");
   const [courseReviewSaving, setCourseReviewSaving] = useState(false);
+  const [isCourseReviewEditing, setIsCourseReviewEditing] = useState(
+    () => !course?.selfReview,
+  );
   const clickActionTimerRef = useRef(null);
   const noteSaveTimerRef = useRef(null);
   const noteBaselineRef = useRef("");
@@ -1068,6 +1073,7 @@ const CoursePlayer = ({
   useEffect(() => {
     setCourseReviewRating(Number(course?.selfReview?.rating || 0));
     setCourseReviewText(String(course?.selfReview?.text || ""));
+    setIsCourseReviewEditing(!course?.selfReview);
   }, [course?.selfReview?.rating, course?.selfReview?.text]);
 
   const handleSaveCourseReview = useCallback(async () => {
@@ -1078,6 +1084,7 @@ const CoursePlayer = ({
         rating: courseReviewRating,
         text: courseReviewText,
       });
+      setIsCourseReviewEditing(false);
       toast.success(
         course?.selfReview
           ? "Rating va sharh yangilandi"
@@ -3382,9 +3389,9 @@ const CoursePlayer = ({
           </>
         ) : enrollStatus === "approved" && !isOwner && !admin ? (
           <RoundedEnrollButton $variant="leave" onClick={handleLeaveCourse}>
-            <X size={16} />
+            <ArrowLeft size={16} />
             {t("coursePlayer.actions.leave", {
-              defaultValue: "Kursni tark etish",
+              defaultValue: "Kursdan chiqish",
             })}
           </RoundedEnrollButton>
         ) : enrollStatus === "approved" || admin ? (
@@ -3848,7 +3855,7 @@ const CoursePlayer = ({
                     <CourseInfoCard>
                       <CourseInfoTitle>{course.name}</CourseInfoTitle>
                       {course.description ? (
-                        <CourseInfoDescription>{course.description}</CourseInfoDescription>
+                        <CourseInfoMarkdown content={course.description} />
                       ) : null}
                       <CourseInfoMeta>
                         <CourseInfoMetaItem>
@@ -3880,7 +3887,9 @@ const CoursePlayer = ({
                             ) : null}
                           </LessonDescriptionHeader>
                           <LessonDescriptionBody $expanded={descriptionExpanded}>
-                            {currentLessonData.description}
+                            <LessonDescriptionMarkdown
+                              content={currentLessonData.description}
+                            />
                           </LessonDescriptionBody>
                         </LessonDescriptionCard>
                       ) : null}
@@ -3891,46 +3900,86 @@ const CoursePlayer = ({
                         Umumiy rating: {Number(course.rating || 0).toFixed(1)} ·{" "}
                         {course.ratingCount || 0} ta sharh
                       </CourseInfoDescription>
-                      <RatingForm>
-                        <RatingStars aria-label="Kurs ratingi">
-                          {[1, 2, 3, 4, 5].map((value) => (
-                            <RatingStarButton
-                              key={value}
-                              type="button"
-                              $active={value <= courseReviewRating}
-                              onClick={() => setCourseReviewRating(value)}
-                              aria-label={`${value} yulduz`}
+                      {course?.selfReview && !isCourseReviewEditing ? (
+                        <RatingForm>
+                          <RatingStars aria-label="Mening kurs ratingim">
+                            {[1, 2, 3, 4, 5].map((value) => (
+                              <RatingStarButton
+                                key={value}
+                                type="button"
+                                $active={value <= Number(course.selfReview?.rating || 0)}
+                                disabled
+                                aria-label={`${value} yulduz`}
+                              >
+                                <Star
+                                  size={18}
+                                  fill={
+                                    value <= Number(course.selfReview?.rating || 0)
+                                      ? "currentColor"
+                                      : "none"
+                                  }
+                                />
+                              </RatingStarButton>
+                            ))}
+                          </RatingStars>
+                          {course.selfReview?.text ? (
+                            <NotesArea
+                              as="div"
+                              role="note"
+                              aria-label="Kurs sharhi"
                             >
-                              <Star
-                                size={18}
-                                fill={
-                                  value <= courseReviewRating
-                                    ? "currentColor"
-                                    : "none"
-                                }
-                              />
-                            </RatingStarButton>
-                          ))}
-                        </RatingStars>
-                        <NotesArea
-                          placeholder="Kurs haqida qisqa sharh qoldiring..."
-                          value={courseReviewText}
-                          onChange={(event) =>
-                            setCourseReviewText(event.target.value)
-                          }
-                        />
-                        <ReviewSaveButton
-                          type="button"
-                          disabled={!courseReviewRating || courseReviewSaving}
-                          onClick={handleSaveCourseReview}
-                        >
-                          {courseReviewSaving
-                            ? "Saqlanmoqda..."
-                            : course?.selfReview
-                              ? "Sharhni yangilash"
-                              : "Sharh qoldirish"}
-                        </ReviewSaveButton>
-                      </RatingForm>
+                              {course.selfReview.text}
+                            </NotesArea>
+                          ) : null}
+                          <ReviewSaveButton
+                            type="button"
+                            onClick={() => setIsCourseReviewEditing(true)}
+                          >
+                            Tahrirlash
+                          </ReviewSaveButton>
+                        </RatingForm>
+                      ) : (
+                        <RatingForm>
+                          <RatingStars aria-label="Kurs ratingi">
+                            {[1, 2, 3, 4, 5].map((value) => (
+                              <RatingStarButton
+                                key={value}
+                                type="button"
+                                $active={value <= courseReviewRating}
+                                onClick={() => setCourseReviewRating(value)}
+                                aria-label={`${value} yulduz`}
+                              >
+                                <Star
+                                  size={18}
+                                  fill={
+                                    value <= courseReviewRating
+                                      ? "currentColor"
+                                      : "none"
+                                  }
+                                />
+                              </RatingStarButton>
+                            ))}
+                          </RatingStars>
+                          <NotesArea
+                            placeholder="Kurs haqida qisqa sharh qoldiring..."
+                            value={courseReviewText}
+                            onChange={(event) =>
+                              setCourseReviewText(event.target.value)
+                            }
+                          />
+                          <ReviewSaveButton
+                            type="button"
+                            disabled={!courseReviewRating || courseReviewSaving}
+                            onClick={handleSaveCourseReview}
+                          >
+                            {courseReviewSaving
+                              ? "Saqlanmoqda..."
+                              : course?.selfReview
+                                ? "Sharhni yangilash"
+                                : "Sharh qoldirish"}
+                          </ReviewSaveButton>
+                        </RatingForm>
+                      )}
                     </CourseInfoCard>
                     <CourseInfoCard>
                       <CourseInfoTitle>{t("coursePlayer.tabs.notes")}</CourseInfoTitle>

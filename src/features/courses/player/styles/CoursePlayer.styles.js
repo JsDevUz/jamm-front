@@ -1,4 +1,5 @@
 import styled from "styled-components";
+import MarkdownRenderer from "../../../articles/components/MarkdownRenderer";
 import {
   mobileFullscreenPane,
 } from "../../../../shared/styles/mobileSafeArea";
@@ -863,14 +864,49 @@ export const LessonDescriptionTitle = styled.div`
 `;
 
 export const LessonDescriptionBody = styled.div`
+  overflow: hidden;
+  max-height: ${(props) => (props.$expanded ? "none" : "4.9em")};
+`;
+
+export const LessonDescriptionMarkdown = styled(MarkdownRenderer)`
   font-size: 13px;
   line-height: 1.62;
   color: var(--text-secondary-color);
-  white-space: pre-wrap;
-  display: -webkit-box;
-  -webkit-line-clamp: ${(props) => (props.$expanded ? "unset" : 3)};
-  -webkit-box-orient: vertical;
-  overflow: hidden;
+
+  h1,
+  h2,
+  h3 {
+    margin: 0 0 0.7em;
+    line-height: 1.4;
+  }
+
+  h1,
+  h2 {
+    font-size: 1.02em;
+  }
+
+  p,
+  ul,
+  ol,
+  blockquote,
+  pre {
+    margin: 0 0 0.9em;
+  }
+
+  ul,
+  ol {
+    padding-left: 1.1rem;
+  }
+
+  img {
+    margin: 0.9rem 0;
+    border-radius: 16px;
+    box-shadow: none;
+  }
+
+  > :last-child {
+    margin-bottom: 0;
+  }
 `;
 
 export const LessonDescriptionToggle = styled.button`
@@ -1038,10 +1074,15 @@ export const EnrollButton = styled.button`
         `;
       case "leave":
         return `
-          background: color-mix(in srgb, var(--danger-color) 12%, transparent);
-          color: var(--danger-color);
+          background: color-mix(in srgb, var(--danger-color) 7%, var(--input-color));
+          color: color-mix(in srgb, var(--danger-color) 62%, var(--text-color));
+          border: 1px solid color-mix(in srgb, var(--danger-color) 18%, var(--border-color));
           cursor: pointer;
-          &:hover { background: color-mix(in srgb, var(--danger-color) 18%, transparent); }
+          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+          &:hover {
+            background: color-mix(in srgb, var(--danger-color) 11%, var(--input-color));
+            color: color-mix(in srgb, var(--danger-color) 72%, var(--text-color));
+          }
         `;
       case "admin":
         return `
@@ -1294,6 +1335,58 @@ export const CourseInfoDescription = styled.p`
   line-height: 1.6;
   margin: 0;
   white-space: pre-wrap;
+`;
+
+export const CourseInfoMarkdown = styled(MarkdownRenderer)`
+  font-size: 14px;
+  color: var(--text-muted-color);
+  line-height: 1.6;
+
+  h1,
+  h2,
+  h3 {
+    margin: 0 0 0.75em;
+    line-height: 1.35;
+  }
+
+  h1 {
+    font-size: 1.08rem;
+  }
+
+  h2 {
+    font-size: 1rem;
+  }
+
+  h3 {
+    font-size: 0.94rem;
+  }
+
+  p,
+  ul,
+  ol,
+  blockquote,
+  pre {
+    margin: 0 0 0.95em;
+  }
+
+  ul,
+  ol {
+    padding-left: 1.1rem;
+  }
+
+  blockquote {
+    border-radius: 0 14px 14px 0;
+  }
+
+  img {
+    margin: 0.95rem 0;
+    border-radius: 16px;
+    box-shadow: none;
+  }
+
+  > :last-child {
+    margin-bottom: 0;
+  }
 `;
 
 export const CourseInfoMeta = styled.div`
