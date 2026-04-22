@@ -4852,6 +4852,10 @@ export default function TeacherPage() {
     renderValue: animatedStudentRow,
     isVisible: isStudentModalVisible,
   } = useAnimatedModalState(selectedStudentRow);
+  const studentModalRow = animatedStudentRow || selectedStudentRow;
+  const studentModalCourse = studentModalRow?.course || null;
+  const studentModalCourseLabel =
+    studentModalCourse?.title || studentModalCourse?.name || "—";
 
   const formatPlaybackTime = (value) => {
     const totalSeconds = Math.max(0, Math.round(Number(value || 0)));
@@ -7440,9 +7444,10 @@ export default function TeacherPage() {
 
                 <StudentModalSecondaryAction
                   type="button"
+                  disabled={!studentModalCourse}
                   onClick={() => {
                     setSelectedStudentRow(null);
-                    openCourseWorkspace(getCourseId(animatedStudentRow.course), {
+                    openCourseWorkspace(getCourseId(studentModalCourse), {
                       openAdmin: true,
                     });
                   }}
@@ -7495,9 +7500,7 @@ export default function TeacherPage() {
                             defaultValue: "Mahsulot nomi",
                           })}
                         </StudentInfoLabel>
-                        <StudentInfoValue>
-                          {selectedStudentRow.course.title || selectedStudentRow.course.name}
-                        </StudentInfoValue>
+                        <StudentInfoValue>{studentModalCourseLabel}</StudentInfoValue>
                       </StudentInfoCard>
                       <StudentInfoCard>
                         <StudentInfoLabel>
@@ -7506,7 +7509,7 @@ export default function TeacherPage() {
                           })}
                         </StudentInfoLabel>
                         <StudentInfoValue>
-                          {formatShortDate(selectedStudentRow.joinedAt)}
+                          {formatShortDate(studentModalRow?.joinedAt)}
                         </StudentInfoValue>
                       </StudentInfoCard>
                       <StudentInfoCard>
@@ -7516,7 +7519,7 @@ export default function TeacherPage() {
                           })}
                         </StudentInfoLabel>
                         <StudentInfoValue>
-                          {selectedStudentRow.currentLessonTitle || "—"}
+                          {studentModalRow?.currentLessonTitle || "—"}
                         </StudentInfoValue>
                       </StudentInfoCard>
                       <StudentInfoCard>
@@ -7525,7 +7528,7 @@ export default function TeacherPage() {
                             defaultValue: "Tarif",
                           })}
                         </StudentInfoLabel>
-                        <StudentInfoValue>{selectedStudentRow.tariffLabel}</StudentInfoValue>
+                        <StudentInfoValue>{studentModalRow?.tariffLabel || "—"}</StudentInfoValue>
                       </StudentInfoCard>
                     </StudentInfoGrid>
                   </StudentModalSection>
@@ -7534,7 +7537,7 @@ export default function TeacherPage() {
                     <StudentTimelineHeader>
                       <span>{t("teacher.workspace.allEducation", { defaultValue: "Barcha ta'lim" })}</span>
                       <span>
-                        • {selectedStudentRow.progressPercent}% (
+                        • {studentModalRow?.progressPercent || 0}% (
                         {selectedStudentLessonRows.filter(
                           (lesson) => lesson.status === "completed",
                         ).length}
@@ -7710,7 +7713,7 @@ export default function TeacherPage() {
                   {selectedStudentMasteryLessonRows.length ? (
                     <DetailLessonList>
                       {selectedStudentMasteryLessonRows.map((lesson) => {
-                        const saveKey = `${selectedStudentRow.memberId}-${lesson.id}`;
+                        const saveKey = `${studentModalRow?.memberId || "unknown"}-${lesson.id}`;
                         const saving = savingMasteryKey === saveKey;
 
                         return (
@@ -7884,7 +7887,7 @@ export default function TeacherPage() {
                                 type="button"
                                 disabled={saving}
                                 onClick={() =>
-                                  handleStudentMasterySave(selectedStudentRow, lesson.id)
+                                  handleStudentMasterySave(studentModalRow, lesson.id)
                                 }
                               >
                                 {saving
