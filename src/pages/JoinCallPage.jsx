@@ -264,7 +264,7 @@ const JoinCallPage = () => {
 
     const fallbackPath =
       sessionStorage.getItem("meet_return_path") ||
-      (user ? "/chats" : `/join/${roomId}`);
+      (user ? "/chats" : "/");
 
     startCall({
       roomId,

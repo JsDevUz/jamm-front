@@ -35,7 +35,7 @@ export default function MeetCallHost() {
     endCall();
 
     if (location.pathname.startsWith("/join/")) {
-      navigate(returnPath);
+      navigate(currentUser ? returnPath : "/");
     }
   };
 
