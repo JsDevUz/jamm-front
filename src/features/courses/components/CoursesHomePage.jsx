@@ -67,6 +67,22 @@ const iconPickers = [
   },
 ];
 
+const DASHBOARD_CACHE_TTL_MS = 2 * 60 * 1000;
+const coursesHomeDashboardCache = new Map();
+
+function getCoursesHomeCache(cacheKey) {
+  if (!cacheKey) return null;
+  return coursesHomeDashboardCache.get(cacheKey) || null;
+}
+
+function setCoursesHomeCache(cacheKey, value) {
+  if (!cacheKey) return;
+  coursesHomeDashboardCache.set(cacheKey, {
+    ...value,
+    updatedAt: Date.now(),
+  });
+}
+
 function formatPhone(value = "") {
   const raw = String(value || "").trim();
   const digits = raw.replace(/\D/g, "");
@@ -1318,12 +1334,23 @@ export default function CoursesHomePage() {
   const currentUser = useAuthStore((state) => state.user);
   const setAuth = useAuthStore((state) => state.setAuth);
   const logout = useAuthStore((state) => state.logout);
-  const [dashboard, setDashboard] = useState({
-    continueLearning: [],
-    recommendedCourses: [],
+  const currentUserId = currentUser?._id || currentUser?.id || "";
+  const coursesHomeCacheKey = currentUserId || "guest";
+  const [dashboard, setDashboard] = useState(() => {
+    const cached = getCoursesHomeCache(coursesHomeCacheKey);
+    return (
+      cached?.dashboard || {
+        continueLearning: [],
+        recommendedCourses: [],
+      }
+    );
   });
-  const [loading, setLoading] = useState(true);
-  const [allCourses, setAllCourses] = useState([]);
+  const [loading, setLoading] = useState(
+    () => !getCoursesHomeCache(coursesHomeCacheKey),
+  );
+  const [allCourses, setAllCourses] = useState(
+    () => getCoursesHomeCache(coursesHomeCacheKey)?.allCourses || [],
+  );
   const [isAccountSettingsOpen, setIsAccountSettingsOpen] = useState(false);
   const [isProfileEditOpen, setIsProfileEditOpen] = useState(false);
   const [isLogoutConfirmOpen, setIsLogoutConfirmOpen] = useState(false);
@@ -1344,8 +1371,11 @@ export default function CoursesHomePage() {
   const [avatarPreviewUrl, setAvatarPreviewUrl] = useState("");
   const avatarInputRef = useRef(null);
 
-  const loadDashboard = useCallback(async () => {
-    setLoading(true);
+  const loadDashboard = useCallback(async ({ showLoader = false } = {}) => {
+    if (showLoader) {
+      setLoading(true);
+    }
+
     try {
       const response = await fetchCourses(1, 60);
       const courses = Array.isArray(response)
@@ -1354,7 +1384,6 @@ export default function CoursesHomePage() {
           ? response.data
           : [];
       setAllCourses(courses);
-      const currentUserId = currentUser?._id || currentUser?.id || "";
       const continueLearning = courses
         .filter((course) => getMemberStatus(course, currentUserId) === "approved")
         .map(toContinueCard)
@@ -1364,28 +1393,57 @@ export default function CoursesHomePage() {
         .map(toRecommendedCard)
         .slice(0, 8);
 
-      setDashboard({
+      const nextDashboard = {
         continueLearning,
         recommendedCourses,
+      };
+
+      setDashboard(nextDashboard);
+      setCoursesHomeCache(coursesHomeCacheKey, {
+        dashboard: nextDashboard,
+        allCourses: courses,
       });
     } catch {
-      setDashboard({
-        continueLearning: [],
-        recommendedCourses: [],
-      });
+      if (!getCoursesHomeCache(coursesHomeCacheKey)) {
+        setDashboard({
+          continueLearning: [],
+          recommendedCourses: [],
+        });
+      }
     } finally {
-      setLoading(false);
+      if (showLoader) {
+        setLoading(false);
+      }
     }
-  }, [currentUser?._id, currentUser?.id]);
+  }, [coursesHomeCacheKey, currentUserId]);
 
   useEffect(() => {
-    loadDashboard();
-  }, [loadDashboard]);
+    const cached = getCoursesHomeCache(coursesHomeCacheKey);
+
+    if (cached) {
+      setDashboard(cached.dashboard);
+      setAllCourses(cached.allCourses || []);
+      setLoading(false);
+
+      if (Date.now() - cached.updatedAt < DASHBOARD_CACHE_TTL_MS) {
+        return;
+      }
+
+      loadDashboard();
+      return;
+    }
+
+    setDashboard({
+      continueLearning: [],
+      recommendedCourses: [],
+    });
+    setAllCourses([]);
+    loadDashboard({ showLoader: true });
+  }, [coursesHomeCacheKey, loadDashboard]);
 
   const displayName =
     currentUser?.nickname || currentUser?.username || currentUser?.name || "User";
   const avatarLetter = displayName.charAt(0).toUpperCase();
-  const currentUserId = currentUser?._id || currentUser?.id || "";
   const settingsMenuItems = [
     { id: "my-account", label: "My Account", icon: Settings },
     { id: "appearance", label: t("profile.tabs.appearance"), icon: Settings },

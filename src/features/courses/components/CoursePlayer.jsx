@@ -692,6 +692,7 @@ const CoursePlayer = ({
   // Video player state
   const videoRef = useRef(null);
   const videoWrapperRef = useRef(null);
+  const playerContainerRef = useRef(null);
   const hlsRef = useRef(null);
   const hlsInitializingRef = useRef(false);
   const hlsNonFatalErrorCountRef = useRef(0);
@@ -747,6 +748,21 @@ const CoursePlayer = ({
     }, 3200);
   }, [isPlaying]);
 
+  const scrollPlayerToTop = useCallback((behavior = "auto") => {
+    if (typeof window !== "undefined") {
+      window.scrollTo({ top: 0, behavior });
+    }
+
+    const container = playerContainerRef.current;
+    if (!container) return;
+
+    if (typeof container.scrollTo === "function") {
+      container.scrollTo({ top: 0, behavior });
+    } else {
+      container.scrollTop = 0;
+    }
+  }, []);
+
   useEffect(() => {
     if (typeof window === "undefined") return undefined;
 
@@ -756,6 +772,10 @@ const CoursePlayer = ({
 
     return () => window.removeEventListener("resize", handleResize);
   }, []);
+
+  useEffect(() => {
+    scrollPlayerToTop("auto");
+  }, [activeLesson, scrollPlayerToTop]);
 
   const course = courses.find(
     (c) =>
@@ -2707,7 +2727,7 @@ const CoursePlayer = ({
 
   return (
     <CoursePlayerProvider value={coursePlayerContextValue}>
-      <PlayerContainer>
+      <PlayerContainer ref={playerContainerRef}>
         <VideoSection>
           {/* VIDEO PLAYER */}
           {canAccessLesson(activeLesson) &&

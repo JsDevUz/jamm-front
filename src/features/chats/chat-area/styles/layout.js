@@ -14,9 +14,10 @@ export const ChatContainer = styled.div`
 
   @media (max-width: 768px) {
     width: 100%;
-    height: var(--app-height, 100dvh);
+    height: var(--visual-viewport-height, var(--app-height, 100dvh));
+    min-height: var(--visual-viewport-height, var(--app-height, 100dvh));
     position: fixed;
-    top: 0;
+    top: var(--visual-viewport-offset-top, 0px);
     left: 0;
     z-index: 1000;
     animation: slideInRight 0.3s ease-out;
@@ -46,7 +47,8 @@ export const OuterChatWrapper = styled.div`
   position: relative;
 
   @media (max-width: 768px) {
-    height: var(--app-height, 100dvh);
+    height: var(--visual-viewport-height, var(--app-height, 100dvh));
+    min-height: var(--visual-viewport-height, var(--app-height, 100dvh));
   }
 `;
 
@@ -60,12 +62,7 @@ export const ChatMain = styled.div`
   box-sizing: border-box;
 
   @media (max-width: 768px) {
-    padding-top: calc(56px + env(safe-area-inset-top, 0px));
     padding-bottom: 0;
-  }
-
-  @media (max-width: 480px) {
-    padding-top: calc(48px + env(safe-area-inset-top, 0px));
   }
 `;
 

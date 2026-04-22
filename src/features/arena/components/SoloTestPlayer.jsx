@@ -55,7 +55,7 @@ const Header = styled.div`
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.08);
 
   @media (max-width: 768px) {
-    top: calc(8px + env(safe-area-inset-top, 0px));
+    top: 0;
     margin-top: 0;
     margin-left: 0;
     margin-right: 0;
@@ -121,6 +121,10 @@ const TestBody = styled.div`
   display: flex;
   flex-direction: column;
   gap: 18px;
+
+  @media (max-width: 768px) {
+    padding-top: 10px;
+  }
 `;
 
 const QuestionBox = styled.div`
@@ -266,6 +270,11 @@ const ResultScreen = styled.div`
   flex-direction: column;
   align-items: center;
   gap: 24px;
+
+  @media (max-width: 768px) {
+    padding: 10px;
+    gap: 16px;
+  }
 `;
 
 const ScoreText = styled.div`
