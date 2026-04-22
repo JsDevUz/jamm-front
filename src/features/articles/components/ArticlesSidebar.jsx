@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Copy, Newspaper } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -8,6 +8,7 @@ import { RESOLVED_APP_BASE_URL } from "../../../config/env";
 import ArticleEditorDialog from "./ArticleEditorDialog";
 import { Skeleton } from "../../../shared/ui/feedback/Skeleton";
 import SectionHeader from "../../../shared/ui/navigation/SectionHeader";
+import useAuthStore from "../../../store/authStore";
 import {
   ArticleItem,
   ArticleCopyButton,
@@ -28,18 +29,39 @@ import {
   Title,
 } from "../styles/ArticlesSidebar.styles";
 
+const ARTICLES_CACHE_TTL_MS = 2 * 60 * 1000;
+const articlesSidebarCache = new Map();
+
+function getArticlesSidebarCache(cacheKey) {
+  if (!cacheKey) return null;
+  return articlesSidebarCache.get(cacheKey) || null;
+}
+
+function setArticlesSidebarCache(cacheKey, value) {
+  if (!cacheKey) return;
+  articlesSidebarCache.set(cacheKey, {
+    ...value,
+    updatedAt: Date.now(),
+  });
+}
+
 const ArticlesSidebar = ({ selectedArticleId }) => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
+  const currentUser = useAuthStore((state) => state.user);
   const [activeSort, setActiveSort] = useState("newest");
-  const [articles, setArticles] = useState([]);
-  const [page, setPage] = useState(1);
-  const [hasMore, setHasMore] = useState(true);
-  const [loading, setLoading] = useState(true);
+  const currentUserId = String(currentUser?._id || currentUser?.id || "guest");
+  const cacheKey = `${currentUserId}:${activeSort}`;
+  const initialCache = getArticlesSidebarCache(cacheKey);
+  const [articles, setArticles] = useState(() => initialCache?.articles || []);
+  const [page, setPage] = useState(() => initialCache?.page || 1);
+  const [hasMore, setHasMore] = useState(() => initialCache?.hasMore ?? true);
+  const [loading, setLoading] = useState(() => !initialCache);
   const [editorOpen, setEditorOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const swipeGestureRef = useRef(null);
+  const articlesRef = useRef(initialCache?.articles || []);
 
   const sortTabs = useMemo(
     () => [
@@ -51,26 +73,77 @@ const ArticlesSidebar = ({ selectedArticleId }) => {
     [t],
   );
 
-  const loadArticles = async (targetPage = 1, append = false) => {
-    if (!append) {
-      setLoading(true);
-    }
-    try {
-      const response = await fetchArticles(targetPage, 20, activeSort);
-      const nextArticles = response?.data || [];
-      setArticles((prev) => (append ? [...prev, ...nextArticles] : nextArticles));
-      setPage(targetPage);
-      setHasMore(targetPage < (response?.totalPages || 1));
-    } finally {
-      if (!append) {
-        setLoading(false);
+  useEffect(() => {
+    articlesRef.current = articles;
+  }, [articles]);
+
+  const loadArticles = useCallback(
+    async (targetPage = 1, append = false, options = {}) => {
+      const sort = options.sort || activeSort;
+      const targetCacheKey = options.cacheKey || `${currentUserId}:${sort}`;
+      const showLoader = options.showLoader ?? !append;
+
+      if (showLoader) {
+        setLoading(true);
       }
-    }
-  };
+
+      try {
+        const response = await fetchArticles(targetPage, 20, sort);
+        const nextArticles = response?.data || [];
+        const mergedArticles = append
+          ? [...articlesRef.current, ...nextArticles]
+          : nextArticles;
+        const nextHasMore = targetPage < (response?.totalPages || 1);
+
+        articlesRef.current = mergedArticles;
+        setArticles(mergedArticles);
+        setPage(targetPage);
+        setHasMore(nextHasMore);
+        setArticlesSidebarCache(targetCacheKey, {
+          articles: mergedArticles,
+          page: targetPage,
+          hasMore: nextHasMore,
+        });
+      } finally {
+        if (showLoader) {
+          setLoading(false);
+        }
+      }
+    },
+    [activeSort, currentUserId],
+  );
 
   useEffect(() => {
-    void loadArticles(1, false);
-  }, [activeSort]);
+    const cached = getArticlesSidebarCache(cacheKey);
+
+    if (cached) {
+      articlesRef.current = cached.articles || [];
+      setArticles(cached.articles || []);
+      setPage(cached.page || 1);
+      setHasMore(cached.hasMore ?? true);
+      setLoading(false);
+
+      if (Date.now() - cached.updatedAt > ARTICLES_CACHE_TTL_MS) {
+        void loadArticles(1, false, {
+          sort: activeSort,
+          cacheKey,
+          showLoader: false,
+        });
+      }
+      return;
+    }
+
+    articlesRef.current = [];
+    setArticles([]);
+    setPage(1);
+    setHasMore(true);
+    setLoading(true);
+    void loadArticles(1, false, {
+      sort: activeSort,
+      cacheKey,
+      showLoader: true,
+    });
+  }, [activeSort, cacheKey, loadArticles]);
 
   const changeSortByOffset = (offset) => {
     const currentIndex = sortTabs.findIndex((tab) => tab.key === activeSort);
@@ -130,9 +203,16 @@ const ArticlesSidebar = ({ selectedArticleId }) => {
     try {
       const created = await createArticle(payload);
       if (activeSort === "newest") {
-        setArticles((prev) => [created, ...prev]);
+        const nextArticles = [created, ...articlesRef.current];
+        articlesRef.current = nextArticles;
+        setArticles(nextArticles);
+        setArticlesSidebarCache(cacheKey, {
+          articles: nextArticles,
+          page,
+          hasMore,
+        });
       } else {
-        void loadArticles(1, false);
+        void loadArticles(1, false, { showLoader: false });
       }
       setEditorOpen(false);
       navigate(`/articles/${created.slug || created._id}`);

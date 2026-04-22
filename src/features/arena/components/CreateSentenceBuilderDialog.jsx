@@ -309,6 +309,29 @@ const parsePatternToItems = (pattern = "") =>
     })
     .filter((item) => item.prompt && item.answer);
 
+const buildPatternFromItems = (items = []) =>
+  (items || [])
+    .map((item) => {
+      const prompt = String(item?.prompt || "").trim();
+      const answerTokens = Array.isArray(item?.answerTokens)
+        ? item.answerTokens
+        : splitAnswerTokens(item?.answer || "");
+      const answer = answerTokens.join(" ").trim();
+      const extraTokens = Array.isArray(item?.extraTokens)
+        ? item.extraTokens.map((token) => String(token || "").trim()).filter(Boolean)
+        : [];
+
+      if (!prompt || !answer) return "";
+
+      const lines = [`$${prompt}`, `"${answer}"`];
+      if (extraTokens.length > 0) {
+        lines.push(`+${extraTokens.join(",")}+`);
+      }
+      return lines.join("\n");
+    })
+    .filter(Boolean)
+    .join("\n\n");
+
 const CreateSentenceBuilderDialog = ({ onClose, initialDeck = null }) => {
   const { createSentenceBuilderDeck, updateSentenceBuilderDeck } = useArena();
   const currentUser = useAuthStore((state) => state.user);
@@ -327,7 +350,10 @@ const CreateSentenceBuilderDialog = ({ onClose, initialDeck = null }) => {
     if (isEditing) {
       setTitle(initialDeck?.title || "");
       setDescription(initialDeck?.description || "");
-      setPattern("");
+      setPattern(
+        String(initialDeck?.pattern || "").trim() ||
+          buildPatternFromItems(initialDeck?.items || []),
+      );
       setItems(
         (initialDeck?.items || []).length
           ? initialDeck.items.map((item) => ({

@@ -90,12 +90,48 @@ const colorOf = (value) =>
   avatarColors[(value || "A").charCodeAt(0) % avatarColors.length];
 
 const renderText = renderInlineMarkup;
+const FEED_REVEALED_IMAGES_STORAGE_KEY = "jamm.feed.revealed-images.v1";
+const FEED_LOADED_IMAGES_STORAGE_KEY = "jamm.feed.loaded-images.v1";
+
+const loadImageStateCache = (storageKey) => {
+  if (typeof window === "undefined") {
+    return {};
+  }
+
+  try {
+    const rawValue = window.sessionStorage.getItem(storageKey);
+    if (!rawValue) {
+      return {};
+    }
+
+    const parsed = JSON.parse(rawValue);
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+};
+
+const persistImageStateCache = (storageKey, nextValue) => {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  try {
+    window.sessionStorage.setItem(storageKey, JSON.stringify(nextValue));
+  } catch {
+    // Ignore storage quota / availability issues and fall back to in-memory behavior.
+  }
+};
 
 const FeedPostImages = ({ post, onOpenImage }) => {
   const [activeIndex, setActiveIndex] = useState(0);
-  const [revealedImages, setRevealedImages] = useState({});
+  const [revealedImages, setRevealedImages] = useState(() =>
+    loadImageStateCache(FEED_REVEALED_IMAGES_STORAGE_KEY),
+  );
   const [loadingImages, setLoadingImages] = useState({});
-  const [loadedImages, setLoadedImages] = useState({});
+  const [loadedImages, setLoadedImages] = useState(() =>
+    loadImageStateCache(FEED_LOADED_IMAGES_STORAGE_KEY),
+  );
   const touchStartXRef = useRef(0);
 
   const images = Array.isArray(post?.images) ? post.images : [];
@@ -109,6 +145,14 @@ const FeedPostImages = ({ post, onOpenImage }) => {
     currentImage?.url || `${post._id || "post"}-${activeIndex}`;
   const isRevealed = Boolean(revealedImages[currentKey]);
   const isLoading = Boolean(loadingImages[currentKey]);
+
+  useEffect(() => {
+    persistImageStateCache(FEED_REVEALED_IMAGES_STORAGE_KEY, revealedImages);
+  }, [revealedImages]);
+
+  useEffect(() => {
+    persistImageStateCache(FEED_LOADED_IMAGES_STORAGE_KEY, loadedImages);
+  }, [loadedImages]);
 
   return (
     <PostImageCarousel>

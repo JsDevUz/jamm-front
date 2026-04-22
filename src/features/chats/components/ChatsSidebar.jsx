@@ -53,25 +53,7 @@ import {
 } from "../styles/ChatsSidebar.styles";
 
 const CHAT_SIDEBAR_SCROLL_CACHE_PREFIX = "jamm.chats.sidebar.scroll";
-const CHAT_AVATAR_GRADIENTS = [
-  "linear-gradient(135deg, #f59e0b 0%, #f97316 100%)",
-  "linear-gradient(135deg, #06b6d4 0%, #3b82f6 100%)",
-  "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)",
-  "linear-gradient(135deg, #22c55e 0%, #14b8a6 100%)",
-  "linear-gradient(135deg, #ef4444 0%, #f97316 100%)",
-  "linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)",
-  "linear-gradient(135deg, #0ea5e9 0%, #2563eb 100%)",
-  "linear-gradient(135deg, #84cc16 0%, #22c55e 100%)",
-];
-
-const getAvatarGradient = (value) => {
-  const source = String(value || "chat");
-  let hash = 0;
-  for (let index = 0; index < source.length; index += 1) {
-    hash = (hash * 31 + source.charCodeAt(index)) >>> 0;
-  }
-  return CHAT_AVATAR_GRADIENTS[hash % CHAT_AVATAR_GRADIENTS.length];
-};
+const getAvatarGradient = () => "var(--primary-color)";
 
 const ChatsSidebar = ({
   onOpenCreateGroup,

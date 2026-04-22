@@ -2,7 +2,6 @@ import React, { useEffect, useState } from "react";
 import styled, { keyframes } from "styled-components";
 import { useArena } from "../../../contexts/ArenaContext";
 import {
-  Save,
   Plus,
   X,
   Trash2,
@@ -10,11 +9,22 @@ import {
   Search,
 } from "lucide-react";
 import toast from "react-hot-toast";
-import { CloseBtnWrapper } from "./CreateSentenceBuilderDialog";
 import { SidebarIconButton as ButtonWrapper } from "../../../shared/ui/buttons/IconButton";
 import useAuthStore from "../../../store/authStore";
 import { APP_LIMITS, getTierLimit } from "../../../constants/appLimits";
 import Spinner from "../../../shared/ui/feedback/Spinner";
+import {
+  DialogActionButton,
+  ModalBody,
+  ModalCloseButton,
+  ModalFooter,
+  ModalHeader,
+  ModalOverlay,
+  ModalPanel,
+  ModalSubtitle,
+  ModalTitle,
+  ModalTitleBlock,
+} from "../../../shared/ui/dialogs/ModalShell";
 
 const fadeIn = keyframes`
   from {
@@ -36,31 +46,16 @@ const dialogIn = keyframes`
   }
 `;
 
-const Overlay = styled.div`
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: rgba(0, 0, 0, 0.5);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 1000;
-  padding: 20px;
+const Overlay = styled(ModalOverlay)`
   animation: ${fadeIn} 0.18s ease-out;
-
-  @media (max-width: 768px) {
-    padding: 12px;
-  }
 `;
 
-const DialogBox = styled.div`
-  background-color: var(--secondary-color);
-  border: 1px solid var(--border-color);
-  border-radius: 12px;
-  width: 100%;
-  max-width: 600px;
+const DialogBox = styled(ModalPanel).attrs({
+  $width: "min(100%, 760px)",
+  $maxWidth: "95vw",
+  $maxHeight: "min(90vh, 920px)",
+  $radius: "20px",
+})`
   height: min(90vh, 860px);
   max-height: 90vh;
   overflow: hidden;
@@ -74,41 +69,29 @@ const DialogBox = styled.div`
   }
 `;
 
-const HeaderRow = styled.div`
+const HeaderRow = styled(ModalHeader)`
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  padding: 16px 18px;
-  border-bottom: 1px solid var(--border-color);
-
-  h2 {
-    margin: 0;
-    color: var(--text-color);
-  }
+  align-items: flex-start;
 `;
 
-const Body = styled.div`
+const HeaderText = styled(ModalTitleBlock)`
+  min-width: 0;
+`;
+
+const HeaderTitle = styled(ModalTitle)`
+  font-size: 18px;
+`;
+
+const HeaderSubtitle = styled(ModalSubtitle)`
+  margin-top: 4px;
+  line-height: 1.5;
+`;
+
+const Body = styled(ModalBody)`
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 16px 18px;
-
-  @media (max-width: 768px) {
-    padding: 14px 16px;
-  }
-`;
-
-const CloseBtn = styled.button`
-  background: transparent;
-  border: none;
-  color: var(--text-muted-color);
-  cursor: pointer;
-  padding: 4px;
-  border-radius: 4px;
-  &:hover {
-    background: var(--tertiary-color);
-    color: var(--text-color);
-  }
 `;
 
 const FormGroup = styled.div`
@@ -118,19 +101,21 @@ const FormGroup = styled.div`
 const Label = styled.label`
   display: block;
   margin-bottom: 8px;
-  color: var(--text-muted-color);
-  font-weight: 500;
-  font-size: 0.9rem;
+  color: var(--text-secondary-color);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-size: 12px;
 `;
 
 const Input = styled.input`
   width: 100%;
-  padding: 12px;
-  background-color: var(--tertiary-color);
+  padding: 12px 14px;
+  background-color: var(--input-color);
   border: 1px solid var(--border-color);
-  border-radius: 8px;
+  border-radius: 12px;
   color: var(--text-color);
-  font-size: 1rem;
+  font-size: 14px;
 `;
 
 const FolderRow = styled.div`
@@ -149,8 +134,10 @@ const FolderChip = styled.button`
   border: 1px solid
     ${(props) => (props.$active ? "var(--primary-color)" : "var(--border-color)")};
   background: ${(props) =>
-    props.$active ? "var(--primary-color)" : "var(--tertiary-color)"};
-  color: ${(props) => (props.$active ? "#fff" : "var(--text-color)")};
+    props.$active
+      ? "color-mix(in srgb, var(--primary-color) 14%, transparent)"
+      : "var(--input-color)"};
+  color: ${(props) => (props.$active ? "var(--primary-color)" : "var(--text-color)")};
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -160,23 +147,27 @@ const FolderChip = styled.button`
 
 const Tabs = styled.div`
   display: flex;
-  gap: 8px;
+  gap: 10px;
   margin-bottom: 16px;
 `;
 
 const Tab = styled.button`
   flex: 1;
-  padding: 10px;
+  min-height: 42px;
+  padding: 10px 12px;
   border: 1px solid var(--border-color);
   background-color: ${(props) =>
-    props.active ? "var(--primary-color)" : "var(--tertiary-color)"};
-  color: ${(props) => (props.active ? "white" : "var(--text-color)")};
-  border-radius: 8px;
+    props.active
+      ? "color-mix(in srgb, var(--primary-color) 14%, transparent)"
+      : "var(--input-color)"};
+  color: ${(props) => (props.active ? "var(--primary-color)" : "var(--text-color)")};
+  border-radius: 12px;
   cursor: pointer;
-  font-weight: 600;
+  font-weight: 700;
+  font-size: 13px;
 
   &:hover {
-    filter: brightness(1.1);
+    background: var(--hover-color);
   }
 `;
 
@@ -189,9 +180,9 @@ const CardList = styled.div`
 `;
 
 const CardItem = styled.div`
-  background-color: var(--tertiary-color);
+  background-color: var(--input-color);
   border: 1px solid var(--border-color);
-  border-radius: 8px;
+  border-radius: 14px;
   padding: 16px;
   display: flex;
   gap: 12px;
@@ -219,20 +210,21 @@ const DeleteBtn = styled.button`
 
 const AddCardBtn = styled.button`
   width: 100%;
-  padding: 12px;
-  background: transparent;
+  min-height: 42px;
+  padding: 0 16px;
+  background: var(--input-color);
   color: var(--primary-color);
   border: 1px dashed var(--primary-color);
-  border-radius: 8px;
+  border-radius: 12px;
   cursor: pointer;
-  font-weight: 600;
+  font-weight: 700;
   display: flex;
   justify-content: center;
   align-items: center;
   gap: 8px;
 
   &:hover {
-    background: rgba(var(--primary-color-rgb), 0.1);
+    background: color-mix(in srgb, var(--primary-color) 8%, var(--input-color));
   }
 `;
 
@@ -240,12 +232,12 @@ const AddCardBtn = styled.button`
 const TextArea = styled.textarea`
   width: 100%;
   height: 200px;
-  padding: 12px;
-  background-color: var(--tertiary-color);
+  padding: 12px 14px;
+  background-color: var(--input-color);
   border: 1px solid var(--border-color);
-  border-radius: 8px;
+  border-radius: 12px;
   color: var(--text-color);
-  font-size: 1rem;
+  font-size: 14px;
   resize: vertical;
   font-family: monospace;
 `;
@@ -257,41 +249,33 @@ const HelperText = styled.p`
 `;
 
 const PreBlock = styled.div`
-  background: #111;
+  background: var(--input-color);
+  border: 1px solid var(--border-color);
   padding: 12px;
-  border-radius: 6px;
+  border-radius: 12px;
   font-family: monospace;
   font-size: 0.85rem;
-  color: #ddd;
+  color: var(--text-color);
   margin-top: 8px;
   white-space: pre-wrap;
 `;
 
-const Footer = styled.div`
+const Footer = styled(ModalFooter)`
   display: flex;
   justify-content: flex-end;
   gap: 12px;
-  padding: 14px 18px 18px;
-  border-top: 1px solid var(--border-color);
 
   @media (max-width: 768px) {
-    padding: 12px 16px 16px;
+    flex-direction: column-reverse;
   }
 `;
 
-const Button = styled.button`
-  padding: 10px 20px;
-  border-radius: 8px;
-  font-weight: 600;
+const Button = styled(DialogActionButton)`
+  min-height: 38px;
+  padding: 0 14px;
+  border-radius: 10px;
+  font-weight: 700;
   cursor: pointer;
-  border: none;
-  background-color: ${(props) =>
-    props.primary ? "var(--primary-color)" : "var(--tertiary-color)"};
-  color: ${(props) => (props.primary ? "white" : "var(--text-color)")};
-
-  &:hover {
-    filter: brightness(1.1);
-  }
 `;
 
 // --- IMAGE SEARCH STYLES ---
@@ -299,9 +283,9 @@ const InputRow = styled.div`
   display: flex;
   align-items: center;
   gap: 8px;
-  background-color: var(--tertiary-color);
+  background-color: var(--input-color);
   border: 1px solid var(--border-color);
-  border-radius: 8px;
+  border-radius: 12px;
   padding: 4px 8px;
 
   &:focus-within {
@@ -355,7 +339,7 @@ const SearchModalContent = styled.div`
   background: var(--secondary-color);
   width: 100%;
   max-width: 500px;
-  border-radius: 12px;
+  border-radius: 18px;
   padding: 24px;
   display: flex;
   flex-direction: column;
@@ -414,19 +398,27 @@ const buildTemplateTextFromCards = (cards = []) =>
     .filter(Boolean)
     .join("\n");
 
+const createEmptyCard = () => ({
+  front: "",
+  back: "",
+  frontImage: "",
+  backImage: "",
+});
+
 const CreateFlashcardDialog = ({ onClose, initialDeck = null, folders = [] }) => {
-  const { createFlashcardDeck, updateFlashcardDeck } = useArena();
+  const { createFlashcardDeck, updateFlashcardDeck, fetchFlashcardDeck } = useArena();
   const currentUser = useAuthStore((state) => state.user);
-  const isEditing = Boolean(initialDeck?._id);
+  const isEditing = Boolean(initialDeck?._id || initialDeck?.id || initialDeck?.urlSlug);
   const maxCardsPerDeck = getTierLimit(APP_LIMITS.flashcardsPerDeck, currentUser);
+  const activeDeckId =
+    initialDeck?._id || initialDeck?.id || initialDeck?.urlSlug || null;
   const [title, setTitle] = useState("");
   const [selectedFolderId, setSelectedFolderId] = useState(null);
   const [inputMode, setInputMode] = useState("manual"); // 'manual' | 'template'
+  const [isHydratingDeck, setIsHydratingDeck] = useState(false);
 
   // Manual State
-  const [cards, setCards] = useState([
-    { front: "", back: "", frontImage: "", backImage: "" },
-  ]);
+  const [cards, setCards] = useState([createEmptyCard()]);
 
   // Template State
   const [templateText, setTemplateText] = useState("");
@@ -442,34 +434,57 @@ const CreateFlashcardDialog = ({ onClose, initialDeck = null, folders = [] }) =>
   const [isSearching, setIsSearching] = useState(false);
 
   useEffect(() => {
-    if (isEditing) {
-      setTitle(initialDeck?.title || "");
+    let cancelled = false;
+
+    const applyDeck = (deck) => {
+      setTitle(deck?.title || "");
       setSelectedFolderId(
-        typeof initialDeck?.folderId === "string"
-          ? initialDeck.folderId
-          : initialDeck?.folderId?._id || initialDeck?.folderId?.id || null,
+        typeof deck?.folderId === "string"
+          ? deck.folderId
+          : deck?.folderId?._id || deck?.folderId?.id || null,
       );
       setInputMode("manual");
       setCards(
-        (initialDeck?.cards || []).length
-          ? initialDeck.cards.map((card) => ({
+        (deck?.cards || []).length
+          ? deck.cards.map((card) => ({
               front: card.front || "",
               back: card.back || "",
               frontImage: card.frontImage || "",
               backImage: card.backImage || "",
             }))
-          : [{ front: "", back: "", frontImage: "", backImage: "" }],
+          : [createEmptyCard()],
       );
-      setTemplateText(buildTemplateTextFromCards(initialDeck?.cards || []));
-      return;
+      setTemplateText(buildTemplateTextFromCards(deck?.cards || []));
+    };
+
+    if (isEditing && activeDeckId) {
+      setIsHydratingDeck(true);
+      void (async () => {
+        const fullDeck =
+          Array.isArray(initialDeck?.cards) && initialDeck.cards.length
+            ? initialDeck
+            : await fetchFlashcardDeck(activeDeckId);
+
+        if (cancelled) return;
+        applyDeck(fullDeck || initialDeck || null);
+        setIsHydratingDeck(false);
+      })();
+      return () => {
+        cancelled = true;
+      };
     }
 
+    setIsHydratingDeck(false);
     setTitle("");
     setSelectedFolderId(null);
     setInputMode("manual");
-    setCards([{ front: "", back: "", frontImage: "", backImage: "" }]);
+    setCards([createEmptyCard()]);
     setTemplateText("");
-  }, [initialDeck, isEditing]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeDeckId, fetchFlashcardDeck, initialDeck, isEditing]);
 
   const handleSearchImages = async (e) => {
     e?.preventDefault();
@@ -544,7 +559,7 @@ const CreateFlashcardDialog = ({ onClose, initialDeck = null, folders = [] }) =>
     }
     setCards([
       ...cards,
-      { front: "", back: "", frontImage: "", backImage: "" },
+      createEmptyCard(),
     ]);
   };
 
@@ -615,7 +630,7 @@ const CreateFlashcardDialog = ({ onClose, initialDeck = null, folders = [] }) =>
 
     try {
       if (isEditing) {
-        await updateFlashcardDeck(initialDeck._id, payload);
+        await updateFlashcardDeck(activeDeckId, payload);
       } else {
         await createFlashcardDeck(payload);
       }
@@ -632,13 +647,33 @@ const CreateFlashcardDialog = ({ onClose, initialDeck = null, folders = [] }) =>
     <Overlay onClick={onClose}>
       <DialogBox onClick={(e) => e.stopPropagation()}>
         <HeaderRow>
-          <h2>{isEditing ? "Lug'atni Tahrirlash" : "Yangi Lug'at (Flashcards)"}</h2>
-          <ButtonWrapper onClick={onClose}>
+          <HeaderText>
+            <HeaderTitle>
+              {isEditing ? "Lug'atni tahrirlash" : "Yangi lug'at (Flashcards)"}
+            </HeaderTitle>
+            <HeaderSubtitle>
+              Qo'lda ham, andaza orqali ham kartalarni bir xil oqimda boshqarishingiz mumkin.
+            </HeaderSubtitle>
+          </HeaderText>
+          <ModalCloseButton onClick={onClose}>
             <X size={18} />
-          </ButtonWrapper>
+          </ModalCloseButton>
         </HeaderRow>
 
         <Body>
+          {isHydratingDeck ? (
+            <div
+              style={{
+                minHeight: 240,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Spinner size={24} />
+            </div>
+          ) : (
+            <>
           <FormGroup>
             <Label>To'plam nomi</Label>
             <Input
@@ -776,11 +811,13 @@ const CreateFlashcardDialog = ({ onClose, initialDeck = null, folders = [] }) =>
               </PreBlock>
             </FormGroup>
           )}
+            </>
+          )}
         </Body>
 
         <Footer>
-          <Button onClick={onClose}>Bekor qilish</Button>
-          <Button primary onClick={handleSave}>
+          <Button $variant="ghost" onClick={onClose}>Bekor qilish</Button>
+          <Button onClick={handleSave} disabled={isHydratingDeck}>
             {isEditing ? "O'zgarishlarni saqlash" : "Saqlash"}
           </Button>
         </Footer>

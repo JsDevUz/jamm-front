@@ -1,109 +1,76 @@
 import React, { useEffect, useState } from "react";
 import styled from "styled-components";
 import {
-  Save,
   Plus,
   X,
   Trash2,
-  Sparkles,
   Type,
   FileText,
-  NutOffIcon,
   BookCopy,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { useArena } from "../../../contexts/ArenaContext";
 import * as arenaApi from "../../../api/arenaApi";
-import { SidebarIconButton as ButtonWrapper } from "../../../shared/ui/buttons/IconButton";
-import { CloseBtnWrapper } from "./CreateSentenceBuilderDialog";
 import useAuthStore from "../../../store/authStore";
 import { APP_LIMITS, getTierLimit } from "../../../constants/appLimits";
+import { SidebarIconButton as ButtonWrapper } from "../../../shared/ui/buttons/IconButton";
+import {
+  DialogActionButton,
+  ModalBody,
+  ModalCloseButton,
+  ModalFooter,
+  ModalHeader,
+  ModalOverlay,
+  ModalPanel,
+  ModalSubtitle,
+  ModalTitle,
+  ModalTitleBlock,
+} from "../../../shared/ui/dialogs/ModalShell";
 
-const DialogOverlay = styled.div`
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: rgba(0, 0, 0, 0.7);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-  backdrop-filter: blur(4px);
+const DialogOverlay = styled(ModalOverlay)`
 `;
 
-const DialogContent = styled.div`
-  background-color: var(--secondary-color);
-  border-radius: 12px;
-  width: 90%;
-  max-width: 600px;
-  max-height: 90vh;
-  display: flex;
-  flex-direction: column;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-  border: 1px solid var(--border-color);
-  animation: slideIn 0.2s ease-out;
-
-  @keyframes slideIn {
-    from {
-      opacity: 0;
-      transform: translateY(20px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
-  }
+const DialogContent = styled(ModalPanel).attrs({
+  $width: "min(100%, 760px)",
+  $maxWidth: "95vw",
+  $maxHeight: "min(90vh, 920px)",
+  $radius: "20px",
+})`
 `;
 
-const Header = styled.div`
-  padding: 24px;
-  border-bottom: 1px solid var(--border-color);
+const Header = styled(ModalHeader)`
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-
-  h2 {
-    margin: 0;
-    font-size: 20px;
-    font-weight: 700;
-    color: var(--text-color);
-  }
 `;
 
-const CloseButton = styled.button`
-  background: none;
-  border: none;
-  color: var(--text-muted-color);
-  cursor: pointer;
-  padding: 4px;
-  border-radius: 4px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s;
-
-  &:hover {
-    color: var(--text-color);
-    background-color: var(--hover-color);
-  }
+const HeaderText = styled(ModalTitleBlock)`
+  min-width: 0;
 `;
 
-const Body = styled.div`
-  padding: 24px;
-  overflow-y: auto;
+const HeaderTitle = styled(ModalTitle)`
+  font-size: 18px;
+`;
+
+const HeaderSubtitle = styled(ModalSubtitle)`
+  margin-top: 4px;
+  line-height: 1.5;
+`;
+
+const Body = styled(ModalBody)`
   display: flex;
   flex-direction: column;
   gap: 20px;
 `;
 
-const Footer = styled.div`
-  padding: 24px;
-  border-top: 1px solid var(--border-color);
+const Footer = styled(ModalFooter)`
   display: flex;
   justify-content: flex-end;
   gap: 12px;
+
+  @media (max-width: 640px) {
+    flex-direction: column-reverse;
+  }
 `;
 
 const InputGroup = styled.div`
@@ -113,14 +80,16 @@ const InputGroup = styled.div`
 `;
 
 const Label = styled.label`
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-color);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-secondary-color);
 `;
 
 const Input = styled.input`
-  padding: 12px;
-  border-radius: 8px;
+  padding: 12px 14px;
+  border-radius: 12px;
   border: 1px solid var(--border-color);
   background-color: var(--input-color);
   color: var(--text-color);
@@ -134,8 +103,8 @@ const Input = styled.input`
 `;
 
 const TextArea = styled.textarea`
-  padding: 12px;
-  border-radius: 8px;
+  padding: 12px 14px;
+  border-radius: 12px;
   border: 1px solid var(--border-color);
   background-color: var(--input-color);
   color: var(--text-color);
@@ -152,49 +121,22 @@ const TextArea = styled.textarea`
   }
 `;
 
-const Button = styled.button`
-  padding: 10px 20px;
-  border-radius: 8px;
-  font-size: 14px;
-  font-weight: 600;
+const Button = styled(DialogActionButton)`
+  min-height: 38px;
+  padding: 0 14px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 700;
   cursor: pointer;
-  transition: all 0.2s;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-
-  ${(props) =>
-    props.primary
-      ? `
-    background-color: var(--primary-color);
-    color: white;
-    border: none;
-
-    &:hover {
-      filter: brightness(1.1);
-    }
-    
-    &:disabled {
-      background-color: var(--border-color);
-      color: var(--text-muted-color);
-      cursor: not-allowed;
-    }
-  `
-      : `
-    background-color: transparent;
-    color: var(--text-color);
-    border: 1px solid var(--border-color);
-
-    &:hover {
-      background-color: var(--hover-color);
-    }
-  `}
 `;
 
 const TabsContainer = styled.div`
   display: flex;
-  gap: 12px;
+  gap: 10px;
   margin-bottom: 8px;
 `;
 
@@ -204,17 +146,18 @@ const Tab = styled.button`
   align-items: center;
   justify-content: center;
   gap: 8px;
-  padding: 10px;
-  border-radius: 8px;
+  min-height: 42px;
+  padding: 10px 12px;
+  border-radius: 12px;
   border: 1px solid
     ${(props) =>
       props.active ? "var(--primary-color)" : "var(--border-color)"};
   background-color: ${(props) =>
-    props.active ? "rgba(88, 101, 242, 0.1)" : "transparent"};
+    props.active ? "color-mix(in srgb, var(--primary-color) 14%, transparent)" : "var(--input-color)"};
   color: ${(props) =>
     props.active ? "var(--primary-color)" : "var(--text-color)"};
-  font-weight: 600;
-  font-size: 14px;
+  font-weight: 700;
+  font-size: 13px;
   cursor: pointer;
   transition: all 0.2s;
 
@@ -225,10 +168,10 @@ const Tab = styled.button`
 `;
 
 const QuestionContainer = styled.div`
-  background: rgba(0, 0, 0, 0.1);
+  background: var(--input-color);
   border: 1px solid var(--border-color);
   padding: 16px;
-  border-radius: 8px;
+  border-radius: 14px;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -249,9 +192,10 @@ const Radio = styled.input`
 const Hint = styled.div`
   font-size: 12px;
   color: var(--text-muted-color);
-  background: rgba(0, 0, 0, 0.2);
+  background: var(--input-color);
+  border: 1px solid var(--border-color);
   padding: 12px;
-  border-radius: 6px;
+  border-radius: 12px;
   line-height: 1.5;
 
   code {
@@ -268,10 +212,30 @@ const createEmptyQuestion = () => ({
   correctOptionIndex: 0,
 });
 
+const buildTemplateTextFromQuestions = (items = []) =>
+  (items || [])
+    .map((question) => {
+      const questionText = String(question?.questionText || "").trim();
+      const options = Array.isArray(question?.options) ? question.options : [];
+      const correctIndex = Number(question?.correctOptionIndex);
+
+      if (!questionText || options.length < 2) return "";
+
+      const lines = [`$ ${questionText}`];
+      options.forEach((option, index) => {
+        const text = String(option || "").trim();
+        if (!text) return;
+        lines.push(`${index === correctIndex ? "+" : "-"} ${text}`);
+      });
+      return lines.join("\n");
+    })
+    .filter(Boolean)
+    .join("\n\n");
+
 const CreateTestDialog = ({ isOpen, onClose, initialTest = null }) => {
   const { fetchMyTests, updateTest } = useArena();
   const currentUser = useAuthStore((state) => state.user);
-  const isEditing = Boolean(initialTest?._id);
+  const isEditing = Boolean(initialTest?._id || initialTest?.id);
   const maxQuestionsPerDeck = getTierLimit(APP_LIMITS.testsPerDeck, currentUser);
   const [mode, setMode] = useState("manual"); // 'manual' | 'template'
   const [title, setTitle] = useState("");
@@ -306,7 +270,7 @@ const CreateTestDialog = ({ isOpen, onClose, initialTest = null }) => {
             }))
           : [createEmptyQuestion()],
       );
-      setTemplateText("");
+      setTemplateText(buildTemplateTextFromQuestions(initialTest?.questions || []));
       return;
     }
 
@@ -478,7 +442,7 @@ const CreateTestDialog = ({ isOpen, onClose, initialTest = null }) => {
         questions: payloadQuestions,
       };
       if (isEditing) {
-        await updateTest(initialTest._id, payload);
+        await updateTest(initialTest?._id || initialTest?.id, payload);
       } else {
         await arenaApi.createTest(payload);
       }
@@ -500,10 +464,17 @@ const CreateTestDialog = ({ isOpen, onClose, initialTest = null }) => {
     <DialogOverlay onClick={onClose}>
       <DialogContent onClick={(e) => e.stopPropagation()}>
         <Header>
-          <h2>{isEditing ? "Testni Tahrirlash" : "Yangi Test Yaratish"}</h2>
-          <ButtonWrapper onClick={onClose}>
+          <HeaderText>
+            <HeaderTitle>
+              {isEditing ? "Testni tahrirlash" : "Yangi test yaratish"}
+            </HeaderTitle>
+            <HeaderSubtitle>
+              Qo'lda ham, maxsus andaza orqali ham savollarni boshqarishingiz mumkin.
+            </HeaderSubtitle>
+          </HeaderText>
+          <ModalCloseButton onClick={onClose}>
             <X size={18} />
-          </ButtonWrapper>
+          </ModalCloseButton>
         </Header>
 
         <Body>
@@ -650,12 +621,13 @@ const CreateTestDialog = ({ isOpen, onClose, initialTest = null }) => {
                   </div>
                   {q.options.length < 4 && (
                     <Button
+                      $variant="ghost"
                       type="button"
                       style={{
                         alignSelf: "flex-start",
                         marginTop: "8px",
-                        fontSize: "12px",
-                        padding: "6px 12px",
+                        minHeight: "34px",
+                        padding: "0 12px",
                       }}
                       onClick={() => handleAddOption(qIndex)}
                     >
@@ -666,6 +638,7 @@ const CreateTestDialog = ({ isOpen, onClose, initialTest = null }) => {
               ))}
 
               <Button
+                $variant="ghost"
                 type="button"
                 style={{ borderStyle: "dashed", padding: "16px" }}
                 onClick={handleAddQuestion}
@@ -698,13 +671,13 @@ const CreateTestDialog = ({ isOpen, onClose, initialTest = null }) => {
         </Body>
 
         <Footer>
-          <Button onClick={onClose} disabled={isSubmitting}>
+          <Button $variant="ghost" onClick={onClose} disabled={isSubmitting}>
             Bekor qilish
           </Button>
-          <Button primary onClick={handleSubmit} disabled={isSubmitting}>
+          <Button onClick={handleSubmit} disabled={isSubmitting}>
             {isSubmitting
               ? "Saqlanmoqda..."
-              : isEditing
+                : isEditing
                 ? "O'zgarishlarni saqlash"
                 : "Testni Yaratish"}
           </Button>

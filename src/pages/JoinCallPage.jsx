@@ -166,6 +166,7 @@ const JoinCallPage = () => {
   const [initialCam, setInitialCam] = useState(false);
   const [isCreator, setIsCreator] = useState(false);
   const hasEditedNameRef = useRef(false);
+  const callStartedRef = useRef(false);
   const navigate = useNavigate();
   const user = useAuthStore((state) => state.user);
   const initialized = useAuthStore((state) => state.initialized);
@@ -258,6 +259,8 @@ const JoinCallPage = () => {
 
   useEffect(() => {
     if (stage !== "call" || !roomId) return;
+    if (callStartedRef.current) return;
+    callStartedRef.current = true;
 
     const fallbackPath =
       sessionStorage.getItem("meet_return_path") ||
@@ -273,18 +276,8 @@ const JoinCallPage = () => {
       initialCamOn: initialCam,
       returnPath: fallbackPath,
     });
-  }, [
-    stage,
-    roomId,
-    meet?.title,
-    meet?.isPrivate,
-    name,
-    isCreator,
-    initialMic,
-    initialCam,
-    startCall,
-    user,
-  ]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stage, roomId]);
 
   if (stage === "checking") {
     return (

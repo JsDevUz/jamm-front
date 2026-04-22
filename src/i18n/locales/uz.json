@@ -265,7 +265,18 @@
       "shareLabel": "Darsni ulashish",
       "share": "Havolani nusxalash",
       "notes": "Mening eslatmalarim",
-      "notesPlaceholder": "Bu dars uchun eslatma yozing..."
+      "notesPlaceholder": "Bu dars uchun eslatma yozing...",
+      "addTimedNote": "Eslatmalar olib qo'yish",
+      "timedNotesHint": "Player ostidagi tugma bilan hozirgi vaqtni ushlab eslatma qo'shing. Vaqtni bossangiz video o'sha joydan davom etadi.",
+      "jumpToMoment": "Shu joyga qaytish",
+      "notesStatusHint": "{{count}} / {{limit}} ta vaqtli eslatma. Avtomatik saqlanadi.",
+      "notesLimitReached": "Bu tarifda bir dars uchun maksimal {{limit}} ta eslatma qo'sha olasiz.",
+      "notesEmpty": "Hozircha saqlangan eslatma yo'q. Player ostidagi tugma orqali ayni vaqtga bog'langan eslatma yozing.",
+      "noteDialogDescription": "Eslatma avtomatik ravishda hozirgi video vaqtiga biriktiriladi.",
+      "noteDialogEditDescription": "Bu vaqt uchun avvalgi eslatma topildi. Shu yerda uni tahrirlashingiz mumkin.",
+      "noteDialogPlaceholder": "Shu joy uchun eslatmangizni yozing...",
+      "editTimedNote": "Eslatmani tahrirlash",
+      "updateTimedNote": "Yangilash"
     },
     "meta": {
       "lesson": "{{index}}-dars: {{title}}",
@@ -750,6 +761,7 @@
     "meetRecordingSavedToSavedMessages": "Meet yozuvi Saved Messages ga yuborildi",
     "meetRecordingFinalizeFailed": "Meet yozuvini serverda saqlab bo'lmadi",
     "connecting": "Ulanmoqda…",
+    "reconnecting": "Qayta ulanmoqda…",
     "waiting": "Ruxsat kutilmoqda…",
     "waitingDescription": "Call yaratuvchisi sizga ruxsat berishini kuting",
     "rejected": "Rad etildi",

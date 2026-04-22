@@ -25,43 +25,68 @@ const CHAT_MESSAGES_CACHE_VERSION = 1;
 const CHAT_MESSAGES_CACHE_PREFIX = "jamm.chat-area.messages";
 const CHAT_SCROLL_CACHE_PREFIX = "jamm.chat-area.scroll";
 const OLDER_HISTORY_FETCH_SAFETY_LIMIT = 20;
+const inMemoryChatMessagesCache = new Map();
 
 const getScopedCacheKey = (prefix, userId, chatId) =>
   `${prefix}.${encodeURIComponent(String(userId || "guest"))}.${encodeURIComponent(
     String(chatId || "unknown"),
   )}`;
 
-const readStorageEnvelope = (storageKey) => {
+const getStorageArea = (type = "local") => {
   if (typeof window === "undefined") return null;
+  return type === "session" ? window.sessionStorage : window.localStorage;
+};
+
+const removeStorageEnvelope = (storageKey, type = "local") => {
+  const storage = getStorageArea(type);
+  if (!storage) return;
 
   try {
-    const rawValue = window.localStorage.getItem(storageKey);
+    storage.removeItem(storageKey);
+  } catch {
+    // Ignore storage cleanup issues.
+  }
+};
+
+const readStorageEnvelope = (storageKey, type = "local") => {
+  if (typeof window === "undefined") return null;
+
+  const storage = getStorageArea(type);
+  if (!storage) return null;
+
+  try {
+    const rawValue = storage.getItem(storageKey);
     if (!rawValue) return null;
 
     const parsed = JSON.parse(rawValue);
     if (parsed?.version !== CHAT_MESSAGES_CACHE_VERSION) {
-      window.localStorage.removeItem(storageKey);
+      removeStorageEnvelope(storageKey, type);
       return null;
     }
 
     return parsed;
   } catch {
-    window.localStorage.removeItem(storageKey);
+    removeStorageEnvelope(storageKey, type);
     return null;
   }
 };
 
-const writeStorageEnvelope = (storageKey, data) => {
-  if (typeof window === "undefined") return;
+const writeStorageEnvelope = (storageKey, data, type = "local") => {
+  const storage = getStorageArea(type);
+  if (!storage) return;
 
-  window.localStorage.setItem(
-    storageKey,
-    JSON.stringify({
-      version: CHAT_MESSAGES_CACHE_VERSION,
-      updatedAt: new Date().toISOString(),
-      data,
-    }),
-  );
+  try {
+    storage.setItem(
+      storageKey,
+      JSON.stringify({
+        version: CHAT_MESSAGES_CACHE_VERSION,
+        updatedAt: new Date().toISOString(),
+        data,
+      }),
+    );
+  } catch {
+    // Ignore storage write issues and fall back to in-memory behavior.
+  }
 };
 
 const normalizeComparableOrigin = (value) => {
@@ -77,8 +102,10 @@ const normalizeComparableOrigin = (value) => {
 
 const loadCachedChatMessages = (userId, chatId) => {
   const storageKey = getScopedCacheKey(CHAT_MESSAGES_CACHE_PREFIX, userId, chatId);
-  const envelope = readStorageEnvelope(storageKey);
-  const messages = envelope?.data?.messages;
+  removeStorageEnvelope(storageKey, "local");
+  removeStorageEnvelope(storageKey, "session");
+  const cachedEntry = inMemoryChatMessagesCache.get(storageKey);
+  const messages = cachedEntry?.messages;
 
   if (!Array.isArray(messages)) {
     return null;
@@ -86,14 +113,16 @@ const loadCachedChatMessages = (userId, chatId) => {
 
   return {
     messages: messages.filter(Boolean),
-    nextCursor: envelope?.data?.nextCursor || null,
-    hasMore: Boolean(envelope?.data?.hasMore),
+    nextCursor: cachedEntry?.nextCursor || null,
+    hasMore: Boolean(cachedEntry?.hasMore),
   };
 };
 
 const saveCachedChatMessages = (userId, chatId, payload) => {
   const storageKey = getScopedCacheKey(CHAT_MESSAGES_CACHE_PREFIX, userId, chatId);
-  writeStorageEnvelope(storageKey, {
+  removeStorageEnvelope(storageKey, "local");
+  removeStorageEnvelope(storageKey, "session");
+  inMemoryChatMessagesCache.set(storageKey, {
     messages: Array.isArray(payload?.messages) ? payload.messages : [],
     nextCursor: payload?.nextCursor || null,
     hasMore: Boolean(payload?.hasMore),
@@ -183,6 +212,9 @@ const mergeChronologicalMessages = (existingMessages, incomingMessages) => {
     return leftTime - rightTime;
   });
 };
+
+const filterVisibleMessages = (messages = []) =>
+  (messages || []).filter((message) => !message?.isDeleted);
 
 const matchesSelectedChat = (chat, targetId) => {
   if (!chat || !targetId) return false;
@@ -473,7 +505,7 @@ export default function useChatAreaController({
     );
 
     if (cachedMessages) {
-      setMessages(cachedMessages.messages);
+      setMessages(filterVisibleMessages(cachedMessages.messages));
       setMessagesCursor(cachedMessages.nextCursor || null);
       setMessagesHasMore(Boolean(cachedMessages.hasMore));
       setSavedScrollOffset(cachedScrollOffset);
@@ -516,7 +548,7 @@ export default function useChatAreaController({
 
       try {
         let result = await fetchMessages(currentChat.id);
-        let loadedMessages = result.data || [];
+        let loadedMessages = filterVisibleMessages(result.data || []);
         let nextCursor = result.nextCursor || null;
         let nextHasMore = Boolean(result.hasMore);
 
@@ -592,7 +624,7 @@ export default function useChatAreaController({
     const refreshLatestMessages = async () => {
       try {
         const latestResult = await fetchMessages(currentChat.id);
-        const latestMessages = latestResult.data || [];
+        const latestMessages = filterVisibleMessages(latestResult.data || []);
 
         if (cancelled || latestMessages.length === 0) {
           return;
@@ -654,7 +686,7 @@ export default function useChatAreaController({
         attempt += 1
       ) {
         const result = await fetchMessages(currentChat.id, nextCursor);
-        const olderMessages = result.data || [];
+        const olderMessages = filterVisibleMessages(result.data || []);
 
         nextCursor = result.nextCursor || null;
         nextHasMore = Boolean(result.hasMore);
@@ -962,12 +994,14 @@ export default function useChatAreaController({
   };
 
   const handleInfoSidebarToggle = () => {
-    if (isInfoSidebarOpen && window.history.state?.chatInfoSidebar) {
-      window.history.back();
-      return;
-    }
-
     if (isInfoSidebarOpen) {
+      if (window.history.state?.chatInfoSidebar) {
+        window.history.replaceState(
+          { ...window.history.state, chatInfoSidebar: null },
+          "",
+          window.location.href,
+        );
+      }
       closeInfoSidebar();
       return;
     }
@@ -977,8 +1011,11 @@ export default function useChatAreaController({
 
   const handleInfoSidebarClose = () => {
     if (window.history.state?.chatInfoSidebar) {
-      window.history.back();
-      return;
+      window.history.replaceState(
+        { ...window.history.state, chatInfoSidebar: null },
+        "",
+        window.location.href,
+      );
     }
 
     closeInfoSidebar();

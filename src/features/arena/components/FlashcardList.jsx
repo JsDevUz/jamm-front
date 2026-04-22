@@ -345,6 +345,16 @@ const SkeletonBlock = styled.div`
   animation: ${skeletonPulse} 1.1s ease-in-out infinite;
 `;
 
+const FolderSkeletonChip = styled.div`
+  flex: 0 0 auto;
+  width: 112px;
+  height: 38px;
+  border-radius: 999px;
+  border: 1px solid var(--border-color);
+  background: color-mix(in srgb, var(--text-muted-color) 12%, var(--secondary-color));
+  animation: ${skeletonPulse} 1.1s ease-in-out infinite;
+`;
+
 const MenuWrap = styled.div`
   position: relative;
   flex-shrink: 0;
@@ -1647,6 +1657,7 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
   const [viewingDeck, setViewingDeck] = useState(null);
   const [viewingFolder, setViewingFolder] = useState(null);
   const [folders, setFolders] = useState([]);
+  const [isFoldersLoading, setIsFoldersLoading] = useState(true);
   const [selectedFolderFilter, setSelectedFolderFilter] = useState(NO_FOLDER_FILTER_ID);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [reviewQueue, setReviewQueue] = useState([]);
@@ -1919,11 +1930,14 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
   };
 
   const loadFolders = async () => {
+    setIsFoldersLoading(true);
     try {
       const response = await arenaApi.fetchFlashcardFolders();
       setFolders(Array.isArray(response?.data) ? response.data : []);
     } catch (error) {
       console.error("Error fetching flashcard folders:", error);
+    } finally {
+      setIsFoldersLoading(false);
     }
   };
 
@@ -2942,6 +2956,11 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
             >
               Foldersiz
             </FolderChip>
+            {isFoldersLoading && folders.length === 0
+              ? Array.from({ length: 2 }).map((_, index) => (
+                  <FolderSkeletonChip key={`folder-skeleton-${index}`} />
+                ))
+              : null}
             {visibleFolderChips.map((folder) => {
               const folderId = getFolderIdentifier(folder);
               const isActive = selectedFolderFilter === folderId;
@@ -3085,8 +3104,9 @@ const FlashcardList = ({ initialDeckId, onBack }) => {
                                 A'zolar
                               </MenuItem>
                               <MenuItem
-                                onClick={() => {
-                                  setEditingDeck(deck);
+                                onClick={async () => {
+                                  const fullDeck = await fetchFlashcardDeck(deck._id);
+                                  setEditingDeck(fullDeck || deck);
                                   setOpenMenuId(null);
                                 }}
                               >

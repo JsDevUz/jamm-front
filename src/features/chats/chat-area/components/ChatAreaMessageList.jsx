@@ -763,6 +763,7 @@ const ChatAreaMessageList = ({ keyboardHeight = 0 }) => {
   const previousMessageCountRef = useRef(0);
   const initialAnchorResolvedRef = useRef(false);
   const scrollPersistTimeoutRef = useRef(null);
+  const historyFetchArmedRef = useRef(false);
   const [swipeState, setSwipeState] = useState({ messageId: null, offset: 0 });
   const [pendingNewMessageIds, setPendingNewMessageIds] = useState([]);
   const [contentReady, setContentReady] = useState(false);
@@ -803,6 +804,7 @@ const ChatAreaMessageList = ({ keyboardHeight = 0 }) => {
     }
     setPendingNewMessageIds([]);
     setContentReady(false);
+    historyFetchArmedRef.current = false;
   }, [currentChat?.id]);
 
   // Unmount da scroll pozitsiyasini saqlash
@@ -1002,11 +1004,20 @@ const ChatAreaMessageList = ({ keyboardHeight = 0 }) => {
       setPendingNewMessageIds([]);
     }
 
-    if (element.scrollTop > 120 || isLoadingMessages || !messagesHasMore) {
+    if (
+      !historyFetchArmedRef.current ||
+      element.scrollTop > 120 ||
+      isLoadingMessages ||
+      !messagesHasMore
+    ) {
       return;
     }
 
     fetchMoreMessages();
+  };
+
+  const armHistoryFetch = () => {
+    historyFetchArmedRef.current = true;
   };
 
   useEffect(() => {
@@ -1207,6 +1218,9 @@ const ChatAreaMessageList = ({ keyboardHeight = 0 }) => {
         ref={scrollContainerRef}
         $keyboardOpen={keyboardOpen}
         onContextMenu={(event) => event.preventDefault()}
+        onTouchStart={armHistoryFetch}
+        onWheel={armHistoryFetch}
+        onMouseDown={armHistoryFetch}
         onScroll={handleMessagesScroll}
         style={showInitialLoader ? { opacity: 0, pointerEvents: "none" } : { opacity: 1 }}
       >

@@ -265,7 +265,18 @@
       "shareLabel": "Share this lesson",
       "share": "Copy link",
       "notes": "My notes",
-      "notesPlaceholder": "Write notes for this lesson..."
+      "notesPlaceholder": "Write notes for this lesson...",
+      "addTimedNote": "Capture note",
+      "timedNotesHint": "Use the button under the player to capture the current moment. Tap a timestamp to jump back and keep playing.",
+      "jumpToMoment": "Jump back to this moment",
+      "notesStatusHint": "{{count}} / {{limit}} timed notes. Saved automatically.",
+      "notesLimitReached": "Your plan allows up to {{limit}} notes per lesson.",
+      "notesEmpty": "No saved notes yet. Use the button under the player to save a note for the current moment.",
+      "noteDialogDescription": "This note will be attached to the current video timestamp automatically.",
+      "noteDialogEditDescription": "A note already exists for this timestamp. You can edit it here.",
+      "noteDialogPlaceholder": "Write your note for this moment...",
+      "editTimedNote": "Edit note",
+      "updateTimedNote": "Update"
     },
     "meta": {
       "lesson": "Lesson {{index}}: {{title}}",
@@ -748,6 +759,7 @@
     "meetRecordingSavedToSavedMessages": "The meet recording was sent to Saved Messages",
     "meetRecordingFinalizeFailed": "Failed to save the meet recording on the server",
     "connecting": "Connecting…",
+    "reconnecting": "Reconnecting…",
     "waiting": "Waiting for approval…",
     "waitingDescription": "Wait until the call host approves your request",
     "rejected": "Rejected",

@@ -2074,6 +2074,25 @@ const Spin = styled(Loader)`
   animation: ${pulse} 1.2s linear infinite;
 `;
 
+const ReconnectingBanner = styled.div`
+  position: absolute;
+  top: 60px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 20;
+  background: rgba(250, 166, 26, 0.92);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 6px 18px;
+  border-radius: 20px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  pointer-events: none;
+  white-space: nowrap;
+`;
+
 const recPulse = keyframes`
   0%, 100% { opacity: 1; }
   50% { opacity: 0.4; }
@@ -2456,6 +2475,7 @@ const GroupVideoCall = ({
     approveKnock,
     rejectKnock,
     joinStatus,
+    isLivekitReconnecting,
     isMicOn,
     isCamOn,
     micLocked,
@@ -5029,6 +5049,13 @@ const GroupVideoCall = ({
         {/* TopBar floats on top of content */}
         {!isWhiteboardFullscreen && topBarContent}
 
+        {isLivekitReconnecting && (
+          <ReconnectingBanner>
+            <Spin size={14} color="#fff" />
+            {t("groupCall.reconnecting", "Qayta ulanmoqda...")}
+          </ReconnectingBanner>
+        )}
+
         {/* Invisible overlay to toggle UI when clicking empty space */}
         <ScreenClickOverlay onClick={handleScreenClick} />
         {error ? (
@@ -5037,7 +5064,7 @@ const GroupVideoCall = ({
             <span>{error}</span>
             <TinyBtn onClick={onClose}>{t("groupCall.close")}</TinyBtn>
           </CenterBox>
-        ) : joinStatus === "connecting" ? (
+        ) : joinStatus === "connecting" && !isLivekitReconnecting ? (
           <CenterBox>
             <Spin size={38} color="#7289da" />
             <span>{t("groupCall.connecting")}</span>

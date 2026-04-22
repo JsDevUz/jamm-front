@@ -23,6 +23,7 @@ import toast from "react-hot-toast";
 import { useCourses } from "../contexts/CoursesContext";
 import { getLessonPlaybackToken } from "../api/coursesApi";
 import { getCourseMemberStatus } from "../features/courses/utils/courseNavigation";
+import MarkdownRenderer from "../features/articles/components/MarkdownRenderer";
 import { API_BASE_URL } from "../config/env";
 
 const previewPageFadeIn = keyframes`
@@ -456,16 +457,30 @@ const RequirementsList = styled.ul`
   color: var(--text-color);
 `;
 
-const DescriptionBody = styled.div`
-  display: grid;
-  gap: 12px;
+const DescriptionBody = styled(MarkdownRenderer)`
   font-size: clamp(15px, 1.2vw, 18px);
   line-height: 1.58;
   color: var(--text-color);
-`;
 
-const DescriptionParagraph = styled.p`
-  margin: 0;
+  h1 {
+    font-size: clamp(28px, 2.5vw, 40px);
+  }
+
+  h2 {
+    font-size: clamp(22px, 2vw, 32px);
+  }
+
+  h3 {
+    font-size: clamp(18px, 1.5vw, 24px);
+  }
+
+  p:last-child,
+  ul:last-child,
+  ol:last-child,
+  blockquote:last-child,
+  pre:last-child {
+    margin-bottom: 0;
+  }
 `;
 
 const PurchaseCard = styled.div`
@@ -824,6 +839,35 @@ function extractDescriptionItems(description = "") {
     .split(/[.!?]+/)
     .map((line) => line.trim())
     .filter((line) => line.length > 18);
+}
+
+function stripMarkdownSyntax(value = "") {
+  return String(value || "")
+    .replace(/!\[([^\]]*)\]\(([^)]+)\)/g, "$1")
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, "$1")
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/\*\*([^*]+)\*\*/g, "$1")
+    .replace(/_([^_]+)_/g, "$1")
+    .replace(/^>\s?/gm, "")
+    .replace(/^#{1,6}\s+/gm, "")
+    .replace(/^[-*+]\s+/gm, "")
+    .replace(/^\d+\.\s+/gm, "")
+    .replace(/\n+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function getCourseDescriptionExcerpt(description = "", fallback = "") {
+  const normalized = stripMarkdownSyntax(description);
+  if (!normalized) {
+    return fallback;
+  }
+
+  if (normalized.length <= 180) {
+    return normalized;
+  }
+
+  return `${normalized.slice(0, 177).trimEnd()}...`;
 }
 
 function getCreatedByLabel(createdBy, t) {
@@ -1194,10 +1238,12 @@ export default function CoursePreviewPage() {
           <Headline>
             <Title>{course.name}</Title>
             <Subtitle>
-              {course.description ||
+              {getCourseDescriptionExcerpt(
+                course.description,
                 t("coursePreview.descriptionFallback", {
                   category: course.category || t("common.course"),
-                })}
+                }),
+              )}
             </Subtitle>
             <BestsellerBadge>
               {course.category || t("coursePreview.bestseller")}
@@ -1388,19 +1434,9 @@ export default function CoursePreviewPage() {
             <SectionTitle style={{ marginBottom: 18 }}>
               {t("coursePreview.descriptionTitle")}
             </SectionTitle>
-            <DescriptionBody>
-              {extractDescriptionItems(course.description || "").length ? (
-                extractDescriptionItems(course.description || "").map((item, index) => (
-                  <DescriptionParagraph key={`${item}-${index}`}>
-                    {item}
-                  </DescriptionParagraph>
-                ))
-              ) : (
-                <DescriptionParagraph>
-                  {course.description || t("coursePreview.noDescription")}
-                </DescriptionParagraph>
-              )}
-            </DescriptionBody>
+            <DescriptionBody
+              content={course.description || t("coursePreview.noDescription")}
+            />
           </PlainSection>
         </MainColumn>
 

@@ -285,12 +285,13 @@ const ProfilePage = ({ profileUserId, onClose }) => {
     try {
       const user = await getUserByUsername("jamm");
       if (!user) return;
-      const chat = await createChat({
+      await createChat({
         isGroup: false,
         memberIds: [user._id || user.id],
       });
       await fetchChats();
-      navigate(`/groups/${chat.urlSlug || chat.jammId || chat._id || chat.id}`);
+      const userSlug = user.username || user.jammId || user._id || user.id;
+      navigate(`/users/${userSlug}`);
     } catch {
       toast.error(t("profileUtility.support.chatError"));
     }

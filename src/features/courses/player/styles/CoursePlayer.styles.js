@@ -206,11 +206,27 @@ export const ControlsBar = styled.div`
 
 export const ProgressContainer = styled.div`
   width: 100%;
-  height: 8px;
+  height: ${(props) => (props.$scrubbing ? "10px" : "8px")};
   background: rgba(255, 255, 255, 0.16);
   border-radius: 999px;
   cursor: pointer;
   position: relative;
+  touch-action: none;
+  user-select: none;
+  transition: height 0.1s ease;
+  padding: 2px 0;
+  margin: -8px 0;
+  box-sizing: content-box;
+
+  &:hover {
+    height: 10px;
+  }
+
+  &::before {
+    content: "";
+    position: absolute;
+    inset: -8px 0;
+  }
 `;
 
 export const ProgressSegmentDivider = styled.div`
@@ -231,7 +247,7 @@ export const ProgressFilled = styled.div`
   background: var(--primary-color);
   border-radius: 999px;
   position: relative;
-  transition: width 0.1s linear;
+  transition: ${(props) => (props.$scrubbing ? "none" : "width 0.1s linear")};
   width: ${(props) => `${props.$width}%`};
 `;
 
@@ -249,14 +265,15 @@ export const ProgressThumb = styled.div`
   position: absolute;
   top: 50%;
   left: ${(props) => `${props.$left}%`};
-  width: 14px;
-  height: 14px;
+  width: ${(props) => (props.$active ? "18px" : "14px")};
+  height: ${(props) => (props.$active ? "18px" : "14px")};
   border-radius: 999px;
   background: var(--primary-color);
-  box-shadow: 0 0 10px color-mix(in srgb, var(--primary-color) 40%, transparent);
-  transform: translate(-50%, -50%);
+  box-shadow: 0 0 ${(props) => (props.$active ? "14px" : "10px")} color-mix(in srgb, var(--primary-color) ${(props) => (props.$active ? "60%" : "40%")}, transparent);
+  transform: translate(-50%, -50%) scale(${(props) => (props.$active ? 1.15 : 1)});
   pointer-events: none;
   z-index: 4;
+  transition: width 0.1s ease, height 0.1s ease, transform 0.1s ease, box-shadow 0.1s ease;
 `;
 
 export const ProgressHoverTooltip = styled.div`
@@ -1345,6 +1362,194 @@ export const NotesArea = styled.textarea`
 
   &::placeholder {
     color: var(--text-muted-color);
+  }
+`;
+
+export const NotesHintText = styled.p`
+  margin: 0;
+  color: var(--text-muted-color);
+  font-size: 13px;
+  line-height: 1.55;
+`;
+
+export const NotesEmptyState = styled.div`
+  padding: 16px 18px;
+  border-radius: 14px;
+  border: 1px dashed var(--border-color);
+  color: var(--text-muted-color);
+  font-size: 13px;
+  line-height: 1.6;
+  background: color-mix(in srgb, var(--input-color) 80%, white 20%);
+`;
+
+export const TimedNotesList = styled.div`
+  display: grid;
+  gap: 10px;
+`;
+
+export const TimedNoteItem = styled.div`
+  display: grid;
+  gap: 8px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid
+    ${(props) =>
+      props.$active
+        ? "color-mix(in srgb, var(--primary-color) 52%, var(--border-color))"
+        : "var(--border-color)"};
+  background: ${(props) =>
+    props.$active
+      ? "color-mix(in srgb, var(--primary-color) 10%, var(--input-color))"
+      : "color-mix(in srgb, var(--input-color) 92%, white 8%)"};
+  transition:
+    border-color 0.2s ease,
+    background 0.2s ease,
+    transform 0.2s ease;
+
+  &:hover {
+    transform: translateY(-1px);
+  }
+`;
+
+export const TimedNoteHeader = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+`;
+
+export const TimedNoteJumpButton = styled.button`
+  border: none;
+  border-radius: 999px;
+  padding: 6px 12px;
+  background: color-mix(in srgb, var(--primary-color) 14%, transparent);
+  color: var(--primary-color);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    transform 0.2s ease,
+    background 0.2s ease;
+
+  &:hover {
+    transform: translateY(-1px);
+    background: color-mix(in srgb, var(--primary-color) 18%, transparent);
+  }
+`;
+
+export const TimedNoteText = styled.div`
+  color: var(--text-color);
+  font-size: 14px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
+`;
+
+export const NoteDialogOverlay = styled.div`
+  position: fixed;
+  inset: 0;
+  z-index: 10010;
+  background: rgba(10, 14, 24, 0.58);
+  backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+`;
+
+export const NoteDialogCard = styled.div`
+  width: min(100%, 460px);
+  background: var(--background-color);
+  border: 1px solid var(--border-color);
+  border-radius: 22px;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.24);
+  display: grid;
+  gap: 16px;
+  padding: 22px;
+`;
+
+export const NoteDialogHeader = styled.div`
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+`;
+
+export const NoteDialogTitleWrap = styled.div`
+  display: grid;
+  gap: 6px;
+`;
+
+export const NoteDialogTitle = styled.h3`
+  margin: 0;
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--text-color);
+`;
+
+export const NoteDialogSubtitle = styled.p`
+  margin: 0;
+  color: var(--text-muted-color);
+  font-size: 13px;
+  line-height: 1.55;
+`;
+
+export const NoteDialogCloseButton = styled.button`
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--input-color) 88%, white 12%);
+  color: var(--text-muted-color);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+`;
+
+export const NoteDialogTimeBadge = styled.div`
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--primary-color) 14%, transparent);
+  color: var(--primary-color);
+  font-size: 13px;
+  font-weight: 700;
+  width: fit-content;
+`;
+
+export const NoteDialogActions = styled.div`
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+`;
+
+export const NoteDialogSecondaryButton = styled.button`
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  background: transparent;
+  color: var(--text-color);
+  padding: 10px 14px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+`;
+
+export const NoteDialogPrimaryButton = styled.button`
+  border: none;
+  border-radius: 12px;
+  background: var(--primary-color);
+  color: white;
+  padding: 10px 16px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
   }
 `;
 

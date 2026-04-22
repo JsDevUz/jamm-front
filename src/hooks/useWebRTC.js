@@ -1612,6 +1612,8 @@ export function useWebRTC({
   initialCamOn = true,
 }) {
   const currentUser = useAuthStore((state) => state.user);
+  const displayNameRef = useRef(displayName);
+  useEffect(() => { displayNameRef.current = displayName; }, [displayName]);
   const socketRef = useRef(null);
   // Stores cleanup functions for socket event listeners registered in start()
   const socketDetachRef = useRef(null);
@@ -1643,6 +1645,7 @@ export function useWebRTC({
   const [isHandRaised, setIsHandRaised] = useState(false);
   const [raisedHands, setRaisedHands] = useState(new Set());
   const [joinStatus, setJoinStatus] = useState("idle");
+  const [isLivekitReconnecting, setIsLivekitReconnecting] = useState(false);
   const [error, setError] = useState(null);
   const [roomTitle, setRoomTitle] = useState(chatTitle || "");
   const [roomIsPrivate, setRoomIsPrivate] = useState(isPrivate);
@@ -1699,6 +1702,12 @@ export function useWebRTC({
     APP_LIMITS.whiteboardPdfLibraryBytes,
     currentUser,
   );
+
+  useEffect(() => {
+    setRoomTitle(chatTitle || "");
+    setRoomIsPrivate(Boolean(isPrivate));
+    setRoomCreatorId(null);
+  }, [roomId, chatTitle, isPrivate]);
 
   useEffect(() => {
     let cancelled = false;
@@ -2572,6 +2581,7 @@ export function useWebRTC({
     setRemoteStreams([]);
     setRemoteScreenStreams([]);
     setRemotePeerStates({});
+    setIsLivekitReconnecting(false);
   }, [applyLocalMediaStream, applyScreenMediaStream]);
 
   const connectLivekitRoom = useCallback(
@@ -2595,7 +2605,7 @@ export function useWebRTC({
       const connectTask = (async () => {
         const tokenPayload = await createLivekitToken({
           roomId,
-          participantName: displayName,
+          participantName: displayNameRef.current,
           canPublish: true,
           canPublishData: true,
           canSubscribe: true,
@@ -2715,11 +2725,11 @@ export function useWebRTC({
           })
           .on(RoomEvent.Reconnecting, () => {
             logRtcWarn("LiveKit reconnecting", { roomId });
-            setJoinStatus("connecting");
+            setIsLivekitReconnecting(true);
           })
           .on(RoomEvent.Reconnected, () => {
             logRtcInfo("LiveKit reconnected", { roomId });
-            setJoinStatus("joined");
+            setIsLivekitReconnecting(false);
             syncLocal();
             syncRemote();
             attachLivekitIceCandidateErrorLogging(room);
@@ -2742,7 +2752,7 @@ export function useWebRTC({
         logRtcInfo("LiveKit connected", {
           roomId,
           participantIdentity: tokenPayload?.participantIdentity || "",
-          participantName: tokenPayload?.participantName || displayName,
+          participantName: tokenPayload?.participantName || displayNameRef.current,
         });
         logLivekitTransportDiagnostics(room, "connected");
         room.remoteParticipants.forEach((participant) => {
@@ -2786,7 +2796,6 @@ export function useWebRTC({
       }
     },
     [
-      displayName,
       ensureLivekitParticipantSubscriptions,
       attachLivekitIceCandidateErrorLogging,
       logLivekitTransportDiagnostics,
@@ -3908,7 +3917,6 @@ export function useWebRTC({
         registeredHandlers.forEach(([event, handler]) => socket.off(event, handler));
         registeredHandlers.length = 0;
       };
-      return detachAll;
 
       if (!shouldUseLiveKit) {
         on("offer", async ({ senderId, sdp }) => {
@@ -4135,6 +4143,8 @@ export function useWebRTC({
           }
         });
       }
+
+      return detachAll;
     },
     [
       clearPeerDisconnectTimeout,
@@ -4278,18 +4288,29 @@ export function useWebRTC({
             setJoinStatus("waiting");
           });
 
-          reg("knock-approved", ({ mediaLocked }) => {
+          reg("knock-approved", async ({ mediaLocked }) => {
             setJoinStatus("joined");
-            // Safety fallback: older backend may still send a locked flag.
             if (mediaLocked) {
               setMicLocked(true);
               setCamLocked(true);
               void disableLocalAudioTrack();
               void disableLocalVideoTrack();
-              return;
+            } else {
+              setMicLocked(false);
+              setCamLocked(false);
             }
-            setMicLocked(false);
-            setCamLocked(false);
+            if (shouldUseLiveKit) {
+              try {
+                await connectLivekitRoom({
+                  microphoneEnabled: mediaLocked ? false : shouldStartWithMic,
+                  cameraEnabled: mediaLocked ? false : shouldStartWithCam,
+                });
+                emitLocalMediaState();
+              } catch (livekitError) {
+                console.error("[useWebRTC] LiveKit connect after knock-approved:", livekitError);
+                setError(livekitError?.message || "LiveKit roomga ulanib bo'lmadi");
+              }
+            }
           });
 
           reg("knock-rejected", ({ reason }) => {
@@ -4766,7 +4787,6 @@ export function useWebRTC({
     roomId,
     displayName,
     isCreator,
-    isPrivate,
     attachSignalingListeners,
     buildCameraConstraints,
     commitWhiteboardState,
@@ -6096,6 +6116,7 @@ export function useWebRTC({
     approveKnock,
     rejectKnock,
     joinStatus,
+    isLivekitReconnecting,
     isMicOn,
     isCamOn,
     micLocked,

@@ -12,6 +12,7 @@ import {
   X,
 } from "lucide-react";
 import UserNameWithDecoration from "../../../shared/ui/users/UserNameWithDecoration";
+import ImageLightbox from "../../../shared/ui/media/ImageLightbox";
 
 const DEFAULT_COURSE_IMAGE = "/default-course-image.jpg";
 
@@ -241,6 +242,7 @@ const ProfileLargeAvatar = styled.div`
   padding: 6px;
   background: color-mix(in srgb, var(--background-color) 92%, var(--secondary-color));
   box-shadow: 0 14px 30px rgba(0, 0, 0, 0.3);
+  cursor: ${(props) => (props.$clickable ? "zoom-in" : "default")};
 
   @media (max-width: 768px) {
     left: 18px;
@@ -781,6 +783,7 @@ export default function NewProfileModal({
   formatCreatedDate,
 }) {
   const [isBecomeTeacherPromptOpen, setIsBecomeTeacherPromptOpen] = React.useState(false);
+  const [isAvatarPreviewOpen, setIsAvatarPreviewOpen] = React.useState(false);
 
   if (!open) return null;
 
@@ -807,7 +810,14 @@ export default function NewProfileModal({
                 <Settings size={18} />
               </ProfileBannerSettingsButton>
             ) : null}
-            <ProfileLargeAvatar>
+            <ProfileLargeAvatar
+              $clickable={Boolean(currentUser?.avatar)}
+              onClick={() => {
+                if (currentUser?.avatar) {
+                  setIsAvatarPreviewOpen(true);
+                }
+              }}
+            >
               <ProfileLargeAvatarInner>
                 {currentUser?.avatar ? (
                   <ProfileLargeAvatarImage src={currentUser.avatar} alt={displayName} />
@@ -1099,6 +1109,11 @@ export default function NewProfileModal({
           </ProfilePromptOverlay>
         ) : null}
       </ProfileModal>
+      <ImageLightbox
+        src={isAvatarPreviewOpen ? currentUser?.avatar : null}
+        alt={displayName}
+        onClose={() => setIsAvatarPreviewOpen(false)}
+      />
     </ProfileOverlay>
   );
 }

@@ -66,6 +66,14 @@ const DYNAMIC_PREVIEW_PATTERNS = [
   /^\/arena\/battle\/[^/]+$/,
 ];
 
+function normalizePreviewPathname(pathname = "/") {
+  if (/^\/my-courses(?:\/|$)/.test(pathname)) {
+    return pathname.replace(/^\/my-courses/, "/courses");
+  }
+
+  return pathname;
+}
+
 function ensureMeta(selector, attribute, key, value) {
   let element = document.head.querySelector(selector);
   if (!element) {
@@ -153,7 +161,9 @@ async function fetchPreviewMeta(pathname) {
     return null;
   }
 
-  const response = await fetch(`${baseUrl}/link-preview${pathname}`, {
+  const previewPathname = normalizePreviewPathname(pathname);
+
+  const response = await fetch(`${baseUrl}/link-preview${previewPathname}`, {
     method: "GET",
     headers: { Accept: "text/html" },
   });

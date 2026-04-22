@@ -25,12 +25,14 @@ import {
   Shield,
   AlertCircle,
   Star,
+  StickyNote,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { useCourses } from "../../../contexts/CoursesContext";
 import { useChats } from "../../../contexts/ChatsContext";
 import { useNavigate } from "react-router-dom";
 import useAuthStore from "../../../store/authStore";
+import { APP_LIMITS, isPremiumUser } from "../../../constants/appLimits";
 import { getLessonPlaybackToken } from "../../../api/coursesApi";
 import { API_BASE_URL } from "../../../config/env";
 import { CoursePlayerProvider } from "../player/context/CoursePlayerContext";
@@ -125,6 +127,24 @@ import {
   ShareLabel,
   ShareButton,
   NotesArea,
+  NotesHintText,
+  NotesEmptyState,
+  TimedNotesList,
+  TimedNoteItem,
+  TimedNoteHeader,
+  TimedNoteJumpButton,
+  TimedNoteText,
+  NoteDialogOverlay,
+  NoteDialogCard,
+  NoteDialogHeader,
+  NoteDialogTitleWrap,
+  NoteDialogTitle,
+  NoteDialogSubtitle,
+  NoteDialogCloseButton,
+  NoteDialogTimeBadge,
+  NoteDialogActions,
+  NoteDialogSecondaryButton,
+  NoteDialogPrimaryButton,
   NoteStatusText,
   RatingForm,
   RatingStars,
@@ -165,6 +185,59 @@ function hasLessonActivity(lesson) {
     : false;
 
   return hasAttendanceProgress || hasHomeworkSubmission || hasLinkedTestProgress;
+}
+
+const TIMED_NOTE_PATTERN =
+  /^\s*(?:\[(\d{1,2}:\d{2}(?::\d{2})?)\]|(\d{1,2}:\d{2}(?::\d{2})?))\s*(?:[-:|]\s*)?(.*)$/;
+
+function parseTimedNoteSeconds(value) {
+  const parts = String(value || "")
+    .split(":")
+    .map((part) => Number(part));
+
+  if (!parts.length || parts.some((part) => Number.isNaN(part) || part < 0)) {
+    return null;
+  }
+
+  if (parts.length === 2) {
+    const [minutes, seconds] = parts;
+    return minutes * 60 + seconds;
+  }
+
+  if (parts.length === 3) {
+    const [hours, minutes, seconds] = parts;
+    return hours * 3600 + minutes * 60 + seconds;
+  }
+
+  return null;
+}
+
+function countTimedNotes(text) {
+  return String(text || "")
+    .split(/\r?\n/)
+    .filter((line) => TIMED_NOTE_PATTERN.test(line))
+    .length;
+}
+
+function extractTimedNotes(text) {
+  return String(text || "")
+    .split(/\r?\n/)
+    .map((line, index) => {
+      const match = String(line || "").match(TIMED_NOTE_PATTERN);
+      if (!match) return null;
+
+      const timestampLabel = match[1] || match[2] || "";
+      const seconds = parseTimedNoteSeconds(timestampLabel);
+      if (seconds === null) return null;
+
+      return {
+        index,
+        seconds,
+        timestampLabel,
+        text: String(match[3] || "").trim(),
+      };
+    })
+    .filter(Boolean);
 }
 
 const getLessonLearningTaskStatus = (lesson) => {
@@ -671,6 +744,10 @@ const CoursePlayer = ({
   });
   const [notes, setNotes] = useState("");
   const [noteStatus, setNoteStatus] = useState("");
+  const [showNoteDialog, setShowNoteDialog] = useState(false);
+  const [noteDraft, setNoteDraft] = useState("");
+  const [noteDraftTimestamp, setNoteDraftTimestamp] = useState(0);
+  const [noteDialogMode, setNoteDialogMode] = useState("create");
   const [courseReviewRating, setCourseReviewRating] = useState(0);
   const [courseReviewText, setCourseReviewText] = useState("");
   const [courseReviewSaving, setCourseReviewSaving] = useState(false);
@@ -704,6 +781,8 @@ const CoursePlayer = ({
   const loadedDurationKeysRef = useRef(new Set());
   const playbackRequestSeqRef = useRef(0);
   const pendingSeekTimeRef = useRef(null);
+  const pendingSeekBufferingRef = useRef(null);
+  const pendingSeekWatchdogTimerRef = useRef(null);
   const shouldAutoplayNextMediaRef = useRef(false);
   const shouldAutoplayAfterLoadRef = useRef(false);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -730,6 +809,10 @@ const CoursePlayer = ({
   const [hoverX, setHoverX] = useState(0);
   const [hoverSegmentLabel, setHoverSegmentLabel] = useState("");
   const [isBuffering, setIsBuffering] = useState(false);
+  const [isScrubbing, setIsScrubbing] = useState(false);
+  const [scrubTime, setScrubTime] = useState(null);
+  const scrubWasPlayingRef = useRef(false);
+  const progressBarRef = useRef(null);
 
   const isIgnorablePlaybackError = useCallback((error) => {
     if (!error) return false;
@@ -746,12 +829,12 @@ const CoursePlayer = ({
       clearTimeout(hideControlsTimer.current);
     }
 
-    if (!isPlaying) return;
+    if (!isPlaying || isScrubbing) return;
 
     hideControlsTimer.current = setTimeout(() => {
       setShowControls(false);
     }, 3200);
-  }, [isPlaying]);
+  }, [isPlaying, isScrubbing]);
 
   const scrollPlayerToTop = useCallback((behavior = "auto") => {
     if (typeof window !== "undefined") {
@@ -921,6 +1004,21 @@ const CoursePlayer = ({
     currentLessonData?.selfNote?.text,
   ]);
 
+  const lessonTimedNotesLimit = useMemo(
+    () =>
+      isPremiumUser(currentUser)
+        ? APP_LIMITS.lessonTimedNotesPerLesson.premium
+        : APP_LIMITS.lessonTimedNotesPerLesson.ordinary,
+    [currentUser],
+  );
+  const timedNotesLimitMessage = useMemo(
+    () =>
+      t("coursePlayer.tabs.notesLimitReached", {
+        limit: lessonTimedNotesLimit,
+      }),
+    [lessonTimedNotesLimit, t],
+  );
+
   useEffect(
     () => () => {
       if (noteSaveTimerRef.current) {
@@ -933,6 +1031,15 @@ const CoursePlayer = ({
   useEffect(() => {
     const lessonKey = noteLessonKeyRef.current;
     if (!courseId || !lessonKey || notes === noteBaselineRef.current) return undefined;
+    const baselineTimedNotesCount = countTimedNotes(noteBaselineRef.current);
+    const nextTimedNotesCount = countTimedNotes(notes);
+    if (
+      nextTimedNotesCount > lessonTimedNotesLimit &&
+      nextTimedNotesCount > baselineTimedNotesCount
+    ) {
+      setNoteStatus(timedNotesLimitMessage);
+      return undefined;
+    }
 
     setNoteStatus("Saqlanmoqda...");
     if (noteSaveTimerRef.current) {
@@ -945,7 +1052,9 @@ const CoursePlayer = ({
         noteBaselineRef.current = String(saved?.text ?? notes);
         setNoteStatus("Saqlandi");
       } catch (error) {
-        setNoteStatus("Saqlab bo'lmadi");
+        setNoteStatus(
+          String(error?.response?.data?.message || "Saqlab bo'lmadi"),
+        );
       }
     }, 700);
 
@@ -954,7 +1063,7 @@ const CoursePlayer = ({
         clearTimeout(noteSaveTimerRef.current);
       }
     };
-  }, [courseId, notes, upsertLessonNote]);
+  }, [courseId, lessonTimedNotesLimit, notes, timedNotesLimitMessage, upsertLessonNote]);
 
   useEffect(() => {
     setCourseReviewRating(Number(course?.selfReview?.rating || 0));
@@ -1154,13 +1263,35 @@ const CoursePlayer = ({
   const overallCurrentTime = elapsedBeforeCurrentMedia + currentTime;
   overallCurrentTimeRef.current = overallCurrentTime;
   totalLessonDurationRef.current = totalLessonDuration;
+  const timedNotes = useMemo(
+    () =>
+      extractTimedNotes(notes).map((note) => ({
+        ...note,
+        id: `${note.index}-${note.timestampLabel}`,
+      })),
+    [notes],
+  );
+  const activeTimedNoteIndex = useMemo(() => {
+    let lastMatchingIndex = -1;
+
+    timedNotes.forEach((note, index) => {
+      if (overallCurrentTime >= note.seconds - 0.5) {
+        lastMatchingIndex = index;
+      }
+    });
+
+    return lastMatchingIndex;
+  }, [overallCurrentTime, timedNotes]);
   const _currentLessonId = currentLessonData?._id || currentLessonData?.id || currentLessonData?.urlSlug;
   currentLessonIdRef.current = String(_currentLessonId || "");
-  const overallProgressPercent = totalLessonDuration
+  const _rawProgressPercent = totalLessonDuration
     ? (overallCurrentTime / totalLessonDuration) * 100
     : duration
       ? (currentTime / duration) * 100
       : 0;
+  const overallProgressPercent = isScrubbing && scrubTime !== null
+    ? (scrubTime / (totalLessonDuration || duration || 1)) * 100
+    : _rawProgressPercent;
   const segmentBoundaries = useMemo(() => {
     if (!segmentDurations.length || !totalLessonDuration) return [];
     let cumulative = 0;
@@ -1839,9 +1970,12 @@ const CoursePlayer = ({
             return;
           }
           if (error.name === "NotSupportedError") {
-            setPlaybackError(
-              t("coursePlayer.errors.formatNotSupported"),
-            );
+            // Video src not yet ready — transient, don't show user-facing error
+            const mediaError = videoRef.current?.error;
+            if (!mediaError || mediaError.code === 4) {
+              return;
+            }
+            setPlaybackError(t("coursePlayer.errors.formatNotSupported"));
           } else {
             console.error("Playback error:", error);
             setPlaybackError(t("coursePlayer.errors.playback"));
@@ -1878,6 +2012,75 @@ const CoursePlayer = ({
   const skipBackward = useCallback(() => {
     if (videoRef.current) videoRef.current.currentTime -= 10;
   }, []);
+
+  const handleInsertTimedNote = useCallback(() => {
+    const timestamp = Math.max(0, Math.floor(overallCurrentTimeRef.current || 0));
+    const existingTimedNote = timedNotes.find((note) => note.seconds === timestamp);
+
+    if (existingTimedNote) {
+      setNoteDraft(existingTimedNote.text || "");
+      setNoteDraftTimestamp(timestamp);
+      setNoteDialogMode("edit");
+      setShowNoteDialog(true);
+      return;
+    }
+
+    if (timedNotes.length >= lessonTimedNotesLimit) {
+      setPlayerTab("more");
+      setNoteStatus(timedNotesLimitMessage);
+      toast.error(timedNotesLimitMessage);
+      return;
+    }
+
+    setNoteDraft("");
+    setNoteDraftTimestamp(timestamp);
+    setNoteDialogMode("create");
+    setShowNoteDialog(true);
+  }, [lessonTimedNotesLimit, timedNotes, timedNotesLimitMessage]);
+
+  const handleCloseNoteDialog = useCallback(() => {
+    setShowNoteDialog(false);
+    setNoteDraft("");
+    setNoteDialogMode("create");
+  }, []);
+
+  const handleSaveTimedNote = useCallback(() => {
+    const timestampLabel = formatTime(noteDraftTimestamp);
+    const trimmedText = String(noteDraft || "").trim();
+    const nextLine = trimmedText
+      ? `[${timestampLabel}] ${trimmedText}`
+      : `[${timestampLabel}]`;
+
+    setNotes((previousValue) => {
+      const existingTimedLines = extractTimedNotes(previousValue);
+      const nextTimedLines = [];
+      let replaced = false;
+
+      existingTimedLines.forEach((line) => {
+        if (line.seconds === noteDraftTimestamp) {
+          if (!replaced) {
+            nextTimedLines.push(nextLine);
+            replaced = true;
+          }
+          return;
+        }
+        nextTimedLines.push(
+          line.text ? `[${line.timestampLabel}] ${line.text}` : `[${line.timestampLabel}]`,
+        );
+      });
+
+      if (!replaced) {
+        nextTimedLines.push(nextLine);
+      }
+
+      return nextTimedLines.join("\n");
+    });
+    setNoteStatus("Saqlanmoqda...");
+    setShowNoteDialog(false);
+    setNoteDraft("");
+    setNoteDialogMode("create");
+    setPlayerTab("more");
+  }, [noteDraft, noteDraftTimestamp]);
 
   const handlePlayerSurfaceClick = useCallback(() => {
     if (clickActionTimerRef.current) {
@@ -1916,25 +2119,6 @@ const CoursePlayer = ({
     }
   }, [skipBackward, skipForward]);
 
-  const handleTimeUpdate = useCallback(() => {
-    if (!videoRef.current) return;
-    const nextCurrentTime = Number(videoRef.current.currentTime || 0);
-    setCurrentTime(nextCurrentTime);
-
-    // Update buffered
-    const video = videoRef.current;
-    if (video.buffered.length > 0) {
-      setBuffered(
-        (video.buffered.end(video.buffered.length - 1) / video.duration) * 100,
-      );
-    }
-
-    trackAttendancePlayback(
-      elapsedBeforeCurrentMediaRef.current + nextCurrentTime,
-      totalLessonDurationRef.current || Number(video.duration || 0),
-    );
-  }, [trackAttendancePlayback]);
-
   const handleDuration = useCallback((duration) => {
     setDuration(duration);
   }, []);
@@ -1970,6 +2154,217 @@ const CoursePlayer = ({
     }
   }, []);
 
+  const stopPendingSeekWatchdog = useCallback(() => {
+    if (pendingSeekWatchdogTimerRef.current) {
+      clearInterval(pendingSeekWatchdogTimerRef.current);
+      pendingSeekWatchdogTimerRef.current = null;
+    }
+    pendingSeekBufferingRef.current = null;
+  }, []);
+
+  const flushPendingSeekBuffering = useCallback(
+    ({ force = false } = {}) => {
+      const pendingSeek = pendingSeekBufferingRef.current;
+      const video = videoRef.current;
+
+      if (!pendingSeek || !video) {
+        if (force) {
+          stopPendingSeekWatchdog();
+          setIsBuffering(false);
+        }
+        return false;
+      }
+
+      const currentVideoTime = Math.max(0, Number(video.currentTime || 0));
+      const closeEnough =
+        Math.abs(currentVideoTime - pendingSeek.targetTime) <= 2.0 ||
+        currentVideoTime >= pendingSeek.targetTime;
+      const ready = Number(video.readyState || 0) >= 2;
+      const timedOut = Date.now() - pendingSeek.startedAt > 8000;
+
+      if (force || timedOut || (ready && !video.seeking && closeEnough)) {
+        stopPendingSeekWatchdog();
+        setIsBuffering(false);
+        return true;
+      }
+
+      return false;
+    },
+    [stopPendingSeekWatchdog],
+  );
+
+  const startPendingSeekWatchdog = useCallback(
+    (targetTime) => {
+      stopPendingSeekWatchdog();
+      pendingSeekBufferingRef.current = {
+        targetTime: Math.max(0, Number(targetTime || 0)),
+        startedAt: Date.now(),
+      };
+      setIsBuffering(true);
+      pendingSeekWatchdogTimerRef.current = window.setInterval(() => {
+        flushPendingSeekBuffering();
+      }, 180);
+    },
+    [flushPendingSeekBuffering, stopPendingSeekWatchdog],
+  );
+
+  const handleTimeUpdate = useCallback(() => {
+    if (!videoRef.current) return;
+    const nextCurrentTime = Number(videoRef.current.currentTime || 0);
+    setCurrentTime(nextCurrentTime);
+    const flushed = flushPendingSeekBuffering();
+    if (flushed || !pendingSeekBufferingRef.current) {
+      setIsBuffering(false);
+    }
+
+    // Update buffered
+    const video = videoRef.current;
+    if (video.buffered.length > 0) {
+      setBuffered(
+        (video.buffered.end(video.buffered.length - 1) / video.duration) * 100,
+      );
+    }
+
+    trackAttendancePlayback(
+      elapsedBeforeCurrentMediaRef.current + nextCurrentTime,
+      totalLessonDurationRef.current || Number(video.duration || 0),
+    );
+  }, [flushPendingSeekBuffering, trackAttendancePlayback]);
+
+  const seekLessonToTime = useCallback(
+    (targetSeconds, { autoplay = true } = {}) => {
+      const normalizedTarget = Math.max(0, Number(targetSeconds || 0));
+      setPlaybackError(null);
+
+      if (isYouTube) {
+        const player = youtubePlayerRef.current;
+        if (!player) return;
+
+        player.seekTo?.(normalizedTarget, true);
+        setCurrentTime(normalizedTarget);
+
+        if (autoplay) {
+          player.playVideo?.();
+          setIsPlaying(true);
+        } else {
+          player.pauseVideo?.();
+          setIsPlaying(false);
+        }
+        return;
+      }
+
+      if (!isLocalVideo) return;
+
+      let targetIndex = activeMediaIndex;
+      let targetMediaTime = normalizedTarget;
+
+      if (lessonMediaItems.length > 1 && totalLessonDuration) {
+        let elapsed = 0;
+        for (let index = 0; index < segmentDurations.length; index += 1) {
+          const segmentDuration = Number(segmentDurations[index] || 0);
+          const nextElapsed = elapsed + segmentDuration;
+
+          if (
+            normalizedTarget <= nextElapsed ||
+            index === segmentDurations.length - 1
+          ) {
+            targetIndex = index;
+            targetMediaTime = Math.max(0, normalizedTarget - elapsed);
+            break;
+          }
+
+          elapsed = nextElapsed;
+        }
+      }
+
+      const clampedMediaTime = Math.max(0, Number(targetMediaTime || 0));
+      pendingSeekTimeRef.current = clampedMediaTime;
+      startPendingSeekWatchdog(clampedMediaTime);
+
+      if (targetIndex !== activeMediaIndex) {
+        shouldAutoplayAfterLoadRef.current = autoplay;
+        shouldAutoplayNextMediaRef.current = autoplay;
+        resetActiveMediaPlayback();
+        setActiveMediaIndex(targetIndex);
+        setCurrentTime(0);
+        setPlaybackRequested(true);
+        return;
+      }
+
+      if (!playbackUrl || !videoRef.current) {
+        shouldAutoplayAfterLoadRef.current = autoplay;
+        shouldAutoplayNextMediaRef.current = false;
+        if (!autoplay) {
+          setIsPlaying(false);
+        }
+        setPlaybackRequested(true);
+        return;
+      }
+
+      videoRef.current.currentTime = clampedMediaTime;
+      setCurrentTime(clampedMediaTime);
+      window.requestAnimationFrame(() => {
+        flushPendingSeekBuffering();
+      });
+      window.setTimeout(() => {
+        flushPendingSeekBuffering();
+      }, 180);
+
+      if (!autoplay) {
+        shouldAutoplayAfterLoadRef.current = false;
+        shouldAutoplayNextMediaRef.current = false;
+        videoRef.current.pause();
+        flushPendingSeekBuffering({ force: true });
+        setIsPlaying(false);
+        return;
+      }
+
+      const playPromise = videoRef.current.play();
+      if (playPromise !== undefined) {
+        playPromise.then(() => {
+          flushPendingSeekBuffering();
+        });
+        playPromise.catch((error) => {
+          if (isIgnorablePlaybackError(error)) {
+            flushPendingSeekBuffering({ force: true });
+            return;
+          }
+          console.error("Seek playback error:", error);
+          flushPendingSeekBuffering({ force: true });
+          setPlaybackError(t("coursePlayer.errors.playback"));
+          setIsPlaying(false);
+        });
+      } else {
+        // Older browsers don't return a promise — flush after a frame
+        window.requestAnimationFrame(() => flushPendingSeekBuffering());
+      }
+    },
+    [
+      activeMediaIndex,
+      isIgnorablePlaybackError,
+      isLocalVideo,
+      isYouTube,
+      lessonMediaItems.length,
+      playbackUrl,
+      flushPendingSeekBuffering,
+      resetActiveMediaPlayback,
+      segmentDurations,
+      startPendingSeekWatchdog,
+      t,
+      totalLessonDuration,
+    ],
+  );
+
+  const handleSeekToTimedNote = useCallback(
+    (seconds) => {
+      seekLessonToTime(seconds, { autoplay: true });
+      window.requestAnimationFrame(() => {
+        scrollPlayerToTop("smooth");
+      });
+    },
+    [scrollPlayerToTop, seekLessonToTime],
+  );
+
   const formatHlsPlaybackError = useCallback(
     (data) => {
       const detail = String(data?.details || "").trim();
@@ -2001,45 +2396,96 @@ const CoursePlayer = ({
 
   const handleSeek = useCallback(
     (e) => {
-      if (!videoRef.current) return;
       const rect = e.currentTarget.getBoundingClientRect();
-      const percent = (e.clientX - rect.left) / rect.width;
-      const targetTotalTime =
-        percent * (totalLessonDuration || duration || 0);
-
-      if (lessonMediaItems.length <= 1 || !totalLessonDuration) {
-        videoRef.current.currentTime = percent * duration;
-        return;
-      }
-
-      let elapsed = 0;
-      for (let index = 0; index < segmentDurations.length; index += 1) {
-        const segmentDuration = Number(segmentDurations[index] || 0);
-        const nextElapsed = elapsed + segmentDuration;
-        if (targetTotalTime <= nextElapsed || index === segmentDurations.length - 1) {
-          if (index !== activeMediaIndex) {
-            shouldAutoplayNextMediaRef.current = isPlaying;
-            resetActiveMediaPlayback();
-            setActiveMediaIndex(index);
-            pendingSeekTimeRef.current = Math.max(0, targetTotalTime - elapsed);
-            setCurrentTime(0);
-          } else {
-            videoRef.current.currentTime = Math.max(0, targetTotalTime - elapsed);
-          }
-          break;
-        }
-        elapsed = nextElapsed;
-      }
+      const percent = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+      const targetTotalTime = percent * (totalLessonDuration || duration || 0);
+      setIsBuffering(true);
+      seekLessonToTime(targetTotalTime, { autoplay: isPlaying });
     },
     [
-      activeMediaIndex,
       duration,
       isPlaying,
-      lessonMediaItems.length,
-      resetActiveMediaPlayback,
-      segmentDurations,
+      seekLessonToTime,
       totalLessonDuration,
     ],
+  );
+
+  const getTimeFromPointer = useCallback(
+    (clientX) => {
+      const bar = progressBarRef.current;
+      if (!bar) return 0;
+      const rect = bar.getBoundingClientRect();
+      const percent = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+      return percent * (totalLessonDuration || duration || 0);
+    },
+    [duration, totalLessonDuration],
+  );
+
+  const handleProgressPointerDown = useCallback(
+    (e) => {
+      e.preventDefault();
+      e.currentTarget.setPointerCapture(e.pointerId);
+      const targetTime = getTimeFromPointer(e.clientX);
+      scrubWasPlayingRef.current = isPlaying;
+      setIsScrubbing(true);
+      setScrubTime(targetTime);
+
+      if (isPlaying && videoRef.current) {
+        videoRef.current.pause();
+      }
+
+      const rect = e.currentTarget.getBoundingClientRect();
+      setHoverTime(targetTime);
+      setHoverX(e.clientX - rect.left);
+
+      let segIdx = 0;
+      let cumulative = 0;
+      for (let i = 0; i < segmentDurations.length; i += 1) {
+        cumulative += Number(segmentDurations[i] || 0);
+        segIdx = i;
+        if (targetTime <= cumulative || i === segmentDurations.length - 1) break;
+      }
+      setHoverSegmentLabel(segmentLabels[segIdx]?.title || "");
+    },
+    [getTimeFromPointer, isPlaying, segmentDurations, segmentLabels],
+  );
+
+  const handleProgressPointerMove = useCallback(
+    (e) => {
+      if (!isScrubbing) return;
+      const targetTime = getTimeFromPointer(e.clientX);
+      setScrubTime(targetTime);
+
+      const rect = progressBarRef.current?.getBoundingClientRect();
+      if (rect) {
+        setHoverTime(targetTime);
+        setHoverX(e.clientX - rect.left);
+      }
+
+      let segIdx = 0;
+      let cumulative = 0;
+      for (let i = 0; i < segmentDurations.length; i += 1) {
+        cumulative += Number(segmentDurations[i] || 0);
+        segIdx = i;
+        if (targetTime <= cumulative || i === segmentDurations.length - 1) break;
+      }
+      setHoverSegmentLabel(segmentLabels[segIdx]?.title || "");
+    },
+    [getTimeFromPointer, isScrubbing, segmentDurations, segmentLabels],
+  );
+
+  const handleProgressPointerUp = useCallback(
+    (e) => {
+      if (!isScrubbing) return;
+      e.currentTarget.releasePointerCapture(e.pointerId);
+      const targetTime = getTimeFromPointer(e.clientX);
+      setIsScrubbing(false);
+      setScrubTime(null);
+      setHoverTime(null);
+      setHoverSegmentLabel("");
+      seekLessonToTime(targetTime, { autoplay: scrubWasPlayingRef.current });
+    },
+    [getTimeFromPointer, isScrubbing, seekLessonToTime],
   );
 
   const toggleMute = useCallback(() => {
@@ -2136,8 +2582,9 @@ const CoursePlayer = ({
       if (hideControlsTimer.current) {
         clearTimeout(hideControlsTimer.current);
       }
+      stopPendingSeekWatchdog();
     },
-    [],
+    [stopPendingSeekWatchdog],
   );
 
   const handleSpeedChange = useCallback((speed) => {
@@ -2256,6 +2703,35 @@ const CoursePlayer = ({
 
     resetControlsHideTimer();
   }, [activeMediaIndex, isPlaying, resetControlsHideTimer]);
+
+  useEffect(() => {
+    if (isYouTube || (!isBuffering && !isLoadingVideo)) {
+      return undefined;
+    }
+
+    let lastObservedTime = Number(videoRef.current?.currentTime || 0);
+    const interval = window.setInterval(() => {
+      const video = videoRef.current;
+      if (!video) return;
+
+      const currentObservedTime = Number(video.currentTime || 0);
+      const advanced = currentObservedTime > lastObservedTime + 0.04;
+      const ready = Number(video.readyState || 0) >= 2;
+
+      if (isLoadingVideo && ready) {
+        setIsLoadingVideo(false);
+      }
+
+      if (isBuffering && ((ready && !video.seeking) || advanced)) {
+        flushPendingSeekBuffering({ force: true });
+        setIsBuffering(false);
+      }
+
+      lastObservedTime = currentObservedTime;
+    }, 220);
+
+    return () => window.clearInterval(interval);
+  }, [flushPendingSeekBuffering, isBuffering, isLoadingVideo, isYouTube]);
 
   // Keyboard shortcuts (placed here so togglePlay/toggleFullscreen/toggleMute are already defined)
   useEffect(() => {
@@ -3051,9 +3527,19 @@ const CoursePlayer = ({
                     disableRemotePlayback
                     onContextMenu={(e) => e.preventDefault()}
                     onPlay={handlePlay}
+                    onPlaying={() => {
+                      flushPendingSeekBuffering({ force: true });
+                      setIsBuffering(false);
+                    }}
                     onPause={() => setIsPlaying(false)}
+                    onSeeking={() => setIsBuffering(true)}
+                    onSeeked={() => {
+                      flushPendingSeekBuffering({ force: true });
+                      setIsBuffering(false);
+                    }}
                     onWaiting={() => setIsBuffering(true)}
                     onCanPlay={() => {
+                      flushPendingSeekBuffering({ force: true });
                       setIsBuffering(false);
                       attemptQueuedAutoplay();
                     }}
@@ -3078,20 +3564,25 @@ const CoursePlayer = ({
                           pendingSeekTimeRef.current = null;
                         }
                         videoRef.current.playbackRate = playbackSpeed;
+                        flushPendingSeekBuffering();
                         attemptQueuedAutoplay();
                       }
                     }}
                     onError={(e) => {
-                      if (!isLoadingVideo && !hlsInitializingRef.current)
-                        setPlaybackError(
-                          t("coursePlayer.errors.playback"),
-                        );
+                      if (isLoadingVideo || hlsInitializingRef.current) return;
+                      const mediaError = videoRef.current?.error;
+                      if (!mediaError) return;
+                      // MEDIA_ERR_SRC_NOT_SUPPORTED (code 4) during HLS or src swap = transient, ignore
+                      if (mediaError.code === 4 && (isHlsVideo || !playbackUrl)) return;
+                      // MEDIA_ERR_ABORTED (code 1) = user/browser aborted, not an error
+                      if (mediaError.code === 1) return;
+                      setPlaybackError(t("coursePlayer.errors.playback"));
                     }}
                     onEnded={handleLessonPlaybackEnded}
                   />
 
                   <VideoOverlay
-                    $visible={showControls || !isPlaying}
+                    $visible={showControls || !isPlaying || isScrubbing}
                     onClick={(e) => e.stopPropagation()}
                   >
                     <TopBar>
@@ -3150,29 +3641,48 @@ const CoursePlayer = ({
 
                     <ControlsBar>
                       <ProgressContainer
+                        ref={progressBarRef}
+                        $scrubbing={isScrubbing}
                         onMouseMove={(e) => {
-                          handleProgressHover(e);
+                          if (!isScrubbing) handleProgressHover(e);
                           e.stopPropagation();
                         }}
                         onMouseLeave={() => {
+                          if (!isScrubbing) {
+                            setHoverTime(null);
+                            setHoverSegmentLabel("");
+                          }
+                        }}
+                        onPointerDown={(e) => {
+                          e.stopPropagation();
+                          handleProgressPointerDown(e);
+                        }}
+                        onPointerMove={(e) => {
+                          e.stopPropagation();
+                          handleProgressPointerMove(e);
+                        }}
+                        onPointerUp={(e) => {
+                          e.stopPropagation();
+                          handleProgressPointerUp(e);
+                        }}
+                        onPointerCancel={(e) => {
+                          e.currentTarget.releasePointerCapture(e.pointerId);
+                          setIsScrubbing(false);
+                          setScrubTime(null);
                           setHoverTime(null);
                           setHoverSegmentLabel("");
                         }}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleSeek(e);
-                        }}
                       >
                         <BufferedProgress $width={buffered} />
-                        <ProgressFilled $width={overallProgressPercent} />
-                        <ProgressThumb $left={overallProgressPercent} />
+                        <ProgressFilled $width={overallProgressPercent} $scrubbing={isScrubbing} />
+                        <ProgressThumb $left={overallProgressPercent} $active={isScrubbing} />
                         {segmentBoundaries.map((left) => (
                           <ProgressSegmentDivider key={left} $left={left} />
                         ))}
-                        {hoverTime !== null && (
+                        {(hoverTime !== null || isScrubbing) && (
                           <ProgressHoverTooltip $left={hoverX}>
                             {hoverSegmentLabel ? <strong>{hoverSegmentLabel}</strong> : null}
-                            <span>{formatTime(hoverTime)}</span>
+                            <span>{formatTime(isScrubbing && scrubTime !== null ? scrubTime : hoverTime)}</span>
                           </ProgressHoverTooltip>
                         )}
                       </ProgressContainer>
@@ -3253,6 +3763,14 @@ const CoursePlayer = ({
                   >
                     <Copy size={14} />
                     {t("common.copy")}
+                  </LikeButton>
+                  <LikeButton
+                    onClick={handleInsertTimedNote}
+                    title={t("coursePlayer.tabs.addTimedNote")}
+                    aria-label={t("coursePlayer.tabs.addTimedNote")}
+                  >
+                    <StickyNote size={14} />
+                    {t("coursePlayer.tabs.addTimedNote")}
                   </LikeButton>
                   {lessonMediaItems.length > 1 ? (
                     <MetaItem>
@@ -3416,16 +3934,103 @@ const CoursePlayer = ({
                     </CourseInfoCard>
                     <CourseInfoCard>
                       <CourseInfoTitle>{t("coursePlayer.tabs.notes")}</CourseInfoTitle>
-                      <NotesArea
-                        placeholder={t("coursePlayer.tabs.notesPlaceholder")}
-                        value={notes}
-                        onChange={(e) => setNotes(e.target.value)}
-                      />
-                      <NoteStatusText>{noteStatus}</NoteStatusText>
+                      <NotesHintText>
+                        {t("coursePlayer.tabs.timedNotesHint")}
+                      </NotesHintText>
+                      {timedNotes.length ? (
+                        <TimedNotesList>
+                          {timedNotes.map((note, index) => (
+                            <TimedNoteItem
+                              key={note.id}
+                              $active={index === activeTimedNoteIndex}
+                            >
+                              <TimedNoteHeader>
+                                <TimedNoteJumpButton
+                                  type="button"
+                                  onClick={() => handleSeekToTimedNote(note.seconds)}
+                                >
+                                  {note.timestampLabel}
+                                </TimedNoteJumpButton>
+                              </TimedNoteHeader>
+                              <TimedNoteText>
+                                {note.text || t("coursePlayer.tabs.jumpToMoment")}
+                              </TimedNoteText>
+                            </TimedNoteItem>
+                          ))}
+                        </TimedNotesList>
+                      ) : (
+                        <NotesEmptyState>
+                          {t("coursePlayer.tabs.notesEmpty")}
+                        </NotesEmptyState>
+                      )}
+                      <NoteStatusText>
+                        {noteStatus ||
+                          t("coursePlayer.tabs.notesStatusHint", {
+                            count: timedNotes.length,
+                            limit: lessonTimedNotesLimit,
+                          })}
+                      </NoteStatusText>
                     </CourseInfoCard>
                   </>
                 )}
               </PlayerTabContent>
+              {showNoteDialog ? (
+                <NoteDialogOverlay onClick={handleCloseNoteDialog}>
+                  <NoteDialogCard onClick={(event) => event.stopPropagation()}>
+                    <NoteDialogHeader>
+                      <NoteDialogTitleWrap>
+                        <NoteDialogTitle>
+                          {noteDialogMode === "edit"
+                            ? t("coursePlayer.tabs.editTimedNote")
+                            : t("coursePlayer.tabs.addTimedNote")}
+                        </NoteDialogTitle>
+                        <NoteDialogSubtitle>
+                          {noteDialogMode === "edit"
+                            ? t("coursePlayer.tabs.noteDialogEditDescription")
+                            : t("coursePlayer.tabs.noteDialogDescription")}
+                        </NoteDialogSubtitle>
+                      </NoteDialogTitleWrap>
+                      <NoteDialogCloseButton
+                        type="button"
+                        onClick={handleCloseNoteDialog}
+                        aria-label={t("common.close")}
+                      >
+                        <X size={18} />
+                      </NoteDialogCloseButton>
+                    </NoteDialogHeader>
+
+                    <NoteDialogTimeBadge>
+                      <Clock size={14} />
+                      {formatTime(noteDraftTimestamp)}
+                    </NoteDialogTimeBadge>
+
+                    <NotesArea
+                      autoFocus
+                      placeholder={t("coursePlayer.tabs.noteDialogPlaceholder")}
+                      value={noteDraft}
+                      onChange={(event) => setNoteDraft(event.target.value)}
+                    />
+
+                    <NoteDialogActions>
+                      <NoteDialogSecondaryButton
+                        type="button"
+                        onClick={handleCloseNoteDialog}
+                      >
+                        {t("common.cancel")}
+                      </NoteDialogSecondaryButton>
+                      <NoteDialogPrimaryButton
+                        type="button"
+                        onClick={handleSaveTimedNote}
+                        disabled={!String(noteDraft || "").trim()}
+                      >
+                        {noteDialogMode === "edit"
+                          ? t("coursePlayer.tabs.updateTimedNote")
+                          : t("common.save")}
+                      </NoteDialogPrimaryButton>
+                    </NoteDialogActions>
+                  </NoteDialogCard>
+                </NoteDialogOverlay>
+              ) : null}
             </>
           ) : canAccessLesson(activeLesson) && currentLessonData ? (
             <LockedView>
