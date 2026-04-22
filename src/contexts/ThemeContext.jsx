@@ -26,6 +26,7 @@ export const ThemeProvider = ({ children }) => {
 
   useEffect(() => {
     const normalizedTheme = normalizeTheme(theme)
+    const themeColor = normalizedTheme === 'dark' ? '#36393f' : '#ffffff'
 
     if (normalizedTheme !== theme) {
       setTheme(normalizedTheme)
@@ -34,6 +35,14 @@ export const ThemeProvider = ({ children }) => {
 
     // Apply theme to document
     document.documentElement.setAttribute('data-theme', normalizedTheme)
+    document.documentElement.style.colorScheme = normalizedTheme
+    document.documentElement.style.backgroundColor = themeColor
+    document.body.style.backgroundColor = themeColor
+
+    const themeMeta = document.querySelector('meta[name="theme-color"]')
+    if (themeMeta) {
+      themeMeta.setAttribute('content', themeColor)
+    }
     
     // Save to localStorage
     localStorage.setItem('theme', normalizedTheme)

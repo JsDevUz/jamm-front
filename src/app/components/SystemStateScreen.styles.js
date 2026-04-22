@@ -34,7 +34,20 @@ export const Description = styled.p`
 
 export const CenteredMessage = styled(Screen)`
   font-size: 15px;
-  width: 100vw;
+  width: 100%;
+`;
+
+export const InlineLoadingShell = styled.div`
+  width: 100%;
+  min-width: 0;
+  min-height: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  box-sizing: border-box;
+  background: var(--background-color);
 `;
 
 export const LoadingCard = styled.div`

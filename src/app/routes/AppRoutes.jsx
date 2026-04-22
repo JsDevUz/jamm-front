@@ -3,6 +3,7 @@ import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import ProtectedRoute from "./ProtectedRoute";
 import GlobalSearchPage from "../../features/search/GlobalSearchPage";
 import useAuthStore from "../../store/authStore";
+import { SystemLoadingScreen } from "../components/SystemStateScreen";
 const AuthPage = lazy(() => import("../../pages/AuthPage"));
 const JoinCallPage = lazy(() => import("../../pages/JoinCallPage"));
 const LandingPage = lazy(() => import("../../pages/LandingPage"));
@@ -17,7 +18,7 @@ const PublicRoute = ({ children }) => {
   const initialized = useAuthStore((state) => state.initialized);
   
   if (!initialized) {
-    return null; // or a loading spinner
+    return <SystemLoadingScreen />;
   }
   
   if (user) {
@@ -32,7 +33,7 @@ export default function AppRoutes() {
   const backgroundLocation = location.state?.backgroundLocation;
 
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={<SystemLoadingScreen />}>
       <Routes location={backgroundLocation || location}>
         <Route path="/maintenance" element={null} />
         <Route path="/blocked" element={null} />

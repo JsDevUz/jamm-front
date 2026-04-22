@@ -10,7 +10,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { useChats } from "../contexts/ChatsContext";
-import { SystemLoadingScreen } from "../app/components/SystemStateScreen";
+import { SystemInlineLoadingScreen } from "../app/components/SystemStateScreen";
 import useAuthStore from "../store/authStore";
 import { toast } from "react-hot-toast";
 import axiosInstance from "../api/axiosInstance";
@@ -114,7 +114,11 @@ const AdminPanel = lazy(() =>
 );
 
 function LazyPane({ children, message }) {
-  return <Suspense fallback={null}>{children}</Suspense>;
+  return (
+    <Suspense fallback={<SystemInlineLoadingScreen message={message} />}>
+      {children}
+    </Suspense>
+  );
 }
 
 const APP_LOCK_ARMED_KEY = "jamm-app-lock-armed";

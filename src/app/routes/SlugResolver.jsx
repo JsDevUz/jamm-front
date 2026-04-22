@@ -1,6 +1,10 @@
 import React, { Suspense, lazy } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useChats } from "../../contexts/ChatsContext";
+import {
+  SystemInlineLoadingScreen,
+  SystemLoadingScreen,
+} from "../components/SystemStateScreen";
 const AppWrapper = lazy(() => import("./AppWrapper"));
 
 const knownRoutes = [
@@ -67,11 +71,11 @@ export default function SlugResolver() {
   }, [chatId, nav, navigate, resolveChatSlug]);
 
   if (isResolving) {
-    return null;
+    return <SystemLoadingScreen />;
   }
 
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={<SystemInlineLoadingScreen />}>
       <AppWrapper />
     </Suspense>
   );

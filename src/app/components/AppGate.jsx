@@ -16,7 +16,6 @@ const initialStatus = {
 
 export default function AppGate({ children }) {
   const [status, setStatus] = React.useState(initialStatus);
-  const [showLoading, setShowLoading] = React.useState(false);
   const location = useLocation();
   const user = useAuthStore((state) => state.user);
   const initialized = useAuthStore((state) => state.initialized);
@@ -70,18 +69,7 @@ export default function AppGate({ children }) {
     fetchDecorations();
   }, [fetchDecorations, user?._id, user?.id]);
 
-  React.useEffect(() => {
-    if (!status.loading) {
-      setShowLoading(false);
-      return undefined;
-    }
-
-    const timer = window.setTimeout(() => {
-      setShowLoading(true);
-    }, 250);
-
-    return () => window.clearTimeout(timer);
-  }, [status.loading]);
+  const isBootstrapping = status.loading || !initialized || authLoading;
 
   if (location.pathname === "/blocked") {
     return (
@@ -92,12 +80,8 @@ export default function AppGate({ children }) {
     );
   }
 
-  if ((status.loading || !initialized || authLoading) && showLoading) {
+  if (isBootstrapping) {
     return <SystemLoadingScreen />;
-  }
-
-  if (status.loading || !initialized || authLoading) {
-    return null;
   }
 
   if (location.pathname === "/maintenance" || status.maintenanceMode) {

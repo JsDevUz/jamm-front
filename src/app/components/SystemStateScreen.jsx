@@ -3,6 +3,7 @@ import {
   Card,
   CenteredMessage,
   Description,
+  InlineLoadingShell,
   LoadingCard,
   LoadingContent,
   LoadingHint,
@@ -34,5 +35,19 @@ export function SystemLoadingScreen({ message = "Yuklanmoqda..." }) {
         </LoadingContent>
       </LoadingCard>
     </CenteredMessage>
+  );
+}
+
+export function SystemInlineLoadingScreen({ message = "Yuklanmoqda..." }) {
+  return (
+    <InlineLoadingShell>
+      <LoadingCard>
+        <LoadingSpinner />
+        <LoadingContent>
+          <LoadingTitle>{message}</LoadingTitle>
+          <LoadingHint>Tizim tayyorlanmoqda</LoadingHint>
+        </LoadingContent>
+      </LoadingCard>
+    </InlineLoadingShell>
   );
 }

@@ -51,6 +51,32 @@
     <meta name="twitter:image" content="%VITE_APP_URL%/fav.png" />
 
     <title>Jamm | Chat, Kurslar va Musobaqa Platformasi</title>
+    <script>
+      (function () {
+        var savedTheme = "light";
+
+        try {
+          savedTheme = localStorage.getItem("theme") || "light";
+        } catch (error) {}
+
+        var normalizedTheme = savedTheme === "dark" ? "dark" : "light";
+        var themeColor =
+          normalizedTheme === "dark" ? "#36393f" : "#ffffff";
+
+        document.documentElement.setAttribute("data-theme", normalizedTheme);
+        document.documentElement.style.colorScheme = normalizedTheme;
+        document.documentElement.style.backgroundColor = themeColor;
+
+        if (document.body) {
+          document.body.style.backgroundColor = themeColor;
+        }
+
+        var themeMeta = document.querySelector('meta[name="theme-color"]');
+        if (themeMeta) {
+          themeMeta.setAttribute("content", themeColor);
+        }
+      })();
+    </script>
   </head>
   <body translate="no" class="notranslate">
     <div id="root" translate="no" class="notranslate"></div>
