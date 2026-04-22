@@ -713,6 +713,11 @@ const GhostButton = styled.button`
     color: var(--text-color);
     background: var(--hover-color);
   }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
 `;
 
 const DangerButton = styled(GhostButton)`
@@ -898,6 +903,15 @@ const CourseMenuButton = styled.button`
     box-shadow:
       0 14px 28px rgba(15, 23, 42, 0.1),
       inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow:
+      0 10px 24px rgba(15, 23, 42, 0.06),
+      inset 0 1px 0 rgba(255, 255, 255, 0.05);
   }
 `;
 
@@ -3291,6 +3305,8 @@ export default function TeacherPage() {
   const [studentModalTab, setStudentModalTab] = useState("overview");
   const [savingAttendanceKey, setSavingAttendanceKey] = useState("");
   const [savingMasteryKey, setSavingMasteryKey] = useState("");
+  const [approvingMemberKey, setApprovingMemberKey] = useState("");
+  const [removingStudentKey, setRemovingStudentKey] = useState("");
   const [teacherTests, setTeacherTests] = useState([]);
   const [teacherSentenceBuilders, setTeacherSentenceBuilders] = useState([]);
   const [testsLoading, setTestsLoading] = useState(false);
@@ -4044,16 +4060,25 @@ export default function TeacherPage() {
       });
   }, [masteryRows, selectedCourse, selectedLessonContent]);
 
+  const getMemberActionKey = useCallback(
+    (courseId, userId) => `${String(courseId || "")}:${String(userId || "")}`,
+    [],
+  );
+
   const handleApprove = useCallback(
     async (courseId, userId) => {
+      const actionKey = getMemberActionKey(courseId, userId);
       try {
+        setApprovingMemberKey(actionKey);
         await approveUser(courseId, userId);
         toast.success(t("teacher.students.approved"));
       } catch {
         toast.error(t("teacher.students.approveError"));
+      } finally {
+        setApprovingMemberKey("");
       }
     },
-    [approveUser, t],
+    [approveUser, getMemberActionKey, t],
   );
 
   const handleRemoveStudent = useCallback(
@@ -4062,14 +4087,18 @@ export default function TeacherPage() {
         return;
       }
 
+      const actionKey = getMemberActionKey(courseId, userId);
       try {
+        setRemovingStudentKey(actionKey);
         await removeUser(courseId, userId);
         toast.success(t("teacher.students.remove"));
       } catch {
         toast.error(t("teacher.students.removeError"));
+      } finally {
+        setRemovingStudentKey("");
       }
     },
-    [removeUser, t],
+    [getMemberActionKey, removeUser, t],
   );
 
   const handleDeleteCourse = useCallback(async () => {
@@ -4969,27 +4998,39 @@ export default function TeacherPage() {
           <Stack>
             {pendingApprovals.slice(0, 5).map(({ course, member, memberId }) => (
               <ApprovalCard key={`${getCourseId(course)}-${memberId}`}>
-                <div>
-                  <CardTitle>{member.name || member.username || t("common.userFallback")}</CardTitle>
-                  <CardMeta>{course.title || course.name}</CardMeta>
-                </div>
-                <ApprovalActions>
-                  <PrimaryButton
-                    type="button"
-                    onClick={() => handleApprove(getCourseId(course), memberId)}
-                  >
-                    <Check size={14} />
-                    {t("teacher.students.approve")}
-                  </PrimaryButton>
-                  <GhostButton
-                    type="button"
-                    onClick={() => openCourseWorkspace(getCourseId(course))}
-                  >
-                    {t("teacher.workspace.openCourse", {
-                      defaultValue: "Kursni ochish",
-                    })}
-                  </GhostButton>
-                </ApprovalActions>
+                {(() => {
+                  const actionKey = getMemberActionKey(getCourseId(course), memberId);
+                  const isApproving = approvingMemberKey === actionKey;
+
+                  return (
+                    <>
+                      <div>
+                        <CardTitle>{member.name || member.username || t("common.userFallback")}</CardTitle>
+                        <CardMeta>{course.title || course.name}</CardMeta>
+                      </div>
+                      <ApprovalActions>
+                        <PrimaryButton
+                          type="button"
+                          disabled={isApproving}
+                          onClick={() => handleApprove(getCourseId(course), memberId)}
+                        >
+                          <Check size={14} />
+                          {isApproving
+                            ? t("common.loading", { defaultValue: "Yuklanmoqda..." })
+                            : t("teacher.students.approve")}
+                        </PrimaryButton>
+                        <GhostButton
+                          type="button"
+                          onClick={() => openCourseWorkspace(getCourseId(course))}
+                        >
+                          {t("teacher.workspace.openCourse", {
+                            defaultValue: "Kursni ochish",
+                          })}
+                        </GhostButton>
+                      </ApprovalActions>
+                    </>
+                  );
+                })()}
               </ApprovalCard>
             ))}
 
@@ -5487,17 +5528,22 @@ export default function TeacherPage() {
                 const studentInitial = getInitials(row.name);
                 const courseLabel = row.course.title || row.course.name;
                 const courseInitial = (courseLabel || "?").charAt(0).toUpperCase();
-                const subtitle =
-                  row.status === "pending"
-                    ? t("teacher.students.pending")
+	                const subtitle =
+	                  row.status === "pending"
+	                    ? t("teacher.students.pending")
                     : row.joinedAt
                       ? t("teacher.workspace.joinedDate", {
                           date: formatShortDate(row.joinedAt),
                           defaultValue: `Qo'shilgan ${formatShortDate(row.joinedAt)}`,
                         })
-                      : t("teacher.students.approved");
+	                      : t("teacher.students.approved");
+	                const removeActionKey = getMemberActionKey(
+	                  getCourseId(row.course),
+	                  row.memberId || row.studentId,
+	                );
+	                const isRemovingStudent = removingStudentKey === removeActionKey;
 
-                return (
+	                return (
                   <StudentTableRow
                     key={row.id}
                     type="button"
@@ -5581,26 +5627,35 @@ export default function TeacherPage() {
                       <DateCellText>{formatShortDate(row.joinedAt)}</DateCellText>
                     </StudentCell>
 
-                    <CourseActionCell onClick={(event) => event.stopPropagation()}>
-                      <CourseMenuButton
-                        type="button"
-                        title={t("teacher.students.kick", {
-                          defaultValue: "Kick qilish",
-                        })}
-                        aria-label={t("teacher.students.kick", {
-                          defaultValue: "Kick qilish",
-                        })}
-                        $tone="danger"
-                        onClick={() =>
-                          handleRemoveStudent(
+	                    <CourseActionCell onClick={(event) => event.stopPropagation()}>
+	                      <CourseMenuButton
+	                        type="button"
+	                        disabled={isRemovingStudent}
+	                        title={
+	                          isRemovingStudent
+	                            ? t("common.loading", { defaultValue: "Yuklanmoqda..." })
+	                            : t("teacher.students.kick", {
+	                                defaultValue: "Kick qilish",
+	                              })
+	                        }
+	                        aria-label={
+	                          isRemovingStudent
+	                            ? t("common.loading", { defaultValue: "Yuklanmoqda..." })
+	                            : t("teacher.students.kick", {
+	                                defaultValue: "Kick qilish",
+	                              })
+	                        }
+	                        $tone="danger"
+	                        onClick={() =>
+	                          handleRemoveStudent(
                             getCourseId(row.course),
-                            row.memberId || row.studentId,
-                          )
-                        }
-                      >
-                        <UserX size={15} />
-                      </CourseMenuButton>
-                    </CourseActionCell>
+	                            row.memberId || row.studentId,
+	                          )
+	                        }
+	                      >
+	                        {isRemovingStudent ? <RefreshCw size={15} /> : <UserX size={15} />}
+	                      </CourseMenuButton>
+	                    </CourseActionCell>
                   </StudentTableRow>
                 );
               })}

@@ -39,6 +39,13 @@ const LESSON_MATERIAL_LIMIT = 3;
 const LESSON_HOMEWORK_LIMIT = 3;
 const LESSON_TEST_LIMIT = 3;
 
+const getMaterialRequestId = (item) =>
+  String(item?.materialId || item?._id || item?.id || "");
+
+const getMaterialRenderKey = (item, index = 0) =>
+  getMaterialRequestId(item) ||
+  String(item?.fileUrl || item?.fileName || `material-${index}`);
+
 const WorkspaceShell = styled.div`
   --workspace-bg: var(--background-color);
   --workspace-surface: var(--secondary-color);
@@ -313,6 +320,11 @@ const FileBox = styled.label`
   cursor: pointer;
   color: var(--workspace-muted);
   font-size: 13px;
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: wait;
+  }
 `;
 
 const HiddenFileInput = styled.input`
@@ -568,10 +580,13 @@ export default function TeacherLessonContentWorkspace({
   const [materialTitle, setMaterialTitle] = useState("");
   const [materialFile, setMaterialFile] = useState(null);
   const [isSavingMaterial, setIsSavingMaterial] = useState(false);
+  const [deletingVideoIndex, setDeletingVideoIndex] = useState(null);
+  const [deletingMaterialId, setDeletingMaterialId] = useState("");
   const [isPdfLibraryOpen, setIsPdfLibraryOpen] = useState(false);
   const [pdfLibraryItems, setPdfLibraryItems] = useState([]);
   const [isPdfLibraryLoading, setIsPdfLibraryLoading] = useState(false);
   const [isLinkingLibraryMaterial, setIsLinkingLibraryMaterial] = useState(false);
+  const [linkingLibraryMaterialKey, setLinkingLibraryMaterialKey] = useState("");
 
   const [editingHomeworkId, setEditingHomeworkId] = useState(null);
   const [homeworkTitle, setHomeworkTitle] = useState("");
@@ -580,12 +595,15 @@ export default function TeacherLessonContentWorkspace({
   const [homeworkDeadline, setHomeworkDeadline] = useState("");
   const [homeworkMaxScore, setHomeworkMaxScore] = useState(100);
   const [isSavingHomework, setIsSavingHomework] = useState(false);
+  const [deletingHomeworkId, setDeletingHomeworkId] = useState(null);
 
   const [editingTestId, setEditingTestId] = useState(null);
   const [testUrl, setTestUrl] = useState("");
   const [testMinScore, setTestMinScore] = useState(0);
   const [isSavingTest, setIsSavingTest] = useState(false);
+  const [deletingTestId, setDeletingTestId] = useState(null);
   const [lessonStatus, setLessonStatus] = useState(lesson?.status || "draft");
+  const [isPublishingLesson, setIsPublishingLesson] = useState(false);
 
   const videoInputRef = useRef(null);
   const materialInputRef = useRef(null);
@@ -778,7 +796,10 @@ export default function TeacherLessonContentWorkspace({
 
   const handleDeleteVideo = useCallback(
     async (mediaIndex) => {
+      if (mediaIndex === null || mediaIndex === undefined) return;
+
       try {
+        setDeletingVideoIndex(mediaIndex);
         await updateLesson(courseId, lessonId, {
           mediaItems: lessonMediaItems
             .filter((_, index) => index !== mediaIndex)
@@ -798,7 +819,7 @@ export default function TeacherLessonContentWorkspace({
         toast.success(
           t("teacher.lessonWorkspace.videoDeleted", {
             defaultValue: "Video o'chirildi",
-          }),
+            }),
         );
       } catch (error) {
         console.error(error);
@@ -808,6 +829,8 @@ export default function TeacherLessonContentWorkspace({
               defaultValue: "Videoni o'chirib bo'lmadi",
             }),
         );
+      } finally {
+        setDeletingVideoIndex(null);
       }
     },
     [courseId, lessonId, lessonMediaItems, t, updateLesson],
@@ -880,7 +903,7 @@ export default function TeacherLessonContentWorkspace({
   ]);
 
   const openPdfLibrary = useCallback(async () => {
-    if (!courseId) return;
+    if (!courseId || isPdfLibraryLoading) return;
 
     try {
       setIsPdfLibraryOpen(true);
@@ -899,7 +922,7 @@ export default function TeacherLessonContentWorkspace({
     } finally {
       setIsPdfLibraryLoading(false);
     }
-  }, [courseId, getCourseMaterialLibrary, t]);
+  }, [courseId, getCourseMaterialLibrary, isPdfLibraryLoading, t]);
 
   const handleSelectLibraryMaterial = useCallback(
     async (item) => {
@@ -927,8 +950,11 @@ export default function TeacherLessonContentWorkspace({
         return;
       }
 
+      const libraryMaterialKey = getMaterialRenderKey(item);
+
       try {
         setIsLinkingLibraryMaterial(true);
+        setLinkingLibraryMaterialKey(libraryMaterialKey);
         await upsertLessonMaterial(courseId, lessonId, {
           title:
             materialTitle.trim() ||
@@ -960,6 +986,7 @@ export default function TeacherLessonContentWorkspace({
         );
       } finally {
         setIsLinkingLibraryMaterial(false);
+        setLinkingLibraryMaterialKey("");
       }
     },
     [
@@ -976,7 +1003,17 @@ export default function TeacherLessonContentWorkspace({
 
   const handleDeleteMaterial = useCallback(
     async (materialId) => {
+      if (!materialId) {
+        toast.error(
+          t("teacher.lessonWorkspace.materialDeleteError", {
+            defaultValue: "Material ID topilmadi. Sahifani yangilab qayta urinib ko'ring",
+          }),
+        );
+        return;
+      }
+
       try {
+        setDeletingMaterialId(String(materialId));
         await deleteLessonMaterial(courseId, lessonId, materialId);
         await refreshContent();
       } catch (error) {
@@ -987,6 +1024,8 @@ export default function TeacherLessonContentWorkspace({
               defaultValue: "Materialni o'chirib bo'lmadi",
             }),
         );
+      } finally {
+        setDeletingMaterialId("");
       }
     },
     [courseId, deleteLessonMaterial, lessonId, refreshContent, t],
@@ -1080,6 +1119,7 @@ export default function TeacherLessonContentWorkspace({
     async (assignmentId) => {
       if (!assignmentId) return;
       try {
+        setDeletingHomeworkId(assignmentId);
         const result = await deleteLessonHomework(courseId, lessonId, assignmentId);
         setHomeworkData(result || { assignments: [] });
         selectHomework(result?.assignments?.[0] || null);
@@ -1091,6 +1131,8 @@ export default function TeacherLessonContentWorkspace({
               defaultValue: "Uyga vazifani o'chirib bo'lmadi",
             }),
         );
+      } finally {
+        setDeletingHomeworkId(null);
       }
     },
     [courseId, deleteLessonHomework, lessonId, selectHomework, t],
@@ -1169,6 +1211,7 @@ export default function TeacherLessonContentWorkspace({
     async (linkedTestId) => {
       if (!linkedTestId) return;
       try {
+        setDeletingTestId(linkedTestId);
         const result = await deleteLessonLinkedTest(courseId, lessonId, linkedTestId);
         const nextItems = Array.isArray(result?.items) ? result.items : [];
         setLinkedTests(nextItems);
@@ -1181,6 +1224,8 @@ export default function TeacherLessonContentWorkspace({
               defaultValue: "Testni olib tashlab bo'lmadi",
             }),
         );
+      } finally {
+        setDeletingTestId(null);
       }
     },
     [courseId, deleteLessonLinkedTest, lessonId, selectLinkedTest, t],
@@ -1194,6 +1239,7 @@ export default function TeacherLessonContentWorkspace({
     if (!courseId || !lessonId) return;
 
     try {
+      setIsPublishingLesson(true);
       await publishLesson(courseId, lessonId);
       setLessonStatus("published");
       toast.success(
@@ -1209,6 +1255,8 @@ export default function TeacherLessonContentWorkspace({
             defaultValue: "Darsni e'lon qilib bo'lmadi",
           }),
       );
+    } finally {
+      setIsPublishingLesson(false);
     }
   }, [courseId, lessonId, publishLesson, t]);
 
@@ -1317,10 +1365,13 @@ const renderContent = () => (
                   <TinyButton
                     type="button"
                     $danger
+                    disabled={deletingVideoIndex === index}
                     onClick={() => handleDeleteVideo(index)}
                   >
                     <Trash2 size={14} />
-                    {t("common.delete")}
+                    {deletingVideoIndex === index
+                      ? t("common.loading", { defaultValue: "Yuklanmoqda..." })
+                      : t("common.delete")}
                   </TinyButton>
                 </PanelActions>
               </ContentCard>
@@ -1439,11 +1490,18 @@ const renderContent = () => (
                 defaultValue: "PDF yuklash",
               })}
             </FieldLabel>
-            <FileBox as="button" type="button" onClick={openPdfLibrary}>
+            <FileBox
+              as="button"
+              type="button"
+              disabled={isPdfLibraryLoading || isSavingMaterial || isLinkingLibraryMaterial}
+              onClick={openPdfLibrary}
+            >
               <FileText size={24} />
               <div>
                 {materialFile
                   ? `${materialFile.name} • ${formatFileSize(materialFile.size)}`
+                  : isPdfLibraryLoading
+                    ? t("common.loading", { defaultValue: "Yuklanmoqda..." })
                   : t("teacher.lessonWorkspace.materialDropHint", {
                       defaultValue: "PDF kutubxonani ochish yoki yangi PDF tanlash",
                   })}
@@ -1481,13 +1539,15 @@ const renderContent = () => (
           </HeroButton>
           <TinyButton
             type="button"
-            disabled={isSavingMaterial || isLinkingLibraryMaterial}
+            disabled={isSavingMaterial || isLinkingLibraryMaterial || isPdfLibraryLoading}
             onClick={openPdfLibrary}
           >
             <FileText size={14} />
-            {t("teacher.lessonWorkspace.openPdfLibrary", {
-              defaultValue: "PDF kutubxona",
-            })}
+            {isPdfLibraryLoading
+              ? t("common.loading", { defaultValue: "Yuklanmoqda..." })
+              : t("teacher.lessonWorkspace.openPdfLibrary", {
+                  defaultValue: "PDF kutubxona",
+                })}
           </TinyButton>
         </PanelActions>
       </PanelCard>
@@ -1500,51 +1560,61 @@ const renderContent = () => (
         </AsideTitle>
         {materialsCount ? (
           <PdfLibraryGrid>
-            {materials.map((item) => (
-              <PdfLibraryCard key={item.materialId}>
-                <ContentMeta>
-                  <PdfPreviewBadge>
-                    <FileText size={20} />
-                  </PdfPreviewBadge>
-                  <PdfLibraryTitle>{item.title || item.fileName}</PdfLibraryTitle>
-                  <PdfLibraryMeta>
-                    <span>{item.fileName}</span>
-                    <span>{formatFileSize(item.fileSize || 0)}</span>
-                  </PdfLibraryMeta>
-                </ContentMeta>
-                <PanelActions>
-                  <TinyButton
-                    type="button"
-                    as="a"
-                    href={item.fileUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    <Eye size={14} />
-                    {t("teacher.lessonWorkspace.preview", { defaultValue: "Ko'rish" })}
-                  </TinyButton>
-                  <TinyButton
-                    type="button"
-                    as="a"
-                    href={item.fileUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    download
-                  >
-                    <ArrowUpRight size={14} />
-                    {t("common.download", { defaultValue: "Yuklash" })}
-                  </TinyButton>
-                  <TinyButton
-                    type="button"
-                    $danger
-                    onClick={() => handleDeleteMaterial(item.materialId)}
-                  >
-                    <Trash2 size={14} />
-                    {t("common.delete")}
-                  </TinyButton>
-                </PanelActions>
-              </PdfLibraryCard>
-            ))}
+            {materials.map((item, index) => {
+              const materialId = getMaterialRequestId(item);
+              const materialKey = getMaterialRenderKey(item, index);
+              const isDeletingCurrentMaterial =
+                Boolean(materialId) && deletingMaterialId === materialId;
+
+              return (
+                <PdfLibraryCard key={materialKey}>
+                  <ContentMeta>
+                    <PdfPreviewBadge>
+                      <FileText size={20} />
+                    </PdfPreviewBadge>
+                    <PdfLibraryTitle>{item.title || item.fileName}</PdfLibraryTitle>
+                    <PdfLibraryMeta>
+                      <span>{item.fileName}</span>
+                      <span>{formatFileSize(item.fileSize || 0)}</span>
+                    </PdfLibraryMeta>
+                  </ContentMeta>
+                  <PanelActions>
+                    <TinyButton
+                      type="button"
+                      as="a"
+                      href={item.fileUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      <Eye size={14} />
+                      {t("teacher.lessonWorkspace.preview", { defaultValue: "Ko'rish" })}
+                    </TinyButton>
+                    <TinyButton
+                      type="button"
+                      as="a"
+                      href={item.fileUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      download
+                    >
+                      <ArrowUpRight size={14} />
+                      {t("common.download", { defaultValue: "Yuklash" })}
+                    </TinyButton>
+                    <TinyButton
+                      type="button"
+                      $danger
+                      disabled={!materialId || isDeletingCurrentMaterial}
+                      onClick={() => handleDeleteMaterial(materialId)}
+                    >
+                      <Trash2 size={14} />
+                      {isDeletingCurrentMaterial
+                        ? t("common.loading", { defaultValue: "Yuklanmoqda..." })
+                        : t("common.delete")}
+                    </TinyButton>
+                  </PanelActions>
+                </PdfLibraryCard>
+              );
+            })}
           </PdfLibraryGrid>
         ) : (
           <EmptyState>
@@ -1643,10 +1713,13 @@ const renderContent = () => (
             <TinyButton
               type="button"
               $danger
+              disabled={deletingHomeworkId === editingHomeworkId}
               onClick={() => handleDeleteHomework(editingHomeworkId)}
             >
               <Trash2 size={14} />
-              {t("common.delete")}
+              {deletingHomeworkId === editingHomeworkId
+                ? t("common.loading", { defaultValue: "Yuklanmoqda..." })
+                : t("common.delete")}
             </TinyButton>
           ) : null}
           <HeroButton
@@ -1693,10 +1766,13 @@ const renderContent = () => (
                   <TinyButton
                     type="button"
                     $danger
+                    disabled={deletingHomeworkId === assignment.assignmentId}
                     onClick={() => handleDeleteHomework(assignment.assignmentId)}
                   >
                     <Trash2 size={14} />
-                    {t("common.delete")}
+                    {deletingHomeworkId === assignment.assignmentId
+                      ? t("common.loading", { defaultValue: "Yuklanmoqda..." })
+                      : t("common.delete")}
                   </TinyButton>
                 </PanelActions>
               </ContentCard>
@@ -1781,10 +1857,13 @@ const renderContent = () => (
             <TinyButton
               type="button"
               $danger
+              disabled={deletingTestId === editingTestId}
               onClick={() => handleDeleteTest(editingTestId)}
             >
               <Trash2 size={14} />
-              {t("common.delete")}
+              {deletingTestId === editingTestId
+                ? t("common.loading", { defaultValue: "Yuklanmoqda..." })
+                : t("common.delete")}
             </TinyButton>
           ) : null}
           <HeroButton
@@ -1845,10 +1924,13 @@ const renderContent = () => (
                   <TinyButton
                     type="button"
                     $danger
+                    disabled={deletingTestId === item.linkedTestId}
                     onClick={() => handleDeleteTest(item.linkedTestId)}
                   >
                     <Trash2 size={14} />
-                    {t("common.delete")}
+                    {deletingTestId === item.linkedTestId
+                      ? t("common.loading", { defaultValue: "Yuklanmoqda..." })
+                      : t("common.delete")}
                   </TinyButton>
                 </PanelActions>
               </ContentCard>
@@ -1912,13 +1994,15 @@ const renderContent = () => (
             <HeroButton
               type="button"
               $primary
-              disabled={!hasPublishedMedia}
+              disabled={!hasPublishedMedia || isPublishingLesson}
               onClick={handlePublish}
             >
               <CheckCircle2 size={14} />
-              {t("teacher.lessonWorkspace.publishLesson", {
-                defaultValue: "Darsni e'lon qilish",
-              })}
+              {isPublishingLesson
+                ? t("common.loading", { defaultValue: "Yuklanmoqda..." })
+                : t("teacher.lessonWorkspace.publishLesson", {
+                    defaultValue: "Darsni e'lon qilish",
+                  })}
             </HeroButton>
           ) : null}
         </HeroActions>
@@ -2040,10 +2124,10 @@ const renderContent = () => (
                         <TinyButton
                           type="button"
                           onClick={() => handleSelectLibraryMaterial(item)}
-                          disabled={isLinkingLibraryMaterial}
+                          disabled={isLinkingLibraryMaterial || isPdfLibraryLoading}
                         >
                           <Link size={14} />
-                          {isLinkingLibraryMaterial
+                          {linkingLibraryMaterialKey === getMaterialRenderKey(item)
                             ? t("teacher.lessonWorkspace.linkingMaterial", {
                                 defaultValue: "Biriktirilmoqda...",
                               })

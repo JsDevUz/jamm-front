@@ -331,11 +331,25 @@ export const upsertLessonMaterial = async ({
   return data;
 };
 
-export const deleteLessonMaterial = async ({
-  courseId,
-  lessonId,
-  materialId,
-}) => {
+export const deleteLessonMaterial = async (
+  courseIdOrParams,
+  lessonIdArg,
+  materialIdArg,
+) => {
+  const params =
+    courseIdOrParams && typeof courseIdOrParams === "object"
+      ? courseIdOrParams
+      : {
+          courseId: courseIdOrParams,
+          lessonId: lessonIdArg,
+          materialId: materialIdArg,
+        };
+  const { courseId, lessonId, materialId } = params;
+
+  if (!courseId || !lessonId || !materialId) {
+    throw new Error("deleteLessonMaterial requires courseId, lessonId, and materialId");
+  }
+
   const { data } = await axiosInstance.delete(
     `/courses/${courseId}/lessons/${lessonId}/materials/${materialId}`,
   );
