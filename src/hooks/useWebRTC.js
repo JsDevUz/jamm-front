@@ -1702,6 +1702,7 @@ export function useWebRTC({
   const removedPeerIdsRef = useRef(new Set());
   const livekitRemoteMediaRef = useRef({});
   const currentUserId = String(currentUser?._id || currentUser?.id || "");
+  const isGuestSocket = !currentUserId;
   const whiteboardPdfTabLimit = getTierLimit(APP_LIMITS.whiteboardPdfTabs, currentUser);
   const whiteboardPdfLibraryBytesLimit = getTierLimit(
     APP_LIMITS.whiteboardPdfLibraryBytes,
@@ -4263,6 +4264,8 @@ export function useWebRTC({
         const socket = io(
           `${SIGNAL_URL}/video`,
           buildSocketOptions({
+            withCredentials: !isGuestSocket,
+            auth: isGuestSocket ? { guest: true } : undefined,
             reconnection: true,
             reconnectionAttempts: Infinity,
             reconnectionDelay: 1000,
@@ -4703,6 +4706,30 @@ export function useWebRTC({
           }
         });
 
+        reg("auth-error", ({ message }) => {
+          if (!isMounted) {
+            return;
+          }
+
+          const nextMessage =
+            message ||
+            (isGuestSocket
+              ? "Mehmon sifatida ulanishni tekshirib bo'lmadi"
+              : "Autentifikatsiya xatosi yuz berdi");
+
+          logRtcWarn("Video socket auth xatosi", {
+            message: nextMessage,
+            guest: isGuestSocket,
+          });
+
+          if (isGuestSocket) {
+            return;
+          }
+
+          setError(nextMessage);
+          setJoinStatus("idle");
+        });
+
         // 6. Join or create room
         if (!isValidMeetRoomId(roomId)) {
           setError("Room ID noto‘g‘ri");
@@ -4886,6 +4913,7 @@ export function useWebRTC({
     commitWhiteboardState,
     currentUser?._id,
     currentUser?.id,
+    isGuestSocket,
     connectLivekitRoom,
     disconnectLivekitRoom,
     disableLocalAudioTrack,
