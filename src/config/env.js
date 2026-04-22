@@ -19,3 +19,19 @@ export const buildSocketNamespaceUrl = (namespace = "") => {
     ? `${API_BASE_URL}${normalizedNamespace}`
     : normalizedNamespace;
 };
+
+export const buildSocketOptions = (overrides = {}) => {
+  const {
+    transports,
+    ...restOverrides
+  } = overrides || {};
+
+  return {
+    withCredentials: true,
+    transports: Array.isArray(transports) && transports.length
+      ? transports
+      : ["polling", "websocket"],
+    upgrade: true,
+    ...restOverrides,
+  };
+};

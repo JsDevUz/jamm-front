@@ -79,9 +79,17 @@ const Overlay = styled.div`
 `;
 
 const PiPFrame = styled.div`
+  --call-bg: var(--background-color);
+  --call-surface: color-mix(in srgb, var(--secondary-color) 92%, black 8%);
+  --call-panel: color-mix(in srgb, var(--input-color) 88%, black 12%);
+  --call-border: color-mix(in srgb, var(--border-color) 82%, transparent);
+  --call-text: var(--text-color);
+  --call-muted: var(--text-muted-color);
+  --call-tint: color-mix(in srgb, var(--primary-color) 16%, transparent);
+  --call-danger: var(--danger-color);
   width: 100%;
   height: 100%;
-  background: var(--background-color);
+  background: var(--call-bg);
   display: flex;
   flex-direction: column;
 `;
@@ -615,10 +623,26 @@ const PrivateVideoCall = ({
         width: 340,
         height: 210,
       });
+      const currentTheme =
+        document.documentElement.getAttribute("data-theme") || "light";
+      const currentThemeColor =
+        currentTheme === "dark" ? "#36393f" : "#ffffff";
 
       nextPipWindow.document.body.innerHTML = "";
+      nextPipWindow.document.documentElement.style.margin = "0";
+      nextPipWindow.document.documentElement.style.width = "100%";
+      nextPipWindow.document.documentElement.style.height = "100%";
+      nextPipWindow.document.documentElement.setAttribute(
+        "data-theme",
+        currentTheme,
+      );
+      nextPipWindow.document.documentElement.style.colorScheme = currentTheme;
+      nextPipWindow.document.documentElement.style.backgroundColor =
+        currentThemeColor;
       nextPipWindow.document.body.style.margin = "0";
-      nextPipWindow.document.body.style.background = "var(--background-color)";
+      nextPipWindow.document.body.style.width = "100%";
+      nextPipWindow.document.body.style.height = "100%";
+      nextPipWindow.document.body.style.background = currentThemeColor;
       nextPipWindow.document.body.style.overflow = "hidden";
 
       const stylesheetLoadTasks = [...document.styleSheets].map((styleSheet) => {

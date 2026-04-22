@@ -11,7 +11,7 @@ import useAuthStore from "../store/authStore";
 import * as chatApi from "../api/chatApi";
 import { formatChatTime } from "../utils/dateUtils";
 import dayjs from "dayjs";
-import { buildSocketNamespaceUrl } from "../config/env";
+import { buildSocketNamespaceUrl, buildSocketOptions } from "../config/env";
 import { showDesktopChatNotification } from "../utils/desktopNotifications";
 import { normalizeReadByIds } from "../features/chats/chat-area/utils/chatAreaMessageUtils";
 import {
@@ -124,11 +124,12 @@ export const ChatsProvider = ({ children }) => {
       return undefined;
     }
 
-    const socket = io(buildSocketNamespaceUrl("/chats"), {
-      withCredentials: true,
-      transports: ["websocket"],
-      reconnectionAttempts: 5,
-    });
+    const socket = io(
+      buildSocketNamespaceUrl("/chats"),
+      buildSocketOptions({
+        reconnectionAttempts: 5,
+      }),
+    );
 
     socket.on("connect", () => {
       console.log("Connected to /chats namespace");

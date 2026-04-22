@@ -10,7 +10,7 @@ import { io } from "socket.io-client";
 import useAuthStore from "../store/authStore";
 import * as arenaApi from "../api/arenaApi";
 import { toast } from "react-hot-toast";
-import { buildSocketNamespaceUrl } from "../config/env";
+import { buildSocketNamespaceUrl, buildSocketOptions } from "../config/env";
 
 const ArenaContext = createContext(null);
 
@@ -288,12 +288,13 @@ export const ArenaProvider = ({ children }) => {
       }
 
       const socketUrl = buildSocketNamespaceUrl("/arena");
-      socketRef.current = io(socketUrl, {
-      auth: guestName ? { guestName } : undefined,
-      withCredentials: true,
-      transports: ["websocket"],
-      forceNew: true,
-    });
+      socketRef.current = io(
+        socketUrl,
+        buildSocketOptions({
+          auth: guestName ? { guestName } : undefined,
+          forceNew: true,
+        }),
+      );
 
     socketRef.current.on("connect", () => {
       console.log("Arena Socket connected:", socketRef.current.id);

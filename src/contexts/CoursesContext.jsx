@@ -9,7 +9,7 @@ import React, {
 import { io } from "socket.io-client";
 import * as coursesApi from "../api/coursesApi";
 import useAuthStore from "../store/authStore";
-import { buildSocketNamespaceUrl } from "../config/env";
+import { buildSocketNamespaceUrl, buildSocketOptions } from "../config/env";
 
 const CoursesContext = createContext(null);
 
@@ -147,10 +147,7 @@ export const CoursesProvider = ({ children }) => {
 
     const socketUrl = buildSocketNamespaceUrl("/courses");
 
-    socketRef.current = io(socketUrl, {
-      withCredentials: true,
-      transports: ["websocket"],
-    });
+    socketRef.current = io(socketUrl, buildSocketOptions());
 
     const handleEvent = () => {
       fetchCourses(1);

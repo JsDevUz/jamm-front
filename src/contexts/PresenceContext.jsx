@@ -8,7 +8,11 @@ import React, {
 } from "react";
 import { io } from "socket.io-client";
 import useAuthStore from "../store/authStore";
-import { API_BASE_URL, buildSocketNamespaceUrl } from "../config/env";
+import {
+  API_BASE_URL,
+  buildSocketNamespaceUrl,
+  buildSocketOptions,
+} from "../config/env";
 
 const PresenceContext = createContext();
 const HEARTBEAT_INTERVAL = 20_000; // 20 seconds
@@ -43,13 +47,14 @@ export const PresenceProvider = ({ children }) => {
       return;
     }
 
-    const socket = io(buildSocketNamespaceUrl("/presence"), {
-      withCredentials: true,
-      transports: ["websocket", "polling"],
-      reconnection: true,
-      reconnectionDelay: 2000,
-      reconnectionAttempts: 10,
-    });
+    const socket = io(
+      buildSocketNamespaceUrl("/presence"),
+      buildSocketOptions({
+        reconnection: true,
+        reconnectionDelay: 2000,
+        reconnectionAttempts: 10,
+      }),
+    );
 
     socketRef.current = socket;
 

@@ -760,6 +760,20 @@ const ScreenClickOverlay = styled.div`
 `;
 
 const PiPFrame = styled.div`
+  --call-bg: var(--background-color);
+  --call-surface: var(--secondary-color);
+  --call-panel: var(--input-color);
+  --call-border: color-mix(in srgb, var(--border-color) 80%, transparent);
+  --call-text: var(--text-color);
+  --call-muted: var(--text-muted-color);
+  --call-success: var(--success-color);
+  --call-warning: var(--warning-color);
+  --call-danger: var(--danger-color);
+  --call-primary: var(--primary-color);
+  --call-control: color-mix(in srgb, var(--secondary-color) 94%, transparent);
+  --call-control-hover: var(--hover-color);
+  --call-control-border: var(--border-color);
+  --call-shadow: color-mix(in srgb, var(--text-color) 14%, transparent);
   width: 100%;
   height: 100%;
   min-width: 300px;
@@ -3749,16 +3763,27 @@ const GroupVideoCall = ({
         width: 300,
         height: 300,
       });
+      const currentTheme =
+        document.documentElement.getAttribute("data-theme") || "light";
+      const currentThemeColor =
+        currentTheme === "dark" ? "#36393f" : "#ffffff";
 
       nextPipWindow.document.documentElement.style.margin = "0";
       nextPipWindow.document.documentElement.style.width = "100%";
       nextPipWindow.document.documentElement.style.height = "100%";
+      nextPipWindow.document.documentElement.setAttribute(
+        "data-theme",
+        currentTheme,
+      );
+      nextPipWindow.document.documentElement.style.colorScheme = currentTheme;
+      nextPipWindow.document.documentElement.style.backgroundColor =
+        currentThemeColor;
       nextPipWindow.document.body.innerHTML = "";
       nextPipWindow.document.body.style.margin = "0";
       nextPipWindow.document.body.style.width = "100%";
       nextPipWindow.document.body.style.height = "100%";
       nextPipWindow.document.body.style.display = "flex";
-      nextPipWindow.document.body.style.background = "#0b0d0f";
+      nextPipWindow.document.body.style.background = currentThemeColor;
       nextPipWindow.document.body.style.overflow = "hidden";
 
       const copyStylesToPiP = () => {

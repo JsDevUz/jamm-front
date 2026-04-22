@@ -4,7 +4,7 @@ import { AudioPresets, Room, RoomEvent } from "livekit-client";
 import axiosInstance from "../api/axiosInstance";
 import { createLivekitToken, fetchLivekitConfig } from "../api/livekitApi";
 import useAuthStore from "../store/authStore";
-import { API_BASE_URL, LIVEKIT_URL } from "../config/env";
+import { API_BASE_URL, LIVEKIT_URL, buildSocketOptions } from "../config/env";
 import { isValidMeetRoomId } from "../utils/meetStore";
 import { APP_LIMITS, getTierLimit } from "../constants/appLimits";
 import { playJoinRequestTone } from "../features/calls/utils/ringtone";
@@ -4223,14 +4223,15 @@ export function useWebRTC({
           setIsCamOn(shouldStartWithCam);
         }
 
-        const socket = io(`${SIGNAL_URL}/video`, {
-          transports: ["websocket"],
-          withCredentials: true,
-          reconnection: true,
-          reconnectionAttempts: 5,
-          reconnectionDelay: 2000,
-          reconnectionDelayMax: 10000,
-        });
+        const socket = io(
+          `${SIGNAL_URL}/video`,
+          buildSocketOptions({
+            reconnection: true,
+            reconnectionAttempts: 5,
+            reconnectionDelay: 2000,
+            reconnectionDelayMax: 10000,
+          }),
+        );
         socketRef.current = socket;
 
         // 3. Attach signaling
