@@ -23,7 +23,8 @@ const APP_LOCK_EXEMPT_PATHS = [
 
 const isPublicArenaPath = () =>
   typeof window !== "undefined" &&
-  window.location.pathname.startsWith("/arena");
+  (window.location.pathname.startsWith("/arena") ||
+    window.location.pathname.startsWith("/join/"));
 
 const axiosInstance = axios.create({
   baseURL: API_BASE_URL,
@@ -99,7 +100,9 @@ axiosInstance.interceptors.response.use(
     const status = error.response?.status;
 
     if (status === 401) {
-      const { logout } = useAuthStore.getState();
+      const { logout, user, initialized } = useAuthStore.getState();
+      // Guest users (initialized but no user) should not be redirected to login
+      if (initialized && !user) return Promise.reject(error);
       logout({ redirect: !isPublicArenaPath() });
     }
 

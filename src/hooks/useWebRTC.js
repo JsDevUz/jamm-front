@@ -2616,6 +2616,7 @@ export function useWebRTC({
           canPublish: true,
           canPublishData: true,
           canSubscribe: true,
+          ...(isGuestSocket ? { isGuest: true } : {}),
         });
 
       const rtcConfig = buildFallbackIceConfig();
@@ -4264,7 +4265,7 @@ export function useWebRTC({
         const socket = io(
           `${SIGNAL_URL}/video`,
           buildSocketOptions({
-            withCredentials: !isGuestSocket,
+            withCredentials: true,
             auth: isGuestSocket ? { guest: true } : undefined,
             reconnection: true,
             reconnectionAttempts: Infinity,

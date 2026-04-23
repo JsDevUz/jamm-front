@@ -2176,7 +2176,6 @@ const GuestSyncButton = styled.button`
 
 const RemoteCursorLayer = styled.div`
   position: absolute;
-  inset: 0;
   z-index: 9;
   pointer-events: none;
 `;
@@ -2228,11 +2227,7 @@ const BoardViewport = styled.div`
   border-radius: 0 0 18px 18px;
   overscroll-behavior: contain;
   touch-action: none;
-  background:
-    radial-gradient(circle, rgba(148, 163, 184, 0.3) 1.4px, transparent 1.5px),
-    linear-gradient(180deg, rgba(255,255,255,0.985), rgba(247,248,250,0.985));
-  background-size: 40px 40px, auto;
-  background-position: 0 0, 0 0;
+  background: linear-gradient(180deg, rgba(249, 250, 252, 0.98), rgba(241, 244, 248, 0.98));
   scrollbar-width: none;
 
   &::-webkit-scrollbar {
@@ -2261,8 +2256,29 @@ const BoardSurface = styled.div`
   width: 100%;
   height: 100%;
   border-radius: 0 0 18px 18px;
-  background: transparent;
+  background-color: #fcfdff;
   overflow: hidden;
+`;
+
+const BoardSceneGrid = styled.div`
+  position: absolute;
+  left: ${(p) => `${p.$offsetLeft}px`};
+  top: ${(p) => `${p.$offsetTop}px`};
+  width: ${(p) => `${p.$sceneWidth}px`};
+  height: ${(p) => `${p.$sceneHeight}px`};
+  border-radius: inherit;
+  pointer-events: none;
+  background-color: #fcfdff;
+  background-image:
+    linear-gradient(rgba(148, 163, 184, 0.16) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(148, 163, 184, 0.16) 1px, transparent 1px),
+    linear-gradient(rgba(99, 102, 241, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(99, 102, 241, 0.08) 1px, transparent 1px);
+  background-size: ${(p) => `${24 * p.$scale}px ${24 * p.$scale}px`},
+    ${(p) => `${24 * p.$scale}px ${24 * p.$scale}px`},
+    ${(p) => `${120 * p.$scale}px ${120 * p.$scale}px`},
+    ${(p) => `${120 * p.$scale}px ${120 * p.$scale}px`};
+  background-position: -1px -1px, -1px -1px, -1px -1px, -1px -1px;
 `;
 
 const PdfViewport = styled.div`
@@ -4918,6 +4934,12 @@ const WhiteboardTile = ({
     width: 0,
     height: 0,
   });
+  const [cursorOverlayBounds, setCursorOverlayBounds] = useState({
+    left: 0,
+    top: 0,
+    width: 0,
+    height: 0,
+  });
   const [workspaceViewportSize, setWorkspaceViewportSize] = useState({
     width: 0,
     height: 0,
@@ -5018,6 +5040,83 @@ const WhiteboardTile = ({
       onRecordSurfaceChange(null, null);
     };
   }, [activeTab?.id, activeTab?.type, onRecordSurfaceChange]);
+  const getCursorSurfaceNode = useCallback(() => {
+    if (activeTab?.type === "pdf") {
+      return pdfViewportRef.current;
+    }
+
+    return boardViewportRef.current;
+  }, [activeTab?.type]);
+
+  const resolveCursorSurfaceBounds = useCallback(() => {
+    const workspaceNode = workspaceBodyRef.current;
+    if (!workspaceNode) {
+      return null;
+    }
+
+    const workspaceRect = workspaceNode.getBoundingClientRect();
+    if (workspaceRect.width <= 0 || workspaceRect.height <= 0) {
+      return null;
+    }
+
+    const surfaceNode = getCursorSurfaceNode();
+    const surfaceRect = surfaceNode?.getBoundingClientRect?.();
+    if (!surfaceRect || surfaceRect.width <= 0 || surfaceRect.height <= 0) {
+      return {
+        left: 0,
+        top: 0,
+        width: workspaceRect.width,
+        height: workspaceRect.height,
+      };
+    }
+
+    return {
+      left: Math.max(0, surfaceRect.left - workspaceRect.left),
+      top: Math.max(0, surfaceRect.top - workspaceRect.top),
+      width: Math.min(workspaceRect.width, surfaceRect.width),
+      height: Math.min(workspaceRect.height, surfaceRect.height),
+    };
+  }, [getCursorSurfaceNode]);
+
+  useEffect(() => {
+    const workspaceNode = workspaceBodyRef.current;
+    const surfaceNode = getCursorSurfaceNode();
+    if (!workspaceNode) {
+      return undefined;
+    }
+
+    const updateCursorOverlayBounds = () => {
+      const nextBounds = resolveCursorSurfaceBounds();
+      if (!nextBounds) {
+        return;
+      }
+
+      setCursorOverlayBounds((prev) =>
+        Math.abs(prev.left - nextBounds.left) <= 0.5 &&
+        Math.abs(prev.top - nextBounds.top) <= 0.5 &&
+        Math.abs(prev.width - nextBounds.width) <= 0.5 &&
+        Math.abs(prev.height - nextBounds.height) <= 0.5
+          ? prev
+          : nextBounds,
+      );
+    };
+
+    updateCursorOverlayBounds();
+
+    const resizeObserver = new ResizeObserver(updateCursorOverlayBounds);
+    resizeObserver.observe(workspaceNode);
+    if (surfaceNode instanceof HTMLElement && surfaceNode !== workspaceNode) {
+      resizeObserver.observe(surfaceNode);
+    }
+
+    window.addEventListener("resize", updateCursorOverlayBounds);
+
+    return () => {
+      resizeObserver.disconnect();
+      window.removeEventListener("resize", updateCursorOverlayBounds);
+    };
+  }, [activeTab?.id, getCursorSurfaceNode, resolveCursorSurfaceBounds]);
+
   const activeBoardZoom = Math.min(
     WHITEBOARD_MAX_ZOOM,
     Math.max(
@@ -5098,6 +5197,32 @@ const WhiteboardTile = ({
     [],
   );
   const activeBoardRenderScale = getBoardRenderScale(activeBoardZoom);
+  const activeBoardFrameWidth = Math.max(
+    1,
+    Math.round(activeBoardBaseWidth),
+    Math.round(activeBoardBaseWidth * activeBoardRenderScale),
+  );
+  const activeBoardFrameHeight = Math.max(
+    1,
+    Math.round(activeBoardBaseHeight),
+    Math.round(activeBoardBaseHeight * activeBoardRenderScale),
+  );
+  const activeBoardSceneWidth = Math.max(
+    1,
+    Math.round(activeBoardBaseWidth * activeBoardRenderScale),
+  );
+  const activeBoardSceneHeight = Math.max(
+    1,
+    Math.round(activeBoardBaseHeight * activeBoardRenderScale),
+  );
+  const activeBoardSceneOffsetLeft = Math.max(
+    0,
+    Math.round((activeBoardFrameWidth - activeBoardSceneWidth) / 2),
+  );
+  const activeBoardSceneOffsetTop = Math.max(
+    0,
+    Math.round((activeBoardFrameHeight - activeBoardSceneHeight) / 2),
+  );
   const shouldUseContainedMobilePdfViewport =
     interactive && isMobile && activeTab?.type === "pdf";
   const shouldMirrorRemotePdfViewportInsets =
@@ -5620,14 +5745,30 @@ const WhiteboardTile = ({
         return;
       }
 
-      const rect = workspaceNode.getBoundingClientRect();
-      if (rect.width <= 0 || rect.height <= 0) {
+      const workspaceRect = workspaceNode.getBoundingClientRect();
+      const surfaceBounds = resolveCursorSurfaceBounds();
+      if (!surfaceBounds || surfaceBounds.width <= 0 || surfaceBounds.height <= 0) {
+        return;
+      }
+
+      const x =
+        (event.clientX - workspaceRect.left - surfaceBounds.left) /
+        surfaceBounds.width;
+      const y =
+        (event.clientY - workspaceRect.top - surfaceBounds.top) /
+        surfaceBounds.height;
+
+      if (!Number.isFinite(x) || !Number.isFinite(y)) {
+        return;
+      }
+
+      if (x < 0 || x > 1 || y < 0 || y > 1) {
         return;
       }
 
       cursorBroadcastPointRef.current = {
-        x: (event.clientX - rect.left) / rect.width,
-        y: (event.clientY - rect.top) / rect.height,
+        x,
+        y,
       };
 
       // Throttle to CURSOR_BROADCAST_INTERVAL_MS — RAF alone fires at 60fps which floods socket
@@ -5653,7 +5794,7 @@ const WhiteboardTile = ({
       cursorBroadcastLastTimeRef.current = now;
       emitCursorPosition(cursorBroadcastPointRef.current.x, cursorBroadcastPointRef.current.y);
     },
-    [emitCursorPosition, interactive, isActive],
+    [emitCursorPosition, interactive, isActive, resolveCursorSurfaceBounds],
   );
 
   const handleWorkspacePointerLeave = useCallback(() => {
@@ -5684,6 +5825,15 @@ const WhiteboardTile = ({
     },
     [onToggleFullscreen],
   );
+
+  const remoteCursorLayerStyle = !interactive
+    ? {
+        left: `${cursorOverlayBounds.left}px`,
+        top: `${cursorOverlayBounds.top}px`,
+        width: `${Math.max(0, cursorOverlayBounds.width)}px`,
+        height: `${Math.max(0, cursorOverlayBounds.height)}px`,
+      }
+    : undefined;
 
   useEffect(() => {
     const viewport = workspaceBodyRef.current;
@@ -8046,7 +8196,7 @@ const WhiteboardTile = ({
           onPointerLeave={handleWorkspacePointerLeave}
         >
           {remoteCursor?.peerId && !interactive ? (
-            <RemoteCursorLayer>
+            <RemoteCursorLayer style={remoteCursorLayerStyle}>
               <RemoteCursorWrap $x={remoteCursor.x} $y={remoteCursor.y}>
                 <RemoteCursorGlyph>
                   <MousePointer2 size={18} strokeWidth={2.25} />
@@ -8929,19 +9079,18 @@ const WhiteboardTile = ({
                     <BoardCanvasFrame
                       ref={boardFrameRef}
                       style={{
-                        width: `${Math.max(
-                          1,
-                          Math.round(activeBoardBaseWidth),
-                          Math.round(activeBoardBaseWidth * activeBoardRenderScale),
-                        )}px`,
-                        height: `${Math.max(
-                          1,
-                          Math.round(activeBoardBaseHeight),
-                          Math.round(activeBoardBaseHeight * activeBoardRenderScale),
-                        )}px`,
+                        width: `${activeBoardFrameWidth}px`,
+                        height: `${activeBoardFrameHeight}px`,
                       }}
                     >
                       <BoardSurface>
+                        <BoardSceneGrid
+                          $scale={activeBoardRenderScale}
+                          $sceneWidth={activeBoardSceneWidth}
+                          $sceneHeight={activeBoardSceneHeight}
+                          $offsetLeft={activeBoardSceneOffsetLeft}
+                          $offsetTop={activeBoardSceneOffsetTop}
+                        />
                         <StrokeCanvas
                           strokes={boardTab?.strokes || []}
                           interactive={interactive}
@@ -8983,19 +9132,18 @@ const WhiteboardTile = ({
                 <BoardCanvasFrame
                   ref={boardFrameRef}
                   style={{
-                    width: `${Math.max(
-                      1,
-                      Math.round(activeBoardBaseWidth),
-                      Math.round(activeBoardBaseWidth * activeBoardRenderScale),
-                    )}px`,
-                    height: `${Math.max(
-                      1,
-                      Math.round(activeBoardBaseHeight),
-                      Math.round(activeBoardBaseHeight * activeBoardRenderScale),
-                    )}px`,
+                    width: `${activeBoardFrameWidth}px`,
+                    height: `${activeBoardFrameHeight}px`,
                   }}
                 >
                   <BoardSurface>
+                    <BoardSceneGrid
+                      $scale={activeBoardRenderScale}
+                      $sceneWidth={activeBoardSceneWidth}
+                      $sceneHeight={activeBoardSceneHeight}
+                      $offsetLeft={activeBoardSceneOffsetLeft}
+                      $offsetTop={activeBoardSceneOffsetTop}
+                    />
                     <StrokeCanvas
                       strokes={boardTab?.strokes || []}
                       interactive={interactive}
