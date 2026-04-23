@@ -197,6 +197,26 @@
   resolved "https://registry.npmjs.org/@fisch0920/medium-zoom/-/medium-zoom-1.0.7.tgz"
   integrity sha512-hPUrgVM/QvsZdZzDTPyL1C1mOtEw03RqTLmK7ZlJ8S/64u4O4O5BvPvjB/9kyLtE6iVaS9UDRAMSwmM9uh2JIw==
 
+"@floating-ui/core@^1.7.3":
+  version "1.7.5"
+  resolved "https://registry.npmjs.org/@floating-ui/core/-/core-1.7.5.tgz"
+  integrity sha512-1Ih4WTWyw0+lKyFMcBHGbb5U5FtuHJuujoyyr5zTaWS5EYMeT6Jb2AuDeftsCsEuchO+mM2ij5+q9crhydzLhQ==
+  dependencies:
+    "@floating-ui/utils" "^0.2.11"
+
+"@floating-ui/dom@1.7.4":
+  version "1.7.4"
+  resolved "https://registry.npmjs.org/@floating-ui/dom/-/dom-1.7.4.tgz"
+  integrity sha512-OOchDgh4F2CchOX94cRVqhvy7b3AFb+/rQXyswmzmGakRfkMgoWVjfnLWkRirfLEfuD4ysVW16eXzwt3jHIzKA==
+  dependencies:
+    "@floating-ui/core" "^1.7.3"
+    "@floating-ui/utils" "^0.2.10"
+
+"@floating-ui/utils@^0.2.10", "@floating-ui/utils@^0.2.11":
+  version "0.2.11"
+  resolved "https://registry.npmjs.org/@floating-ui/utils/-/utils-0.2.11.tgz"
+  integrity sha512-RiB/yIh78pcIxl6lLMG0CgBXAZ2Y0eVHqMPYugu+9U0AeT6YBeiJpf7lbdJNIugFP5SIjwNRgo4DhR1Qxi26Gg==
+
 "@jridgewell/gen-mapping@^0.3.12", "@jridgewell/gen-mapping@^0.3.5":
   version "0.3.13"
   resolved "https://registry.npmjs.org/@jridgewell/gen-mapping/-/gen-mapping-0.3.13.tgz"
@@ -230,6 +250,31 @@
   dependencies:
     "@jridgewell/resolve-uri" "^3.1.0"
     "@jridgewell/sourcemap-codec" "^1.4.14"
+
+"@livekit/components-core@0.12.13":
+  version "0.12.13"
+  resolved "https://registry.npmjs.org/@livekit/components-core/-/components-core-0.12.13.tgz"
+  integrity sha512-DQmi84afHoHjZ62wm8y+XPNIDHTwFHAltjd3lmyXj8UZHOY7wcza4vFt1xnghJOD5wLRY58L1dkAgAw59MgWvw==
+  dependencies:
+    "@floating-ui/dom" "1.7.4"
+    loglevel "1.9.1"
+    rxjs "7.8.2"
+
+"@livekit/components-react@^2.9.20":
+  version "2.9.20"
+  resolved "https://registry.npmjs.org/@livekit/components-react/-/components-react-2.9.20.tgz"
+  integrity sha512-hjkYOsJj9Jbghb7wM5cI8HoVisKeL6Zcy1VnRWTLm0sqVbto8GJp/17T4Udx85mCPY6Jgh8I1Cv0yVzgz7CQtg==
+  dependencies:
+    "@livekit/components-core" "0.12.13"
+    clsx "2.1.1"
+    events "^3.3.0"
+    jose "^6.0.12"
+    usehooks-ts "3.1.1"
+
+"@livekit/components-styles@^1.2.0":
+  version "1.2.0"
+  resolved "https://registry.npmjs.org/@livekit/components-styles/-/components-styles-1.2.0.tgz"
+  integrity sha512-74/rt0lDh6aHmOPmWAeDE9C4OrNW9RIdmhX/YRbovQBVNGNVWojRjl3FgQZ5LPFXO6l1maKB4JhXcBFENVxVvw==
 
 "@livekit/mutex@1.1.1":
   version "1.1.1"
@@ -585,7 +630,7 @@ cloudflare-video-element@^1.3.4:
   resolved "https://registry.npmjs.org/cloudflare-video-element/-/cloudflare-video-element-1.3.5.tgz"
   integrity sha512-zj9gjJa6xW8MNrfc4oKuwgGS0njRLpOlQjdifbuNxvy8k4Y3pKCyKCMG2XIsjd2iQGhgjS57b1P5VWdJlxcXBw==
 
-clsx@^2.0.0:
+clsx@^2.0.0, clsx@2.1.1:
   version "2.1.1"
   resolved "https://registry.npmjs.org/clsx/-/clsx-2.1.1.tgz"
   integrity sha512-eYm0QWBtUrBWZWG0d386OGAw16Z995PiOVo2B7bjWSbHedGl5e0ZWaq65kOGgUSNesEIDkB9ISbTg/JK9dhCZA==
@@ -1016,7 +1061,7 @@ is-url-superb@^6.1.0:
   resolved "https://registry.npmjs.org/is-url-superb/-/is-url-superb-6.1.0.tgz"
   integrity sha512-LXdhGlYqUPdvEyIhWPEEwYYK3yrUiPcBjmFGlZNv1u5GtIL5qQRf7ddDyPNAvsMFqdzS923FROpTQU97tLe3JQ==
 
-jose@^6.1.0:
+jose@^6.0.12, jose@^6.1.0:
   version "6.2.2"
   resolved "https://registry.npmjs.org/jose/-/jose-6.2.2.tgz"
   integrity sha512-d7kPDd34KO/YnzaDOlikGpOurfF0ByC2sEV4cANCtdqLlTfBlw2p14O/5d/zv40gJPbIQxfES3nSx1/oYNyuZQ==
@@ -1050,10 +1095,10 @@ lie@3.1.1:
   dependencies:
     immediate "~3.0.5"
 
-livekit-client@^2.18.3:
-  version "2.18.3"
-  resolved "https://registry.npmjs.org/livekit-client/-/livekit-client-2.18.3.tgz"
-  integrity sha512-A8QDaVPo+Ye35bJFyKe6PjMOtY33dmdRXGKP/3+BG48ynEES3YwFzHbsPHJiScgI4OZouNef3Ew/BPazXKwo8Q==
+livekit-client@^2.18.4:
+  version "2.18.4"
+  resolved "https://registry.npmjs.org/livekit-client/-/livekit-client-2.18.4.tgz"
+  integrity sha512-kjbH9WdA85gZNqFiAMY9jKJ3HArk8F+AQvAvSE5N6PnY+wNCV9OYe9yeb9BVezZiD6ltGyB3CkTxGyuX6BXYAw==
   dependencies:
     "@livekit/mutex" "1.1.1"
     "@livekit/protocol" "1.45.3"
@@ -1063,7 +1108,7 @@ livekit-client@^2.18.3:
     sdp-transform "^2.15.0"
     tslib "2.8.1"
     typed-emitter "^2.1.0"
-    webrtc-adapter "^9.0.1"
+    webrtc-adapter "9.0.5"
 
 localforage@^1.10.0:
   version "1.10.0"
@@ -1072,10 +1117,20 @@ localforage@^1.10.0:
   dependencies:
     lie "3.1.1"
 
+lodash.debounce@^4.0.8:
+  version "4.0.8"
+  resolved "https://registry.npmjs.org/lodash.debounce/-/lodash.debounce-4.0.8.tgz"
+  integrity sha512-FT1yDzDYEoYWhnSGnpE/4Kj1fLZkDFyqRb7fNt6FdYOSxlUWAtp42Eh6Wb0rGIv/m9Bgo7x4GhQbm5Ys4SG5ow==
+
 loglevel@^1.9.2:
   version "1.9.2"
   resolved "https://registry.npmjs.org/loglevel/-/loglevel-1.9.2.tgz"
   integrity sha512-HgMmCqIJSAKqo68l0rS2AanEWfkxaZ5wNiEFb5ggm08lDs9Xl2KxBlX3PTcaD2chBM1gXAYf491/M2Rv8Jwayg==
+
+loglevel@1.9.1:
+  version "1.9.1"
+  resolved "https://registry.npmjs.org/loglevel/-/loglevel-1.9.1.tgz"
+  integrity sha512-hP3I3kCrDIMuRwAwHltphhDM1r8i55H33GgqjXbrisuJhF4kRhW1dNuxsRklp4bXl8DSdLaNLuiL4A/LWRfxvg==
 
 loose-envify@^1.0.0, loose-envify@^1.1.0, loose-envify@^1.4.0:
   version "1.4.0"
@@ -1621,7 +1676,7 @@ rollup@^4.20.0:
     "@rollup/rollup-win32-x64-msvc" "4.54.0"
     fsevents "~2.3.2"
 
-rxjs@*:
+rxjs@*, rxjs@7.8.2:
   version "7.8.2"
   resolved "https://registry.npmjs.org/rxjs/-/rxjs-7.8.2.tgz"
   integrity sha512-dhKf903U/PQZY6boNNtAGdWbG85WAbjT/1xYoZIC7FAY0yWapOBQVsVrDl58W86//e1VpMNBtRV4MaXfdMySFA==
@@ -1842,6 +1897,13 @@ use-sync-external-store@^1.6.0:
   resolved "https://registry.npmjs.org/use-sync-external-store/-/use-sync-external-store-1.6.0.tgz"
   integrity sha512-Pp6GSwGP/NrPIrxVFAIkOQeyw8lFenOHijQWkUTrDvrF4ALqylP2C/KCkeS9dpUM3KvYRQhna5vt7IL95+ZQ9w==
 
+usehooks-ts@3.1.1:
+  version "3.1.1"
+  resolved "https://registry.npmjs.org/usehooks-ts/-/usehooks-ts-3.1.1.tgz"
+  integrity sha512-I4diPp9Cq6ieSUH2wu+fDAVQO43xwtulo+fKEidHUwZPnYImbtkTjzIJYcDcJqxgmX31GVqNFURodvcgHcW0pA==
+  dependencies:
+    lodash.debounce "^4.0.8"
+
 util-deprecate@^1.0.1:
   version "1.0.2"
   resolved "https://registry.npmjs.org/util-deprecate/-/util-deprecate-1.0.2.tgz"
@@ -1893,7 +1955,7 @@ weakmap-polyfill@2.0.4:
   resolved "https://registry.npmjs.org/weakmap-polyfill/-/weakmap-polyfill-2.0.4.tgz"
   integrity sha512-ZzxBf288iALJseijWelmECm/1x7ZwQn3sMYIkDr2VvZp7r6SEKuT8D0O9Wiq6L9Nl5mazrOMcmiZE/2NCenaxw==
 
-webrtc-adapter@^9.0.1:
+webrtc-adapter@9.0.5:
   version "9.0.5"
   resolved "https://registry.npmjs.org/webrtc-adapter/-/webrtc-adapter-9.0.5.tgz"
   integrity sha512-U9vjByy/sK2OMXu5mmfuZFKTMIUQe34c0JXRO+oDrxJTsntdYT2iIFwYMOV7HhMTuktcZLGf2W1N/OcSf9ssWg==

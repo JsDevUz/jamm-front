@@ -3,11 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import useAuthStore from "../../store/authStore";
 import useMeetCallStore from "../../store/meetCallStore";
 
-const GroupVideoCall = lazy(() =>
-  import("../../features/calls/components").then((module) => ({
-    default: module.GroupVideoCall,
-  })),
-);
+const LiveKitGroupMeet = lazy(() => import("../../features/calls/components/LiveKitGroupMeet"));
 
 export default function MeetCallHost() {
   const navigate = useNavigate();
@@ -49,7 +45,7 @@ export default function MeetCallHost() {
 
   return (
     <Suspense fallback={null}>
-      <GroupVideoCall
+      <LiveKitGroupMeet
         isOpen
         roomId={activeCall.roomId}
         chatTitle={activeCall.chatTitle}
