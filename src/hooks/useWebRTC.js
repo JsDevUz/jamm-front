@@ -413,7 +413,7 @@ const WHITEBOARD_MAX_TEXT_CHARS = 240;
 const WHITEBOARD_BOARD_TAB_ID = "board";
 const WHITEBOARD_TAB_ID_PATTERN = /^[a-zA-Z0-9_-]{1,80}$/;
 const WHITEBOARD_MAX_TABS = 6;
-const WHITEBOARD_PDF_LIBRARY_MAX_ITEMS = 24;
+const WHITEBOARD_PDF_LIBRARY_MAX_ITEMS = 80;
 const WHITEBOARD_MIN_ZOOM = 0.5;
 const WHITEBOARD_MAX_ZOOM = 3;
 const WHITEBOARD_BOARD_POINT_MIN = -0.5;
@@ -583,6 +583,67 @@ const normalizeWhiteboardFileName = (fileName) =>
         .trim()
         .slice(0, 120)
     : "";
+
+const getWhiteboardStableHash = (value) => {
+  const input = String(value || "");
+  let hash = 5381;
+  for (let index = 0; index < input.length; index += 1) {
+    hash = (hash * 33) ^ input.charCodeAt(index);
+  }
+  return (hash >>> 0).toString(36);
+};
+
+const getWhiteboardFileNameFromUrl = (fileUrl) => {
+  const value = normalizeWhiteboardFileUrl(fileUrl);
+  if (!value) {
+    return "";
+  }
+
+  try {
+    const baseUrl =
+      typeof window !== "undefined" && window.location?.origin
+        ? window.location.origin
+        : "https://jamm.local";
+    const pathname = new URL(value, baseUrl).pathname;
+    const lastSegment = pathname.split("/").filter(Boolean).pop() || "";
+    return normalizeWhiteboardFileName(decodeURIComponent(lastSegment));
+  } catch {
+    const withoutQuery = value.split(/[?#]/)[0] || "";
+    const lastSegment = withoutQuery.split("/").filter(Boolean).pop() || "";
+    try {
+      return normalizeWhiteboardFileName(decodeURIComponent(lastSegment));
+    } catch {
+      return normalizeWhiteboardFileName(lastSegment);
+    }
+  }
+};
+
+const getWhiteboardPdfFileName = (item, fileUrl) => {
+  const explicitName = normalizeWhiteboardFileName(item?.fileName || item?.name);
+  if (explicitName) {
+    return explicitName;
+  }
+
+  const urlName = getWhiteboardFileNameFromUrl(fileUrl);
+  if (urlName) {
+    return urlName;
+  }
+
+  const title = normalizeWhiteboardTitle(item?.title || item?.name) || "PDF";
+  return `${title.replace(/\.pdf$/i, "") || "PDF"}.pdf`;
+};
+
+const getWhiteboardPdfLibraryItemId = (item, fileUrl, fileName) => {
+  const explicitId = normalizeWhiteboardTabId(
+    item?.id || item?.itemId || item?.libraryItemId || item?.tabId,
+  );
+  if (explicitId) {
+    return explicitId;
+  }
+
+  const hash = getWhiteboardStableHash(`${fileUrl || ""}:${fileName || ""}`);
+  return normalizeWhiteboardTabId(`pdf-lib-${hash}`);
+};
 
 const normalizeWhiteboardPoints = (
   points,
@@ -834,8 +895,10 @@ const normalizeWhiteboardTab = (tab) => {
   }
 
   if (tab.type === "pdf") {
-    const fileUrl = normalizeWhiteboardFileUrl(tab.fileUrl);
-    const fileName = normalizeWhiteboardFileName(tab.fileName);
+    const fileUrl = normalizeWhiteboardFileUrl(
+      tab.fileUrl || tab.url || tab.src || tab.href,
+    );
+    const fileName = getWhiteboardPdfFileName(tab, fileUrl);
     if (!fileUrl || !fileName) {
       return null;
     }
@@ -895,9 +958,11 @@ const normalizeWhiteboardPdfLibraryItem = (item) => {
     return null;
   }
 
-  const itemId = normalizeWhiteboardTabId(item.id);
-  const fileUrl = normalizeWhiteboardFileUrl(item.fileUrl);
-  const fileName = normalizeWhiteboardFileName(item.fileName);
+  const fileUrl = normalizeWhiteboardFileUrl(
+    item.fileUrl || item.url || item.src || item.href,
+  );
+  const fileName = getWhiteboardPdfFileName(item, fileUrl);
+  const itemId = getWhiteboardPdfLibraryItemId(item, fileUrl, fileName);
   if (!itemId || !fileUrl || !fileName) {
     return null;
   }
@@ -907,7 +972,7 @@ const normalizeWhiteboardPdfLibraryItem = (item) => {
   return {
     id: itemId,
     title:
-      normalizeWhiteboardTitle(item.title) ||
+      normalizeWhiteboardTitle(item.title || item.name) ||
       fileName.replace(/\.pdf$/i, "") ||
       "PDF",
     fileUrl,
@@ -920,7 +985,13 @@ const normalizeWhiteboardPdfLibraryItem = (item) => {
 
 const mergeWhiteboardPdfLibraryItems = (...collections) =>
   collections
-    .flatMap((collection) => (Array.isArray(collection) ? collection : []))
+    .flatMap((collection) =>
+      Array.isArray(collection)
+        ? collection
+        : Array.isArray(collection?.items)
+          ? collection.items
+          : [],
+    )
     .map((item) => normalizeWhiteboardPdfLibraryItem(item))
     .filter(Boolean)
     .reduce((accumulator, item) => {
@@ -940,8 +1011,35 @@ const mergeWhiteboardPdfLibraryItems = (...collections) =>
     .sort((left, right) => right.createdAt - left.createdAt)
     .slice(0, WHITEBOARD_PDF_LIBRARY_MAX_ITEMS);
 
+const getWhiteboardPdfLibraryItemsFromTabs = (tabs, updatedAt) =>
+  (Array.isArray(tabs) ? tabs : [])
+    .filter((tab) => tab?.type === "pdf" && tab.fileUrl)
+    .map((tab) =>
+      normalizeWhiteboardPdfLibraryItem({
+        id: tab.libraryItemId || tab.id,
+        title: tab.title,
+        fileUrl: tab.fileUrl,
+        fileName: tab.fileName,
+        fileSize: tab.fileSize,
+        createdAt: Number(tab.createdAt || updatedAt || Date.now()),
+      }),
+    )
+    .filter(Boolean);
+
+const WHITEBOARD_PDF_LIBRARY_STORAGE_PREFIX = "jamm:whiteboard-pdf-library";
+
 const getWhiteboardPdfLibraryStorageKey = (userId) =>
-  `jamm:whiteboard-pdf-library:${String(userId || "anon")}`;
+  `${WHITEBOARD_PDF_LIBRARY_STORAGE_PREFIX}:${String(userId || "anon")}`;
+
+const getWhiteboardPdfLibraryStorageKeys = (userId) => {
+  const keys = [
+    getWhiteboardPdfLibraryStorageKey(userId),
+    getWhiteboardPdfLibraryStorageKey("anon"),
+    WHITEBOARD_PDF_LIBRARY_STORAGE_PREFIX,
+  ];
+
+  return Array.from(new Set(keys));
+};
 
 const sumWhiteboardPdfLibraryBytes = (items) =>
   (Array.isArray(items) ? items : []).reduce(
@@ -961,14 +1059,20 @@ const readStoredWhiteboardPdfLibrary = (userId) => {
   }
 
   try {
-    const rawValue = window.localStorage.getItem(
-      getWhiteboardPdfLibraryStorageKey(userId),
-    );
-    if (!rawValue) {
-      return [];
-    }
+    const collections = getWhiteboardPdfLibraryStorageKeys(userId).map((key) => {
+      const rawValue = window.localStorage.getItem(key);
+      if (!rawValue) {
+        return [];
+      }
 
-    return mergeWhiteboardPdfLibraryItems(JSON.parse(rawValue));
+      try {
+        return JSON.parse(rawValue);
+      } catch {
+        return [];
+      }
+    });
+
+    return mergeWhiteboardPdfLibraryItems(...collections);
   } catch {
     return [];
   }
@@ -980,9 +1084,14 @@ const writeStoredWhiteboardPdfLibrary = (userId, items) => {
   }
 
   try {
+    const normalizedItems = mergeWhiteboardPdfLibraryItems(items);
+    if (normalizedItems.length === 0) {
+      return;
+    }
+
     window.localStorage.setItem(
       getWhiteboardPdfLibraryStorageKey(userId),
-      JSON.stringify(mergeWhiteboardPdfLibraryItems(items)),
+      JSON.stringify(normalizedItems),
     );
   } catch {}
 };
@@ -1000,28 +1109,30 @@ const ensureWhiteboardTabs = (tabs) => {
   return [boardTab, ...pdfTabs];
 };
 
-const normalizeWhiteboardState = (rawState) => ({
-  isActive: Boolean(rawState?.isActive),
-  ownerPeerId:
-    typeof rawState?.ownerPeerId === "string" ? rawState.ownerPeerId : "",
-  ownerDisplayName:
-    typeof rawState?.ownerDisplayName === "string"
-      ? rawState.ownerDisplayName
-      : "",
-  activeTabId: (() => {
-    const tabs = ensureWhiteboardTabs(rawState?.tabs);
-    const normalizedTabId = normalizeWhiteboardTabId(rawState?.activeTabId);
-    return tabs.some((tab) => tab.id === normalizedTabId)
+const normalizeWhiteboardState = (rawState) => {
+  const tabs = ensureWhiteboardTabs(rawState?.tabs);
+  const normalizedTabId = normalizeWhiteboardTabId(rawState?.activeTabId);
+  const updatedAt = typeof rawState?.updatedAt === "number" ? rawState.updatedAt : 0;
+
+  return {
+    isActive: Boolean(rawState?.isActive),
+    ownerPeerId:
+      typeof rawState?.ownerPeerId === "string" ? rawState.ownerPeerId : "",
+    ownerDisplayName:
+      typeof rawState?.ownerDisplayName === "string"
+        ? rawState.ownerDisplayName
+        : "",
+    activeTabId: tabs.some((tab) => tab.id === normalizedTabId)
       ? normalizedTabId
-      : WHITEBOARD_BOARD_TAB_ID;
-  })(),
-  tabs: ensureWhiteboardTabs(rawState?.tabs),
-  pdfLibrary: (Array.isArray(rawState?.pdfLibrary) ? rawState.pdfLibrary : [])
-    .map((item) => normalizeWhiteboardPdfLibraryItem(item))
-    .filter(Boolean)
-    .sort((left, right) => right.createdAt - left.createdAt),
-  updatedAt: typeof rawState?.updatedAt === "number" ? rawState.updatedAt : 0,
-});
+      : WHITEBOARD_BOARD_TAB_ID,
+    tabs,
+    pdfLibrary: mergeWhiteboardPdfLibraryItems(
+      Array.isArray(rawState?.pdfLibrary) ? rawState.pdfLibrary : [],
+      getWhiteboardPdfLibraryItemsFromTabs(tabs, updatedAt),
+    ),
+    updatedAt,
+  };
+};
 
 const mergeWhiteboardTabsWithPreservedSelections = (nextState, prevState) => {
   const prevTabs = Array.isArray(prevState?.tabs) ? prevState.tabs : [];
@@ -2041,12 +2152,20 @@ export function useWebRTC({
   );
 
   const resetWhiteboardState = useCallback(() => {
-    const nextState = createInitialWhiteboardState();
+    const persistedLibrary = mergeWhiteboardPdfLibraryItems(
+      storedPdfLibraryRef.current,
+      readStoredWhiteboardPdfLibrary(currentUserId),
+      whiteboardStateRef.current?.pdfLibrary,
+    );
+    storedPdfLibraryRef.current = persistedLibrary;
+    const nextState = {
+      ...createInitialWhiteboardState(),
+      pdfLibrary: persistedLibrary,
+    };
     whiteboardStateRef.current = nextState;
     lastWhiteboardUpdatedAtRef.current = 0;
-    storedPdfLibraryRef.current = [];
     setWhiteboardState(nextState);
-  }, []);
+  }, [currentUserId]);
 
   const isLivekitScreenSource = useCallback((source) => {
     const normalizedSource = String(source || "").toLowerCase();
@@ -4787,7 +4906,9 @@ export function useWebRTC({
         } else {
           // Join with retry if room not found (creator might still be creating)
           let retryCount = 0;
-          const MAX_RETRIES = 6; // ~10 seconds total
+          // For LiveKit public meets: only retry 2 times (3s), then fall back to LiveKit-only
+          // For non-LiveKit or private meets: retry up to 6 times (~10s)
+          const MAX_RETRIES = shouldUseLiveKit && !isPrivate ? 2 : 6;
 
           const join = () => {
             if (!socketRef.current) return;
@@ -4856,8 +4977,21 @@ export function useWebRTC({
 
     start();
 
+    // Safety timeout: if still "connecting" after 30s, surface an error
+    const connectingTimeoutId = window.setTimeout(() => {
+      if (!isMounted) return;
+      setJoinStatus((prev) => {
+        if (prev === "connecting") {
+          setError("Serverga ulanib bo'lmadi. Iltimos sahifani yangilang.");
+          return "idle";
+        }
+        return prev;
+      });
+    }, 30_000);
+
     return () => {
       isMounted = false;
+      window.clearTimeout(connectingTimeoutId);
       if (strokeAppendRafRef.current) {
         window.cancelAnimationFrame(strokeAppendRafRef.current);
         strokeAppendRafRef.current = 0;

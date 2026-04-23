@@ -61,14 +61,17 @@ const ChatArea = ({
     chats,
   });
   const { keyboardHeight } = useKeyboardAvoid();
-  const keyboardOpen = keyboardHeight > 0;
+  const keyboardOpen = keyboardHeight > 40;
 
   if (!displayChat && !selectedChatId) return null;
 
   return (
     <ChatAreaProvider value={contextValue}>
       <OuterChatWrapper>
-        <ChatContainer>
+        <ChatContainer
+          data-chat-keyboard-open={keyboardOpen ? "true" : "false"}
+          style={{ "--chat-keyboard-height": `${keyboardHeight}px` }}
+        >
           <ChatAreaHeader
             onBack={onBack}
             selectedNav={selectedNav}
@@ -86,13 +89,10 @@ const ChatArea = ({
             headerMenuRef={headerMenuRef}
           />
 
-          <ChatMain $keyboardHeight={keyboardHeight} $keyboardOpen={keyboardOpen}>
+          <ChatMain>
             <ChatMainColumn>
               <ChatAreaMessageList keyboardHeight={keyboardHeight} />
-              <ChatAreaComposer
-                keyboardHeight={keyboardHeight}
-                keyboardOpen={keyboardOpen}
-              />
+              <ChatAreaComposer keyboardOpen={keyboardOpen} />
             </ChatMainColumn>
           </ChatMain>
 

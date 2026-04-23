@@ -6,24 +6,18 @@ import { toast } from "react-hot-toast";
 import { useChatAreaContext } from "../context/ChatAreaContext";
 
 const MessageInputContainer = styled.div`
-  padding: 12px 16px
-    ${(props) =>
-      props.$keyboardOpen
-        ? "6px"
-        : "calc(8px + env(safe-area-inset-bottom, 0px))"};
+  padding: 10px 16px calc(8px + env(safe-area-inset-bottom, 0px));
   background-color: var(--secondary-color);
   border-top: 1px solid var(--border-color);
   position: relative;
+  z-index: 5;
+  flex-shrink: 0;
   transition:
-    padding-top 0.28s cubic-bezier(0.22, 1, 0.36, 1),
-    padding-bottom 0.25s ease,
     border-color 0.25s ease,
-    transform 0.3s cubic-bezier(0.22, 1, 0.36, 1),
     box-shadow 0.3s ease,
     background-color 0.3s ease;
-  transform: translateY(${(props) => (props.$keyboardOpen ? "-2px" : "0px")});
   box-shadow: ${(props) =>
-    props.$keyboardOpen ? "0 -12px 28px rgba(0, 0, 0, 0.14)" : "0 0 0 rgba(0, 0, 0, 0)"};
+    props.$keyboardOpen ? "0 -8px 22px rgba(0, 0, 0, 0.12)" : "0 0 0 rgba(0, 0, 0, 0)"};
 
   @media (max-width: 768px) {
     padding: ${(props) => (props.$keyboardOpen ? "6px" : "8px")} 12px
@@ -122,11 +116,9 @@ const InputWrapper = styled.div`
   min-height: 44px;
   transition:
     background-color 0.2s ease,
-    border-radius 0.28s cubic-bezier(0.22, 1, 0.36, 1),
-    transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+    border-radius 0.28s cubic-bezier(0.22, 1, 0.36, 1);
   opacity: ${(props) => (props.$disabled ? 0.72 : 1)};
   pointer-events: ${(props) => (props.$disabled ? "none" : "auto")};
-  transform: translateY(${(props) => (props.$keyboardOpen ? "-1px" : "0px")});
 
   &:focus-within {
     background-color: var(--hover-color);
@@ -225,7 +217,6 @@ const MessageInput = styled.textarea`
 `;
 
 const ChatAreaComposer = ({
-  keyboardHeight = 0,
   keyboardOpen = false,
 }) => {
   const [showComingSoonTooltip, setShowComingSoonTooltip] = useState(false);
@@ -363,9 +354,6 @@ const ChatAreaComposer = ({
             placeholder={isComposerDisabled ? "Suhbat yuklanmoqda..." : "Xabar..."}
             rows={1}
             maxLength={400}
-            style={{
-              scrollPaddingBottom: `${keyboardHeight}px`,
-            }}
           />
           <InputButtons $side="right">
            

@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 const IOS_KEYBOARD_SCROLL_DELAY = 350;
+const KEYBOARD_OPEN_THRESHOLD = 40;
 
 const isIosDevice = () =>
   typeof navigator !== "undefined" &&
@@ -15,13 +16,25 @@ const getViewportMetrics = () => {
     };
   }
 
+  const root = document.documentElement;
   const viewport = window.visualViewport;
-  const viewportHeight = viewport?.height || window.innerHeight || 0;
-  const offsetTop = viewport?.offsetTop || 0;
-  const keyboardHeight = Math.max(
-    0,
-    (window.innerHeight || 0) - viewportHeight - offsetTop,
+  const stableAppHeight = Number.parseFloat(
+    root.style.getPropertyValue("--app-height") ||
+      getComputedStyle(root).getPropertyValue("--app-height") ||
+      "",
   );
+  const layoutViewportHeight =
+    stableAppHeight ||
+    Math.max(document.documentElement?.clientHeight || 0, window.innerHeight || 0);
+  const viewportHeight = viewport?.height || window.innerHeight || layoutViewportHeight || 0;
+  const offsetTop = viewport?.offsetTop || 0;
+  const rawKeyboardHeight = Math.max(
+    0,
+    layoutViewportHeight - viewportHeight - offsetTop,
+  );
+  const keyboardHeight =
+    rawKeyboardHeight > KEYBOARD_OPEN_THRESHOLD ? Math.round(rawKeyboardHeight) : 0;
+
   return {
     keyboardHeight,
   };

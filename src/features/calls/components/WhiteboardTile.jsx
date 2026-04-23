@@ -84,7 +84,7 @@ const WHITEBOARD_BOARD_POINT_MAX = 1.5;
 const WHITEBOARD_BOARD_POINT_SPAN =
   WHITEBOARD_BOARD_POINT_MAX - WHITEBOARD_BOARD_POINT_MIN;
 const WHITEBOARD_WHEEL_ZOOM_SENSITIVITY = 0.0062;
-const WHITEBOARD_PINCH_ZOOM_EXPONENT = 4.5;
+const WHITEBOARD_PINCH_ZOOM_EXPONENT = 1.0;
 const WHITEBOARD_ZOOM_COMMIT_DELAY_MS = 140;
 const WHITEBOARD_BUTTON_ZOOM_IN_FACTOR = 1.25;
 const WHITEBOARD_BUTTON_ZOOM_OUT_FACTOR = 0.8;
@@ -6355,6 +6355,8 @@ const WhiteboardTile = ({
     [],
   );
   const activeBoardRenderScale = getBoardRenderScale(activeBoardZoom);
+  const activeBoardRenderScaleRef = useRef(activeBoardRenderScale);
+  activeBoardRenderScaleRef.current = activeBoardRenderScale;
   const activeBoardWorldScale = activeBoardRenderScale * WHITEBOARD_BOARD_POINT_SPAN;
   const activeBoardFrameWidth = roundScenePixel(Math.max(
     1,
@@ -8415,14 +8417,15 @@ const WhiteboardTile = ({
       const viewportRect = viewport.getBoundingClientRect();
       const anchorX = center.clientX - viewportRect.left;
       const anchorY = center.clientY - viewportRect.top;
+      const liveZoom = livePdfZoomRef.current;
       pinchStateRef.current = {
         active: true,
         distance: getTouchDistance(event.touches),
-        zoom: activePdfZoom,
+        zoom: liveZoom,
         anchorX,
         anchorY,
-        contentX: (viewport.scrollLeft + anchorX) / Math.max(WHITEBOARD_MIN_ZOOM, activePdfZoom),
-        contentY: (viewport.scrollTop + anchorY) / Math.max(WHITEBOARD_MIN_ZOOM, activePdfZoom),
+        contentX: (viewport.scrollLeft + anchorX) / Math.max(WHITEBOARD_MIN_ZOOM, liveZoom),
+        contentY: (viewport.scrollTop + anchorY) / Math.max(WHITEBOARD_MIN_ZOOM, liveZoom),
       };
     };
 
@@ -8442,7 +8445,7 @@ const WhiteboardTile = ({
         WHITEBOARD_MAX_ZOOM,
         Math.max(WHITEBOARD_MIN_ZOOM, pinchStateRef.current.zoom * zoomRatio),
       );
-      if (Math.abs(nextZoom - activePdfZoom) < 0.015) {
+      if (Math.abs(nextZoom - livePdfZoomRef.current) < 0.002) {
         return;
       }
       pdfZoomAnchorRef.current = {
@@ -8487,23 +8490,17 @@ const WhiteboardTile = ({
       return undefined;
     }
 
-    const frameId = window.requestAnimationFrame(() => {
-      const maxScrollLeft = Math.max(0, viewport.scrollWidth - viewport.clientWidth);
-      const maxScrollTop = Math.max(0, viewport.scrollHeight - viewport.clientHeight);
-      viewport.scrollLeft = Math.min(
-        maxScrollLeft,
-        Math.max(0, pendingAnchor.contentX * activePdfZoom - pendingAnchor.anchorX),
-      );
-      viewport.scrollTop = Math.min(
-        maxScrollTop,
-        Math.max(0, pendingAnchor.contentY * activePdfZoom - pendingAnchor.anchorY),
-      );
-      pdfZoomAnchorRef.current = null;
-    });
-
-    return () => {
-      window.cancelAnimationFrame(frameId);
-    };
+    const maxScrollLeft = Math.max(0, viewport.scrollWidth - viewport.clientWidth);
+    const maxScrollTop = Math.max(0, viewport.scrollHeight - viewport.clientHeight);
+    viewport.scrollLeft = Math.min(
+      maxScrollLeft,
+      Math.max(0, pendingAnchor.contentX * activePdfZoom - pendingAnchor.anchorX),
+    );
+    viewport.scrollTop = Math.min(
+      maxScrollTop,
+      Math.max(0, pendingAnchor.contentY * activePdfZoom - pendingAnchor.anchorY),
+    );
+    pdfZoomAnchorRef.current = null;
   }, [activePdfZoom, activeTab?.id, activeTab?.type]);
 
   useEffect(() => {
@@ -8556,7 +8553,7 @@ const WhiteboardTile = ({
         : {
             clientX: event.clientX,
             clientY: event.clientY,
-            ...getBoardViewportAnchor(anchorX, anchorY, activeBoardRenderScale),
+            ...getBoardViewportAnchor(anchorX, anchorY, activeBoardRenderScaleRef.current),
           };
       boardWheelAnchorRef.current = boardAnchor;
 
@@ -8587,13 +8584,17 @@ const WhiteboardTile = ({
 
       const queuedZoom = pendingPinchZoom;
       pendingPinchZoom = null;
+      const viewportRect = viewport.getBoundingClientRect();
+      const liveAnchorX = queuedZoom.center.clientX - viewportRect.left;
+      const liveAnchorY = queuedZoom.center.clientY - viewportRect.top;
+      const liveAnchor = getBoardViewportAnchor(liveAnchorX, liveAnchorY, activeBoardRenderScaleRef.current);
       handleBoardZoomChange(
         queuedZoom.zoom,
         {
           clientX: queuedZoom.center.clientX,
           clientY: queuedZoom.center.clientY,
-          boardX: boardPinchStateRef.current.boardX,
-          boardY: boardPinchStateRef.current.boardY,
+          boardX: liveAnchor.boardX,
+          boardY: liveAnchor.boardY,
         },
         { sync: false },
       );
@@ -8640,7 +8641,7 @@ const WhiteboardTile = ({
         active: true,
         distance: getTouchDistance(event.touches),
         zoom: liveBoardZoomRef.current || 1,
-        ...getBoardViewportAnchor(anchorX, anchorY, activeBoardRenderScale),
+        ...getBoardViewportAnchor(anchorX, anchorY, activeBoardRenderScaleRef.current),
       };
     };
 
@@ -8681,7 +8682,7 @@ const WhiteboardTile = ({
         Math.max(
           0,
           frameOffsetLeft +
-            boardPinchStateRef.current.boardX * activeBoardRenderScale -
+            boardPinchStateRef.current.boardX * activeBoardRenderScaleRef.current -
             anchorX,
         ),
       );
@@ -8690,7 +8691,7 @@ const WhiteboardTile = ({
         Math.max(
           0,
           frameOffsetTop +
-            boardPinchStateRef.current.boardY * activeBoardRenderScale -
+            boardPinchStateRef.current.boardY * activeBoardRenderScaleRef.current -
             anchorY,
         ),
       );
@@ -8727,7 +8728,6 @@ const WhiteboardTile = ({
       viewport.removeEventListener("touchcancel", handleTouchEnd);
     };
   }, [
-    activeBoardRenderScale,
     activeTab?.type,
     animateBoardZoomChange,
     getBoardViewportAnchor,

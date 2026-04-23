@@ -16,11 +16,15 @@ export const ChatContainer = styled.div`
     width: 100%;
     height: var(--visual-viewport-height, var(--app-height, 100dvh));
     min-height: var(--visual-viewport-height, var(--app-height, 100dvh));
+    max-height: var(--visual-viewport-height, var(--app-height, 100dvh));
     position: fixed;
-    top: var(--visual-viewport-offset-top, 0px);
+    top: 0;
     left: 0;
+    right: 0;
     z-index: 1000;
-    animation: slideInRight 0.3s ease-out;
+    transform: translateZ(0);
+    overscroll-behavior: contain;
+    touch-action: manipulation;
   }
 
   @keyframes slideInRight {
@@ -49,6 +53,7 @@ export const OuterChatWrapper = styled.div`
   @media (max-width: 768px) {
     height: var(--visual-viewport-height, var(--app-height, 100dvh));
     min-height: var(--visual-viewport-height, var(--app-height, 100dvh));
+    max-height: var(--visual-viewport-height, var(--app-height, 100dvh));
   }
 `;
 
@@ -60,9 +65,12 @@ export const ChatMain = styled.div`
   overflow: hidden;
   position: relative;
   box-sizing: border-box;
+  background: var(--background-color);
 
   @media (max-width: 768px) {
     padding-bottom: 0;
+    flex: 1 1 auto;
+    height: auto;
   }
 `;
 
@@ -72,4 +80,10 @@ export const ChatMainColumn = styled.div`
   flex: 1;
   min-width: 0;
   min-height: 0;
+  overflow: hidden;
+
+  @media (max-width: 768px) {
+    position: relative;
+    isolation: isolate;
+  }
 `;

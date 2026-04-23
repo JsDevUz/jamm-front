@@ -46,11 +46,8 @@ const shimmer = keyframes`
 const MessagesContainer = styled.div`
   flex: 1;
   overflow-y: auto;
-  padding: ${(props) => (props.$keyboardOpen ? "10px" : "16px")} 8px
-    ${(props) =>
-      props.$keyboardOpen
-        ? "72px"
-        : "calc(10px + env(safe-area-inset-bottom, 0px))"};
+  padding: ${(props) => (props.$keyboardOpen ? "8px" : "16px")} 8px
+    ${(props) => (props.$keyboardOpen ? "12px" : "14px")};
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -59,33 +56,23 @@ const MessagesContainer = styled.div`
   background-repeat: no-repeat;
   background-position: center;
   -webkit-overflow-scrolling: touch;
-  scroll-padding-bottom: ${(props) =>
-    props.$keyboardOpen
-      ? "92px"
-      : "calc(72px + env(safe-area-inset-bottom, 0px))"};
+  overscroll-behavior-y: contain;
+  overflow-anchor: none;
+  scroll-padding-bottom: 28px;
   transition:
     padding-top 0.28s cubic-bezier(0.22, 1, 0.36, 1),
-    padding-bottom 0.25s ease,
-    scroll-padding-bottom 0.25s ease;
+    padding-bottom 0.25s ease;
 
   [data-theme="light"] & {
     background-image: url("/chat-area-bg-lite.jpg");
   }
 
   @media (max-width: 768px) {
-    padding: ${(props) => (props.$keyboardOpen ? "4px" : "8px")} 8px
-      ${(props) =>
-        props.$keyboardOpen
-          ? "72px"
-          : "calc(10px + env(safe-area-inset-bottom, 0px))"};
+    padding: ${(props) => (props.$keyboardOpen ? "6px" : "8px")} 8px 12px;
   }
 
   @media (max-width: 480px) {
-    padding: ${(props) => (props.$keyboardOpen ? "2px" : "4px")} 8px
-      ${(props) =>
-        props.$keyboardOpen
-          ? "72px"
-          : "calc(10px + env(safe-area-inset-bottom, 0px))"};
+    padding: ${(props) => (props.$keyboardOpen ? "4px" : "6px")} 8px 12px;
   }
 
   &::-webkit-scrollbar {
@@ -660,10 +647,7 @@ const FailedReceiptButton = styled.button`
 const NewMessagesButton = styled.button`
   position: absolute;
   right: 16px;
-  bottom: ${(props) =>
-    props.$keyboardOpen
-      ? "calc(136px + env(safe-area-inset-bottom, 0px))"
-      : "calc(92px + env(safe-area-inset-bottom, 0px))"};
+  bottom: 16px;
   z-index: 6;
   border: none;
   border-radius: 999px;
@@ -690,10 +674,7 @@ const NewMessagesButton = styled.button`
 
   @media (max-width: 768px) {
     right: 12px;
-    bottom: ${(props) =>
-      props.$keyboardOpen
-        ? "calc(136px + env(safe-area-inset-bottom, 0px))"
-        : "calc(96px + env(safe-area-inset-bottom, 0px))"};
+    bottom: 12px;
     padding: 10px;
   }
 `;
@@ -1410,13 +1391,12 @@ const ChatAreaMessageList = ({ keyboardHeight = 0 }) => {
         </MessageContainer>
         <div
           ref={messagesEndRef}
-          style={{ height: "1px", flexShrink: 0, scrollMarginBottom: "124px" }}
+          style={{ height: "1px", flexShrink: 0, scrollMarginBottom: "28px" }}
         />
       </MessagesContainer>
       {pendingNewMessageIds.length > 0 ? (
         <NewMessagesButton
           type="button"
-          $keyboardOpen={keyboardOpen}
           onClick={handleJumpToBottom}
           aria-label="Yangi xabarlarga tushish"
           title="Yangi xabarlarga tushish"
