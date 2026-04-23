@@ -95,7 +95,8 @@ const Overlay = styled.div`
   position: fixed;
   inset: ${(props) => (props.$minimized ? "auto 18px 18px auto" : "0")};
   width: ${(props) => (props.$minimized ? "340px" : "100vw")};
-  height: ${(props) => (props.$minimized ? "190px" : "100vh")};
+  height: ${(props) => (props.$minimized ? "190px" : "100dvh")};
+  min-height: ${(props) => (props.$minimized ? "190px" : "100dvh")};
   z-index: 9999;
   color: var(--meet-text);
   background: var(--meet-bg);
@@ -471,6 +472,26 @@ const Overlay = styled.div`
     border: 1px solid var(--meet-border);
     box-shadow: none;
   }
+
+  @media (max-width: 980px) {
+    width: 100vw;
+    height: 100dvh;
+    min-height: 100dvh;
+    max-height: 100dvh;
+    overflow: hidden;
+
+    .lk-grid-layout,
+    .lk-focus-layout {
+      width: 100%;
+      max-width: 100%;
+      min-width: 0;
+    }
+
+    .lk-focus-layout {
+      grid-template-columns: 1fr !important;
+      grid-template-rows: auto !important;
+    }
+  }
 `;
 
 const Shell = styled.div`
@@ -478,7 +499,17 @@ const Shell = styled.div`
   grid-template-rows: auto minmax(0, 1fr) auto;
   gap: 14px;
   height: 100%;
+  min-height: 0;
   padding: clamp(12px, 2vw, 0px);
+
+  @media (max-width: 980px) {
+    gap: 10px;
+    padding:
+      calc(env(safe-area-inset-top, 0px) + 10px)
+      calc(env(safe-area-inset-right, 0px) + 10px)
+      calc(env(safe-area-inset-bottom, 0px) + 10px)
+      calc(env(safe-area-inset-left, 0px) + 10px);
+  }
 `;
 
 const TopBar = styled.header`
@@ -491,6 +522,12 @@ const TopBar = styled.header`
   border: 1px solid var(--meet-border);
   border-radius: 15px;
   background: var(--meet-panel);
+
+  @media (max-width: 980px) {
+    min-height: 52px;
+    padding: 8px 10px;
+    border-radius: 18px;
+  }
 `;
 
 const TopActions = styled.div`
@@ -577,6 +614,7 @@ const Stage = styled.main`
 
   @media (max-width: 980px) {
     grid-template-columns: 1fr;
+    gap: 10px;
   }
 `;
 
@@ -600,6 +638,12 @@ const VideoPanel = styled.div`
     height: 100%;
     min-height: 100%;
   }
+
+  @media (max-width: 980px) {
+    padding: 8px;
+    border-radius: 18px;
+    min-width: 0;
+  }
 `;
 
 const VideoFocusStage = styled(FocusLayoutContainer)`
@@ -620,6 +664,8 @@ const VideoFocusStage = styled(FocusLayoutContainer)`
     grid-template-rows: ${(props) =>
       props.$railHidden ? "minmax(0, 1fr)" : "minmax(0, 1fr) clamp(120px, 20vh, 200px)"};
     height: 100%;
+    width: 100%;
+    max-width: 100%;
 
     > :first-child {
       order: ${(props) => (props.$mobileRailLast ? 2 : 1)};
@@ -645,7 +691,7 @@ const ParticipantGrid = styled.div`
 
   @media (max-width: 980px) {
     height: auto;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: 1fr;
     grid-auto-rows: minmax(160px, 1fr);
   }
 `;
@@ -959,6 +1005,13 @@ const BottomBar = styled.footer`
   justify-content: center;
   gap: 10px;
   min-height: 58px;
+
+  @media (max-width: 980px) {
+    position: sticky;
+    bottom: 0;
+    z-index: 4;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
 `;
 
 const BottomControlDock = styled.div`
@@ -971,11 +1024,22 @@ const BottomControlDock = styled.div`
   border: 1px solid var(--meet-border);
   border-radius: 15px;
   background: var(--meet-panel);
+  max-width: 100%;
 
   .lk-control-bar {
     border: none;
     background: transparent;
     padding: 0;
+  }
+
+  @media (max-width: 980px) {
+    width: fit-content;
+    max-width: calc(100vw - 20px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px));
+    min-height: 54px;
+    padding: 6px;
+    border-radius: 18px;
+    justify-content: center;
+    overflow: visible;
   }
 `;
 
