@@ -1,178 +1,147 @@
-import React, { useState, useEffect, useRef } from 'react'
-import styled from 'styled-components'
-import { Phone, PhoneOff, X, User, Clock } from 'lucide-react'
-
-// Import audio functions
+import React, { useEffect, useRef, useState } from "react";
+import styled from "styled-components";
+import { Clock, Phone, PhoneOff } from "lucide-react";
 import { playIncomingRingtone } from "../utils/ringtone";
 
-const CallRequestOverlay = styled.div`
+const Overlay = styled.div`
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: rgba(0, 0, 0, 0.8);
-  backdrop-filter: blur(10px);
+  inset: 0;
   z-index: 10001;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-`
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background:
+    radial-gradient(circle at top, rgba(255, 255, 255, 0.06), transparent 38%),
+    linear-gradient(180deg, #141518 0%, #0d0e11 100%);
+`;
 
-const CallRequestDialog = styled.div`
-  background-color: #2f3136;
-  border-radius: 20px;
-  padding: 32px;
-  width: 400px;
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 24px;
-`
-
-const CallerAvatar = styled.div`
-  width: 120px;
-  height: 120px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: white;
-  font-size: 48px;
-  font-weight: 600;
-  position: relative;
-  animation: pulse 2s infinite;
-  
-  @keyframes pulse {
-    0% {
-      box-shadow: 0 0 0 0 rgba(102, 126, 234, 0.7);
-    }
-    70% {
-      box-shadow: 0 0 0 20px rgba(102, 126, 234, 0);
-    }
-    100% {
-      box-shadow: 0 0 0 0 rgba(102, 126, 234, 0);
-    }
-  }
-`
-
-const CallerInfo = styled.div`
+const Card = styled.div`
+  width: min(100%, 460px);
+  padding: 34px 28px 28px;
+  border-radius: 34px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(18, 19, 23, 0.84);
+  box-shadow: 0 28px 64px rgba(0, 0, 0, 0.36);
+  backdrop-filter: blur(18px);
+  display: grid;
+  justify-items: center;
+  gap: 20px;
   text-align: center;
-`
 
-const CallerName = styled.div`
-  color: #dcddde;
-  font-size: 24px;
-  font-weight: 600;
-  margin-bottom: 8px;
-`
+  @media (max-width: 640px) {
+    border-radius: 28px;
+    padding: 28px 22px 22px;
+  }
+`;
 
-const CallStatus = styled.div`
-  color: #43b581;
-  font-size: 16px;
-  display: flex;
+const Avatar = styled.div`
+  width: 124px;
+  height: 124px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, rgba(115, 135, 255, 0.44), rgba(255, 255, 255, 0.16));
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: white;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 44px;
+  font-weight: 800;
+  box-shadow: 0 20px 44px rgba(0, 0, 0, 0.24);
+`;
+
+const Name = styled.div`
+  color: #f5f7fb;
+  font-size: 28px;
+  font-weight: 800;
+`;
+
+const Status = styled.div`
+  display: inline-flex;
   align-items: center;
   gap: 8px;
-`
+  padding: 10px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(245, 247, 251, 0.72);
+  font-size: 14px;
+  font-weight: 600;
+`;
 
-const ActionButtons = styled.div`
+const Actions = styled.div`
   display: flex;
+  align-items: center;
   gap: 16px;
-`
+  margin-top: 6px;
+`;
 
 const ActionButton = styled.button`
-  width: 64px;
-  height: 64px;
+  width: 72px;
+  height: 72px;
   border-radius: 50%;
   border: none;
-  display: flex;
+  background: ${(props) => (props.$accept ? "#4fc67c" : "#ff5a67")};
+  color: white;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: all 0.2s ease;
-  font-size: 24px;
-  
-  ${props => props.variant === 'accept' ? `
-    background-color: #43b581;
-    color: white;
-    
-    &:hover {
-      background-color: #3ca374;
-      transform: scale(1.1);
-    }
-  ` : `
-    background-color: #dc3545;
-    color: white;
-    
-    &:hover {
-      background-color: #c82333;
-      transform: scale(1.1);
-    }
-  `}
-`
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.24);
+`;
 
 const IncomingCallRequest = ({ isOpen, onAccept, onReject, caller }) => {
-  const [ringingTime, setRingingTime] = useState(0)
-  const audioIntervalRef = useRef(null)
+  const [ringingTime, setRingingTime] = useState(0);
+  const audioIntervalRef = useRef(null);
 
   useEffect(() => {
-    if (isOpen) {
-      // Play incoming ringtone every 2 seconds
-      playIncomingRingtone()
-      audioIntervalRef.current = setInterval(() => {
-        playIncomingRingtone()
-      }, 2000)
+    if (!isOpen) return undefined;
 
-      const timer = setInterval(() => {
-        setRingingTime(prev => prev + 1)
-      }, 1000)
-      
-      return () => {
-        if (timer) clearInterval(timer)
-        if (audioIntervalRef.current) {
-          clearInterval(audioIntervalRef.current)
-          audioIntervalRef.current = null
-        }
+    playIncomingRingtone();
+    audioIntervalRef.current = setInterval(() => {
+      playIncomingRingtone();
+    }, 2000);
+
+    const timer = setInterval(() => {
+      setRingingTime((prev) => prev + 1);
+    }, 1000);
+
+    return () => {
+      clearInterval(timer);
+      if (audioIntervalRef.current) {
+        clearInterval(audioIntervalRef.current);
+        audioIntervalRef.current = null;
       }
-    }
-  }, [isOpen])
+    };
+  }, [isOpen]);
 
-  const formatTime = (seconds) => {
-    const mins = Math.floor(seconds / 60)
-    const secs = seconds % 60
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
-  }
+  if (!isOpen) return null;
 
-  if (!isOpen) return null
+  const callerName = caller?.nickname || caller?.username || caller?.name || "Unknown";
+  const mins = Math.floor(ringingTime / 60)
+    .toString()
+    .padStart(2, "0");
+  const secs = (ringingTime % 60).toString().padStart(2, "0");
 
   return (
-    <CallRequestOverlay>
-      <CallRequestDialog>
-        <CallerAvatar>
-          {caller?.name?.[0] || 'U'}
-        </CallerAvatar>
-        
-        <CallerInfo>
-          <CallerName>{caller?.name || 'Unknown'}</CallerName>
-          <CallStatus>
-            <Clock size={16} />
-            {formatTime(ringingTime)}
-          </CallStatus>
-        </CallerInfo>
-        
-        <ActionButtons>
-          <ActionButton variant="accept" onClick={onAccept}>
-            <Phone size={24} />
+    <Overlay>
+      <Card>
+        <Avatar>{callerName.charAt(0).toUpperCase()}</Avatar>
+        <Name>{callerName}</Name>
+        <Status>
+          <Clock size={15} />
+          {mins}:{secs}
+        </Status>
+        <Actions>
+          <ActionButton type="button" $accept onClick={onAccept}>
+            <Phone size={28} />
           </ActionButton>
-          <ActionButton onClick={onReject}>
-            <PhoneOff size={24} />
+          <ActionButton type="button" onClick={onReject}>
+            <PhoneOff size={28} />
           </ActionButton>
-        </ActionButtons>
-      </CallRequestDialog>
-    </CallRequestOverlay>
-  )
-}
+        </Actions>
+      </Card>
+    </Overlay>
+  );
+};
 
-export default IncomingCallRequest
+export default IncomingCallRequest;

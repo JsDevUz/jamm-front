@@ -21,7 +21,6 @@ import {
   X,
 } from "lucide-react";
 import {
-  CarouselLayout,
   ChatEntry,
   ConnectionQualityIndicator,
   ControlBar,
@@ -55,6 +54,7 @@ import useAuthStore from "../../../store/authStore";
 import { RESOLVED_APP_BASE_URL } from "../../../config/env";
 import WhiteboardTile from "./WhiteboardTile";
 import { useLiveKitMeetSignaling } from "../hooks/useLiveKitMeetSignaling";
+import { useMeetRecorder } from "../hooks/useMeetRecorder";
 
 const WHITEBOARD_DEFAULT_COLOR = "#0f172a";
 const WHITEBOARD_DEFAULT_FILL_COLOR = "";
@@ -478,7 +478,7 @@ const Shell = styled.div`
   grid-template-rows: auto minmax(0, 1fr) auto;
   gap: 14px;
   height: 100%;
-  padding: clamp(12px, 2vw, 22px);
+  padding: clamp(12px, 2vw, 0px);
 `;
 
 const TopBar = styled.header`
@@ -602,115 +602,6 @@ const VideoPanel = styled.div`
   }
 `;
 
-const WhiteboardStage = styled.div`
-  position: relative;
-  min-width: 0;
-  min-height: 0;
-  height: 100%;
-  grid-column: ${(props) => (props.$fullscreen ? "2" : "auto")};
-  border: 1px solid var(--meet-border);
-  border-radius: 15px;
-  padding: ${(props) => (props.$fullscreen ? "10px" : "8px")};
-  background: var(--meet-panel);
-  overflow: hidden;
-
-  @media (max-width: 980px) {
-    grid-column: auto;
-    height: auto;
-    min-height: ${(props) => (props.$fullscreen ? "min(68vh, 680px)" : "clamp(240px, 36vh, 420px)")};
-  }
-
-  > div {
-    height: 100%;
-  }
-`;
-
-const WhiteboardFocusStage = styled(FocusLayoutContainer)`
-  height: 100%;
-  min-height: 0;
-  display: grid;
-  grid-template-columns: ${(props) =>
-    props.$railHidden ? "minmax(0, 1fr)" : "clamp(160px, 18vw, 320px) minmax(0, 1fr)"};
-  gap: 12px;
-
-  > * {
-    min-width: 0;
-    min-height: 0;
-  }
-
-  .lk-carousel {
-    height: 100%;
-  }
-
-  @media (min-width: 600px) and (max-width: 800px) {
-    grid-template-columns: 1fr;
-    grid-template-rows: minmax(0, calc(100dvh - 420px)) auto;
-    height: 100%;
-
-    > :first-child {
-      order: ${(props) => (props.$mobileRailLast ? 2 : 1)};
-      height: auto;
-      max-height: 180px;
-    }
-
-    > :last-child {
-      order: ${(props) => (props.$mobileRailLast ? 1 : 2)};
-      min-height: 0;
-    }
-
-    .lk-carousel {
-      height: auto;
-      min-height: 0;
-    }
-
-    .lk-carousel .lk-participant-tile {
-      min-height: 180px;
-      max-height: 180px;
-    }
-  }
-
-  @media (min-width: 601px) and (max-width: 980px) {
-    grid-template-columns: 1fr;
-    grid-template-rows: minmax(0, 1fr) auto;
-    height: 100%;
-
-    > :first-child {
-      order: ${(props) => (props.$mobileRailLast ? 2 : 1)};
-      height: auto;
-      max-height: 220px;
-    }
-
-    > :last-child {
-      order: ${(props) => (props.$mobileRailLast ? 1 : 2)};
-      min-height: 0;
-    }
-
-    .lk-carousel {
-      height: auto;
-      min-height: 0;
-    }
-
-    .lk-carousel .lk-participant-tile {
-      /* min-height: 220px; */
-      /* max-height: 220px; */
-    }
-  }
-
-  @media (max-width: 980px) {
-    grid-template-columns: 1fr;
-    height: ${(props) => (props.$railHidden ? "100%" : "auto")};
-
-    > :first-child {
-      order: ${(props) => (props.$mobileRailLast ? 2 : 1)};
-    }
-
-    > :last-child {
-      order: ${(props) => (props.$mobileRailLast ? 1 : 2)};
-      height: ${(props) => (props.$railHidden ? "100%" : "auto")};
-    }
-  }
-`;
-
 const VideoFocusStage = styled(FocusLayoutContainer)`
   height: 100%;
   min-height: 0;
@@ -724,95 +615,23 @@ const VideoFocusStage = styled(FocusLayoutContainer)`
     min-height: 0;
   }
 
-  .lk-carousel {
-    height: 100%;
-  }
-
-  @media (min-width: 600px) and (max-width: 800px) {
-    grid-template-columns: 1fr;
-    grid-template-rows: minmax(0, calc(100dvh - 420px)) auto;
-    height: 100%;
-
-    > :first-child {
-      order: ${(props) => (props.$mobileRailLast ? 2 : 1)};
-      height: auto;
-      max-height: 180px;
-    }
-
-    > :last-child {
-      order: ${(props) => (props.$mobileRailLast ? 1 : 2)};
-      min-height: 0;
-    }
-
-    .lk-carousel {
-      height: auto;
-      min-height: 0;
-    }
-
-    .lk-carousel .lk-participant-tile {
-    }
-  }
-
-  @media (min-width: 601px) and (max-width: 980px) {
-    grid-template-columns: 1fr;
-    grid-template-rows: minmax(0, 1fr) auto;
-    height: 100%;
-
-    > :first-child {
-      order: ${(props) => (props.$mobileRailLast ? 2 : 1)};
-      height: auto;
-      max-height: 220px;
-    }
-
-    > :last-child {
-      order: ${(props) => (props.$mobileRailLast ? 1 : 2)};
-      min-height: 0;
-    }
-
-    .lk-carousel {
-      height: auto;
-      min-height: 0;
-    }
-
-    .lk-carousel .lk-participant-tile {
-      /* min-height: 220px; */
-      max-height: 220px;
-    }
-  }
-
   @media (max-width: 980px) {
     grid-template-columns: 1fr;
-    height: ${(props) => (props.$railHidden ? "100%" : "auto")};
+    grid-template-rows: ${(props) =>
+      props.$railHidden ? "minmax(0, 1fr)" : "minmax(0, 1fr) clamp(120px, 20vh, 200px)"};
+    height: 100%;
 
     > :first-child {
       order: ${(props) => (props.$mobileRailLast ? 2 : 1)};
+      min-height: 0;
+      height: 100%;
     }
 
     > :last-child {
       order: ${(props) => (props.$mobileRailLast ? 1 : 2)};
-      height: ${(props) => (props.$railHidden ? "100%" : "auto")};
+      min-height: 0;
+      height: 100%;
     }
-  }
-`;
-
-const WhiteboardGrid = styled.div`
-  height: 100%;
-  min-height: 0;
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr));
-  grid-auto-rows: minmax(220px, 1fr);
-  gap: 12px;
-
-  @media (min-width: 600px) and (max-width: 800px) {
-    grid-template-columns: 1fr;
-    grid-auto-rows: auto;
-    height: auto;
-  }
-
-  @media (max-width: 980px) {
-    grid-template-columns: 1fr;
-    grid-auto-rows: minmax(160px, auto);
-    height: auto;
   }
 `;
 
@@ -836,45 +655,6 @@ const ParticipantGridItem = styled.div`
   min-height: 0;
 `;
 
-const WhiteboardGridItem = styled.div`
-  min-width: 0;
-  min-height: 0;
-
-  @media (min-width: 600px) and (max-width: 800px) {
-    min-height: ${(props) => (props.$board ? "clamp(280px, 42vh, 520px)" : "180px")};
-    min-width: ${(props) => (props.$mobileRailItem ? "220px" : "0")};
-    flex: ${(props) => (props.$mobileRailItem ? "0 0 220px" : "initial")};
-  }
-
-  @media (max-width: 980px) {
-    min-height: ${(props) => (props.$board ? "clamp(240px, 36vh, 420px)" : "clamp(140px, 20vh, 200px)")};
-    min-width: ${(props) => (props.$mobileRailItem ? "min(220px, 72vw)" : "0")};
-    flex: ${(props) => (props.$mobileRailItem ? "0 0 min(220px, 72vw)" : "initial")};
-  }
-`;
-
-const WhiteboardParticipantRail = styled.div`
-  display: contents;
-
-  @media (min-width: 600px) and (max-width: 800px) {
-    display: flex;
-    gap: 12px;
-    overflow-x: auto;
-    overflow-y: hidden;
-    padding-bottom: 2px;
-    scroll-snap-type: x proximity;
-  }
-
-  @media (max-width: 980px) {
-    display: flex;
-    gap: 12px;
-    overflow-x: auto;
-    overflow-y: hidden;
-    padding-bottom: 2px;
-    scroll-snap-type: x proximity;
-  }
-`;
-
 const WhiteboardRailList = styled.div`
   height: 100%;
   min-height: 0;
@@ -884,15 +664,37 @@ const WhiteboardRailList = styled.div`
   overflow-y: auto;
   overflow-x: hidden;
   padding-right: 2px;
+
+  @media (max-width: 980px) {
+    flex-direction: row;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding-right: 0;
+    padding-bottom: 2px;
+    height: 100%;
+  }
 `;
 
 const WhiteboardRailItem = styled.div`
   flex: 0 0 clamp(180px, 24vh, 260px);
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   min-height: 180px;
+  overflow: hidden;
+
+  > * {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+  }
 
   @media (max-width: 980px) {
-    flex-basis: clamp(140px, 20vh, 200px);
-    min-height: 140px;
+    flex: 0 0 clamp(180px, 60vw, 260px);
+    width: clamp(180px, 60vw, 260px);
+    max-width: clamp(180px, 60vw, 260px);
+    min-height: 0;
+    height: 100%;
   }
 `;
 
@@ -981,38 +783,6 @@ const RailToggleButton = styled.button`
   &:hover {
     transform: translateY(-1px);
     background: var(--meet-hover);
-  }
-`;
-
-const WhiteboardToggleButton = styled.button.attrs((props) => ({
-  className: "lk-focus-toggle-button",
-  "aria-pressed": props.$active ? "true" : "false",
-}))`
-  position: absolute;
-  top: 12px;
-  right: 12px;
-  z-index: 4;
-  width: 36px;
-  height: 36px;
-  border: 1px solid var(--meet-border);
-  border-radius: 12px;
-  padding: 0;
-  color: var(--meet-text);
-  background: var(--meet-panel);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition:
-    transform 0.18s ease,
-    background 0.18s ease,
-    border-color 0.18s ease,
-    color 0.18s ease;
-
-  &:hover {
-    transform: translateY(-1px);
-    background: ${(props) =>
-      props.$active ? "var(--active-color)" : "var(--meet-panel-strong)"};
   }
 `;
 
@@ -1498,6 +1268,59 @@ const getTrackReferenceKey = (trackRef) => {
 const isSameTrackReference = (first, second) =>
   Boolean(first && second && getTrackReferenceKey(first) === getTrackReferenceKey(second));
 
+const WHITEBOARD_TILE_KEY = "jamm-whiteboard-tile";
+
+const WhiteboardPseudoTile = styled.div.attrs({
+  className: "lk-participant-tile",
+  "data-lk-source": "whiteboard",
+})`
+  position: relative;
+  width: 100%;
+  max-width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 100%;
+  display: block;
+  padding: 0;
+  overflow: hidden;
+  border: none !important;
+  border-radius: 14px;
+  background: transparent !important;
+  box-shadow: none !important;
+
+  &::before,
+  &::after {
+    display: none !important;
+  }
+
+  > * {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    height: 100%;
+  }
+`;
+
+function WhiteboardTileFrame({ children, onTogglePin, isPinned }) {
+  return (
+    <ParticipantTileFrame>
+      <WhiteboardPseudoTile>{children}</WhiteboardPseudoTile>
+      {onTogglePin ? (
+        <TileFocusToggleButton
+          as="button"
+          type="button"
+          aria-pressed={isPinned ? "true" : "false"}
+          onClick={onTogglePin}
+          title={isPinned ? "Whiteboard fullscreen'dan chiqish" : "Whiteboard fullscreen"}
+          aria-label={isPinned ? "Whiteboard fullscreen'dan chiqish" : "Whiteboard fullscreen"}
+        >
+          {isPinned ? <UnfocusToggleIcon /> : <FocusToggleIcon />}
+        </TileFocusToggleButton>
+      ) : null}
+    </ParticipantTileFrame>
+  );
+}
+
 function FocusableParticipantTile({ trackRef }) {
   const contextTrackRef = useMaybeTrackRefContext();
   const resolvedTrackRef = trackRef || contextTrackRef;
@@ -1516,11 +1339,13 @@ function FocusableParticipantTile({ trackRef }) {
   );
 }
 
-function FocusableParticipantLayout({ tracks }) {
+function FocusableParticipantLayout({ tracks, whiteboardTile }) {
   const layoutContext = useMaybeLayoutContext();
   const pinnedTracks = usePinnedTracks();
   const autoFocusedScreenShareRef = useRef(null);
+  const autoFocusedWhiteboardRef = useRef(false);
   const [isRailHidden, setIsRailHidden] = useState(false);
+  const [isWhiteboardPinned, setIsWhiteboardPinned] = useState(false);
   const visibleTracks = useMemo(() => tracks.filter(Boolean), [tracks]);
   const screenShareTrack = useMemo(
     () =>
@@ -1534,6 +1359,7 @@ function FocusableParticipantLayout({ tracks }) {
       ) || null,
     [pinnedTracks, visibleTracks],
   );
+  const whiteboardFocused = Boolean(whiteboardTile) && isWhiteboardPinned && !focusedTrack;
   const carouselTracks = useMemo(
     () =>
       focusedTrack
@@ -1569,26 +1395,117 @@ function FocusableParticipantLayout({ tracks }) {
   }, [focusedTrack, layoutContext, screenShareTrack]);
 
   useEffect(() => {
-    if (!focusedTrack || carouselTracks.length === 0) {
+    if (whiteboardTile) {
+      if (!autoFocusedWhiteboardRef.current) {
+        setIsWhiteboardPinned(true);
+        autoFocusedWhiteboardRef.current = true;
+      }
+    } else if (autoFocusedWhiteboardRef.current) {
+      setIsWhiteboardPinned(false);
+      autoFocusedWhiteboardRef.current = false;
+    }
+  }, [whiteboardTile]);
+
+  useEffect(() => {
+    if (focusedTrack && isWhiteboardPinned) {
+      setIsWhiteboardPinned(false);
+    }
+  }, [focusedTrack, isWhiteboardPinned]);
+
+  const railHasContent = whiteboardFocused
+    ? visibleTracks.length > 0
+    : Boolean(whiteboardTile) || carouselTracks.length > 0;
+
+  useEffect(() => {
+    if ((!focusedTrack && !whiteboardFocused) || !railHasContent) {
       setIsRailHidden(false);
     }
-  }, [carouselTracks.length, focusedTrack]);
+  }, [focusedTrack, whiteboardFocused, railHasContent]);
 
-  if (visibleTracks.length === 0) return null;
+  if (visibleTracks.length === 0 && !whiteboardTile) return null;
+
+  const handleToggleWhiteboardPin = () => {
+    setIsWhiteboardPinned((current) => {
+      if (!current) {
+        const pinDispatch = layoutContext?.pin?.dispatch;
+        if (pinDispatch && focusedTrack) {
+          pinDispatch({ msg: "clear_pin" });
+        }
+      }
+      return !current;
+    });
+  };
+
+  if (whiteboardFocused) {
+    return (
+      <VideoFocusStage $railHidden={isRailHidden || !railHasContent} $mobileRailLast>
+        {!isRailHidden && visibleTracks.length > 0 ? (
+          <Rail $left $compact>
+            <WhiteboardRailList>
+              {visibleTracks.map((trackRef) => (
+                <WhiteboardRailItem key={getTrackReferenceKey(trackRef)}>
+                  <FocusableParticipantTile trackRef={trackRef} />
+                </WhiteboardRailItem>
+              ))}
+            </WhiteboardRailList>
+          </Rail>
+        ) : null}
+        <ParticipantTileFrame $focused $railHidden={isRailHidden || !railHasContent}>
+          {railHasContent ? (
+            <RailToggleButton
+              type="button"
+              onClick={() => setIsRailHidden((current) => !current)}
+              aria-label={isRailHidden ? "Chap tile panelini ko'rsatish" : "Chap tile panelini yashirish"}
+              title={isRailHidden ? "Chap tile panelini ko'rsatish" : "Chap tile panelini yashirish"}
+            >
+              {isRailHidden ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
+            </RailToggleButton>
+          ) : null}
+          <WhiteboardPseudoTile>{whiteboardTile}</WhiteboardPseudoTile>
+          <TileFocusToggleButton
+            as="button"
+            type="button"
+            aria-pressed="true"
+            onClick={handleToggleWhiteboardPin}
+            title="Whiteboard fullscreen'dan chiqish"
+            aria-label="Whiteboard fullscreen'dan chiqish"
+          >
+            <UnfocusToggleIcon />
+          </TileFocusToggleButton>
+        </ParticipantTileFrame>
+      </VideoFocusStage>
+    );
+  }
 
   if (focusedTrack) {
     return (
       <VideoFocusStage
-        $railHidden={isRailHidden || carouselTracks.length === 0}
+        $railHidden={isRailHidden || !railHasContent}
         $mobileRailLast
       >
-        {!isRailHidden && carouselTracks.length > 0 ? (
-          <CarouselLayout tracks={carouselTracks}>
-            <FocusableParticipantTile />
-          </CarouselLayout>
+        {!isRailHidden && railHasContent ? (
+          <Rail $left $compact>
+            <WhiteboardRailList>
+              {whiteboardTile ? (
+                <WhiteboardRailItem>
+                  <WhiteboardTileFrame
+                    onTogglePin={handleToggleWhiteboardPin}
+                    isPinned={false}
+                  >
+                    {whiteboardTile}
+                  </WhiteboardTileFrame>
+                </WhiteboardRailItem>
+              ) : null}
+              {carouselTracks.map((trackRef) => (
+                <WhiteboardRailItem key={getTrackReferenceKey(trackRef)}>
+                  <FocusableParticipantTile trackRef={trackRef} />
+                </WhiteboardRailItem>
+              ))}
+            </WhiteboardRailList>
+          </Rail>
         ) : null}
-        <ParticipantTileFrame $focused $railHidden={isRailHidden || carouselTracks.length === 0}>
-          {carouselTracks.length > 0 ? (
+        <ParticipantTileFrame $focused $railHidden={isRailHidden || !railHasContent}>
+          {railHasContent ? (
             <RailToggleButton
               type="button"
               onClick={() => setIsRailHidden((current) => !current)}
@@ -1611,6 +1528,16 @@ function FocusableParticipantLayout({ tracks }) {
 
   return (
     <ParticipantGrid>
+      {whiteboardTile ? (
+        <ParticipantGridItem key={WHITEBOARD_TILE_KEY}>
+          <WhiteboardTileFrame
+            onTogglePin={handleToggleWhiteboardPin}
+            isPinned={false}
+          >
+            {whiteboardTile}
+          </WhiteboardTileFrame>
+        </ParticipantGridItem>
+      ) : null}
       {visibleTracks.map((trackRef) => (
         <ParticipantGridItem key={getTrackReferenceKey(trackRef)}>
           <FocusableParticipantTile trackRef={trackRef} />
@@ -1676,105 +1603,6 @@ function PersistentChatPanel({
   );
 }
 
-function WhiteboardParticipantTiles({ tracks }) {
-  const visibleTracks = useMemo(() => tracks.filter(Boolean), [tracks]);
-
-  return (
-    <WhiteboardParticipantRail>
-      {visibleTracks.map((trackRef) => (
-        <WhiteboardGridItem key={getTrackReferenceKey(trackRef)} $mobileRailItem>
-          <FocusableParticipantTile trackRef={trackRef} />
-        </WhiteboardGridItem>
-      ))}
-    </WhiteboardParticipantRail>
-  );
-}
-
-function WhiteboardFullscreenRail({ tracks }) {
-  const visibleTracks = useMemo(() => tracks.filter(Boolean), [tracks]);
-
-  return (
-    <WhiteboardRailList>
-      {visibleTracks.map((trackRef) => (
-        <WhiteboardRailItem key={getTrackReferenceKey(trackRef)}>
-          <FocusableParticipantTile trackRef={trackRef} />
-        </WhiteboardRailItem>
-      ))}
-    </WhiteboardRailList>
-  );
-}
-
-function WhiteboardCollaborativeLayout({ tracks, boardTile }) {
-  const pinnedTracks = usePinnedTracks();
-  const [isRailHidden, setIsRailHidden] = useState(false);
-  const visibleTracks = useMemo(() => tracks.filter(Boolean), [tracks]);
-  const focusedTrack = useMemo(
-    () =>
-      pinnedTracks.find((pinnedTrack) =>
-        visibleTracks.some((trackRef) => isSameTrackReference(trackRef, pinnedTrack)),
-      ) || null,
-    [pinnedTracks, visibleTracks],
-  );
-  const railTracks = useMemo(
-    () =>
-      focusedTrack
-        ? visibleTracks.filter((trackRef) => !isSameTrackReference(trackRef, focusedTrack))
-        : visibleTracks,
-    [focusedTrack, visibleTracks],
-  );
-  const hasRailContent = Boolean(boardTile) || railTracks.length > 0;
-
-  useEffect(() => {
-    if (!focusedTrack || !hasRailContent) {
-      setIsRailHidden(false);
-    }
-  }, [focusedTrack, hasRailContent]);
-
-  if (focusedTrack) {
-    return (
-      <VideoFocusStage $railHidden={isRailHidden || !hasRailContent} $mobileRailLast>
-        {!isRailHidden && hasRailContent ? (
-          <Rail $left $compact>
-            <WhiteboardRailList>
-              {boardTile ? <WhiteboardRailItem>{boardTile}</WhiteboardRailItem> : null}
-              {railTracks.map((trackRef) => (
-                <WhiteboardRailItem key={getTrackReferenceKey(trackRef)}>
-                  <FocusableParticipantTile trackRef={trackRef} />
-                </WhiteboardRailItem>
-              ))}
-            </WhiteboardRailList>
-          </Rail>
-        ) : null}
-        <ParticipantTileFrame $focused $railHidden={isRailHidden || !hasRailContent}>
-          {hasRailContent ? (
-            <RailToggleButton
-              type="button"
-              onClick={() => setIsRailHidden((current) => !current)}
-              aria-label={isRailHidden ? "Chap panelni ko'rsatish" : "Chap panelni yashirish"}
-              title={isRailHidden ? "Chap panelni ko'rsatish" : "Chap panelni yashirish"}
-            >
-              {isRailHidden ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
-            </RailToggleButton>
-          ) : null}
-          <FocusLayout trackRef={focusedTrack} />
-          <TileFocusToggleButton
-            trackRef={focusedTrack}
-            title="Tile fullscreen'dan chiqish"
-            aria-label="Tile fullscreen'dan chiqish"
-          />
-        </ParticipantTileFrame>
-      </VideoFocusStage>
-    );
-  }
-
-  return (
-    <WhiteboardGrid>
-      <WhiteboardGridItem $board>{boardTile}</WhiteboardGridItem>
-      <WhiteboardParticipantTiles tracks={visibleTracks} />
-    </WhiteboardGrid>
-  );
-}
-
 function MeetContent({
   roomId,
   title,
@@ -1784,14 +1612,12 @@ function MeetContent({
   onMaximize,
   onClose,
   signaling,
+  roomCreatorId,
 }) {
   const [drawer, setDrawer] = useState(null);
-  const [isWhiteboardFullscreen, setIsWhiteboardFullscreen] = useState(false);
-  const [isWhiteboardRailHidden, setIsWhiteboardRailHidden] = useState(false);
   const [pipWindow, setPipWindow] = useState(null);
   const [pipContainer, setPipContainer] = useState(null);
   const connectionToastStateRef = useRef(null);
-  const previousWhiteboardActiveRef = useRef(false);
   const lastSpeakingParticipantKeyRef = useRef(null);
   const pipCloseIntentRef = useRef(false);
   const [whiteboardTool, setWhiteboardTool] = useState(WHITEBOARD_DEFAULT_TOOL);
@@ -1814,6 +1640,8 @@ function MeetContent({
   const [whiteboardTextAlign, setWhiteboardTextAlign] = useState(
     WHITEBOARD_DEFAULT_TEXT_ALIGN,
   );
+  const [recordSurfaceNode, setRecordSurfaceNode] = useState(null);
+  const [recordSurfaceType, setRecordSurfaceType] = useState(null);
 
   const room = useRoomContext();
   const roomInfo = useRoomInfo();
@@ -1823,7 +1651,36 @@ function MeetContent({
   const participants = useParticipants({ room });
   const sortedParticipants = useSortedParticipants(participants);
   const speakingParticipants = useSpeakingParticipants();
-  const isRecording = useIsRecording(room);
+  const liveKitServerIsRecording = useIsRecording(room);
+
+  const recorder = useMeetRecorder({
+    roomId,
+    isCreator,
+    roomCreatorId,
+    surfaceNode: recordSurfaceNode,
+    surfaceType: recordSurfaceType,
+    livekitRoom: room,
+    onError: (message) => {
+      if (message) toast.error(message);
+    },
+    onStatusChange: (nextStatus) => {
+      if (nextStatus === "ready") {
+        toast.success("Recording saqlandi");
+      }
+    },
+  });
+
+  const handleRecordSurfaceChange = useCallback((node, type) => {
+    setRecordSurfaceNode(node || null);
+    setRecordSurfaceType(type || null);
+  }, []);
+
+  const handleToggleRecording = useCallback(async () => {
+    const result = await recorder.toggle();
+    if (result && result.ok === false && result.error) {
+      toast.error(result.error);
+    }
+  }, [recorder]);
   const { chatMessages, send, isSending } = useChat();
   const [chatDraft, setChatDraft] = useState("");
   const tracks = useTracks(
@@ -1844,15 +1701,6 @@ function MeetContent({
   );
   const stageTracks = tracks.length > 0 ? tracks : fallbackParticipantTracks;
   const hasWhiteboard = signaling.whiteboardState.isActive;
-  const whiteboardRailTracks = useMemo(
-    () =>
-      cameraTracks.length > 0
-        ? cameraTracks
-        : tracks.length > 0
-          ? tracks.filter((trackRef) => trackRef.source !== Track.Source.ScreenShare)
-          : fallbackParticipantTracks,
-    [cameraTracks, fallbackParticipantTracks, tracks],
-  );
   const primaryTitle = title || roomInfo.name || "Jamm Meet";
   const previewTracks = useMemo(
     () =>
@@ -1916,16 +1764,6 @@ function MeetContent({
       toast("Whiteboardni faqat host boshqaradi");
     }
   }, [isCreator, signaling]);
-
-  const handleWhiteboardFullscreenToggle = useCallback(() => {
-    setIsWhiteboardFullscreen((current) => !current);
-  }, []);
-
-  useEffect(() => {
-    if (!isWhiteboardFullscreen || whiteboardRailTracks.length === 0) {
-      setIsWhiteboardRailHidden(false);
-    }
-  }, [isWhiteboardFullscreen, whiteboardRailTracks.length]);
 
   const handlePdfUpload = useCallback(
     async (file) => {
@@ -2060,77 +1898,58 @@ function MeetContent({
     [chatDraft, send],
   );
 
-  const embeddedWhiteboardStage = (
-    <WhiteboardStage>
-      <WhiteboardToggleButton
-        type="button"
-        $active={false}
-        onClick={handleWhiteboardFullscreenToggle}
-        aria-label="Whiteboard fullscreen"
-        title="Whiteboard fullscreen"
-      >
-        <FocusToggleIcon />
-      </WhiteboardToggleButton>
-      <WhiteboardTile
-        label="Whiteboard"
-        workspace={signaling.whiteboardState}
-        remoteCursor={signaling.whiteboardCursor}
-        compact={false}
-        isActive
-        isMobile={false}
-        canFullscreen={false}
-        isFullscreen={false}
-        onToggleFullscreen={handleWhiteboardFullscreenToggle}
-        interactive={Boolean(isCreator)}
-        tool={whiteboardTool}
-        color={whiteboardColor}
-        fillColor={whiteboardFillColor}
-        shapeEdge={whiteboardShapeEdge}
-        brushSize={whiteboardBrushSize}
-        textFontFamily={whiteboardTextFontFamily}
-        textSize={whiteboardTextSize}
-        textAlign={whiteboardTextAlign}
-        onToolChange={setWhiteboardTool}
-        onColorChange={setWhiteboardColor}
-        onFillColorChange={setWhiteboardFillColor}
-        onShapeEdgeChange={setWhiteboardShapeEdge}
-        onBrushSizeChange={setWhiteboardBrushSize}
-        onTextFontFamilyChange={setWhiteboardTextFontFamily}
-        onTextSizeChange={setWhiteboardTextSize}
-        onTextAlignChange={setWhiteboardTextAlign}
-        onClear={signaling.clearWhiteboard}
-        onClearPage={signaling.clearWhiteboardPage}
-        onUndo={signaling.undoWhiteboard}
-        onRedo={signaling.redoWhiteboard}
-        onTabActivate={signaling.setWhiteboardActiveTab}
-        onPdfUpload={handlePdfUpload}
-        onPdfOpen={handlePdfOpen}
-        onTabRemove={signaling.removeWhiteboardTab}
-        onPdfViewportChange={signaling.syncWhiteboardPdfViewport}
-        onBoardZoomChange={signaling.syncWhiteboardBoardZoom}
-        onCursorMove={signaling.syncWhiteboardCursor}
-        onCursorLeave={signaling.clearWhiteboardCursor}
-        participantCount={participants.length}
-        onStrokeStart={signaling.startWhiteboardStroke}
-        onStrokeAppend={signaling.appendWhiteboardStroke}
-        onStrokeRemove={signaling.removeWhiteboardStroke}
-        onStrokeUpdate={signaling.updateWhiteboardStroke}
-        showToolbar={Boolean(isCreator)}
-      />
-    </WhiteboardStage>
-  );
-
-  useEffect(() => {
-    if (hasWhiteboard && !previousWhiteboardActiveRef.current) {
-      setIsWhiteboardFullscreen(true);
-    }
-
-    if (!hasWhiteboard) {
-      setIsWhiteboardFullscreen(false);
-    }
-
-    previousWhiteboardActiveRef.current = hasWhiteboard;
-  }, [hasWhiteboard]);
+  const whiteboardTile = hasWhiteboard ? (
+    <WhiteboardTile
+      label="Whiteboard"
+      workspace={signaling.whiteboardState}
+      remoteCursor={signaling.whiteboardCursor}
+      compact={false}
+      isActive
+      isMobile={false}
+      canFullscreen={false}
+      isFullscreen={false}
+      interactive={Boolean(isCreator)}
+      tool={whiteboardTool}
+      color={whiteboardColor}
+      fillColor={whiteboardFillColor}
+      shapeEdge={whiteboardShapeEdge}
+      brushSize={whiteboardBrushSize}
+      textFontFamily={whiteboardTextFontFamily}
+      textSize={whiteboardTextSize}
+      textAlign={whiteboardTextAlign}
+      onToolChange={setWhiteboardTool}
+      onColorChange={setWhiteboardColor}
+      onFillColorChange={setWhiteboardFillColor}
+      onShapeEdgeChange={setWhiteboardShapeEdge}
+      onBrushSizeChange={setWhiteboardBrushSize}
+      onTextFontFamilyChange={setWhiteboardTextFontFamily}
+      onTextSizeChange={setWhiteboardTextSize}
+      onTextAlignChange={setWhiteboardTextAlign}
+      onClear={signaling.clearWhiteboard}
+      onClearPage={signaling.clearWhiteboardPage}
+      onUndo={signaling.undoWhiteboard}
+      onRedo={signaling.redoWhiteboard}
+      onTabActivate={signaling.setWhiteboardActiveTab}
+      onPdfUpload={handlePdfUpload}
+      onPdfOpen={handlePdfOpen}
+      onTabRemove={signaling.removeWhiteboardTab}
+      onPdfViewportChange={signaling.syncWhiteboardPdfViewport}
+      onBoardZoomChange={signaling.syncWhiteboardBoardZoom}
+      onCursorMove={signaling.syncWhiteboardCursor}
+      onCursorLeave={signaling.clearWhiteboardCursor}
+      participantCount={participants.length}
+      onStrokeStart={signaling.startWhiteboardStroke}
+      onStrokeAppend={signaling.appendWhiteboardStroke}
+      onStrokeRemove={signaling.removeWhiteboardStroke}
+      onStrokeUpdate={signaling.updateWhiteboardStroke}
+      showToolbar={Boolean(isCreator)}
+      onRecordSurfaceChange={handleRecordSurfaceChange}
+      onToggleRecording={handleToggleRecording}
+      isRecording={recorder.isRecording}
+      recordingElapsedMs={recorder.elapsedMs}
+      recordingReady={recorder.recordingReady && !recorder.isBusy}
+    />
+  ) : null;
 
   useEffect(() => {
     if (!connectionState || connectionToastStateRef.current === connectionState) {
@@ -2252,7 +2071,7 @@ function MeetContent({
       <Shell>
         <TopBar>
           <TopActions>
-            {isRecording ? (
+            {liveKitServerIsRecording || recorder.isRecording ? (
               <Pill $tone="var(--danger-color)">
                 <Clipboard size={13} />
                 REC
@@ -2299,108 +2118,12 @@ function MeetContent({
 
         <Stage $drawerOpen={Boolean(drawer)}>
           <StagePanel>
-            {hasWhiteboard ? (
-              isWhiteboardFullscreen ? (
-                <WhiteboardFocusStage
-                  $railHidden={isWhiteboardRailHidden || whiteboardRailTracks.length === 0}
-                  $mobileRailLast
-                >
-                  {!isWhiteboardRailHidden && whiteboardRailTracks.length > 0 ? (
-                    <Rail $left>
-                      <WhiteboardFullscreenRail tracks={whiteboardRailTracks} />
-                    </Rail>
-                  ) : null}
-                  <WhiteboardStage $fullscreen>
-                    {whiteboardRailTracks.length > 0 ? (
-                      <RailToggleButton
-                        type="button"
-                        onClick={() => setIsWhiteboardRailHidden((current) => !current)}
-                        aria-label={
-                          isWhiteboardRailHidden
-                            ? "Chap tile panelini ko'rsatish"
-                            : "Chap tile panelini yashirish"
-                        }
-                        title={
-                          isWhiteboardRailHidden
-                            ? "Chap tile panelini ko'rsatish"
-                            : "Chap tile panelini yashirish"
-                        }
-                      >
-                        {isWhiteboardRailHidden ? (
-                          <ChevronRight size={18} />
-                        ) : (
-                          <ChevronLeft size={18} />
-                        )}
-                      </RailToggleButton>
-                    ) : null}
-                    <WhiteboardToggleButton
-                      type="button"
-                      $active={isWhiteboardFullscreen}
-                      onClick={handleWhiteboardFullscreenToggle}
-                      aria-label="Whiteboard minimize"
-                      title="Whiteboard minimize"
-                    >
-                      <UnfocusToggleIcon />
-                    </WhiteboardToggleButton>
-                    <WhiteboardTile
-                      label="Whiteboard"
-                      workspace={signaling.whiteboardState}
-                      remoteCursor={signaling.whiteboardCursor}
-                      compact={false}
-                      isActive
-                      isMobile={false}
-                      canFullscreen={false}
-                      isFullscreen={isWhiteboardFullscreen}
-                      onToggleFullscreen={handleWhiteboardFullscreenToggle}
-                      interactive={Boolean(isCreator)}
-                      tool={whiteboardTool}
-                      color={whiteboardColor}
-                      fillColor={whiteboardFillColor}
-                      shapeEdge={whiteboardShapeEdge}
-                      brushSize={whiteboardBrushSize}
-                      textFontFamily={whiteboardTextFontFamily}
-                      textSize={whiteboardTextSize}
-                      textAlign={whiteboardTextAlign}
-                      onToolChange={setWhiteboardTool}
-                      onColorChange={setWhiteboardColor}
-                      onFillColorChange={setWhiteboardFillColor}
-                      onShapeEdgeChange={setWhiteboardShapeEdge}
-                      onBrushSizeChange={setWhiteboardBrushSize}
-                      onTextFontFamilyChange={setWhiteboardTextFontFamily}
-                      onTextSizeChange={setWhiteboardTextSize}
-                      onTextAlignChange={setWhiteboardTextAlign}
-                      onClear={signaling.clearWhiteboard}
-                      onClearPage={signaling.clearWhiteboardPage}
-                      onUndo={signaling.undoWhiteboard}
-                      onRedo={signaling.redoWhiteboard}
-                      onTabActivate={signaling.setWhiteboardActiveTab}
-                      onPdfUpload={handlePdfUpload}
-                      onPdfOpen={handlePdfOpen}
-                      onTabRemove={signaling.removeWhiteboardTab}
-                      onPdfViewportChange={signaling.syncWhiteboardPdfViewport}
-                      onBoardZoomChange={signaling.syncWhiteboardBoardZoom}
-                      onCursorMove={signaling.syncWhiteboardCursor}
-                      onCursorLeave={signaling.clearWhiteboardCursor}
-                      participantCount={participants.length}
-                      onStrokeStart={signaling.startWhiteboardStroke}
-                      onStrokeAppend={signaling.appendWhiteboardStroke}
-                      onStrokeRemove={signaling.removeWhiteboardStroke}
-                      onStrokeUpdate={signaling.updateWhiteboardStroke}
-                      showToolbar={Boolean(isCreator)}
-                    />
-                  </WhiteboardStage>
-                </WhiteboardFocusStage>
-              ) : (
-                <WhiteboardCollaborativeLayout
-                  tracks={whiteboardRailTracks}
-                  boardTile={embeddedWhiteboardStage}
-                />
-              )
-            ) : (
-              <VideoPanel>
-                <FocusableParticipantLayout tracks={stageTracks} />
-              </VideoPanel>
-            )}
+            <VideoPanel>
+              <FocusableParticipantLayout
+                tracks={stageTracks}
+                whiteboardTile={whiteboardTile}
+              />
+            </VideoPanel>
           </StagePanel>
 
           {drawer ? (
@@ -2497,6 +2220,7 @@ const LiveKitGroupMeet = ({
   isPrivate = false,
   initialMicOn = true,
   initialCamOn = true,
+  roomCreatorId,
 }) => {
   const currentUser = useAuthStore((state) => state.user);
   const displayName = resolveDisplayName(preferredDisplayName, currentUser);
@@ -2654,6 +2378,7 @@ const LiveKitGroupMeet = ({
           onMaximize={onMaximize}
           onClose={handleClose}
           signaling={signaling}
+          roomCreatorId={roomCreatorId}
         />
       </LayoutContextProvider>
     </LiveKitRoom>
