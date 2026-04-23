@@ -30,7 +30,6 @@ import {
   FocusToggleIcon,
   FocusLayoutContainer,
   FocusToggle,
-  GridLayout,
   LayoutContextProvider,
   LiveKitRoom,
   ParticipantTile,
@@ -148,6 +147,11 @@ const Overlay = styled.div`
     padding: 0;
   }
 
+  .lk-focus-layout > * {
+    height: 100%;
+    min-height: 0;
+  }
+
   .lk-carousel {
     min-height: 0;
   }
@@ -156,6 +160,16 @@ const Overlay = styled.div`
     object-fit: contain !important;
     object-position: center;
     background: var(--meet-panel);
+  }
+
+  .lk-focus-layout .lk-participant-media-video {
+    object-fit: contain !important;
+  }
+
+  .lk-focus-layout .lk-participant-tile,
+  .lk-focus-layout [data-lk-source] {
+    height: 100% !important;
+    min-height: 100%;
   }
 
   .lk-participant-tile {
@@ -628,9 +642,63 @@ const WhiteboardFocusStage = styled(FocusLayoutContainer)`
     height: 100%;
   }
 
+  @media (min-width: 600px) and (max-width: 800px) {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(0, calc(100dvh - 420px)) auto;
+    height: 100%;
+
+    > :first-child {
+      order: ${(props) => (props.$mobileRailLast ? 2 : 1)};
+      height: auto;
+      max-height: 180px;
+    }
+
+    > :last-child {
+      order: ${(props) => (props.$mobileRailLast ? 1 : 2)};
+      min-height: 0;
+    }
+
+    .lk-carousel {
+      height: auto;
+      min-height: 0;
+    }
+
+    .lk-carousel .lk-participant-tile {
+      min-height: 180px;
+      max-height: 180px;
+    }
+  }
+
+  @media (min-width: 601px) and (max-width: 980px) {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(0, 1fr) auto;
+    height: 100%;
+
+    > :first-child {
+      order: ${(props) => (props.$mobileRailLast ? 2 : 1)};
+      height: auto;
+      max-height: 220px;
+    }
+
+    > :last-child {
+      order: ${(props) => (props.$mobileRailLast ? 1 : 2)};
+      min-height: 0;
+    }
+
+    .lk-carousel {
+      height: auto;
+      min-height: 0;
+    }
+
+    .lk-carousel .lk-participant-tile {
+      /* min-height: 220px; */
+      /* max-height: 220px; */
+    }
+  }
+
   @media (max-width: 980px) {
     grid-template-columns: 1fr;
-    height: auto;
+    height: ${(props) => (props.$railHidden ? "100%" : "auto")};
 
     > :first-child {
       order: ${(props) => (props.$mobileRailLast ? 2 : 1)};
@@ -638,6 +706,7 @@ const WhiteboardFocusStage = styled(FocusLayoutContainer)`
 
     > :last-child {
       order: ${(props) => (props.$mobileRailLast ? 1 : 2)};
+      height: ${(props) => (props.$railHidden ? "100%" : "auto")};
     }
   }
 `;
@@ -659,9 +728,61 @@ const VideoFocusStage = styled(FocusLayoutContainer)`
     height: 100%;
   }
 
+  @media (min-width: 600px) and (max-width: 800px) {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(0, calc(100dvh - 420px)) auto;
+    height: 100%;
+
+    > :first-child {
+      order: ${(props) => (props.$mobileRailLast ? 2 : 1)};
+      height: auto;
+      max-height: 180px;
+    }
+
+    > :last-child {
+      order: ${(props) => (props.$mobileRailLast ? 1 : 2)};
+      min-height: 0;
+    }
+
+    .lk-carousel {
+      height: auto;
+      min-height: 0;
+    }
+
+    .lk-carousel .lk-participant-tile {
+    }
+  }
+
+  @media (min-width: 601px) and (max-width: 980px) {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(0, 1fr) auto;
+    height: 100%;
+
+    > :first-child {
+      order: ${(props) => (props.$mobileRailLast ? 2 : 1)};
+      height: auto;
+      max-height: 220px;
+    }
+
+    > :last-child {
+      order: ${(props) => (props.$mobileRailLast ? 1 : 2)};
+      min-height: 0;
+    }
+
+    .lk-carousel {
+      height: auto;
+      min-height: 0;
+    }
+
+    .lk-carousel .lk-participant-tile {
+      /* min-height: 220px; */
+      max-height: 220px;
+    }
+  }
+
   @media (max-width: 980px) {
     grid-template-columns: 1fr;
-    height: auto;
+    height: ${(props) => (props.$railHidden ? "100%" : "auto")};
 
     > :first-child {
       order: ${(props) => (props.$mobileRailLast ? 2 : 1)};
@@ -669,6 +790,7 @@ const VideoFocusStage = styled(FocusLayoutContainer)`
 
     > :last-child {
       order: ${(props) => (props.$mobileRailLast ? 1 : 2)};
+      height: ${(props) => (props.$railHidden ? "100%" : "auto")};
     }
   }
 `;
@@ -681,6 +803,12 @@ const WhiteboardGrid = styled.div`
   grid-auto-rows: minmax(220px, 1fr);
   gap: 12px;
 
+  @media (min-width: 600px) and (max-width: 800px) {
+    grid-template-columns: 1fr;
+    grid-auto-rows: auto;
+    height: auto;
+  }
+
   @media (max-width: 980px) {
     grid-template-columns: 1fr;
     grid-auto-rows: minmax(160px, auto);
@@ -688,9 +816,35 @@ const WhiteboardGrid = styled.div`
   }
 `;
 
+const ParticipantGrid = styled.div`
+  height: 100%;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr));
+  grid-auto-rows: minmax(220px, 1fr);
+  gap: 12px;
+
+  @media (max-width: 980px) {
+    height: auto;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-auto-rows: minmax(160px, 1fr);
+  }
+`;
+
+const ParticipantGridItem = styled.div`
+  min-width: 0;
+  min-height: 0;
+`;
+
 const WhiteboardGridItem = styled.div`
   min-width: 0;
   min-height: 0;
+
+  @media (min-width: 600px) and (max-width: 800px) {
+    min-height: ${(props) => (props.$board ? "clamp(280px, 42vh, 520px)" : "180px")};
+    min-width: ${(props) => (props.$mobileRailItem ? "220px" : "0")};
+    flex: ${(props) => (props.$mobileRailItem ? "0 0 220px" : "initial")};
+  }
 
   @media (max-width: 980px) {
     min-height: ${(props) => (props.$board ? "clamp(240px, 36vh, 420px)" : "clamp(140px, 20vh, 200px)")};
@@ -701,6 +855,15 @@ const WhiteboardGridItem = styled.div`
 
 const WhiteboardParticipantRail = styled.div`
   display: contents;
+
+  @media (min-width: 600px) and (max-width: 800px) {
+    display: flex;
+    gap: 12px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding-bottom: 2px;
+    scroll-snap-type: x proximity;
+  }
 
   @media (max-width: 980px) {
     display: flex;
@@ -733,8 +896,12 @@ const WhiteboardRailItem = styled.div`
   }
 `;
 
-const ParticipantTileFrame = styled.div`
+const ParticipantTileFrame = styled.div.attrs((props) => ({
+  "data-focused-tile": props.$focused ? "true" : undefined,
+  "data-rail-hidden": props.$railHidden ? "true" : undefined,
+}))`
   position: relative;
+  display: flex;
   min-width: 0;
   min-height: 0;
   width: 100%;
@@ -745,6 +912,12 @@ const ParticipantTileFrame = styled.div`
     width: 100%;
     height: 100%;
     min-height: 100%;
+  }
+
+  @media (max-width: 600px) {
+    &[data-focused-tile="true"][data-rail-hidden="true"] .lk-participant-tile {
+      min-height: calc(100dvh - 195px);
+    }
   }
 
   .lk-participant-tile > .lk-focus-toggle-button {
@@ -1414,7 +1587,7 @@ function FocusableParticipantLayout({ tracks }) {
             <FocusableParticipantTile />
           </CarouselLayout>
         ) : null}
-        <ParticipantTileFrame>
+        <ParticipantTileFrame $focused $railHidden={isRailHidden || carouselTracks.length === 0}>
           {carouselTracks.length > 0 ? (
             <RailToggleButton
               type="button"
@@ -1437,9 +1610,13 @@ function FocusableParticipantLayout({ tracks }) {
   }
 
   return (
-    <GridLayout tracks={visibleTracks}>
-      <FocusableParticipantTile />
-    </GridLayout>
+    <ParticipantGrid>
+      {visibleTracks.map((trackRef) => (
+        <ParticipantGridItem key={getTrackReferenceKey(trackRef)}>
+          <FocusableParticipantTile trackRef={trackRef} />
+        </ParticipantGridItem>
+      ))}
+    </ParticipantGrid>
   );
 }
 
@@ -1568,7 +1745,7 @@ function WhiteboardCollaborativeLayout({ tracks, boardTile }) {
             </WhiteboardRailList>
           </Rail>
         ) : null}
-        <ParticipantTileFrame>
+        <ParticipantTileFrame $focused $railHidden={isRailHidden || !hasRailContent}>
           {hasRailContent ? (
             <RailToggleButton
               type="button"
