@@ -2262,10 +2262,10 @@ const BoardSurface = styled.div`
 
 const BoardSceneGrid = styled.div`
   position: absolute;
-  left: ${(p) => `${p.$offsetLeft}px`};
-  top: ${(p) => `${p.$offsetTop}px`};
-  width: ${(p) => `${p.$sceneWidth}px`};
-  height: ${(p) => `${p.$sceneHeight}px`};
+  left: 0;
+  top: 0;
+  width: ${(p) => `${p.$frameWidth}px`};
+  height: ${(p) => `${p.$frameHeight}px`};
   border-radius: inherit;
   pointer-events: none;
   background-color: #fcfdff;
@@ -2278,8 +2278,26 @@ const BoardSceneGrid = styled.div`
     ${(p) => `${24 * p.$scale}px ${24 * p.$scale}px`},
     ${(p) => `${120 * p.$scale}px ${120 * p.$scale}px`},
     ${(p) => `${120 * p.$scale}px ${120 * p.$scale}px`};
-  background-position: -1px -1px, -1px -1px, -1px -1px, -1px -1px;
+  background-position:
+    ${(p) => `${p.$offsetLeft - 1}px ${p.$offsetTop - 1}px`},
+    ${(p) => `${p.$offsetLeft - 1}px ${p.$offsetTop - 1}px`},
+    ${(p) => `${p.$offsetLeft - 1}px ${p.$offsetTop - 1}px`},
+    ${(p) => `${p.$offsetLeft - 1}px ${p.$offsetTop - 1}px`};
 `;
+
+const getBoardFrameOffset = (viewport, frame) => {
+  if (!viewport || !frame) {
+    return { left: 0, top: 0 };
+  }
+
+  const viewportRect = viewport.getBoundingClientRect();
+  const frameRect = frame.getBoundingClientRect();
+
+  return {
+    left: frameRect.left - viewportRect.left + viewport.scrollLeft,
+    top: frameRect.top - viewportRect.top + viewport.scrollTop,
+  };
+};
 
 const PdfViewport = styled.div`
   position: relative;
@@ -5199,29 +5217,29 @@ const WhiteboardTile = ({
   const activeBoardRenderScale = getBoardRenderScale(activeBoardZoom);
   const activeBoardFrameWidth = Math.max(
     1,
-    Math.round(activeBoardBaseWidth),
-    Math.round(activeBoardBaseWidth * activeBoardRenderScale),
+    activeBoardBaseWidth,
+    activeBoardBaseWidth * activeBoardRenderScale,
   );
   const activeBoardFrameHeight = Math.max(
     1,
-    Math.round(activeBoardBaseHeight),
-    Math.round(activeBoardBaseHeight * activeBoardRenderScale),
+    activeBoardBaseHeight,
+    activeBoardBaseHeight * activeBoardRenderScale,
   );
   const activeBoardSceneWidth = Math.max(
     1,
-    Math.round(activeBoardBaseWidth * activeBoardRenderScale),
+    activeBoardBaseWidth * activeBoardRenderScale,
   );
   const activeBoardSceneHeight = Math.max(
     1,
-    Math.round(activeBoardBaseHeight * activeBoardRenderScale),
+    activeBoardBaseHeight * activeBoardRenderScale,
   );
   const activeBoardSceneOffsetLeft = Math.max(
     0,
-    Math.round((activeBoardFrameWidth - activeBoardSceneWidth) / 2),
+    (activeBoardFrameWidth - activeBoardSceneWidth) / 2,
   );
   const activeBoardSceneOffsetTop = Math.max(
     0,
-    Math.round((activeBoardFrameHeight - activeBoardSceneHeight) / 2),
+    (activeBoardFrameHeight - activeBoardSceneHeight) / 2,
   );
   const shouldUseContainedMobilePdfViewport =
     interactive && isMobile && activeTab?.type === "pdf";
@@ -5977,8 +5995,9 @@ const WhiteboardTile = ({
       }
 
       const safeZoom = Math.max(WHITEBOARD_MIN_ZOOM, Number(zoomValue) || 1);
-      const frameOffsetLeft = frame ? frame.offsetLeft : 0;
-      const frameOffsetTop = frame ? frame.offsetTop : 0;
+      const frameOffset = getBoardFrameOffset(viewport, frame);
+      const frameOffsetLeft = frameOffset.left;
+      const frameOffsetTop = frameOffset.top;
 
       return {
         boardX:
@@ -6608,8 +6627,9 @@ const WhiteboardTile = ({
           anchor && Number.isFinite(anchor.clientY)
             ? anchor.clientY - viewportRect.top
             : fallbackAnchorY;
-        const frameOffsetLeft = frame ? frame.offsetLeft : 0;
-        const frameOffsetTop = frame ? frame.offsetTop : 0;
+        const frameOffset = getBoardFrameOffset(viewport, frame);
+        const frameOffsetLeft = frameOffset.left;
+        const frameOffsetTop = frameOffset.top;
         const boardAnchor = getBoardViewportAnchor(anchorX, anchorY, activeBoardRenderScale);
         const boardX =
           anchor && Number.isFinite(anchor.boardX) ? anchor.boardX : boardAnchor.boardX;
@@ -6628,13 +6648,13 @@ const WhiteboardTile = ({
 
         const nextFrameWidth = Math.max(
           1,
-          Math.round(activeBoardBaseWidth),
-          Math.round(activeBoardBaseWidth * nextRenderZoom),
+          activeBoardBaseWidth,
+          activeBoardBaseWidth * nextRenderZoom,
         );
         const nextFrameHeight = Math.max(
           1,
-          Math.round(activeBoardBaseHeight),
-          Math.round(activeBoardBaseHeight * nextRenderZoom),
+          activeBoardBaseHeight,
+          activeBoardBaseHeight * nextRenderZoom,
         );
         const nextFrameOffsetLeft =
           nextFrameWidth < viewport.clientWidth
@@ -6846,8 +6866,9 @@ const WhiteboardTile = ({
     const frameId = window.requestAnimationFrame(() => {
       const maxScrollLeft = Math.max(0, viewport.scrollWidth - viewport.clientWidth);
       const maxScrollTop = Math.max(0, viewport.scrollHeight - viewport.clientHeight);
-      const frameOffsetLeft = boardFrameRef.current ? boardFrameRef.current.offsetLeft : 0;
-      const frameOffsetTop = boardFrameRef.current ? boardFrameRef.current.offsetTop : 0;
+      const frameOffset = getBoardFrameOffset(viewport, boardFrameRef.current);
+      const frameOffsetLeft = frameOffset.left;
+      const frameOffsetTop = frameOffset.top;
       viewport.scrollLeft = Math.min(
         maxScrollLeft,
         Math.max(
@@ -7173,8 +7194,9 @@ const WhiteboardTile = ({
 
       const maxScrollLeft = Math.max(0, viewport.scrollWidth - viewport.clientWidth);
       const maxScrollTop = Math.max(0, viewport.scrollHeight - viewport.clientHeight);
-      const frameOffsetLeft = boardFrameRef.current ? boardFrameRef.current.offsetLeft : 0;
-      const frameOffsetTop = boardFrameRef.current ? boardFrameRef.current.offsetTop : 0;
+      const frameOffset = getBoardFrameOffset(viewport, boardFrameRef.current);
+      const frameOffsetLeft = frameOffset.left;
+      const frameOffsetTop = frameOffset.top;
       viewport.scrollLeft = Math.min(
         maxScrollLeft,
         Math.max(
@@ -9086,8 +9108,8 @@ const WhiteboardTile = ({
                       <BoardSurface>
                         <BoardSceneGrid
                           $scale={activeBoardRenderScale}
-                          $sceneWidth={activeBoardSceneWidth}
-                          $sceneHeight={activeBoardSceneHeight}
+                          $frameWidth={activeBoardFrameWidth}
+                          $frameHeight={activeBoardFrameHeight}
                           $offsetLeft={activeBoardSceneOffsetLeft}
                           $offsetTop={activeBoardSceneOffsetTop}
                         />
@@ -9139,8 +9161,8 @@ const WhiteboardTile = ({
                   <BoardSurface>
                     <BoardSceneGrid
                       $scale={activeBoardRenderScale}
-                      $sceneWidth={activeBoardSceneWidth}
-                      $sceneHeight={activeBoardSceneHeight}
+                      $frameWidth={activeBoardFrameWidth}
+                      $frameHeight={activeBoardFrameHeight}
                       $offsetLeft={activeBoardSceneOffsetLeft}
                       $offsetTop={activeBoardSceneOffsetTop}
                     />
