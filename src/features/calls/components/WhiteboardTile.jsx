@@ -60,6 +60,12 @@ const WHITEBOARD_MIN_ZOOM = 0.5;
 const WHITEBOARD_MAX_ZOOM = 3;
 const WHITEBOARD_MIN_PDF_RENDER_WIDTH = 120;
 const WHITEBOARD_MOBILE_PDF_MAX_RENDER_EDGE = 3072;
+const WHITEBOARD_CANVAS_MAX_EDGE = 8192;
+const WHITEBOARD_CANVAS_MAX_PIXELS = 24000000;
+const WHITEBOARD_MOBILE_CANVAS_MAX_EDGE = 4096;
+const WHITEBOARD_MOBILE_CANVAS_MAX_PIXELS = 8000000;
+const WHITEBOARD_MOBILE_SAFARI_CANVAS_MAX_EDGE = 3072;
+const WHITEBOARD_MOBILE_SAFARI_CANVAS_MAX_PIXELS = 4500000;
 const WHITEBOARD_MIN_BOARD_BASE_WIDTH = 120;
 const WHITEBOARD_MIN_BOARD_BASE_HEIGHT = 120;
 const WHITEBOARD_MIN_VIEWPORT_BASE_HEIGHT = 120;
@@ -77,8 +83,11 @@ const WHITEBOARD_BOARD_POINT_MIN = -0.5;
 const WHITEBOARD_BOARD_POINT_MAX = 1.5;
 const WHITEBOARD_BOARD_POINT_SPAN =
   WHITEBOARD_BOARD_POINT_MAX - WHITEBOARD_BOARD_POINT_MIN;
-const WHITEBOARD_WHEEL_ZOOM_SENSITIVITY = 0.0048;
+const WHITEBOARD_WHEEL_ZOOM_SENSITIVITY = 0.0062;
 const WHITEBOARD_PINCH_ZOOM_EXPONENT = 4.5;
+const WHITEBOARD_ZOOM_COMMIT_DELAY_MS = 140;
+const WHITEBOARD_BUTTON_ZOOM_IN_FACTOR = 1.25;
+const WHITEBOARD_BUTTON_ZOOM_OUT_FACTOR = 0.8;
 const WHITEBOARD_TEXT_EDITOR_HORIZONTAL_PADDING = 0;
 const WHITEBOARD_TEXT_EDITOR_VERTICAL_PADDING = 0;
 const WHITEBOARD_TEXT_FONT_OPTIONS = [
@@ -139,6 +148,30 @@ const isMobilePdfBrowser = () => {
 
   const userAgent = navigator.userAgent || "";
   return /iPhone|iPad|iPod|Android/i.test(userAgent);
+};
+
+const getSafeWhiteboardCanvasPixelRatio = (width, height) => {
+  const safeWidth = Math.max(1, Number(width) || 1);
+  const safeHeight = Math.max(1, Number(height) || 1);
+  const mobileSafari = isMobileSafariBrowser();
+  const mobileBrowser = mobileSafari || isMobilePdfBrowser();
+  const maxEdge = mobileSafari
+    ? WHITEBOARD_MOBILE_SAFARI_CANVAS_MAX_EDGE
+    : mobileBrowser
+      ? WHITEBOARD_MOBILE_CANVAS_MAX_EDGE
+      : WHITEBOARD_CANVAS_MAX_EDGE;
+  const maxPixels = mobileSafari
+    ? WHITEBOARD_MOBILE_SAFARI_CANVAS_MAX_PIXELS
+    : mobileBrowser
+      ? WHITEBOARD_MOBILE_CANVAS_MAX_PIXELS
+      : WHITEBOARD_CANVAS_MAX_PIXELS;
+  const deviceRatio =
+    typeof window === "undefined" ? 1 : Number(window.devicePixelRatio) || 1;
+  const preferredRatio = mobileBrowser ? 1 : Math.min(2, deviceRatio);
+  const edgeRatio = Math.min(maxEdge / safeWidth, maxEdge / safeHeight);
+  const pixelRatio = Math.sqrt(maxPixels / Math.max(1, safeWidth * safeHeight));
+
+  return Math.max(0.01, Math.min(preferredRatio, edgeRatio, pixelRatio));
 };
 
 const buildPdfDocumentInit = (source) => {
@@ -2317,13 +2350,16 @@ const TileRoot = styled.div`
 
 const FullscreenBtn = styled.button`
   position: absolute;
-  bottom: 8px;
-  right: 8px;
+  bottom: 18px;
+  right: 18px;
   background: rgba(0, 0, 0, 0.55);
   border: none;
   border-radius: 6px;
   color: #fff;
   padding: 5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
   opacity: ${(p) => (p.$visible ? 1 : 0.92)};
   transition: opacity 0.15s;
@@ -4298,11 +4334,11 @@ const StrokeCanvas = ({
           surface.clientHeight || surface.offsetHeight || surface.getBoundingClientRect().height,
         ),
       );
-      const ratio = Math.min(2, window.devicePixelRatio || 1);
+      const ratio = getSafeWhiteboardCanvasPixelRatio(width, height);
 
       // Resize persisted layer
-      canvas.width = Math.round(width * ratio);
-      canvas.height = Math.round(height * ratio);
+      canvas.width = Math.max(1, Math.round(width * ratio));
+      canvas.height = Math.max(1, Math.round(height * ratio));
       canvas.style.width = `${width}px`;
       canvas.style.height = `${height}px`;
       const ctx = canvas.getContext("2d");
@@ -4310,12 +4346,12 @@ const StrokeCanvas = ({
 
       // Resize active layer
       if (activeCanvas) {
-        activeCanvas.width = Math.round(width * ratio);
-        activeCanvas.height = Math.round(height * ratio);
+        activeCanvas.width = interactive ? Math.max(1, Math.round(width * ratio)) : 1;
+        activeCanvas.height = interactive ? Math.max(1, Math.round(height * ratio)) : 1;
         activeCanvas.style.width = `${width}px`;
         activeCanvas.style.height = `${height}px`;
         const actx = activeCanvas.getContext("2d");
-        if (actx) actx.setTransform(ratio, 0, 0, ratio, 0, 0);
+        if (actx) actx.setTransform(interactive ? ratio : 1, 0, 0, interactive ? ratio : 1, 0, 0);
       }
 
       canvasSizeRef.current = { width, height };
@@ -4329,8 +4365,10 @@ const StrokeCanvas = ({
     });
     resizeObserver.observe(surface);
 
-    // Start active layer loop
-    activeLayerRafRef.current = window.requestAnimationFrame(renderActiveLayer);
+    // Guests only need the persisted layer; a second full-size canvas is expensive on iOS Safari.
+    if (interactive) {
+      activeLayerRafRef.current = window.requestAnimationFrame(renderActiveLayer);
+    }
 
     return () => {
       resizeObserver.disconnect();
@@ -4343,7 +4381,7 @@ const StrokeCanvas = ({
         activeLayerRafRef.current = 0;
       }
     };
-  }, [redrawCanvasImmediate, renderActiveLayer]);
+  }, [interactive, redrawCanvasImmediate, renderActiveLayer]);
 
   // Trigger redraw when strokes/zoom/mode change — RAF-batched so rapid updates don't pile up
   useEffect(() => {
@@ -6002,6 +6040,9 @@ const WhiteboardTile = ({
   const boardZoomAnimationRafRef = useRef(0);
   const boardZoomAnimationTargetRef = useRef(null);
   const boardZoomAnimationAnchorRef = useRef(null);
+  const boardZoomCommitTimeoutRef = useRef(0);
+  const boardWheelAnchorRef = useRef(null);
+  const boardWheelZoomTargetRef = useRef(null);
   const pendingInteractivePdfZoomRef = useRef(null);
   const pendingInteractiveBoardZoomRef = useRef(null);
   const lastPdfTabIdRef = useRef(null);
@@ -6550,6 +6591,10 @@ const WhiteboardTile = ({
       if (boardViewportSyncTimeoutRef.current) {
         window.clearTimeout(boardViewportSyncTimeoutRef.current);
       }
+      if (boardZoomCommitTimeoutRef.current) {
+        window.clearTimeout(boardZoomCommitTimeoutRef.current);
+        boardZoomCommitTimeoutRef.current = 0;
+      }
       if (boardGuestGestureRef.current.timeoutId) {
         window.clearTimeout(boardGuestGestureRef.current.timeoutId);
         boardGuestGestureRef.current.timeoutId = 0;
@@ -6859,6 +6904,26 @@ const WhiteboardTile = ({
       });
     },
     [activeTab?.type, boardViewportSize.height, boardViewportSize.width, scheduleBoardViewportSync],
+  );
+
+  const scheduleBoardZoomCommit = useCallback(
+    (delay = WHITEBOARD_ZOOM_COMMIT_DELAY_MS) => {
+      if (!interactive || activeTab?.type === "pdf") {
+        return;
+      }
+
+      if (boardZoomCommitTimeoutRef.current) {
+        window.clearTimeout(boardZoomCommitTimeoutRef.current);
+      }
+
+      boardZoomCommitTimeoutRef.current = window.setTimeout(() => {
+        boardZoomCommitTimeoutRef.current = 0;
+        boardWheelAnchorRef.current = null;
+        boardWheelZoomTargetRef.current = null;
+        syncCurrentBoardViewport(liveBoardZoomRef.current);
+      }, delay);
+    },
+    [activeTab?.type, interactive, syncCurrentBoardViewport],
   );
 
   useEffect(() => {
@@ -8048,73 +8113,31 @@ const WhiteboardTile = ({
         WHITEBOARD_MAX_ZOOM,
         Math.max(WHITEBOARD_MIN_ZOOM, Number(nextZoom) || liveBoardZoomRef.current || 1),
       );
-      boardZoomAnimationTargetRef.current = clampedTarget;
-      const viewport = boardViewportRef.current;
-      if (viewport) {
-        const viewportRect = viewport.getBoundingClientRect();
-        const anchorX =
-          anchor && Number.isFinite(anchor.clientX)
-            ? anchor.clientX - viewportRect.left
-            : viewport.clientWidth / 2;
-        const anchorY =
-          anchor && Number.isFinite(anchor.clientY)
-            ? anchor.clientY - viewportRect.top
-            : viewport.clientHeight / 2;
-        const currentRenderZoom = getBoardRenderScale(liveBoardZoomRef.current || activeBoardZoom);
-        const frameOffset = getBoardFrameOffset(viewport, boardFrameRef.current);
-        boardZoomAnimationAnchorRef.current = {
-          clientX: viewportRect.left + anchorX,
-          clientY: viewportRect.top + anchorY,
-          boardX:
-            anchor && Number.isFinite(anchor.boardX)
-              ? anchor.boardX
-              : (viewport.scrollLeft + anchorX - frameOffset.left) /
-                Math.max(WHITEBOARD_MIN_ZOOM, currentRenderZoom),
-          boardY:
-            anchor && Number.isFinite(anchor.boardY)
-              ? anchor.boardY
-              : (viewport.scrollTop + anchorY - frameOffset.top) /
-                Math.max(WHITEBOARD_MIN_ZOOM, currentRenderZoom),
-        };
-      } else {
-        boardZoomAnimationAnchorRef.current = anchor;
-      }
-
       if (boardZoomAnimationRafRef.current) {
-        return;
+        window.cancelAnimationFrame(boardZoomAnimationRafRef.current);
+        boardZoomAnimationRafRef.current = 0;
       }
-
-      const tick = () => {
+      boardZoomAnimationTargetRef.current = clampedTarget;
+      boardZoomAnimationAnchorRef.current = anchor;
+      boardZoomAnimationRafRef.current = window.requestAnimationFrame(() => {
+        boardZoomAnimationRafRef.current = 0;
         const targetZoom = boardZoomAnimationTargetRef.current;
+        const targetAnchor = boardZoomAnimationAnchorRef.current;
+        boardZoomAnimationTargetRef.current = null;
+        boardZoomAnimationAnchorRef.current = null;
         if (!Number.isFinite(targetZoom)) {
-          boardZoomAnimationRafRef.current = 0;
           return;
         }
-
-        const currentZoom = liveBoardZoomRef.current || activeBoardZoom || 1;
-        const diff = targetZoom - currentZoom;
-        if (Math.abs(diff) <= 0.0025) {
-          boardZoomAnimationRafRef.current = 0;
-          handleBoardZoomChange(targetZoom, boardZoomAnimationAnchorRef.current, { sync: true });
-          boardZoomAnimationTargetRef.current = null;
-          boardZoomAnimationAnchorRef.current = null;
-          return;
-        }
-
-        const nextStep = currentZoom + diff * 0.28;
-        handleBoardZoomChange(nextStep, boardZoomAnimationAnchorRef.current, { sync: false });
-        boardZoomAnimationRafRef.current = window.requestAnimationFrame(tick);
-      };
-
-      boardZoomAnimationRafRef.current = window.requestAnimationFrame(tick);
+        handleBoardZoomChange(targetZoom, targetAnchor, { sync: false });
+        scheduleBoardZoomCommit();
+      });
     },
     [
-      activeBoardZoom,
       activeTab?.type,
-      getBoardRenderScale,
       handleBoardZoomChange,
       handlePdfZoomChange,
       interactive,
+      scheduleBoardZoomCommit,
     ],
   );
 
@@ -8126,7 +8149,9 @@ const WhiteboardTile = ({
         handleWorkspaceZoomChange(currentZoom + delta);
         return;
       }
-      animateBoardZoomChange(currentZoom + delta);
+      const nextZoom =
+        currentZoom * (delta > 0 ? WHITEBOARD_BUTTON_ZOOM_IN_FACTOR : WHITEBOARD_BUTTON_ZOOM_OUT_FACTOR);
+      animateBoardZoomChange(nextZoom);
     },
     [activeTab?.type, animateBoardZoomChange, handleWorkspaceZoomChange],
   );
@@ -8141,12 +8166,19 @@ const WhiteboardTile = ({
       }
       boardZoomAnimationTargetRef.current = null;
       boardZoomAnimationAnchorRef.current = null;
+      boardWheelAnchorRef.current = null;
       boardInitialViewportSeededRef.current = false;
       pendingInteractiveBoardZoomRef.current = null;
       if (boardViewportSyncTimeoutRef.current) {
         window.clearTimeout(boardViewportSyncTimeoutRef.current);
         boardViewportSyncTimeoutRef.current = 0;
       }
+      if (boardZoomCommitTimeoutRef.current) {
+        window.clearTimeout(boardZoomCommitTimeoutRef.current);
+        boardZoomCommitTimeoutRef.current = 0;
+      }
+      boardWheelAnchorRef.current = null;
+      boardWheelZoomTargetRef.current = null;
       if (currentBoardTabId) {
         setBoardZoom(syncedBoardZoom);
       }
@@ -8196,35 +8228,41 @@ const WhiteboardTile = ({
       return undefined;
     }
 
-    const frameId = window.requestAnimationFrame(() => {
-      const maxScrollLeft = Math.max(0, viewport.scrollWidth - viewport.clientWidth);
-      const maxScrollTop = Math.max(0, viewport.scrollHeight - viewport.clientHeight);
-      const frameOffset = getBoardFrameOffset(viewport, boardFrameRef.current);
-      const frameOffsetLeft = frameOffset.left;
-      const frameOffsetTop = frameOffset.top;
-      viewport.scrollLeft = Math.min(
-        maxScrollLeft,
-        Math.max(
-          0,
-          frameOffsetLeft +
-            pendingAnchor.boardX * activeBoardRenderScale -
-            pendingAnchor.anchorX,
-        ),
-      );
-      viewport.scrollTop = Math.min(
-        maxScrollTop,
-        Math.max(
-          0,
-          frameOffsetTop +
-            pendingAnchor.boardY * activeBoardRenderScale -
-            pendingAnchor.anchorY,
-        ),
-      );
-      boardZoomAnchorRef.current = null;
-    });
+    const maxScrollLeft = Math.max(0, viewport.scrollWidth - viewport.clientWidth);
+    const maxScrollTop = Math.max(0, viewport.scrollHeight - viewport.clientHeight);
+    const frameOffset = getBoardFrameOffset(viewport, boardFrameRef.current);
+    const frameOffsetLeft = frameOffset.left;
+    const frameOffsetTop = frameOffset.top;
+    const nextLeft = Math.min(
+      maxScrollLeft,
+      Math.max(
+        0,
+        frameOffsetLeft +
+          pendingAnchor.boardX * activeBoardRenderScale -
+          pendingAnchor.anchorX,
+      ),
+    );
+    const nextTop = Math.min(
+      maxScrollTop,
+      Math.max(
+        0,
+        frameOffsetTop +
+          pendingAnchor.boardY * activeBoardRenderScale -
+          pendingAnchor.anchorY,
+      ),
+    );
+
+    boardScrollSyncRef.current.lock = true;
+    viewport.scrollLeft = nextLeft;
+    viewport.scrollTop = nextTop;
+    boardZoomAnchorRef.current = null;
+    const unlockId = window.setTimeout(() => {
+      boardScrollSyncRef.current.lock = false;
+    }, 80);
 
     return () => {
-      window.cancelAnimationFrame(frameId);
+      window.clearTimeout(unlockId);
+      boardScrollSyncRef.current.lock = false;
     };
   }, [activeBoardRenderScale, activeTab?.type]);
 
@@ -8496,14 +8534,7 @@ const WhiteboardTile = ({
     };
 
     const scheduleZoom = (nextZoom, anchor) => {
-      if (zoomFrameRef.current) {
-        window.cancelAnimationFrame(zoomFrameRef.current);
-      }
-
-      zoomFrameRef.current = window.requestAnimationFrame(() => {
-        zoomFrameRef.current = 0;
-        animateBoardZoomChange(nextZoom, anchor);
-      });
+      animateBoardZoomChange(nextZoom, anchor);
     };
 
     const handleWheelZoom = (event) => {
@@ -8512,10 +8543,38 @@ const WhiteboardTile = ({
       }
 
       event.preventDefault();
+      const viewportRect = viewport.getBoundingClientRect();
+      const anchorX = event.clientX - viewportRect.left;
+      const anchorY = event.clientY - viewportRect.top;
+      const previousAnchor = boardWheelAnchorRef.current;
+      const shouldReuseAnchor =
+        previousAnchor &&
+        Math.abs(previousAnchor.clientX - event.clientX) < 24 &&
+        Math.abs(previousAnchor.clientY - event.clientY) < 24;
+      const boardAnchor = shouldReuseAnchor
+        ? previousAnchor
+        : {
+            clientX: event.clientX,
+            clientY: event.clientY,
+            ...getBoardViewportAnchor(anchorX, anchorY, activeBoardRenderScale),
+          };
+      boardWheelAnchorRef.current = boardAnchor;
+
       const zoomFactor = Math.exp(-event.deltaY * WHITEBOARD_WHEEL_ZOOM_SENSITIVITY);
-      scheduleZoom(liveBoardZoomRef.current * zoomFactor, {
+      const baseZoom =
+        typeof boardWheelZoomTargetRef.current === "number"
+          ? boardWheelZoomTargetRef.current
+          : liveBoardZoomRef.current || 1;
+      const nextZoom = Math.min(
+        WHITEBOARD_MAX_ZOOM,
+        Math.max(WHITEBOARD_MIN_ZOOM, baseZoom * zoomFactor),
+      );
+      boardWheelZoomTargetRef.current = nextZoom;
+      scheduleZoom(nextZoom, {
         clientX: event.clientX,
         clientY: event.clientY,
+        boardX: boardAnchor.boardX,
+        boardY: boardAnchor.boardY,
       });
     };
 
@@ -8570,6 +8629,8 @@ const WhiteboardTile = ({
       }
       boardZoomAnimationTargetRef.current = null;
       boardZoomAnimationAnchorRef.current = null;
+      boardWheelAnchorRef.current = null;
+      boardWheelZoomTargetRef.current = null;
 
       const center = getTouchCenter(event.touches);
       const viewportRect = viewport.getBoundingClientRect();
@@ -8578,7 +8639,7 @@ const WhiteboardTile = ({
       boardPinchStateRef.current = {
         active: true,
         distance: getTouchDistance(event.touches),
-        zoom: liveBoardZoomRef.current || activeBoardZoom,
+        zoom: liveBoardZoomRef.current || 1,
         ...getBoardViewportAnchor(anchorX, anchorY, activeBoardRenderScale),
       };
     };
@@ -8604,7 +8665,7 @@ const WhiteboardTile = ({
         Math.max(WHITEBOARD_MIN_ZOOM, boardPinchStateRef.current.zoom * zoomRatio),
       );
 
-      const currentZoom = liveBoardZoomRef.current || activeBoardZoom;
+      const currentZoom = liveBoardZoomRef.current || 1;
       if (Math.abs(nextZoom - currentZoom) > 0.001) {
         schedulePinchZoom(nextZoom, center, nextDistance);
         return;
@@ -8668,6 +8729,7 @@ const WhiteboardTile = ({
   }, [
     activeBoardRenderScale,
     activeTab?.type,
+    animateBoardZoomChange,
     getBoardViewportAnchor,
     interactive,
     handleBoardZoomChange,
@@ -9577,7 +9639,7 @@ const WhiteboardTile = ({
               : t("groupCall.whiteboard.enterFullscreen")
           }
         >
-          {isFullscreen ? <Minimize2 size={14} /> : <Maximize size={14} />}
+          {isFullscreen ? <Minimize2 size={30} /> : <Maximize size={30} />}
         </FullscreenBtn>
       ) : null}
 

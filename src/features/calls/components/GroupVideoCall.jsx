@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useState, useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import styled, { keyframes, css } from "styled-components";
+import styled, { keyframes, css, StyleSheetManager } from "styled-components";
 import { createPortal } from "react-dom";
 import { toast } from "react-hot-toast";
 import {
@@ -50,6 +50,7 @@ import {
   uploadRecordingChunk,
 } from "../../../api/videoRecordingApi";
 import { playMeetStartedTone } from "../utils/ringtone";
+import { applyPreferredAudioOutput } from "../utils/audioOutput";
 import WhiteboardTile from "./WhiteboardTile";
 
 const slideIn = keyframes`
@@ -2142,8 +2143,8 @@ const RecBadge = styled.div`
 
 const FullscreenBtn = styled.button`
   position: absolute;
-  bottom: ${(p) => (p.$immersive ? "18px" : "8px")};
-  right: ${(p) => (p.$immersive ? "14px" : "8px")};
+  bottom: ${(p) => (p.$immersive ? "18px" : "18px")};
+  right: ${(p) => (p.$immersive ? "14px" : "18px")};
   background: var(--call-control);
   border: 1px solid var(--call-control-border);
   border-radius: 6px;
@@ -2468,25 +2469,27 @@ const GroupVideoCall = ({
     };
   }, [showQualityHelp]);
 
-  // Speaker toggle effect for mobile
+  const applySpeakerPreference = useCallback((speakerOn) => {
+    if (typeof document === "undefined") {
+      return Promise.resolve(false);
+    }
+    return applyPreferredAudioOutput(speakerOn).catch(() => false);
+  }, []);
+
+  const handleSpeakerToggle = useCallback(() => {
+    setIsSpeakerOn((previousValue) => {
+      const nextValue = !previousValue;
+      applySpeakerPreference(nextValue);
+      return nextValue;
+    });
+  }, [applySpeakerPreference]);
+
+  // Speaker route changes must be attempted from the click path on mobile browsers.
   useEffect(() => {
     const isMobile = window.innerWidth <= 768;
     if (!isMobile) return;
-
-    const audioElements = document.querySelectorAll('audio');
-    audioElements.forEach((audio) => {
-      if (audio.setSinkId) {
-        audio.setSinkId(isSpeakerOn ? 'default' : '');
-      }
-    });
-
-    const videoElements = document.querySelectorAll('video');
-    videoElements.forEach((video) => {
-      if (video.setSinkId) {
-        video.setSinkId(isSpeakerOn ? 'default' : '');
-      }
-    });
-  }, [isSpeakerOn]);
+    applySpeakerPreference(isSpeakerOn);
+  }, [applySpeakerPreference, isSpeakerOn]);
 
   const {
     localStream,
@@ -2879,10 +2882,9 @@ const GroupVideoCall = ({
   const createSafeRecorder = useCallback((stream, options = {}) => {
     const preferredMimeType = String(options?.preferredMimeType || "").trim();
     const isWhiteboardRecording = options?.kind === "whiteboard";
-    // Whiteboard: low bitrate (static content, 8fps, 720p max) — 300kbps video is plenty
-    // Meet: moderate bitrate for screen/webcam video
-    const videoBitsPerSecond = isWhiteboardRecording ? 300_000 : 1_200_000;
-    const audioBitsPerSecond = 48_000;
+    // Keep recordings sharper without making uploaded chunks excessively large.
+    const videoBitsPerSecond = isWhiteboardRecording ? 900_000 : 2_800_000;
+    const audioBitsPerSecond = 96_000;
     let recorder = null;
     let selectedMimeType = "";
 
@@ -2945,7 +2947,7 @@ const GroupVideoCall = ({
           attempt += 1;
 
           const statusCode = Number(error?.response?.status || 0);
-          const shouldRetry = !statusCode;
+          const shouldRetry = !statusCode || statusCode === 408 || statusCode === 429 || statusCode >= 500;
 
           if (attempt >= 6 || !shouldRetry) {
             break;
@@ -3068,14 +3070,28 @@ const GroupVideoCall = ({
         }
         if (!silentSuccess) {
           toast.success(
-            kind === "meet"
-              ? t("groupCall.meetRecordingSavedToSavedMessages")
-              : t("groupCall.whiteboard.recordingSavedToSavedMessages"),
+            result?.status === "ready"
+              ? kind === "meet"
+                ? t("groupCall.meetRecordingSavedToSavedMessages")
+                : t("groupCall.whiteboard.recordingSavedToSavedMessages")
+              : t("groupCall.recordingQueuedToSavedMessages"),
           );
         }
         return { ok: true };
       } catch (error) {
         console.error("Failed to finalize server recording:", error);
+        const statusCode = Number(error?.response?.status || 0);
+        const hasUploadedChunks = (transport.uploadedChunkCount || 0) > 0;
+        const mayFinalizeFromUploadedChunks =
+          hasUploadedChunks && (!statusCode || statusCode === 524 || statusCode === 504 || statusCode >= 500);
+
+        if (mayFinalizeFromUploadedChunks) {
+          if (!silentSuccess) {
+            toast.success(t("groupCall.recordingQueuedToSavedMessages"));
+          }
+          return { ok: true, queued: true, warning: error };
+        }
+
         if (!silentSuccess) {
           toast.error(
             kind === "meet"
@@ -3244,16 +3260,44 @@ const GroupVideoCall = ({
 
     const audioContext = new AudioContextClass();
     const destination = audioContext.createMediaStreamDestination();
-    const allStreams = [
-      ...(includeLocal ? [localStream] : []),
-      ...(includeRemote ? remoteStreams.map((entry) => entry.stream) : []),
-    ].filter(Boolean);
+    const audioSources = [
+      ...(includeLocal ? [{ stream: localStream }] : []),
+      ...(includeRemote
+        ? [
+            ...remoteStreams.map((entry) => ({
+              stream: entry.stream,
+              audioTrack: entry.audioTrack,
+            })),
+            ...remoteScreenStreams.map((entry) => ({
+              stream: entry.stream,
+              audioTrack: entry.audioTrack,
+            })),
+          ]
+        : []),
+    ];
+    const seenTrackIds = new Set();
     let connectedSourceCount = 0;
 
-    allStreams.forEach((stream) => {
-      const audioTracks = stream
-        .getAudioTracks()
-        .filter((track) => track.readyState === "live");
+    audioSources.forEach(({ stream, audioTrack }) => {
+      const streamTracks =
+        stream
+          ?.getAudioTracks?.()
+          ?.filter((track) => track.readyState === "live") || [];
+      const livekitMediaTrack =
+        audioTrack?.mediaStreamTrack?.readyState === "live"
+          ? audioTrack.mediaStreamTrack
+          : null;
+      const audioTracks = [...streamTracks, livekitMediaTrack]
+        .filter(Boolean)
+        .filter((track) => {
+          const trackKey = track.id || track.label || `${connectedSourceCount}-${seenTrackIds.size}`;
+          if (seenTrackIds.has(trackKey)) {
+            return false;
+          }
+          seenTrackIds.add(trackKey);
+          return true;
+        });
+
       if (audioTracks.length === 0) {
         return;
       }
@@ -3283,7 +3327,7 @@ const GroupVideoCall = ({
       stream: destination.stream,
       audioContext,
     };
-  }, [localStream, remoteStreams]);
+  }, [localStream, remoteScreenStreams, remoteStreams]);
 
   const mixAllAudio = useCallback(async () => {
     const mixedAudio = await createMixedAudioCapture();
@@ -3466,7 +3510,7 @@ const GroupVideoCall = ({
       document.body.appendChild(recordCanvasHost);
       whiteboardRecordCanvasHostRef.current = recordCanvasHost;
 
-      const videoStream = recordCanvas.captureStream(8);
+      const videoStream = recordCanvas.captureStream(12);
       whiteboardRecordVideoTrackRef.current = videoStream.getVideoTracks?.()?.[0] || null;
       if (whiteboardRecordVideoTrackRef.current) {
         whiteboardRecordVideoTrackRef.current.contentHint = "detail";
@@ -3577,12 +3621,21 @@ const GroupVideoCall = ({
     async () => {
       try {
         const screen = await navigator.mediaDevices.getDisplayMedia({
-          video: true,
+          video: {
+            width: { ideal: 1920 },
+            height: { ideal: 1080 },
+            frameRate: { ideal: 30, max: 30 },
+          },
           audio: false,
         });
         recordScreenStreamRef.current = screen;
         const videoStream = screen;
-        screen.getVideoTracks()[0].onended = () => stopRecording();
+        const screenTrack = screen.getVideoTracks()[0];
+        if (!screenTrack) {
+          throw new Error("No screen video track captured");
+        }
+        screenTrack.contentHint = "detail";
+        screenTrack.onended = () => stopRecording();
 
         // Mix all audio
         const mixedAudio = await createMixedAudioCapture();
@@ -3823,18 +3876,21 @@ const GroupVideoCall = ({
       nextPipWindow.document.body.style.overflow = "hidden";
 
       const copyStylesToPiP = () => {
-        nextPipWindow.document.head.innerHTML = "";
+        nextPipWindow.document.head
+          .querySelectorAll("[data-pip-style-copy]")
+          .forEach((node) => node.remove());
 
         document.querySelectorAll('style, link[rel="stylesheet"]').forEach((node) => {
           if (node.tagName === "STYLE") {
             const newStyle = nextPipWindow.document.createElement("style");
             newStyle.textContent = node.textContent;
-            newStyle.setAttribute("data-origin", "styled-components-copy");
+            newStyle.setAttribute("data-pip-style-copy", "true");
             nextPipWindow.document.head.appendChild(newStyle);
           } else if (node.href) {
             const link = nextPipWindow.document.createElement("link");
             link.rel = "stylesheet";
             link.href = node.href;
+            link.setAttribute("data-pip-style-copy", "true");
             nextPipWindow.document.head.appendChild(link);
           }
         });
@@ -4891,7 +4947,7 @@ const GroupVideoCall = ({
         </QualityIndicatorWrap>
         {isMobileViewport && (
           <TinyBtn
-            onClick={() => setIsSpeakerOn((p) => !p)}
+            onClick={handleSpeakerToggle}
             aria-label={isSpeakerOn ? "Use earpiece" : "Use speaker"}
             title={isSpeakerOn ? "Use earpiece" : "Use speaker"}
           >
@@ -5073,10 +5129,18 @@ const GroupVideoCall = ({
   );
 
   if (isMinimized && pipContainer) {
+    const pipPortalContent = pipWindow?.document?.head ? (
+      <StyleSheetManager target={pipWindow.document.head}>
+        {pipMinimizedContent}
+      </StyleSheetManager>
+    ) : (
+      pipMinimizedContent
+    );
+
     return (
       <>
         {remoteAudioLayer}
-        {createPortal(pipMinimizedContent, pipContainer)}
+        {createPortal(pipPortalContent, pipContainer)}
       </>
     );
   }

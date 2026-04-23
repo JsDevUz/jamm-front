@@ -279,6 +279,7 @@ const buildLivekitCameraCaptureOptions = (
   qualityProfile,
   withScreenShare = false,
   facingMode = "user",
+  deviceId = null,
 ) => {
   const profile = getLivekitCameraProfile(qualityProfile, withScreenShare);
 
@@ -288,6 +289,7 @@ const buildLivekitCameraCaptureOptions = (
       height: profile.height,
       frameRate: profile.frameRate,
     },
+    ...(deviceId ? { deviceId } : {}),
     ...(isLikelyMobileDevice() ? { facingMode } : {}),
   };
 };
@@ -1630,6 +1632,7 @@ export function useWebRTC({
   const iceConfigRef = useRef(buildFallbackIceConfig());
   const livekitRoomRef = useRef(null);
   const livekitConnectPromiseRef = useRef(null);
+  const cameraSwitchPromiseRef = useRef(null);
   const [resolvedLivekitUrl, setResolvedLivekitUrl] = useState(() => LIVEKIT_URL || "");
   const shouldUseLiveKit = Boolean(resolvedLivekitUrl);
 
@@ -3024,6 +3027,10 @@ export function useWebRTC({
 
         if (preferredDevice?.deviceId) {
           return preferredDevice.deviceId;
+        }
+
+        if (!currentDeviceId) {
+          return null;
         }
 
         const fallbackDevice = devices.find((device) => device.deviceId !== currentDeviceId);
@@ -5087,74 +5094,133 @@ export function useWebRTC({
       return false;
     }
 
+    if (cameraSwitchPromiseRef.current) {
+      return cameraSwitchPromiseRef.current;
+    }
+
     const nextFacingMode =
       cameraFacingModeRef.current === "user" ? "environment" : "user";
 
-    if (shouldUseLiveKit) {
-      try {
-        cameraFacingModeRef.current = nextFacingMode;
-        setCameraFacingMode(nextFacingMode);
+    const switchTask = (async () => {
+      if (shouldUseLiveKit) {
+        const previousFacingMode = cameraFacingModeRef.current;
+        try {
+          const nextDeviceId = await pickVideoInputDeviceId(nextFacingMode);
 
-        const room = livekitRoomRef.current;
-        if (room?.localParticipant && isCamOn) {
-          await room.localParticipant.setCameraEnabled(false);
-          await room.localParticipant.setCameraEnabled(
-            true,
-            buildLivekitCameraCaptureOptions(
+          const room = livekitRoomRef.current;
+          if (room?.localParticipant && isCamOn) {
+            const hasActiveScreenShare = Boolean(room.localParticipant.isScreenShareEnabled);
+            const publishOptions = buildLivekitCameraPublishOptions(
               qualityProfileRef.current,
-              Boolean(room.localParticipant.isScreenShareEnabled),
-              nextFacingMode,
-            ),
-            buildLivekitCameraPublishOptions(
-              qualityProfileRef.current,
-              Boolean(room.localParticipant.isScreenShareEnabled),
-            ),
-          );
-          optimizeLivekitLocalTracks(room, qualityProfileRef.current);
-          syncLivekitLocalState(room);
-          emitLocalMediaState({
-            hasVideo: true,
-            videoMuted: false,
-          });
+              hasActiveScreenShare,
+            );
+            await room.localParticipant.setCameraEnabled(false);
+
+            try {
+              await room.localParticipant.setCameraEnabled(
+                true,
+                buildLivekitCameraCaptureOptions(
+                  qualityProfileRef.current,
+                  hasActiveScreenShare,
+                  nextFacingMode,
+                  nextDeviceId,
+                ),
+                publishOptions,
+              );
+            } catch (withDeviceError) {
+              if (!nextDeviceId) {
+                throw withDeviceError;
+              }
+
+              await room.localParticipant.setCameraEnabled(
+                true,
+                buildLivekitCameraCaptureOptions(
+                  qualityProfileRef.current,
+                  hasActiveScreenShare,
+                  nextFacingMode,
+                ),
+                publishOptions,
+              );
+            }
+
+            optimizeLivekitLocalTracks(room, qualityProfileRef.current);
+            syncLivekitLocalState(room);
+            emitLocalMediaState({
+              hasVideo: true,
+              videoMuted: false,
+            });
+          }
+
+          cameraFacingModeRef.current = nextFacingMode;
+          setCameraFacingMode(nextFacingMode);
+          await refreshVideoInputCount();
+          return true;
+        } catch (err) {
+          cameraFacingModeRef.current = previousFacingMode;
+          setCameraFacingMode(previousFacingMode);
+          const room = livekitRoomRef.current;
+          if (room?.localParticipant && isCamOn) {
+            try {
+              const hasActiveScreenShare = Boolean(room.localParticipant.isScreenShareEnabled);
+              await room.localParticipant.setCameraEnabled(
+                true,
+                buildLivekitCameraCaptureOptions(
+                  qualityProfileRef.current,
+                  hasActiveScreenShare,
+                  previousFacingMode,
+                ),
+                buildLivekitCameraPublishOptions(
+                  qualityProfileRef.current,
+                  hasActiveScreenShare,
+                ),
+              );
+              syncLivekitLocalState(room);
+            } catch {}
+          }
+          console.error("Switch camera error:", err);
+          return false;
+        }
+      }
+
+      const currentTrack = localStreamRef.current?.getVideoTracks()[0] || null;
+
+      try {
+        const nextDeviceId = await pickVideoInputDeviceId(nextFacingMode);
+        const nextStream = await navigator.mediaDevices.getUserMedia({
+          video: buildCameraConstraints(nextFacingMode, nextDeviceId),
+          audio: false,
+        });
+        const nextTrack = nextStream.getVideoTracks()[0];
+        if (!nextTrack) {
+          nextStream.getTracks().forEach((track) => track.stop());
+          return false;
         }
 
+        const replaced = await replaceCameraTrack(nextTrack, {
+          enabled: currentTrack?.enabled ?? isCamOn,
+        });
+        if (!replaced) {
+          nextTrack.stop();
+          return false;
+        }
+
+        cameraFacingModeRef.current = nextFacingMode;
+        setCameraFacingMode(nextFacingMode);
         await refreshVideoInputCount();
         return true;
       } catch (err) {
         console.error("Switch camera error:", err);
         return false;
       }
-    }
+    })();
 
-    const currentTrack = localStreamRef.current?.getVideoTracks()[0] || null;
-
+    cameraSwitchPromiseRef.current = switchTask;
     try {
-      const nextDeviceId = await pickVideoInputDeviceId(nextFacingMode);
-      const nextStream = await navigator.mediaDevices.getUserMedia({
-        video: buildCameraConstraints(nextFacingMode, nextDeviceId),
-        audio: false,
-      });
-      const nextTrack = nextStream.getVideoTracks()[0];
-      if (!nextTrack) {
-        nextStream.getTracks().forEach((track) => track.stop());
-        return false;
+      return await switchTask;
+    } finally {
+      if (cameraSwitchPromiseRef.current === switchTask) {
+        cameraSwitchPromiseRef.current = null;
       }
-
-      const replaced = await replaceCameraTrack(nextTrack, {
-        enabled: currentTrack?.enabled ?? isCamOn,
-      });
-      if (!replaced) {
-        nextTrack.stop();
-        return false;
-      }
-
-      cameraFacingModeRef.current = nextFacingMode;
-      setCameraFacingMode(nextFacingMode);
-      await refreshVideoInputCount();
-      return true;
-    } catch (err) {
-      console.error("Switch camera error:", err);
-      return false;
     }
   }, [
     buildLivekitCameraPublishOptions,

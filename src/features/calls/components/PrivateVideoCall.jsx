@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
-import styled from "styled-components";
+import styled, { StyleSheetManager } from "styled-components";
 import {
   Maximize2,
   Mic,
@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { useWebRTC } from "../../../hooks/useWebRTC";
 import useAuthStore from "../../../store/authStore";
+import { applyPreferredAudioOutput } from "../utils/audioOutput";
 
 const attachLivekitTrackOrStream = (node, { track = null, stream = null } = {}) => {
   if (!node) return;
@@ -539,23 +540,25 @@ const PrivateVideoCall = ({
     };
   }, []);
 
+  const applySpeakerPreference = useCallback((speakerOn) => {
+    if (typeof document === "undefined") {
+      return Promise.resolve(false);
+    }
+    return applyPreferredAudioOutput(speakerOn).catch(() => false);
+  }, []);
+
+  const handleSpeakerToggle = useCallback(() => {
+    setIsSpeakerOn((previousValue) => {
+      const nextValue = !previousValue;
+      applySpeakerPreference(nextValue);
+      return nextValue;
+    });
+  }, [applySpeakerPreference]);
+
   useEffect(() => {
     if (!isMobileViewport) return;
-
-    const audioElements = document.querySelectorAll("audio");
-    audioElements.forEach((audio) => {
-      if (audio.setSinkId) {
-        audio.setSinkId(isSpeakerOn ? "default" : "");
-      }
-    });
-
-    const videoElements = document.querySelectorAll("video");
-    videoElements.forEach((video) => {
-      if (video.setSinkId) {
-        video.setSinkId(isSpeakerOn ? "default" : "");
-      }
-    });
-  }, [isMobileViewport, isSpeakerOn]);
+    applySpeakerPreference(isSpeakerOn);
+  }, [applySpeakerPreference, isMobileViewport, isSpeakerOn]);
 
   const handleSwapFeeds = useCallback(() => {
     if (!swapAvailable) return;
@@ -741,7 +744,15 @@ const PrivateVideoCall = ({
 
   if (!isOpen) return null;
   if (isMinimized && pipContainer) {
-    return createPortal(<PiPFrame>{miniContent}</PiPFrame>, pipContainer);
+    const pipPortalContent = pipWindow?.document?.head ? (
+      <StyleSheetManager target={pipWindow.document.head}>
+        <PiPFrame>{miniContent}</PiPFrame>
+      </StyleSheetManager>
+    ) : (
+      <PiPFrame>{miniContent}</PiPFrame>
+    );
+
+    return createPortal(pipPortalContent, pipContainer);
   }
 
   return (
@@ -765,7 +776,7 @@ const PrivateVideoCall = ({
           {isMobileViewport ? (
             <ActionButton
               type="button"
-              onClick={() => setIsSpeakerOn((prev) => !prev)}
+              onClick={handleSpeakerToggle}
               aria-label={isSpeakerOn ? "Use earpiece" : "Use speaker"}
               title={isSpeakerOn ? "Use earpiece" : "Use speaker"}
             >
