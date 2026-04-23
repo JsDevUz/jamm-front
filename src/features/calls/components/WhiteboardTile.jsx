@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import styled from "styled-components";
 import { useTranslation } from "react-i18next";
@@ -69,8 +69,16 @@ const WHITEBOARD_MAX_TEXT_CHARS = 240;
 const WHITEBOARD_VIEWPORT_TOP_SAFE_SPACE = 92;
 const WHITEBOARD_VIEWPORT_BOTTOM_SAFE_SPACE = 176;
 const WHITEBOARD_SELECTION_PADDING = 5;
+const WHITEBOARD_TRANSFORM_GUIDE_THRESHOLD = 10;
+const WHITEBOARD_OBJECT_SNAP_THRESHOLD = 8;
+const WHITEBOARD_SPACING_GUIDE_MAX_DISTANCE = 180;
+const WHITEBOARD_SPACING_GUIDE_MIN_OVERLAP = 18;
 const WHITEBOARD_BOARD_POINT_MIN = -0.5;
 const WHITEBOARD_BOARD_POINT_MAX = 1.5;
+const WHITEBOARD_BOARD_POINT_SPAN =
+  WHITEBOARD_BOARD_POINT_MAX - WHITEBOARD_BOARD_POINT_MIN;
+const WHITEBOARD_WHEEL_ZOOM_SENSITIVITY = 0.0048;
+const WHITEBOARD_PINCH_ZOOM_EXPONENT = 4.5;
 const WHITEBOARD_TEXT_EDITOR_HORIZONTAL_PADDING = 0;
 const WHITEBOARD_TEXT_EDITOR_VERTICAL_PADDING = 0;
 const WHITEBOARD_TEXT_FONT_OPTIONS = [
@@ -722,17 +730,24 @@ const projectStoredPoint = (
   zoomScale = 1,
   surfaceMode = "page",
 ) => {
-  const scale = getSceneScale(zoomScale);
   const x = Number(point?.x);
   const y = Number(point?.y);
   if (!Number.isFinite(x) || !Number.isFinite(y)) {
     return { x: 0, y: 0 };
   }
 
-  if (isBoardZoomOutView(surfaceMode, scale)) {
+  if (surfaceMode === "board") {
+    const boardWidth = Math.max(1, width);
+    const boardHeight = Math.max(1, height);
     return {
-      x: width * 0.5 + (x - 0.5) * width * scale,
-      y: height * 0.5 + (y - 0.5) * height * scale,
+      x:
+        ((clampStoredCoordinate(x, surfaceMode) - WHITEBOARD_BOARD_POINT_MIN) /
+          WHITEBOARD_BOARD_POINT_SPAN) *
+        boardWidth,
+      y:
+        ((clampStoredCoordinate(y, surfaceMode) - WHITEBOARD_BOARD_POINT_MIN) /
+          WHITEBOARD_BOARD_POINT_SPAN) *
+        boardHeight,
     };
   }
 
@@ -751,17 +766,22 @@ const unprojectScreenPoint = (
 ) => {
   const safeWidth = Math.max(1, width);
   const safeHeight = Math.max(1, height);
-  const scale = getSceneScale(zoomScale);
   const x = Number(point?.x);
   const y = Number(point?.y);
   if (!Number.isFinite(x) || !Number.isFinite(y)) {
     return { x: 0, y: 0 };
   }
 
-  if (isBoardZoomOutView(surfaceMode, scale)) {
+  if (surfaceMode === "board") {
     return {
-      x: clampStoredCoordinate(0.5 + (x / safeWidth - 0.5) / scale, surfaceMode),
-      y: clampStoredCoordinate(0.5 + (y / safeHeight - 0.5) / scale, surfaceMode),
+      x: clampStoredCoordinate(
+        WHITEBOARD_BOARD_POINT_MIN + (x / safeWidth) * WHITEBOARD_BOARD_POINT_SPAN,
+        surfaceMode,
+      ),
+      y: clampStoredCoordinate(
+        WHITEBOARD_BOARD_POINT_MIN + (y / safeHeight) * WHITEBOARD_BOARD_POINT_SPAN,
+        surfaceMode,
+      ),
     };
   }
 
@@ -821,6 +841,54 @@ const getTextLayout = (ctx, value, size, options = {}) => {
     textWidth,
     textHeight: Math.max(lineHeight, lines.length * lineHeight),
   };
+};
+
+// ─── Bounding-box helpers (computed once per stroke, cached on stroke object) ──
+
+const computeStrokeBBox = (stroke) => {
+  const points = Array.isArray(stroke?.points) ? stroke.points : [];
+  if (points.length === 0) return { minX: 0, minY: 0, maxX: 1, maxY: 1 };
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (let i = 0; i < points.length; i++) {
+    const px = Number(points[i]?.x);
+    const py = Number(points[i]?.y);
+    if (px < minX) minX = px;
+    if (px > maxX) maxX = px;
+    if (py < minY) minY = py;
+    if (py > maxY) maxY = py;
+  }
+  // Add a small margin for stroke width (0.02 in normalized space)
+  const margin = 0.02;
+  return { minX: minX - margin, minY: minY - margin, maxX: maxX + margin, maxY: maxY + margin };
+};
+
+// Get or compute cached bbox — stored as non-enumerable to avoid JSON issues
+const getStrokeBBox = (stroke) => {
+  if (!stroke) return null;
+  if (stroke.__bbox) return stroke.__bbox;
+  const bbox = computeStrokeBBox(stroke);
+  try {
+    Object.defineProperty(stroke, "__bbox", { value: bbox, writable: true, configurable: true, enumerable: false });
+  } catch (_) { /* frozen objects: skip */ }
+  return bbox;
+};
+
+// Invalidate cached bbox when points change
+const invalidateStrokeBBox = (stroke) => {
+  if (stroke && stroke.__bbox) {
+    try { Object.defineProperty(stroke, "__bbox", { value: null, writable: true, configurable: true, enumerable: false }); } catch (_) {}
+  }
+};
+
+// Returns true if stroke bbox overlaps the viewport (in normalized 0-1 coords)
+// viewport: { left, top, right, bottom } in normalized coords
+const isStrokeInViewport = (stroke, viewport, surfaceMode) => {
+  // Board mode uses -0.5..1.5 range so always include
+  if (surfaceMode === "board") return true;
+  const bbox = getStrokeBBox(stroke);
+  if (!bbox) return true;
+  return bbox.maxX >= viewport.left && bbox.minX <= viewport.right &&
+         bbox.maxY >= viewport.top  && bbox.minY <= viewport.bottom;
 };
 
 const drawStroke = (ctx, stroke, width, height, zoomScale = 1, surfaceMode = "page") => {
@@ -1356,6 +1424,752 @@ const getTextPointFromBox = ({ left, top, width, align }) => ({
   x: align === "center" ? left + width / 2 : align === "right" ? left + width : left,
   y: top,
 });
+
+const clampValue = (value, min, max) => Math.min(Math.max(value, min), max);
+const roundScenePixel = (value) => Math.round((Number(value) || 0) * 2) / 2;
+const amplifyZoomRatio = (ratio, exponent = WHITEBOARD_PINCH_ZOOM_EXPONENT) => {
+  const safeRatio = Math.max(0.01, Number(ratio) || 1);
+  return Math.exp(Math.log(safeRatio) * exponent);
+};
+
+const getTransformMetrics = (transform) => {
+  if (!transform) {
+    return null;
+  }
+
+  const widthPx = Math.max(1, Number(transform.widthPx) || 0);
+  const heightPx = Math.max(1, Number(transform.heightPx) || 0);
+  const centerX = Number(transform.centerX) || 0;
+  const centerY = Number(transform.centerY) || 0;
+
+  return {
+    centerX,
+    centerY,
+    widthPx,
+    heightPx,
+    left: centerX - widthPx / 2,
+    right: centerX + widthPx / 2,
+    top: centerY - heightPx / 2,
+    bottom: centerY + heightPx / 2,
+  };
+};
+
+const getGuideMetricsFromBounds = (bounds) =>
+  getTransformMetrics({
+    centerX: bounds?.centerX,
+    centerY: bounds?.centerY,
+    widthPx: bounds?.widthPx,
+    heightPx: bounds?.heightPx,
+  });
+
+const getTransformSnapPoints = (transform) => {
+  if (!transform) {
+    return [];
+  }
+
+  const centerX = Number(transform.centerX) || 0;
+  const centerY = Number(transform.centerY) || 0;
+  const halfWidth = Math.max(0.5, (Number(transform.widthPx) || 0) / 2);
+  const halfHeight = Math.max(0.5, (Number(transform.heightPx) || 0) / 2);
+  const rotation = Number(transform.rotation) || 0;
+  const center = { x: centerX, y: centerY };
+  const localPoints = [
+    { x: 0, y: 0 },
+    { x: -halfWidth, y: -halfHeight },
+    { x: 0, y: -halfHeight },
+    { x: halfWidth, y: -halfHeight },
+    { x: halfWidth, y: 0 },
+    { x: halfWidth, y: halfHeight },
+    { x: 0, y: halfHeight },
+    { x: -halfWidth, y: halfHeight },
+    { x: -halfWidth, y: 0 },
+  ];
+
+  return localPoints.map((point) =>
+    rotateScenePoint(
+      {
+        x: centerX + point.x,
+        y: centerY + point.y,
+      },
+      center,
+      rotation,
+    ),
+  );
+};
+
+const getResizeHandlePoint = (transform, corner) => {
+  if (!transform || !corner) {
+    return null;
+  }
+
+  const centerX = Number(transform.centerX) || 0;
+  const centerY = Number(transform.centerY) || 0;
+  const halfWidth = Math.max(0.5, (Number(transform.widthPx) || 0) / 2);
+  const halfHeight = Math.max(0.5, (Number(transform.heightPx) || 0) / 2);
+  const rotation = Number(transform.rotation) || 0;
+  const center = { x: centerX, y: centerY };
+  const localPoint = {
+    x: corner.includes("right") ? halfWidth : -halfWidth,
+    y: corner.includes("bottom") ? halfHeight : -halfHeight,
+  };
+
+  return rotateScenePoint(
+    {
+      x: centerX + localPoint.x,
+      y: centerY + localPoint.y,
+    },
+    center,
+    rotation,
+  );
+};
+
+const buildGuideLine = (orientation, position, sourceMetrics, candidateMetrics, kind = "snap") => {
+  if (!sourceMetrics || !candidateMetrics || !Number.isFinite(position)) {
+    return null;
+  }
+
+  if (orientation === "vertical") {
+    const top = Math.max(0, Math.min(sourceMetrics.top, candidateMetrics.top) - 16);
+    const bottom = Math.max(sourceMetrics.bottom, candidateMetrics.bottom) + 16;
+    return {
+      orientation,
+      position,
+      start: top,
+      size: Math.max(0, bottom - top),
+      kind,
+    };
+  }
+
+  const left = Math.max(0, Math.min(sourceMetrics.left, candidateMetrics.left) - 16);
+  const right = Math.max(sourceMetrics.right, candidateMetrics.right) + 16;
+  return {
+    orientation,
+    position,
+    start: left,
+    size: Math.max(0, right - left),
+    kind,
+  };
+};
+
+const getAxisOverlap = (startA, endA, startB, endB) =>
+  Math.min(endA, endB) - Math.max(startA, startB);
+
+const findNearestSpacingGuides = (transform, candidates) => {
+  const metrics = getTransformMetrics(transform);
+  if (!metrics || !Array.isArray(candidates) || !candidates.length) {
+    return [];
+  }
+
+  let bestHorizontal = null;
+  let bestVertical = null;
+
+  candidates.forEach((candidate) => {
+    const candidateMetrics = candidate?.metrics;
+    if (!candidateMetrics) {
+      return;
+    }
+
+    const verticalOverlap = getAxisOverlap(
+      metrics.top,
+      metrics.bottom,
+      candidateMetrics.top,
+      candidateMetrics.bottom,
+    );
+    if (verticalOverlap >= WHITEBOARD_SPACING_GUIDE_MIN_OVERLAP) {
+      if (candidateMetrics.right <= metrics.left) {
+        const distance = metrics.left - candidateMetrics.right;
+        if (
+          distance <= WHITEBOARD_SPACING_GUIDE_MAX_DISTANCE &&
+          (!bestHorizontal || distance < bestHorizontal.distance)
+        ) {
+          const top = Math.max(metrics.top, candidateMetrics.top);
+          const bottom = Math.min(metrics.bottom, candidateMetrics.bottom);
+          bestHorizontal = {
+            orientation: "horizontal",
+            position: (top + bottom) / 2,
+            start: candidateMetrics.right,
+            size: distance,
+            kind: "spacing",
+            label: `${Math.round(distance)}`,
+          };
+        }
+      }
+
+      if (candidateMetrics.left >= metrics.right) {
+        const distance = candidateMetrics.left - metrics.right;
+        if (
+          distance <= WHITEBOARD_SPACING_GUIDE_MAX_DISTANCE &&
+          (!bestHorizontal || distance < bestHorizontal.distance)
+        ) {
+          const top = Math.max(metrics.top, candidateMetrics.top);
+          const bottom = Math.min(metrics.bottom, candidateMetrics.bottom);
+          bestHorizontal = {
+            orientation: "horizontal",
+            position: (top + bottom) / 2,
+            start: metrics.right,
+            size: distance,
+            kind: "spacing",
+            label: `${Math.round(distance)}`,
+          };
+        }
+      }
+    }
+
+    const horizontalOverlap = getAxisOverlap(
+      metrics.left,
+      metrics.right,
+      candidateMetrics.left,
+      candidateMetrics.right,
+    );
+    if (horizontalOverlap >= WHITEBOARD_SPACING_GUIDE_MIN_OVERLAP) {
+      if (candidateMetrics.bottom <= metrics.top) {
+        const distance = metrics.top - candidateMetrics.bottom;
+        if (
+          distance <= WHITEBOARD_SPACING_GUIDE_MAX_DISTANCE &&
+          (!bestVertical || distance < bestVertical.distance)
+        ) {
+          const left = Math.max(metrics.left, candidateMetrics.left);
+          const right = Math.min(metrics.right, candidateMetrics.right);
+          bestVertical = {
+            orientation: "vertical",
+            position: (left + right) / 2,
+            start: candidateMetrics.bottom,
+            size: distance,
+            kind: "spacing",
+            label: `${Math.round(distance)}`,
+          };
+        }
+      }
+
+      if (candidateMetrics.top >= metrics.bottom) {
+        const distance = candidateMetrics.top - metrics.bottom;
+        if (
+          distance <= WHITEBOARD_SPACING_GUIDE_MAX_DISTANCE &&
+          (!bestVertical || distance < bestVertical.distance)
+        ) {
+          const left = Math.max(metrics.left, candidateMetrics.left);
+          const right = Math.min(metrics.right, candidateMetrics.right);
+          bestVertical = {
+            orientation: "vertical",
+            position: (left + right) / 2,
+            start: metrics.bottom,
+            size: distance,
+            kind: "spacing",
+            label: `${Math.round(distance)}`,
+          };
+        }
+      }
+    }
+  });
+
+  return [bestHorizontal, bestVertical].filter(Boolean);
+};
+
+const resolveBalancedSpacingSnap = (transform, candidates) => {
+  const metrics = getTransformMetrics(transform);
+  if (!metrics || !Array.isArray(candidates) || !candidates.length) {
+    return {
+      transform,
+      guideLines: [],
+    };
+  }
+
+  let bestHorizontal = null;
+  let bestVertical = null;
+
+  const filteredCandidates = candidates.filter((candidate) => candidate?.metrics);
+
+  filteredCandidates.forEach((leftCandidate) => {
+    filteredCandidates.forEach((rightCandidate) => {
+      if (leftCandidate.id === rightCandidate.id) {
+        return;
+      }
+
+      const leftMetrics = leftCandidate.metrics;
+      const rightMetrics = rightCandidate.metrics;
+      const overlap = getAxisOverlap(
+        metrics.top,
+        metrics.bottom,
+        Math.max(leftMetrics.top, rightMetrics.top),
+        Math.min(leftMetrics.bottom, rightMetrics.bottom),
+      );
+      if (
+        overlap < WHITEBOARD_SPACING_GUIDE_MIN_OVERLAP ||
+        leftMetrics.right > metrics.left ||
+        rightMetrics.left < metrics.right ||
+        leftMetrics.right >= rightMetrics.left
+      ) {
+        return;
+      }
+
+      const desiredCenterX = (leftMetrics.right + rightMetrics.left) / 2;
+      const distance = Math.abs(desiredCenterX - metrics.centerX);
+      const gap = (rightMetrics.left - leftMetrics.right - metrics.widthPx) / 2;
+      if (
+        gap < 0 ||
+        gap > WHITEBOARD_SPACING_GUIDE_MAX_DISTANCE ||
+        distance > WHITEBOARD_OBJECT_SNAP_THRESHOLD
+      ) {
+        return;
+      }
+
+      if (!bestHorizontal || distance < bestHorizontal.distance) {
+        bestHorizontal = {
+          desiredCenterX,
+          distance,
+          leftMetrics,
+          rightMetrics,
+          gap,
+        };
+      }
+    });
+  });
+
+  filteredCandidates.forEach((topCandidate) => {
+    filteredCandidates.forEach((bottomCandidate) => {
+      if (topCandidate.id === bottomCandidate.id) {
+        return;
+      }
+
+      const topMetrics = topCandidate.metrics;
+      const bottomMetrics = bottomCandidate.metrics;
+      const overlap = getAxisOverlap(
+        metrics.left,
+        metrics.right,
+        Math.max(topMetrics.left, bottomMetrics.left),
+        Math.min(topMetrics.right, bottomMetrics.right),
+      );
+      if (
+        overlap < WHITEBOARD_SPACING_GUIDE_MIN_OVERLAP ||
+        topMetrics.bottom > metrics.top ||
+        bottomMetrics.top < metrics.bottom ||
+        topMetrics.bottom >= bottomMetrics.top
+      ) {
+        return;
+      }
+
+      const desiredCenterY = (topMetrics.bottom + bottomMetrics.top) / 2;
+      const distance = Math.abs(desiredCenterY - metrics.centerY);
+      const gap = (bottomMetrics.top - topMetrics.bottom - metrics.heightPx) / 2;
+      if (
+        gap < 0 ||
+        gap > WHITEBOARD_SPACING_GUIDE_MAX_DISTANCE ||
+        distance > WHITEBOARD_OBJECT_SNAP_THRESHOLD
+      ) {
+        return;
+      }
+
+      if (!bestVertical || distance < bestVertical.distance) {
+        bestVertical = {
+          desiredCenterY,
+          distance,
+          topMetrics,
+          bottomMetrics,
+          gap,
+        };
+      }
+    });
+  });
+
+  const snappedTransform = {
+    ...transform,
+    centerX: bestHorizontal ? bestHorizontal.desiredCenterX : transform.centerX,
+    centerY: bestVertical ? bestVertical.desiredCenterY : transform.centerY,
+  };
+  const snappedMetrics = getTransformMetrics(snappedTransform);
+  const guideLines = [];
+
+  if (bestHorizontal && snappedMetrics) {
+    const guideTop = Math.max(
+      snappedMetrics.top,
+      bestHorizontal.leftMetrics.top,
+      bestHorizontal.rightMetrics.top,
+    );
+    const guideBottom = Math.min(
+      snappedMetrics.bottom,
+      bestHorizontal.leftMetrics.bottom,
+      bestHorizontal.rightMetrics.bottom,
+    );
+    const guideY = (guideTop + guideBottom) / 2;
+    const label = `${Math.round(bestHorizontal.gap)}`;
+    guideLines.push(
+      {
+        orientation: "horizontal",
+        position: guideY,
+        start: bestHorizontal.leftMetrics.right,
+        size: Math.max(0, snappedMetrics.left - bestHorizontal.leftMetrics.right),
+        kind: "spacing",
+        label,
+      },
+      {
+        orientation: "horizontal",
+        position: guideY,
+        start: snappedMetrics.right,
+        size: Math.max(0, bestHorizontal.rightMetrics.left - snappedMetrics.right),
+        kind: "spacing",
+        label,
+      },
+    );
+  }
+
+  if (bestVertical && snappedMetrics) {
+    const guideLeft = Math.max(
+      snappedMetrics.left,
+      bestVertical.topMetrics.left,
+      bestVertical.bottomMetrics.left,
+    );
+    const guideRight = Math.min(
+      snappedMetrics.right,
+      bestVertical.topMetrics.right,
+      bestVertical.bottomMetrics.right,
+    );
+    const guideX = (guideLeft + guideRight) / 2;
+    const label = `${Math.round(bestVertical.gap)}`;
+    guideLines.push(
+      {
+        orientation: "vertical",
+        position: guideX,
+        start: bestVertical.topMetrics.bottom,
+        size: Math.max(0, snappedMetrics.top - bestVertical.topMetrics.bottom),
+        kind: "spacing",
+        label,
+      },
+      {
+        orientation: "vertical",
+        position: guideX,
+        start: snappedMetrics.bottom,
+        size: Math.max(0, bestVertical.bottomMetrics.top - snappedMetrics.bottom),
+        kind: "spacing",
+        label,
+      },
+    );
+  }
+
+  return {
+    transform: snappedTransform,
+    guideLines: guideLines.filter((line) => (line?.size || 0) > 0),
+  };
+};
+
+const resolveResizeSnap = (transform, transformState, candidates) => {
+  if (!transform || !transformState?.corner) {
+    return {
+      transform,
+      guideLines: [],
+    };
+  }
+
+  const metrics = getTransformMetrics(transform);
+  if (!metrics || !Array.isArray(candidates) || !candidates.length) {
+    return {
+      transform,
+      guideLines: [],
+    };
+  }
+
+  const signX = transformState.corner.includes("right") ? 1 : -1;
+  const signY = transformState.corner.includes("bottom") ? 1 : -1;
+  const fixedX = Number(transformState.fixedCornerWorld?.x);
+  const fixedY = Number(transformState.fixedCornerWorld?.y);
+  if (!Number.isFinite(fixedX) || !Number.isFinite(fixedY)) {
+    return {
+      transform,
+      guideLines: [],
+    };
+  }
+
+  const activePoint = getResizeHandlePoint(transform, transformState.corner);
+  if (!activePoint) {
+    return {
+      transform,
+      guideLines: [],
+    };
+  }
+  let bestX = null;
+  let bestY = null;
+
+  candidates.forEach((candidate) => {
+    const candidateMetrics = candidate?.metrics;
+    if (!candidateMetrics || !Array.isArray(candidate.snapPoints) || candidate.snapPoints.length === 0) {
+      return;
+    }
+
+    candidate.snapPoints.forEach((targetPoint) => {
+      const distance = Math.abs(targetPoint.x - activePoint.x);
+      if (distance > WHITEBOARD_OBJECT_SNAP_THRESHOLD) {
+        return;
+      }
+      if (!bestX || distance < bestX.distance) {
+        bestX = {
+          position: targetPoint.x,
+          distance,
+          candidateMetrics,
+        };
+      }
+    });
+
+    candidate.snapPoints.forEach((targetPoint) => {
+      const distance = Math.abs(targetPoint.y - activePoint.y);
+      if (distance > WHITEBOARD_OBJECT_SNAP_THRESHOLD) {
+        return;
+      }
+      if (!bestY || distance < bestY.distance) {
+        bestY = {
+          position: targetPoint.y,
+          distance,
+          candidateMetrics,
+        };
+      }
+    });
+  });
+
+  let widthPx = transform.widthPx;
+  let heightPx = transform.heightPx;
+  let centerX = transform.centerX;
+  let centerY = transform.centerY;
+  let fontPixelSize = transform.fontPixelSize;
+  const snappedActivePoint = {
+    x: bestX ? bestX.position : activePoint.x,
+    y: bestY ? bestY.position : activePoint.y,
+  };
+  const inverseRotation = -(Number(transform.rotation) || 0);
+  const rotatedActivePoint = rotateScenePoint(
+    snappedActivePoint,
+    transformState.fixedCornerWorld,
+    inverseRotation,
+  );
+  const fixedLocal = rotateScenePoint(
+    transformState.fixedCornerWorld,
+    transformState.fixedCornerWorld,
+    inverseRotation,
+  );
+  const vectorLocal = {
+    x: rotatedActivePoint.x - fixedLocal.x,
+    y: rotatedActivePoint.y - fixedLocal.y,
+  };
+  widthPx = Math.max(18, Math.abs(vectorLocal.x));
+  heightPx = Math.max(18, Math.abs(vectorLocal.y));
+  const centerOffsetLocal = {
+    x: vectorLocal.x / 2,
+    y: vectorLocal.y / 2,
+  };
+  const centerWorld = rotateScenePoint(
+    {
+      x: transformState.fixedCornerWorld.x + centerOffsetLocal.x,
+      y: transformState.fixedCornerWorld.y + centerOffsetLocal.y,
+    },
+    transformState.fixedCornerWorld,
+    Number(transform.rotation) || 0,
+  );
+  centerX = centerWorld.x;
+  centerY = centerWorld.y;
+
+  if (transformState.stroke?.tool === "text") {
+    const startWidth = Math.max(1, Number(transformState.startTransform.widthPx) || 1);
+    const startHeight = Math.max(1, Number(transformState.startTransform.heightPx) || 1);
+    const uniformScale = Math.max(0.25, Math.max(widthPx / startWidth, heightPx / startHeight));
+    widthPx = startWidth * uniformScale;
+    heightPx = startHeight * uniformScale;
+    fontPixelSize = Math.max(
+      8,
+      (transformState.startTransform.fontPixelSize || transform.fontPixelSize || 16) * uniformScale,
+    );
+    const textCenterWorld = rotateScenePoint(
+      {
+        x: transformState.fixedCornerWorld.x + signX * widthPx / 2,
+        y: transformState.fixedCornerWorld.y + signY * heightPx / 2,
+      },
+      transformState.fixedCornerWorld,
+      Number(transform.rotation) || 0,
+    );
+    centerX = textCenterWorld.x;
+    centerY = textCenterWorld.y;
+  }
+
+  const snappedTransform = {
+    ...transform,
+    centerX,
+    centerY,
+    widthPx,
+    heightPx,
+    fontPixelSize,
+  };
+  const snappedMetrics = getTransformMetrics(snappedTransform);
+  const guideLines = [];
+
+  if (bestX && snappedMetrics) {
+    const line = buildGuideLine(
+      "vertical",
+      bestX.position,
+      snappedMetrics,
+      bestX.candidateMetrics,
+    );
+    if (line) {
+      guideLines.push(line);
+    }
+  }
+
+  if (bestY && snappedMetrics) {
+    const line = buildGuideLine(
+      "horizontal",
+      bestY.position,
+      snappedMetrics,
+      bestY.candidateMetrics,
+    );
+    if (line) {
+      guideLines.push(line);
+    }
+  }
+
+  return {
+    transform: snappedTransform,
+    guideLines,
+  };
+};
+
+const resolveMoveSnap = (transform, candidates) => {
+  const metrics = getTransformMetrics(transform);
+  if (!metrics || !Array.isArray(candidates) || !candidates.length) {
+    return {
+      transform,
+      guideLines: [],
+    };
+  }
+
+  const sourcePoints = getTransformSnapPoints(transform);
+  let bestX = null;
+  let bestY = null;
+
+  candidates.forEach((candidate) => {
+    if (!candidate?.metrics || !Array.isArray(candidate.snapPoints) || candidate.snapPoints.length === 0) {
+      return;
+    }
+
+    sourcePoints.forEach((sourcePoint) => {
+      candidate.snapPoints.forEach((targetPoint) => {
+        const delta = targetPoint.x - sourcePoint.x;
+        const distance = Math.abs(delta);
+        if (distance > WHITEBOARD_OBJECT_SNAP_THRESHOLD) {
+          return;
+        }
+
+        if (!bestX || distance < bestX.distance) {
+          bestX = {
+            delta,
+            distance,
+            position: targetPoint.x,
+            candidateMetrics: candidate.metrics,
+          };
+        }
+      });
+    });
+
+    sourcePoints.forEach((sourcePoint) => {
+      candidate.snapPoints.forEach((targetPoint) => {
+        const delta = targetPoint.y - sourcePoint.y;
+        const distance = Math.abs(delta);
+        if (distance > WHITEBOARD_OBJECT_SNAP_THRESHOLD) {
+          return;
+        }
+
+        if (!bestY || distance < bestY.distance) {
+          bestY = {
+            delta,
+            distance,
+            position: targetPoint.y,
+            candidateMetrics: candidate.metrics,
+          };
+        }
+      });
+    });
+  });
+
+  const snappedTransform = {
+    ...transform,
+    centerX: transform.centerX + (bestX?.delta || 0),
+    centerY: transform.centerY + (bestY?.delta || 0),
+  };
+  const snappedMetrics = getTransformMetrics(snappedTransform);
+  const guideLines = [];
+
+  if (bestX && snappedMetrics) {
+    const verticalLine = buildGuideLine(
+      "vertical",
+      bestX.position,
+      snappedMetrics,
+      bestX.candidateMetrics,
+    );
+    if (verticalLine) {
+      guideLines.push(verticalLine);
+    }
+  }
+
+  if (bestY && snappedMetrics) {
+    const horizontalLine = buildGuideLine(
+      "horizontal",
+      bestY.position,
+      snappedMetrics,
+      bestY.candidateMetrics,
+    );
+    if (horizontalLine) {
+      guideLines.push(horizontalLine);
+    }
+  }
+
+  return {
+    transform: snappedTransform,
+    guideLines,
+  };
+};
+
+const buildTransformGuideState = (transform, mode, extraGuideLines = []) => {
+  if (!transform || (mode !== "move" && mode !== "resize")) {
+    return null;
+  }
+
+  const lines = [];
+  const safeSurfaceWidth = Math.max(1, Number(transform.surfaceWidth) || 0);
+  const safeSurfaceHeight = Math.max(1, Number(transform.surfaceHeight) || 0);
+  const centerGuideX = safeSurfaceWidth / 2;
+  const centerGuideY = safeSurfaceHeight / 2;
+  if (Math.abs((transform.centerX || 0) - centerGuideX) <= WHITEBOARD_TRANSFORM_GUIDE_THRESHOLD) {
+    lines.push({
+      orientation: "vertical",
+      position: centerGuideX,
+      start: 0,
+      size: safeSurfaceHeight,
+      kind: "center",
+    });
+  }
+  if (Math.abs((transform.centerY || 0) - centerGuideY) <= WHITEBOARD_TRANSFORM_GUIDE_THRESHOLD) {
+    lines.push({
+      orientation: "horizontal",
+      position: centerGuideY,
+      start: 0,
+      size: safeSurfaceWidth,
+      kind: "center",
+    });
+  }
+  if (Array.isArray(extraGuideLines) && extraGuideLines.length) {
+    lines.push(...extraGuideLines.filter(Boolean));
+  }
+  const widthPx = Math.max(1, Math.round(Number(transform.widthPx) || 0));
+  const heightPx = Math.max(1, Math.round(Number(transform.heightPx) || 0));
+  const labelX = clampValue(transform.centerX || centerGuideX, 68, safeSurfaceWidth - 68);
+  const labelY = clampValue(
+    (transform.centerY || centerGuideY) - (transform.heightPx || 0) / 2 - 16,
+    22,
+    safeSurfaceHeight - 22,
+  );
+
+  return {
+    mode,
+    lines,
+    label: `${widthPx} × ${heightPx}`,
+    labelX,
+    labelY,
+  };
+};
 
 const getStrokeSelectionBounds = (
   stroke,
@@ -2286,16 +3100,22 @@ const BoardSceneGrid = styled.div`
 `;
 
 const getBoardFrameOffset = (viewport, frame) => {
-  if (!viewport || !frame) {
+  if (!viewport) {
     return { left: 0, top: 0 };
   }
 
-  const viewportRect = viewport.getBoundingClientRect();
-  const frameRect = frame.getBoundingClientRect();
+  const frameWidth = Math.max(
+    0,
+    frame?.offsetWidth || frame?.clientWidth || frame?.getBoundingClientRect?.().width || 0,
+  );
+  const frameHeight = Math.max(
+    0,
+    frame?.offsetHeight || frame?.clientHeight || frame?.getBoundingClientRect?.().height || 0,
+  );
 
   return {
-    left: frameRect.left - viewportRect.left + viewport.scrollLeft,
-    top: frameRect.top - viewportRect.top + viewport.scrollTop,
+    left: Math.max(0, (viewport.clientWidth - frameWidth) / 2),
+    top: Math.max(0, (viewport.clientHeight - frameHeight) / 2),
   };
 };
 
@@ -2419,6 +3239,19 @@ const StrokeLayerRoot = styled.div`
 
 const StrokeCanvasEl = styled.canvas`
   display: block;
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+  pointer-events: none;
+`;
+
+// Active layer — on top, receives pointer events
+const ActiveCanvasEl = styled.canvas`
+  display: block;
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
   touch-action: none;
@@ -2552,7 +3385,55 @@ const ShapeSelectionCornerButton = styled.button`
         ? "nesw-resize"
         : p.$bottom && p.$left
           ? "nesw-resize"
-          : "nwse-resize"};
+      : "nwse-resize"};
+`;
+
+const TransformGuideLayer = styled.div`
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+`;
+
+const TransformGuideLine = styled.div`
+  position: absolute;
+  background: rgba(107, 108, 255, 0.48);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.72);
+`;
+
+const TransformGuideBadge = styled.div`
+  position: absolute;
+  z-index: 6;
+  min-width: 86px;
+  padding: 6px 10px;
+  transform: translate(-50%, -100%);
+  border: 1px solid rgba(107, 108, 255, 0.28);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 14px 28px rgba(15, 23, 42, 0.12);
+  color: #4c51bf;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  text-align: center;
+  white-space: nowrap;
+`;
+
+const TransformGuideHint = styled.div`
+  position: absolute;
+  z-index: 6;
+  padding: 4px 8px;
+  transform: translate(-50%, -50%);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 10px 20px rgba(15, 23, 42, 0.1);
+  color: #b45309;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  pointer-events: none;
+  white-space: nowrap;
 `;
 
 const TileLabel = styled.div`
@@ -3240,7 +4121,10 @@ const StrokeCanvas = ({
   onToolChange,
   onTextEditorStateChange,
 }) => {
+  // Layer 1: persisted strokes (redraws only when committed strokes change)
   const canvasRef = useRef(null);
+  // Layer 2: active drawing — draft stroke + shape preview (60fps loop)
+  const activeCanvasRef = useRef(null);
   const surfaceRef = useRef(null);
   const canvasSizeRef = useRef({ width: 0, height: 0 });
   const pointerStateRef = useRef(null);
@@ -3261,10 +4145,15 @@ const StrokeCanvas = ({
   });
   const fallbackMeasureCanvasRef = useRef(null);
   const draftStrokeRef = useRef(null);
+  // Cached surface bounding rect — updated on pointerdown, reused in pointermove to avoid layout thrashing
+  const surfaceRectCacheRef = useRef(null);
+  // Active layer RAF handle
+  const activeLayerRafRef = useRef(0);
   const [surfaceSize, setSurfaceSize] = useState({ width: 0, height: 0 });
   const [textEditor, setTextEditor] = useState(null);
   const [selectedShapeId, setSelectedShapeId] = useState("");
   const [shapePreviewStroke, setShapePreviewStroke] = useState(null);
+  const [shapeTransformGuides, setShapeTransformGuides] = useState(null);
   latestTextStyleRef.current = {
     color,
     size: brushSize,
@@ -3302,6 +4191,7 @@ const StrokeCanvas = ({
   surfaceModeRef.current = surfaceMode;
   textEditorStrokeIdRef.current = textEditor?.strokeId || "";
 
+  // ─── Persisted layer (Layer 1): only committed strokes, viewport-culled ────────
   const performRedraw = useCallback(() => {
     redrawPendingRef.current = false;
     redrawRafRef.current = 0;
@@ -3314,28 +4204,63 @@ const StrokeCanvas = ({
     if (!ctx) return;
 
     const currentStrokes = strokesRef.current;
-    const currentShapePreview = shapePreviewStrokeRef.current;
     const currentZoom = zoomScaleRef.current;
     const currentSurfaceMode = surfaceModeRef.current;
     const editingStrokeId = textEditorStrokeIdRef.current;
-    const previewShapeStrokeId = currentShapePreview?.id || "";
+    const previewShapeStrokeId = shapePreviewStrokeRef.current?.id || "";
     const draftStrokeId = draftStrokeRef.current?.id || "";
 
+    // Build viewport in normalized coords for culling (page mode only)
+    const viewport = currentSurfaceMode === "page" ? {
+      left: 0, top: 0, right: 1, bottom: 1,
+    } : null;
+
     ctx.clearRect(0, 0, width, height);
-    (Array.isArray(currentStrokes) ? currentStrokes : []).forEach((stroke) => {
-      if (
-        (editingStrokeId && stroke?.id === editingStrokeId) ||
-        (previewShapeStrokeId && stroke?.id === previewShapeStrokeId) ||
-        (draftStrokeId && stroke?.id === draftStrokeId)
-      ) return;
+    const strokeList = Array.isArray(currentStrokes) ? currentStrokes : [];
+    for (let i = 0; i < strokeList.length; i++) {
+      const stroke = strokeList[i];
+      if (!stroke) continue;
+      // Skip strokes rendered on active layer
+      if ((editingStrokeId && stroke.id === editingStrokeId) ||
+          (previewShapeStrokeId && stroke.id === previewShapeStrokeId) ||
+          (draftStrokeId && stroke.id === draftStrokeId)) continue;
+      // Viewport culling — skip off-screen strokes
+      if (viewport && !isStrokeInViewport(stroke, viewport, currentSurfaceMode)) continue;
       drawStroke(ctx, stroke, width, height, currentZoom, currentSurfaceMode);
-    });
-    if (currentShapePreview) {
-      drawStroke(ctx, currentShapePreview, width, height, currentZoom, currentSurfaceMode);
     }
-    if (draftStrokeRef.current) {
-      drawStroke(ctx, draftStrokeRef.current, width, height, currentZoom, currentSurfaceMode);
+  }, []);
+
+  // ─── Active layer (Layer 2): draft stroke + shape preview, runs at 60fps ──────
+  const renderActiveLayer = useCallback(() => {
+    const canvas = activeCanvasRef.current;
+    const { width, height } = canvasSizeRef.current;
+    if (!canvas || width <= 0 || height <= 0) {
+      activeLayerRafRef.current = window.requestAnimationFrame(renderActiveLayer);
+      return;
     }
+    const ctx = canvas.getContext("2d");
+    if (!ctx) {
+      activeLayerRafRef.current = window.requestAnimationFrame(renderActiveLayer);
+      return;
+    }
+    const currentZoom = zoomScaleRef.current;
+    const currentSurfaceMode = surfaceModeRef.current;
+    const hasDraft = Boolean(draftStrokeRef.current);
+    const hasPreview = Boolean(shapePreviewStrokeRef.current);
+
+    if (hasDraft || hasPreview) {
+      ctx.clearRect(0, 0, width, height);
+      if (shapePreviewStrokeRef.current) {
+        drawStroke(ctx, shapePreviewStrokeRef.current, width, height, currentZoom, currentSurfaceMode);
+      }
+      if (draftStrokeRef.current) {
+        drawStroke(ctx, draftStrokeRef.current, width, height, currentZoom, currentSurfaceMode);
+      }
+    } else {
+      // Nothing active — clear once then stop clearing every frame
+      ctx.clearRect(0, 0, width, height);
+    }
+    activeLayerRafRef.current = window.requestAnimationFrame(renderActiveLayer);
   }, []);
 
   const redrawCanvas = useCallback(() => {
@@ -3356,6 +4281,7 @@ const StrokeCanvas = ({
 
   useEffect(() => {
     const canvas = canvasRef.current;
+    const activeCanvas = activeCanvasRef.current;
     const surface = surfaceRef.current;
     if (!canvas || !surface) {
       return undefined;
@@ -3374,17 +4300,24 @@ const StrokeCanvas = ({
       );
       const ratio = Math.min(2, window.devicePixelRatio || 1);
 
+      // Resize persisted layer
       canvas.width = Math.round(width * ratio);
       canvas.height = Math.round(height * ratio);
       canvas.style.width = `${width}px`;
       canvas.style.height = `${height}px`;
-
       const ctx = canvas.getContext("2d");
-      if (!ctx) {
-        return;
+      if (ctx) ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+
+      // Resize active layer
+      if (activeCanvas) {
+        activeCanvas.width = Math.round(width * ratio);
+        activeCanvas.height = Math.round(height * ratio);
+        activeCanvas.style.width = `${width}px`;
+        activeCanvas.style.height = `${height}px`;
+        const actx = activeCanvas.getContext("2d");
+        if (actx) actx.setTransform(ratio, 0, 0, ratio, 0, 0);
       }
 
-      ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
       canvasSizeRef.current = { width, height };
       setSurfaceSize({ width, height });
       redrawCanvasImmediate();
@@ -3396,14 +4329,21 @@ const StrokeCanvas = ({
     });
     resizeObserver.observe(surface);
 
+    // Start active layer loop
+    activeLayerRafRef.current = window.requestAnimationFrame(renderActiveLayer);
+
     return () => {
       resizeObserver.disconnect();
       if (redrawRafRef.current) {
         window.cancelAnimationFrame(redrawRafRef.current);
         redrawRafRef.current = 0;
       }
+      if (activeLayerRafRef.current) {
+        window.cancelAnimationFrame(activeLayerRafRef.current);
+        activeLayerRafRef.current = 0;
+      }
     };
-  }, [redrawCanvasImmediate]);
+  }, [redrawCanvasImmediate, renderActiveLayer]);
 
   // Trigger redraw when strokes/zoom/mode change — RAF-batched so rapid updates don't pile up
   useEffect(() => {
@@ -3538,13 +4478,10 @@ const StrokeCanvas = ({
   );
 
   const resolvePoint = useCallback((event) => {
-    const surface = surfaceRef.current;
-    if (!surface) {
-      return null;
-    }
-
-    const rect = surface.getBoundingClientRect();
-    if (!rect.width || !rect.height) {
+    // Use cached rect during an active drag to avoid getBoundingClientRect layout thrashing
+    // (causes jitter at high zoom levels). Cache is refreshed on every pointerdown.
+    const rect = surfaceRectCacheRef.current ?? surfaceRef.current?.getBoundingClientRect();
+    if (!rect || !rect.width || !rect.height) {
       return null;
     }
 
@@ -3970,13 +4907,15 @@ const StrokeCanvas = ({
         redrawCanvas();
       }
 
-      const canvas = canvasRef.current;
-      if (canvas && event?.pointerId) {
+      const activeCanvas = activeCanvasRef.current;
+      if (activeCanvas && event?.pointerId) {
         try {
-          canvas.releasePointerCapture(event.pointerId);
+          activeCanvas.releasePointerCapture(event.pointerId);
         } catch {}
       }
 
+      // Release the cached surface rect so it's re-measured on next pointerdown
+      surfaceRectCacheRef.current = null;
       pointerStateRef.current = null;
     },
     [
@@ -4002,6 +4941,10 @@ const StrokeCanvas = ({
 
       event.preventDefault();
       event.stopPropagation();
+
+      // Snapshot the surface rect here so pointermove can reuse it without triggering
+      // layout recalculation on every frame (main cause of jitter at high zoom).
+      surfaceRectCacheRef.current = surfaceRef.current?.getBoundingClientRect() ?? null;
 
       const point = resolvePoint(event);
       if (!point) {
@@ -4110,7 +5053,7 @@ const StrokeCanvas = ({
           removedStrokeIds: new Set(),
         };
 
-        canvasRef.current?.setPointerCapture?.(event.pointerId);
+        activeCanvasRef.current?.setPointerCapture?.(event.pointerId);
         eraseWholeStrokeAtPoint(point);
         return;
       }
@@ -4133,7 +5076,7 @@ const StrokeCanvas = ({
           size: brushSize,
           points: [point, point],
         };
-        canvasRef.current?.setPointerCapture?.(event.pointerId);
+        activeCanvasRef.current?.setPointerCapture?.(event.pointerId);
         redrawCanvas();
         return;
       }
@@ -4154,7 +5097,7 @@ const StrokeCanvas = ({
         points: [point],
       };
 
-      canvasRef.current?.setPointerCapture?.(event.pointerId);
+      activeCanvasRef.current?.setPointerCapture?.(event.pointerId);
       onStrokeStart?.({
         tabId,
         pageNumber,
@@ -4405,6 +5348,51 @@ const StrokeCanvas = ({
     zoomScale,
   ]);
 
+  const snapCandidates = useMemo(() => {
+    const sourceStrokes = Array.isArray(strokes) ? strokes : [];
+    if (!sourceStrokes.length || surfaceSize.width <= 0 || surfaceSize.height <= 0) {
+      return [];
+    }
+
+    const measureContext = getMeasureContext();
+    return sourceStrokes
+      .filter(
+        (stroke) =>
+          stroke?.id &&
+          stroke.id !== selectedShapeId &&
+          (isShapeTool(stroke.tool) || stroke.tool === "text"),
+      )
+      .map((stroke) => {
+        const bounds = getStrokeSelectionBounds(
+          stroke,
+          surfaceSize.width,
+          surfaceSize.height,
+          zoomScale,
+          measureContext,
+          surfaceMode,
+        );
+        const metrics = getGuideMetricsFromBounds(bounds);
+        if (!bounds || !metrics) {
+          return null;
+        }
+
+        return {
+          id: stroke.id,
+          metrics,
+          snapPoints: getTransformSnapPoints(bounds),
+        };
+      })
+      .filter(Boolean);
+  }, [
+    getMeasureContext,
+    selectedShapeId,
+    strokes,
+    surfaceMode,
+    surfaceSize.height,
+    surfaceSize.width,
+    zoomScale,
+  ]);
+
   useEffect(() => {
     const getScenePointFromEvent = (event, transformState) => {
       const surfaceRect = transformState?.surfaceRect;
@@ -4516,6 +5504,21 @@ const StrokeCanvas = ({
         return;
       }
 
+      let extraGuideLines = [];
+      if (transformState.mode === "move") {
+        const snapResult = resolveMoveSnap(nextTransform, snapCandidates);
+        nextTransform = snapResult.transform;
+        const balancedSpacingResult = resolveBalancedSpacingSnap(nextTransform, snapCandidates);
+        nextTransform = balancedSpacingResult.transform;
+        extraGuideLines = balancedSpacingResult.guideLines.length
+          ? [...snapResult.guideLines, ...balancedSpacingResult.guideLines]
+          : [...snapResult.guideLines, ...findNearestSpacingGuides(nextTransform, snapCandidates)];
+      } else if (transformState.mode === "resize") {
+        const resizeSnapResult = resolveResizeSnap(nextTransform, transformState, snapCandidates);
+        nextTransform = resizeSnapResult.transform;
+        extraGuideLines = resizeSnapResult.guideLines;
+      }
+
       const nextStroke =
         transformState.stroke?.tool === "text"
           ? createTextStrokeFromTransform(transformState.stroke, nextTransform)
@@ -4525,6 +5528,9 @@ const StrokeCanvas = ({
         lastStroke: nextStroke,
       };
       setShapePreviewStroke(nextStroke);
+      setShapeTransformGuides(
+        buildTransformGuideState(nextTransform, transformState.mode, extraGuideLines),
+      );
     };
 
     const handleShapeTransformEnd = (event) => {
@@ -4536,6 +5542,7 @@ const StrokeCanvas = ({
       shapeTransformStateRef.current = null;
       const nextStroke = transformState.lastStroke;
       setShapePreviewStroke(null);
+      setShapeTransformGuides(null);
       if (!nextStroke) {
         return;
       }
@@ -4565,7 +5572,7 @@ const StrokeCanvas = ({
       window.removeEventListener("pointerup", handleShapeTransformEnd);
       window.removeEventListener("pointercancel", handleShapeTransformEnd);
     };
-  }, [onStrokeUpdate, pageNumber, tabId]);
+  }, [onStrokeUpdate, pageNumber, snapCandidates, tabId]);
 
   const beginShapeTransform = useCallback(
     (event, mode, corner = null) => {
@@ -4595,6 +5602,7 @@ const StrokeCanvas = ({
         surfaceRect,
         lastStroke: selectedStroke,
       };
+      setShapeTransformGuides(buildTransformGuideState(selectedStrokeBounds, mode));
 
       if (mode === "rotate") {
         shapeTransformStateRef.current = {
@@ -4715,8 +5723,11 @@ const StrokeCanvas = ({
 
   return (
     <StrokeLayerRoot ref={surfaceRef}>
-      <StrokeCanvasEl
-        ref={canvasRef}
+      {/* Layer 1: persisted strokes */}
+      <StrokeCanvasEl ref={canvasRef} />
+      {/* Layer 2: active draft + shape preview + pointer events */}
+      <ActiveCanvasEl
+        ref={activeCanvasRef}
         $interactive={interactive}
         $tool={tool}
         onPointerDown={handlePointerDown}
@@ -4724,6 +5735,77 @@ const StrokeCanvas = ({
         onPointerUp={stopDrawing}
         onPointerCancel={stopDrawing}
       />
+      {shapeTransformGuides ? (
+        <TransformGuideLayer>
+          {shapeTransformGuides.lines?.map((line, index) =>
+            line?.orientation === "vertical" ? (
+              <React.Fragment key={`vertical-${index}`}>
+                <TransformGuideLine
+                  style={{
+                    left: `${line.position}px`,
+                    top: `${line.start || 0}px`,
+                    width: "1px",
+                    height: `${line.size || 0}px`,
+                    transform: "translateX(-0.5px)",
+                    background:
+                      line.kind === "spacing"
+                        ? "rgba(245, 158, 11, 0.62)"
+                        : line.kind === "snap"
+                          ? "rgba(16, 185, 129, 0.58)"
+                          : "rgba(107, 108, 255, 0.48)",
+                  }}
+                />
+                {line.label ? (
+                  <TransformGuideHint
+                    style={{
+                      left: `${line.position}px`,
+                      top: `${(line.start || 0) + (line.size || 0) / 2}px`,
+                    }}
+                  >
+                    {line.label}
+                  </TransformGuideHint>
+                ) : null}
+              </React.Fragment>
+            ) : (
+              <React.Fragment key={`horizontal-${index}`}>
+                <TransformGuideLine
+                  style={{
+                    left: `${line.start || 0}px`,
+                    top: `${line.position}px`,
+                    width: `${line.size || 0}px`,
+                    height: "1px",
+                    transform: "translateY(-0.5px)",
+                    background:
+                      line.kind === "spacing"
+                        ? "rgba(245, 158, 11, 0.62)"
+                        : line.kind === "snap"
+                          ? "rgba(16, 185, 129, 0.58)"
+                          : "rgba(107, 108, 255, 0.48)",
+                  }}
+                />
+                {line.label ? (
+                  <TransformGuideHint
+                    style={{
+                      left: `${(line.start || 0) + (line.size || 0) / 2}px`,
+                      top: `${line.position}px`,
+                    }}
+                  >
+                    {line.label}
+                  </TransformGuideHint>
+                ) : null}
+              </React.Fragment>
+            ),
+          )}
+          <TransformGuideBadge
+            style={{
+              left: `${shapeTransformGuides.labelX}px`,
+              top: `${shapeTransformGuides.labelY}px`,
+            }}
+          >
+            {shapeTransformGuides.label}
+          </TransformGuideBadge>
+        </TransformGuideLayer>
+      ) : null}
       {interactive && tool === "select" && selectedStrokeBounds ? (
         <ShapeSelectionOverlay
           style={{
@@ -4893,6 +5975,7 @@ const WhiteboardTile = ({
   recordingReady = false,
   showToolbar = false,
   remoteCursor = null,
+  participantCount = 1,
 }) => {
   const { t } = useTranslation();
   const fileInputRef = useRef(null);
@@ -4915,10 +5998,14 @@ const WhiteboardTile = ({
   const pdfUserGestureRef = useRef(false);
   const livePdfZoomRef = useRef(1);
   const liveBoardZoomRef = useRef(1);
+  const boardZoomAnimationRafRef = useRef(0);
+  const boardZoomAnimationTargetRef = useRef(null);
+  const boardZoomAnimationAnchorRef = useRef(null);
   const pendingInteractivePdfZoomRef = useRef(null);
   const pendingInteractiveBoardZoomRef = useRef(null);
   const lastPdfTabIdRef = useRef(null);
   const lastBoardTabIdRef = useRef(null);
+  const boardInitialViewportSeededRef = useRef(false);
   const pinchStateRef = useRef({
     active: false,
     distance: 0,
@@ -4991,7 +6078,14 @@ const WhiteboardTile = ({
   const cursorBroadcastRafRef = useRef(0);
   const cursorBroadcastPointRef = useRef(null);
   const cursorBroadcastLastTimeRef = useRef(0);
-  const CURSOR_BROADCAST_INTERVAL_MS = 80; // ~12.5 updates/s — smooth enough, not spammy
+  const cursorBroadcastLastEmitRef = useRef({ x: -1, y: -1 });
+  // Adaptive throttle: fewer updates when many participants (saves socket bandwidth)
+  const CURSOR_BROADCAST_INTERVAL_MS =
+    participantCount >= 50 ? 250 :
+    participantCount >= 30 ? 150 :
+    participantCount >= 10 ? 100 : 80;
+  // Dead-zone: skip emit if cursor barely moved (saves ~40% of cursor events)
+  const CURSOR_DEAD_ZONE_SQ = 0.0008 * 0.0008;
 
   const tabs = Array.isArray(workspace?.tabs) ? workspace.tabs : [];
   const pdfLibrary = Array.isArray(workspace?.pdfLibrary) ? workspace.pdfLibrary : [];
@@ -5013,6 +6107,8 @@ const WhiteboardTile = ({
     WHITEBOARD_MIN_BOARD_BASE_HEIGHT,
     Math.round(Number(boardTab?.viewportBaseHeight) || boardViewportSize.height || 0) || 0,
   );
+  const hasSyncedBoardScrollLeftRatio = Number.isFinite(Number(boardTab?.scrollLeftRatio));
+  const hasSyncedBoardScrollTopRatio = Number.isFinite(Number(boardTab?.scrollTopRatio));
   const syncedBoardScrollLeftRatio = clampViewportRatio(boardTab?.scrollLeftRatio);
   const syncedBoardScrollTopRatio = clampViewportRatio(boardTab?.scrollTopRatio);
   const syncedPdfViewportBaseHeight =
@@ -5215,32 +6311,31 @@ const WhiteboardTile = ({
     [],
   );
   const activeBoardRenderScale = getBoardRenderScale(activeBoardZoom);
-  const activeBoardFrameWidth = Math.max(
+  const activeBoardWorldScale = activeBoardRenderScale * WHITEBOARD_BOARD_POINT_SPAN;
+  const activeBoardFrameWidth = roundScenePixel(Math.max(
     1,
-    activeBoardBaseWidth,
-    activeBoardBaseWidth * activeBoardRenderScale,
-  );
-  const activeBoardFrameHeight = Math.max(
+    activeBoardBaseWidth * activeBoardWorldScale,
+  ));
+  const activeBoardFrameHeight = roundScenePixel(Math.max(
     1,
-    activeBoardBaseHeight,
-    activeBoardBaseHeight * activeBoardRenderScale,
-  );
-  const activeBoardSceneWidth = Math.max(
+    activeBoardBaseHeight * activeBoardWorldScale,
+  ));
+  const activeBoardSceneWidth = roundScenePixel(Math.max(
     1,
-    activeBoardBaseWidth * activeBoardRenderScale,
-  );
-  const activeBoardSceneHeight = Math.max(
+    activeBoardBaseWidth * activeBoardWorldScale,
+  ));
+  const activeBoardSceneHeight = roundScenePixel(Math.max(
     1,
-    activeBoardBaseHeight * activeBoardRenderScale,
-  );
-  const activeBoardSceneOffsetLeft = Math.max(
+    activeBoardBaseHeight * activeBoardWorldScale,
+  ));
+  const activeBoardSceneOffsetLeft = roundScenePixel(Math.max(
     0,
     (activeBoardFrameWidth - activeBoardSceneWidth) / 2,
-  );
-  const activeBoardSceneOffsetTop = Math.max(
+  ));
+  const activeBoardSceneOffsetTop = roundScenePixel(Math.max(
     0,
     (activeBoardFrameHeight - activeBoardSceneHeight) / 2,
-  );
+  ));
   const shouldUseContainedMobilePdfViewport =
     interactive && isMobile && activeTab?.type === "pdf";
   const shouldMirrorRemotePdfViewportInsets =
@@ -5436,6 +6531,12 @@ const WhiteboardTile = ({
 
   useEffect(() => {
     return () => {
+      if (boardZoomAnimationRafRef.current) {
+        window.cancelAnimationFrame(boardZoomAnimationRafRef.current);
+        boardZoomAnimationRafRef.current = 0;
+      }
+      boardZoomAnimationTargetRef.current = null;
+      boardZoomAnimationAnchorRef.current = null;
       if (cursorBroadcastRafRef.current) {
         window.clearTimeout(cursorBroadcastRafRef.current);
         cursorBroadcastRafRef.current = 0;
@@ -5706,6 +6807,38 @@ const WhiteboardTile = ({
     [interactive, onBoardZoomChange],
   );
 
+  const syncCurrentBoardViewport = useCallback(
+    (zoomValue = liveBoardZoomRef.current) => {
+      const viewport = boardViewportRef.current;
+      if (!viewport || activeTab?.type === "pdf") {
+        return;
+      }
+
+      const maxScrollLeft = Math.max(0, viewport.scrollWidth - viewport.clientWidth);
+      const maxScrollTop = Math.max(0, viewport.scrollHeight - viewport.clientHeight);
+      scheduleBoardViewportSync({
+        tabId: WHITEBOARD_BOARD_TAB_ID,
+        zoom: Math.min(
+          WHITEBOARD_MAX_ZOOM,
+          Math.max(WHITEBOARD_MIN_ZOOM, Number(zoomValue) || liveBoardZoomRef.current || 1),
+        ),
+        viewportBaseWidth: Math.max(
+          WHITEBOARD_MIN_BOARD_BASE_WIDTH,
+          Math.round(boardViewportSize.width || viewport.clientWidth || 0) ||
+            WHITEBOARD_MIN_BOARD_BASE_WIDTH,
+        ),
+        viewportBaseHeight: Math.max(
+          WHITEBOARD_MIN_BOARD_BASE_HEIGHT,
+          Math.round(boardViewportSize.height || viewport.clientHeight || 0) ||
+            WHITEBOARD_MIN_BOARD_BASE_HEIGHT,
+        ),
+        scrollLeftRatio: maxScrollLeft > 0 ? clampViewportRatio(viewport.scrollLeft / maxScrollLeft) : 0,
+        scrollTopRatio: maxScrollTop > 0 ? clampViewportRatio(viewport.scrollTop / maxScrollTop) : 0,
+      });
+    },
+    [activeTab?.type, boardViewportSize.height, boardViewportSize.width, scheduleBoardViewportSync],
+  );
+
   useEffect(() => {
     return () => {
       pdfPageBitmapCacheRef.current.clear();
@@ -5744,12 +6877,22 @@ const WhiteboardTile = ({
 
       const clampedX = Math.min(1, Math.max(0, Number(x) || 0));
       const clampedY = Math.min(1, Math.max(0, Number(y) || 0));
+
+      // Dead-zone: skip if position hasn't moved enough (normalized coords)
+      const last = cursorBroadcastLastEmitRef.current;
+      const dx = clampedX - last.x;
+      const dy = clampedY - last.y;
+      if (dx * dx + dy * dy < CURSOR_DEAD_ZONE_SQ) {
+        return;
+      }
+      cursorBroadcastLastEmitRef.current = { x: clampedX, y: clampedY };
+
       onCursorMove?.({
         x: clampedX,
         y: clampedY,
       });
     },
-    [interactive, isActive, onCursorMove],
+    [interactive, isActive, onCursorMove, CURSOR_DEAD_ZONE_SQ],
   );
 
   const handleWorkspacePointerMove = useCallback(
@@ -5843,6 +6986,55 @@ const WhiteboardTile = ({
     },
     [onToggleFullscreen],
   );
+
+  // ─── Cursor interpolation — lerp toward target for smooth movement ───────────
+  const cursorDisplayRef = useRef({ x: remoteCursor?.x ?? 0.5, y: remoteCursor?.y ?? 0.5 });
+  const cursorTargetRef = useRef({ x: remoteCursor?.x ?? 0.5, y: remoteCursor?.y ?? 0.5 });
+  const cursorLerpRafRef = useRef(0);
+  const [smoothCursor, setSmoothCursor] = useState(remoteCursor);
+
+  // Update target when prop changes
+  useEffect(() => {
+    if (remoteCursor?.peerId) {
+      cursorTargetRef.current = { x: remoteCursor.x, y: remoteCursor.y };
+    }
+  }, [remoteCursor?.x, remoteCursor?.y, remoteCursor?.peerId]);
+
+  // Lerp loop — runs when cursor is visible
+  useEffect(() => {
+    if (!remoteCursor?.peerId || interactive) return undefined;
+
+    const LERP_FACTOR = 0.22; // 0.22 = smooth but responsive
+    const STOP_THRESHOLD_SQ = 0.000001;
+
+    const tick = () => {
+      const display = cursorDisplayRef.current;
+      const target = cursorTargetRef.current;
+      const dx = target.x - display.x;
+      const dy = target.y - display.y;
+      if (dx * dx + dy * dy > STOP_THRESHOLD_SQ) {
+        display.x += dx * LERP_FACTOR;
+        display.y += dy * LERP_FACTOR;
+        setSmoothCursor((prev) => prev ? { ...prev, x: display.x, y: display.y } : prev);
+      }
+      cursorLerpRafRef.current = window.requestAnimationFrame(tick);
+    };
+    cursorLerpRafRef.current = window.requestAnimationFrame(tick);
+
+    return () => {
+      if (cursorLerpRafRef.current) {
+        window.cancelAnimationFrame(cursorLerpRafRef.current);
+        cursorLerpRafRef.current = 0;
+      }
+    };
+  }, [remoteCursor?.peerId, interactive]);
+
+  // Sync smoothCursor metadata (displayName, peerId) when remoteCursor identity changes
+  useEffect(() => {
+    setSmoothCursor(remoteCursor
+      ? { ...remoteCursor, x: cursorDisplayRef.current.x, y: cursorDisplayRef.current.y }
+      : null);
+  }, [remoteCursor?.peerId, remoteCursor?.displayName]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const remoteCursorLayerStyle = !interactive
     ? {
@@ -6597,11 +7789,12 @@ const WhiteboardTile = ({
   );
 
   const handleBoardZoomChange = useCallback(
-    (nextZoom, anchor = null) => {
+    (nextZoom, anchor = null, options = {}) => {
       if (activeTab?.type === "pdf") {
         return;
       }
 
+      const shouldSync = options.sync !== false;
       const clampedZoom = Math.min(
         WHITEBOARD_MAX_ZOOM,
         Math.max(WHITEBOARD_MIN_ZOOM, nextZoom),
@@ -6612,6 +7805,7 @@ const WhiteboardTile = ({
         return;
       }
       const nextRenderZoom = getBoardRenderScale(clampedZoom);
+      const nextWorldScale = nextRenderZoom * WHITEBOARD_BOARD_POINT_SPAN;
       const viewport = boardViewportRef.current;
       const frame = boardFrameRef.current;
 
@@ -6646,24 +7840,24 @@ const WhiteboardTile = ({
           frameOffsetTop,
         };
 
-        const nextFrameWidth = Math.max(
+        const nextFrameWidth = roundScenePixel(Math.max(
           1,
-          activeBoardBaseWidth,
-          activeBoardBaseWidth * nextRenderZoom,
-        );
-        const nextFrameHeight = Math.max(
+          activeBoardBaseWidth * nextWorldScale,
+        ));
+        const nextFrameHeight = roundScenePixel(Math.max(
           1,
-          activeBoardBaseHeight,
-          activeBoardBaseHeight * nextRenderZoom,
-        );
-        const nextFrameOffsetLeft =
+          activeBoardBaseHeight * nextWorldScale,
+        ));
+        const nextFrameOffsetLeft = roundScenePixel(
           nextFrameWidth < viewport.clientWidth
             ? (viewport.clientWidth - nextFrameWidth) / 2
-            : 0;
-        const nextFrameOffsetTop =
+            : 0,
+        );
+        const nextFrameOffsetTop = roundScenePixel(
           nextFrameHeight < viewport.clientHeight
             ? (viewport.clientHeight - nextFrameHeight) / 2
-            : 0;
+            : 0,
+        );
         const nextMaxScrollLeft = Math.max(0, nextFrameWidth - viewport.clientWidth);
         const nextMaxScrollTop = Math.max(0, nextFrameHeight - viewport.clientHeight);
         const nextScrollLeft = Math.min(
@@ -6676,66 +7870,76 @@ const WhiteboardTile = ({
         );
 
         pendingInteractiveBoardZoomRef.current = clampedZoom;
+        liveBoardZoomRef.current = clampedZoom;
+        const applyBoardZoom = () =>
+          setBoardZoom((current) =>
+            Math.abs((Number(current) || clampedZoom) - clampedZoom) <= 0.001
+              ? current
+              : clampedZoom,
+          );
+        applyBoardZoom();
+        if (shouldSync) {
+          scheduleBoardViewportSync({
+            tabId: WHITEBOARD_BOARD_TAB_ID,
+            zoom: clampedZoom,
+            viewportBaseWidth: Math.max(
+              WHITEBOARD_MIN_BOARD_BASE_WIDTH,
+              Math.round(boardViewportSize.width || viewport.clientWidth || 0) ||
+                WHITEBOARD_MIN_BOARD_BASE_WIDTH,
+            ),
+            viewportBaseHeight: Math.max(
+              WHITEBOARD_MIN_BOARD_BASE_HEIGHT,
+              Math.round(boardViewportSize.height || viewport.clientHeight || 0) ||
+                WHITEBOARD_MIN_BOARD_BASE_HEIGHT,
+            ),
+            scrollLeftRatio:
+              nextMaxScrollLeft > 0 ? clampViewportRatio(nextScrollLeft / nextMaxScrollLeft) : 0,
+            scrollTopRatio:
+              nextMaxScrollTop > 0 ? clampViewportRatio(nextScrollTop / nextMaxScrollTop) : 0,
+          });
+        }
+        return;
+      }
+
+      pendingInteractiveBoardZoomRef.current = clampedZoom;
+      liveBoardZoomRef.current = clampedZoom;
+      const applyBoardZoom = () =>
         setBoardZoom((current) =>
           Math.abs((Number(current) || clampedZoom) - clampedZoom) <= 0.001
             ? current
             : clampedZoom,
         );
+      applyBoardZoom();
+      if (shouldSync) {
         scheduleBoardViewportSync({
           tabId: WHITEBOARD_BOARD_TAB_ID,
           zoom: clampedZoom,
           viewportBaseWidth: Math.max(
             WHITEBOARD_MIN_BOARD_BASE_WIDTH,
-            Math.round(boardViewportSize.width || viewport.clientWidth || 0) ||
-              WHITEBOARD_MIN_BOARD_BASE_WIDTH,
+            Math.round(boardViewportSize.width || 0) || WHITEBOARD_MIN_BOARD_BASE_WIDTH,
           ),
           viewportBaseHeight: Math.max(
             WHITEBOARD_MIN_BOARD_BASE_HEIGHT,
-            Math.round(boardViewportSize.height || viewport.clientHeight || 0) ||
-              WHITEBOARD_MIN_BOARD_BASE_HEIGHT,
+            Math.round(boardViewportSize.height || 0) || WHITEBOARD_MIN_BOARD_BASE_HEIGHT,
           ),
-          scrollLeftRatio:
-            nextMaxScrollLeft > 0 ? clampViewportRatio(nextScrollLeft / nextMaxScrollLeft) : 0,
-          scrollTopRatio:
-            nextMaxScrollTop > 0 ? clampViewportRatio(nextScrollTop / nextMaxScrollTop) : 0,
+          scrollLeftRatio: clampViewportRatio(
+            (() => {
+              const maxScrollLeft = viewport
+                ? Math.max(0, viewport.scrollWidth - viewport.clientWidth)
+                : 0;
+              return maxScrollLeft > 0 ? viewport.scrollLeft / maxScrollLeft : 0;
+            })(),
+          ),
+          scrollTopRatio: clampViewportRatio(
+            (() => {
+              const maxScrollTop = viewport
+                ? Math.max(0, viewport.scrollHeight - viewport.clientHeight)
+                : 0;
+              return maxScrollTop > 0 ? viewport.scrollTop / maxScrollTop : 0;
+            })(),
+          ),
         });
-        return;
       }
-
-      pendingInteractiveBoardZoomRef.current = clampedZoom;
-      setBoardZoom((current) =>
-        Math.abs((Number(current) || clampedZoom) - clampedZoom) <= 0.001
-          ? current
-          : clampedZoom,
-      );
-      scheduleBoardViewportSync({
-        tabId: WHITEBOARD_BOARD_TAB_ID,
-        zoom: clampedZoom,
-        viewportBaseWidth: Math.max(
-          WHITEBOARD_MIN_BOARD_BASE_WIDTH,
-          Math.round(boardViewportSize.width || 0) || WHITEBOARD_MIN_BOARD_BASE_WIDTH,
-        ),
-        viewportBaseHeight: Math.max(
-          WHITEBOARD_MIN_BOARD_BASE_HEIGHT,
-          Math.round(boardViewportSize.height || 0) || WHITEBOARD_MIN_BOARD_BASE_HEIGHT,
-        ),
-        scrollLeftRatio: clampViewportRatio(
-          (() => {
-            const maxScrollLeft = viewport
-              ? Math.max(0, viewport.scrollWidth - viewport.clientWidth)
-              : 0;
-            return maxScrollLeft > 0 ? viewport.scrollLeft / maxScrollLeft : 0;
-          })(),
-        ),
-        scrollTopRatio: clampViewportRatio(
-          (() => {
-            const maxScrollTop = viewport
-              ? Math.max(0, viewport.scrollHeight - viewport.clientHeight)
-              : 0;
-            return maxScrollTop > 0 ? viewport.scrollTop / maxScrollTop : 0;
-          })(),
-        ),
-      });
     },
     [
       activeBoardRenderScale,
@@ -6796,19 +8000,116 @@ const WhiteboardTile = ({
     [activeTab?.type, handleBoardZoomChange, handlePdfZoomChange],
   );
 
+  const animateBoardZoomChange = useCallback(
+    (nextZoom, anchor = null) => {
+      if (activeTab?.type === "pdf") {
+        handlePdfZoomChange(nextZoom);
+        return;
+      }
+
+      if (!interactive) {
+        handleBoardZoomChange(nextZoom, anchor, { sync: true });
+        return;
+      }
+
+      const clampedTarget = Math.min(
+        WHITEBOARD_MAX_ZOOM,
+        Math.max(WHITEBOARD_MIN_ZOOM, Number(nextZoom) || liveBoardZoomRef.current || 1),
+      );
+      boardZoomAnimationTargetRef.current = clampedTarget;
+      const viewport = boardViewportRef.current;
+      if (viewport) {
+        const viewportRect = viewport.getBoundingClientRect();
+        const anchorX =
+          anchor && Number.isFinite(anchor.clientX)
+            ? anchor.clientX - viewportRect.left
+            : viewport.clientWidth / 2;
+        const anchorY =
+          anchor && Number.isFinite(anchor.clientY)
+            ? anchor.clientY - viewportRect.top
+            : viewport.clientHeight / 2;
+        const currentRenderZoom = getBoardRenderScale(liveBoardZoomRef.current || activeBoardZoom);
+        const frameOffset = getBoardFrameOffset(viewport, boardFrameRef.current);
+        boardZoomAnimationAnchorRef.current = {
+          clientX: viewportRect.left + anchorX,
+          clientY: viewportRect.top + anchorY,
+          boardX:
+            anchor && Number.isFinite(anchor.boardX)
+              ? anchor.boardX
+              : (viewport.scrollLeft + anchorX - frameOffset.left) /
+                Math.max(WHITEBOARD_MIN_ZOOM, currentRenderZoom),
+          boardY:
+            anchor && Number.isFinite(anchor.boardY)
+              ? anchor.boardY
+              : (viewport.scrollTop + anchorY - frameOffset.top) /
+                Math.max(WHITEBOARD_MIN_ZOOM, currentRenderZoom),
+        };
+      } else {
+        boardZoomAnimationAnchorRef.current = anchor;
+      }
+
+      if (boardZoomAnimationRafRef.current) {
+        return;
+      }
+
+      const tick = () => {
+        const targetZoom = boardZoomAnimationTargetRef.current;
+        if (!Number.isFinite(targetZoom)) {
+          boardZoomAnimationRafRef.current = 0;
+          return;
+        }
+
+        const currentZoom = liveBoardZoomRef.current || activeBoardZoom || 1;
+        const diff = targetZoom - currentZoom;
+        if (Math.abs(diff) <= 0.0025) {
+          boardZoomAnimationRafRef.current = 0;
+          handleBoardZoomChange(targetZoom, boardZoomAnimationAnchorRef.current, { sync: true });
+          boardZoomAnimationTargetRef.current = null;
+          boardZoomAnimationAnchorRef.current = null;
+          return;
+        }
+
+        const nextStep = currentZoom + diff * 0.28;
+        handleBoardZoomChange(nextStep, boardZoomAnimationAnchorRef.current, { sync: false });
+        boardZoomAnimationRafRef.current = window.requestAnimationFrame(tick);
+      };
+
+      boardZoomAnimationRafRef.current = window.requestAnimationFrame(tick);
+    },
+    [
+      activeBoardZoom,
+      activeTab?.type,
+      getBoardRenderScale,
+      handleBoardZoomChange,
+      handlePdfZoomChange,
+      interactive,
+    ],
+  );
+
   const handleWorkspaceZoomStep = useCallback(
     (delta) => {
       const currentZoom =
         activeTab?.type === "pdf" ? livePdfZoomRef.current : liveBoardZoomRef.current;
-      handleWorkspaceZoomChange(currentZoom + delta);
+      if (activeTab?.type === "pdf") {
+        handleWorkspaceZoomChange(currentZoom + delta);
+        return;
+      }
+      animateBoardZoomChange(currentZoom + delta);
     },
-    [activeTab?.type, handleWorkspaceZoomChange],
+    [activeTab?.type, animateBoardZoomChange, handleWorkspaceZoomChange],
   );
 
   useEffect(() => {
     const currentBoardTabId = activeTab?.type === "pdf" ? null : activeTab?.id || WHITEBOARD_BOARD_TAB_ID;
     if (lastBoardTabIdRef.current !== currentBoardTabId) {
       lastBoardTabIdRef.current = currentBoardTabId;
+      if (boardZoomAnimationRafRef.current) {
+        window.cancelAnimationFrame(boardZoomAnimationRafRef.current);
+        boardZoomAnimationRafRef.current = 0;
+      }
+      boardZoomAnimationTargetRef.current = null;
+      boardZoomAnimationAnchorRef.current = null;
+      boardInitialViewportSeededRef.current = false;
       pendingInteractiveBoardZoomRef.current = null;
       if (boardViewportSyncTimeoutRef.current) {
         window.clearTimeout(boardViewportSyncTimeoutRef.current);
@@ -6846,7 +8147,7 @@ const WhiteboardTile = ({
     );
   }, [activeTab?.id, activeTab?.type, interactive, syncedBoardZoom]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (activeTab?.type === "pdf") {
       boardZoomAnchorRef.current = null;
       boardPinchStateRef.current.active = false;
@@ -6894,6 +8195,49 @@ const WhiteboardTile = ({
       window.cancelAnimationFrame(frameId);
     };
   }, [activeBoardRenderScale, activeTab?.type]);
+
+  useLayoutEffect(() => {
+    if (
+      activeTab?.type === "pdf" ||
+      boardInitialViewportSeededRef.current ||
+      hasSyncedBoardScrollLeftRatio ||
+      hasSyncedBoardScrollTopRatio
+    ) {
+      return;
+    }
+
+    const viewport = boardViewportRef.current;
+    if (!viewport) {
+      return;
+    }
+
+    const boardRegionWidth = activeBoardBaseWidth * activeBoardRenderScale;
+    const boardRegionHeight = activeBoardBaseHeight * activeBoardRenderScale;
+    const boardRegionLeft = activeBoardBaseWidth * activeBoardRenderScale * (0 - WHITEBOARD_BOARD_POINT_MIN);
+    const boardRegionTop = activeBoardBaseHeight * activeBoardRenderScale * (0 - WHITEBOARD_BOARD_POINT_MIN);
+    const maxScrollLeft = Math.max(0, viewport.scrollWidth - viewport.clientWidth);
+    const maxScrollTop = Math.max(0, viewport.scrollHeight - viewport.clientHeight);
+    const targetLeft = Math.min(
+      maxScrollLeft,
+      Math.max(0, boardRegionLeft + boardRegionWidth / 2 - viewport.clientWidth / 2),
+    );
+    const targetTop = Math.min(
+      maxScrollTop,
+      Math.max(0, boardRegionTop + boardRegionHeight / 2 - viewport.clientHeight / 2),
+    );
+
+    viewport.scrollLeft = targetLeft;
+    viewport.scrollTop = targetTop;
+    boardInitialViewportSeededRef.current = true;
+  }, [
+    activeBoardBaseHeight,
+    activeBoardBaseWidth,
+    activeBoardRenderScale,
+    activeTab?.id,
+    activeTab?.type,
+    hasSyncedBoardScrollLeftRatio,
+    hasSyncedBoardScrollTopRatio,
+  ]);
 
   useEffect(() => {
     if (interactive || guestBoardOverride || activeTab?.type === "pdf") {
@@ -6985,8 +8329,8 @@ const WhiteboardTile = ({
       }
 
       event.preventDefault();
-      const zoomDelta = event.deltaY > 0 ? -0.08 : 0.08;
-      scheduleZoom(livePdfZoomRef.current + zoomDelta);
+      const zoomFactor = Math.exp(-event.deltaY * WHITEBOARD_WHEEL_ZOOM_SENSITIVITY);
+      scheduleZoom(livePdfZoomRef.current * zoomFactor);
     };
 
     const handleTouchStart = (event) => {
@@ -7023,7 +8367,7 @@ const WhiteboardTile = ({
       }
 
       event.preventDefault();
-      const zoomRatio = nextDistance / pinchStateRef.current.distance;
+      const zoomRatio = amplifyZoomRatio(nextDistance / pinchStateRef.current.distance);
       const nextZoom = Math.min(
         WHITEBOARD_MAX_ZOOM,
         Math.max(WHITEBOARD_MIN_ZOOM, pinchStateRef.current.zoom * zoomRatio),
@@ -7066,7 +8410,7 @@ const WhiteboardTile = ({
     };
   }, [activeTab?.id, activeTab?.type, handlePdfZoomChange]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const viewport = pdfViewportRef.current;
     const pendingAnchor = pdfZoomAnchorRef.current;
     if (!viewport || !activeTab || activeTab.type !== "pdf" || !pendingAnchor) {
@@ -7126,7 +8470,7 @@ const WhiteboardTile = ({
 
       zoomFrameRef.current = window.requestAnimationFrame(() => {
         zoomFrameRef.current = 0;
-        handleBoardZoomChange(nextZoom, anchor);
+        animateBoardZoomChange(nextZoom, anchor);
       });
     };
 
@@ -7136,10 +8480,49 @@ const WhiteboardTile = ({
       }
 
       event.preventDefault();
-      const zoomDelta = event.deltaY > 0 ? -0.08 : 0.08;
-      scheduleZoom(liveBoardZoomRef.current + zoomDelta, {
+      const zoomFactor = Math.exp(-event.deltaY * WHITEBOARD_WHEEL_ZOOM_SENSITIVITY);
+      scheduleZoom(liveBoardZoomRef.current * zoomFactor, {
         clientX: event.clientX,
         clientY: event.clientY,
+      });
+    };
+
+    let pendingPinchZoom = null;
+
+    const flushPendingPinchZoom = () => {
+      if (!pendingPinchZoom) {
+        return;
+      }
+
+      const queuedZoom = pendingPinchZoom;
+      pendingPinchZoom = null;
+      handleBoardZoomChange(
+        queuedZoom.zoom,
+        {
+          clientX: queuedZoom.center.clientX,
+          clientY: queuedZoom.center.clientY,
+          boardX: boardPinchStateRef.current.boardX,
+          boardY: boardPinchStateRef.current.boardY,
+        },
+        { sync: false },
+      );
+      boardPinchStateRef.current.distance = queuedZoom.distance;
+      boardPinchStateRef.current.zoom = queuedZoom.zoom;
+    };
+
+    const schedulePinchZoom = (nextZoom, center, nextDistance) => {
+      pendingPinchZoom = {
+        zoom: nextZoom,
+        center,
+        distance: nextDistance,
+      };
+      if (zoomFrameRef.current) {
+        return;
+      }
+
+      zoomFrameRef.current = window.requestAnimationFrame(() => {
+        zoomFrameRef.current = 0;
+        flushPendingPinchZoom();
       });
     };
 
@@ -7149,6 +8532,13 @@ const WhiteboardTile = ({
         return;
       }
 
+      if (boardZoomAnimationRafRef.current) {
+        window.cancelAnimationFrame(boardZoomAnimationRafRef.current);
+        boardZoomAnimationRafRef.current = 0;
+      }
+      boardZoomAnimationTargetRef.current = null;
+      boardZoomAnimationAnchorRef.current = null;
+
       const center = getTouchCenter(event.touches);
       const viewportRect = viewport.getBoundingClientRect();
       const anchorX = center.clientX - viewportRect.left;
@@ -7156,7 +8546,7 @@ const WhiteboardTile = ({
       boardPinchStateRef.current = {
         active: true,
         distance: getTouchDistance(event.touches),
-        zoom: activeBoardZoom,
+        zoom: liveBoardZoomRef.current || activeBoardZoom,
         ...getBoardViewportAnchor(anchorX, anchorY, activeBoardRenderScale),
       };
     };
@@ -7176,19 +8566,15 @@ const WhiteboardTile = ({
       const viewportRect = viewport.getBoundingClientRect();
       const anchorX = center.clientX - viewportRect.left;
       const anchorY = center.clientY - viewportRect.top;
-      const zoomRatio = nextDistance / boardPinchStateRef.current.distance;
+      const zoomRatio = amplifyZoomRatio(nextDistance / boardPinchStateRef.current.distance);
       const nextZoom = Math.min(
         WHITEBOARD_MAX_ZOOM,
         Math.max(WHITEBOARD_MIN_ZOOM, boardPinchStateRef.current.zoom * zoomRatio),
       );
 
-      if (Math.abs(nextZoom - activeBoardZoom) > 0.001) {
-        scheduleZoom(nextZoom, {
-          clientX: center.clientX,
-          clientY: center.clientY,
-          boardX: boardPinchStateRef.current.boardX,
-          boardY: boardPinchStateRef.current.boardY,
-        });
+      const currentZoom = liveBoardZoomRef.current || activeBoardZoom;
+      if (Math.abs(nextZoom - currentZoom) > 0.001) {
+        schedulePinchZoom(nextZoom, center, nextDistance);
         return;
       }
 
@@ -7218,7 +8604,16 @@ const WhiteboardTile = ({
     };
 
     const handleTouchEnd = () => {
+      const wasActive = boardPinchStateRef.current.active;
       boardPinchStateRef.current.active = false;
+      if (zoomFrameRef.current) {
+        window.cancelAnimationFrame(zoomFrameRef.current);
+        zoomFrameRef.current = 0;
+      }
+      flushPendingPinchZoom();
+      if (wasActive) {
+        syncCurrentBoardViewport(liveBoardZoomRef.current);
+      }
     };
 
     viewport.addEventListener("wheel", handleWheelZoom, { passive: false });
@@ -7242,8 +8637,9 @@ const WhiteboardTile = ({
     activeBoardRenderScale,
     activeTab?.type,
     getBoardViewportAnchor,
-    handleBoardZoomChange,
     interactive,
+    handleBoardZoomChange,
+    syncCurrentBoardViewport,
   ]);
 
   useEffect(() => {
@@ -8217,14 +9613,14 @@ const WhiteboardTile = ({
           onPointerMove={handleWorkspacePointerMove}
           onPointerLeave={handleWorkspacePointerLeave}
         >
-          {remoteCursor?.peerId && !interactive ? (
+          {smoothCursor?.peerId && !interactive ? (
             <RemoteCursorLayer style={remoteCursorLayerStyle}>
-              <RemoteCursorWrap $x={remoteCursor.x} $y={remoteCursor.y}>
+              <RemoteCursorWrap $x={smoothCursor.x} $y={smoothCursor.y}>
                 <RemoteCursorGlyph>
                   <MousePointer2 size={18} strokeWidth={2.25} />
                 </RemoteCursorGlyph>
                 <RemoteCursorLabel>
-                  {remoteCursor.displayName || t("groupCall.guest")}
+                  {smoothCursor.displayName || t("groupCall.guest")}
                 </RemoteCursorLabel>
               </RemoteCursorWrap>
             </RemoteCursorLayer>

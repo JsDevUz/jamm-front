@@ -1159,10 +1159,17 @@ const appendWhiteboardStrokePointsInState = (state, { tabId, pageNumber, strokeI
       return stroke;
     }
     const remaining = WHITEBOARD_MAX_POINTS_PER_STROKE - existingPoints.length;
-    return {
+    const nextStroke = {
       ...stroke,
       points: existingPoints.concat(nextPoints.slice(0, remaining)),
     };
+    // Invalidate cached bbox so canvas culling recomputes on next render
+    if (nextStroke.__bbox !== undefined) {
+      try {
+        Object.defineProperty(nextStroke, "__bbox", { value: null, writable: true, configurable: true, enumerable: false });
+      } catch (_) {}
+    }
+    return nextStroke;
   };
 
   return {
@@ -4463,6 +4470,16 @@ export function useWebRTC({
           }
 
           commitWhiteboardCursor(nextCursor);
+        });
+
+        // Batched cursor event from server aggregator (50ms intervals, 20fps)
+        reg("cursors-batch", ({ cursors }) => {
+          if (!Array.isArray(cursors)) return;
+          for (const payload of cursors) {
+            if (shouldIgnoreIncomingWhiteboardEvent(payload, socket.id)) continue;
+            const nextCursor = normalizeWhiteboardCursor(payload);
+            if (nextCursor) commitWhiteboardCursor(nextCursor);
+          }
         });
 
         reg("whiteboard-cursor-clear", ({ peerId }) => {

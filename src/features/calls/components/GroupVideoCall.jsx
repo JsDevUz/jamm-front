@@ -4718,6 +4718,7 @@ const GroupVideoCall = ({
       onBoardZoomChange={syncWhiteboardBoardZoom}
       onCursorMove={syncWhiteboardCursor}
       onCursorLeave={clearWhiteboardCursor}
+      participantCount={1 + remoteStreams.length}
       onRecordSurfaceChange={handleWhiteboardRecordSurfaceChange}
       onToggleRecording={startWhiteboardRecording}
       isRecording={isWhiteboardRecording}
