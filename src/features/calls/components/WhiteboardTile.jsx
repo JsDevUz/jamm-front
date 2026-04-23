@@ -5987,6 +5987,7 @@ const WhiteboardTile = ({
   const boardScrollSyncRef = useRef({ lock: false, timeoutId: null });
   const pdfViewportSyncTimeoutRef = useRef(0);
   const boardViewportSyncTimeoutRef = useRef(0);
+  const boardGuestGestureRef = useRef({ active: false, timeoutId: 0 });
   const pdfDocumentRef = useRef(null);
   const pdfPickerDocumentRef = useRef(null);
   const pdfPickerDocumentKeyRef = useRef("");
@@ -6235,8 +6236,10 @@ const WhiteboardTile = ({
     WHITEBOARD_MAX_ZOOM,
     Math.max(
       WHITEBOARD_MIN_ZOOM,
-      !interactive && guestBoardOverride
-        ? Number(guestBoardZoom) || syncedBoardZoom || 1
+      !interactive
+        ? guestBoardOverride
+          ? Number(guestBoardZoom) || syncedBoardZoom || 1
+          : syncedBoardZoom || 1
         : Number(boardZoom) || syncedBoardZoom || 1,
     ),
   );
@@ -6547,8 +6550,27 @@ const WhiteboardTile = ({
       if (boardViewportSyncTimeoutRef.current) {
         window.clearTimeout(boardViewportSyncTimeoutRef.current);
       }
+      if (boardGuestGestureRef.current.timeoutId) {
+        window.clearTimeout(boardGuestGestureRef.current.timeoutId);
+        boardGuestGestureRef.current.timeoutId = 0;
+      }
     };
   }, []);
+
+  const markBoardGuestGesture = useCallback(() => {
+    if (interactive) {
+      return;
+    }
+
+    boardGuestGestureRef.current.active = true;
+    if (boardGuestGestureRef.current.timeoutId) {
+      window.clearTimeout(boardGuestGestureRef.current.timeoutId);
+    }
+    boardGuestGestureRef.current.timeoutId = window.setTimeout(() => {
+      boardGuestGestureRef.current.active = false;
+      boardGuestGestureRef.current.timeoutId = 0;
+    }, 320);
+  }, [interactive]);
 
   useEffect(() => {
     const currentPdfTabId = activeTab?.type === "pdf" ? activeTab.id : null;
@@ -7097,6 +7119,10 @@ const WhiteboardTile = ({
       return undefined;
     }
 
+    const handleGuestGestureStart = () => {
+      markBoardGuestGesture();
+    };
+
     const updateBoardViewportSize = () => {
       setBoardViewportSize({
         width: Math.max(1, Math.floor(viewport.clientWidth)),
@@ -7104,14 +7130,20 @@ const WhiteboardTile = ({
       });
     };
 
+    viewport.addEventListener("pointerdown", handleGuestGestureStart, { passive: true });
+    viewport.addEventListener("touchstart", handleGuestGestureStart, { passive: true });
+    viewport.addEventListener("wheel", handleGuestGestureStart, { passive: true });
     updateBoardViewportSize();
     const resizeObserver = new ResizeObserver(updateBoardViewportSize);
     resizeObserver.observe(viewport);
 
     return () => {
       resizeObserver.disconnect();
+      viewport.removeEventListener("pointerdown", handleGuestGestureStart);
+      viewport.removeEventListener("touchstart", handleGuestGestureStart);
+      viewport.removeEventListener("wheel", handleGuestGestureStart);
     };
-  }, [activeTab?.id]);
+  }, [activeTab?.id, markBoardGuestGesture]);
 
   useEffect(() => {
     if (!interactive || activeTab?.type === "pdf") {
@@ -7959,7 +7991,7 @@ const WhiteboardTile = ({
       return;
     }
 
-    if (!interactive && !guestBoardOverride) {
+    if (!interactive && !guestBoardOverride && boardGuestGestureRef.current.active) {
       setGuestBoardOverride(true);
       setGuestBoardZoom(syncedBoardZoom);
     }
