@@ -1725,11 +1725,24 @@ function MeetContent({
     surfaceType: recordSurfaceType,
     livekitRoom: room,
     onError: (message) => {
-      if (message) toast.error(message);
+      if (message) toast.error(message, { id: "meet-recorder-error" });
     },
     onStatusChange: (nextStatus) => {
-      if (nextStatus === "ready") {
-        toast.success("Recording saqlandi");
+      const toastId = "meet-recorder-status";
+      if (nextStatus === "starting") {
+        toast.loading("Recording boshlanmoqda...", { id: toastId });
+      } else if (nextStatus === "recording") {
+        toast.success("Recording boshlandi", { id: toastId });
+      } else if (nextStatus === "stopping") {
+        toast.loading("Recording to'xtatilmoqda...", { id: toastId });
+      } else if (nextStatus === "finalizing") {
+        toast.loading("Recording saqlanmoqda...", { id: toastId });
+      } else if (nextStatus === "ready") {
+        toast.success("Recording saqlandi, saved messages'ga yuborildi", {
+          id: toastId,
+        });
+      } else if (nextStatus === "failed") {
+        toast.dismiss(toastId);
       }
     },
   });
@@ -1740,6 +1753,7 @@ function MeetContent({
   }, []);
 
   const handleToggleRecording = useCallback(async () => {
+    if (recorder.isBusy) return;
     const result = await recorder.toggle();
     if (result && result.ok === false && result.error) {
       toast.error(result.error);
@@ -1816,11 +1830,18 @@ function MeetContent({
     }
   }, [roomId]);
 
-  const handleLeave = useCallback(() => {
+  const handleLeave = useCallback(async () => {
+    if (recorder.isRecording || recorder.isBusy) {
+      try {
+        await recorder.stop();
+      } catch {
+        /* noop */
+      }
+    }
     signaling.leaveSignaling();
     room.disconnect();
     onClose?.();
-  }, [onClose, room, signaling]);
+  }, [onClose, recorder, room, signaling]);
 
   const handleWhiteboardToggle = useCallback(() => {
     const ok = signaling.toggleWhiteboard();

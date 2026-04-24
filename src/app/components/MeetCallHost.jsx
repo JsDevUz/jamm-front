@@ -58,6 +58,10 @@ export default function MeetCallHost() {
         onMinimize={handleMinimize}
         onMaximize={maximizeCall}
         onClose={handleClose}
+        roomCreatorId={
+          activeCall.roomCreatorId ||
+          (activeCall.isCreator ? currentUser?._id : undefined)
+        }
       />
     </Suspense>
   );
