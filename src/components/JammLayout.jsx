@@ -39,37 +39,16 @@ import {
 } from "../utils/desktopNotifications";
 import AppLockPinPad from "../app/components/AppLockPinPad";
 import styled from "styled-components";
-
-const ChatArea = lazy(() =>
-  import("../features/chats/components").then((module) => ({
-    default: module.ChatArea,
-  })),
-);
-const ChatsSidebar = lazy(() =>
-  import("../features/chats/components").then((module) => ({
-    default: module.ChatsSidebar,
-  })),
-);
-const CreateGroupDialog = lazy(() =>
-  import("../features/chats/components").then((module) => ({
-    default: module.CreateGroupDialog,
-  })),
-);
-const CoursePlayer = lazy(() =>
-  import("../features/courses/components").then((module) => ({
-    default: module.CoursePlayer,
-  })),
-);
-const CourseSidebar = lazy(() =>
-  import("../features/courses/components").then((module) => ({
-    default: module.CourseSidebar,
-  })),
-);
-const CoursesHomePage = lazy(() =>
-  import("../features/courses/components").then((module) => ({
-    default: module.CoursesHomePage,
-  })),
-);
+import {
+  ChatArea,
+  ChatsSidebar,
+  CreateGroupDialog,
+} from "../features/chats/components";
+import {
+  CoursePlayer,
+  CourseSidebar,
+  CoursesHomePage,
+} from "../features/courses/components";
 const OnboardingModal = lazy(() => import("../app/components/OnboardingModal"));
 const PremiumUpgradeModal = lazy(
   () => import("../app/components/PremiumUpgradeModal"),
@@ -81,32 +60,18 @@ const ArenaDashboard = lazy(() =>
     default: module.ArenaDashboard,
   })),
 );
-const ArticleReaderPane = lazy(() =>
-  import("../features/articles/components").then((module) => ({
-    default: module.ArticleReaderPane,
-  })),
-);
-const ArticlesSidebar = lazy(() =>
-  import("../features/articles/components").then((module) => ({
-    default: module.ArticlesSidebar,
-  })),
-);
+import {
+  ArticleReaderPane,
+  ArticlesSidebar,
+} from "../features/articles/components";
 const CreateMeetDialog = lazy(() =>
   import("../features/calls/components").then((module) => ({
     default: module.CreateMeetDialog,
   })),
 );
 import { ServerSidebar } from "../features/navigation/components";
-const FeedPage = lazy(() =>
-  import("../features/posts/components").then((module) => ({
-    default: module.FeedPage,
-  })),
-);
-const ProfilePage = lazy(() =>
-  import("../features/profile/components").then((module) => ({
-    default: module.ProfilePage,
-  })),
-);
+import { FeedPage } from "../features/posts/components";
+import { ProfilePage } from "../features/profile/components";
 const AdminPanel = lazy(() =>
   import("../features/admin/components").then((module) => ({
     default: module.AdminPanel,
@@ -597,31 +562,6 @@ const JammLayout = ({
     }
   }, [initialNav, initialResourceId, chats]);
 
-  // Preload maps for lazy components
-  const preloaders = {
-    home: () => import("../features/courses/components"),
-    feed: () => import("../features/posts/components"),
-    chats: () =>
-      Promise.all([
-        import("../features/chats/components"),
-        import("../features/calls/components"),
-      ]),
-    articles: () => import("../features/articles/components"),
-    courses: () => import("../features/courses/components"),
-    arena: () => import("../features/arena/components"),
-    profile: () => import("../features/profile/components"),
-    admin: () => import("../features/admin/components"),
-  };
-
-  const handlePreloadNav = (navId) => {
-    if (preloaders[navId]) {
-      const p = preloaders[navId]();
-      if (p && p.catch) {
-        p.catch(() => {});
-      }
-    }
-  };
-
   const handleSelectNav = (navId) => {
     startTransition(() => {
       setSelectedNav(navId);
@@ -760,7 +700,6 @@ const JammLayout = ({
         <ServerSidebar
           selectedNav={selectedNav}
           onSelectNav={handleSelectNav}
-          onPreloadNav={handlePreloadNav}
         />
       ) : null}
       <MainContent ref={mainContentRef}>
