@@ -14,6 +14,8 @@ type VideoGridProps = {
   isMobile?: boolean;
   isLandscape?: boolean;
   controlsVisible?: boolean;
+  mobileTopOverlayInset?: string;
+  mobilePipTopInset?: string;
 };
 
 type GridLayoutSpec = {
@@ -217,6 +219,8 @@ export default function VideoGrid({
   isMobile = false,
   isLandscape = false,
   controlsVisible = true,
+  mobileTopOverlayInset,
+  mobilePipTopInset,
 }: VideoGridProps) {
   const fullscreenStageRef = useRef<HTMLDivElement | null>(null);
   const pipRef = useRef<HTMLDivElement | null>(null);
@@ -425,6 +429,7 @@ export default function VideoGrid({
           "absolute left-3 top-3 z-20 inline-flex h-9 w-9 items-center justify-center rounded-full bg-[var(--meet-overlay-bg)] text-[var(--meet-text-color)] backdrop-blur-md transition hover:bg-[var(--meet-control-hover-bg)] sm:left-4 sm:top-4",
           focusPinned ? "opacity-100" : isMobile ? "opacity-100" : "opacity-0 group-hover:opacity-100",
         )}
+        style={isMobile ? { top: mobileTopOverlayInset || "12px" } : undefined}
         aria-pressed={focusPinned}
         aria-label={focusPinned ? "Whiteboard pinini olib tashlash" : "Whiteboard pin qilish"}
         title={focusPinned ? "Whiteboard pinini olib tashlash" : "Whiteboard pin qilish"}
@@ -520,11 +525,14 @@ export default function VideoGrid({
         {renderFocusContentFrame(true)}
 
         {focusMobilePipTiles.length ? (
-          <div className="absolute right-4 top-[calc(env(safe-area-inset-top,0px)+84px)] z-10 flex gap-2">
+          <div
+            className="absolute right-3 z-10 flex gap-2 sm:right-4"
+            style={{ top: mobilePipTopInset || "12px" }}
+          >
             {focusMobilePipTiles.map((participant) => (
               <div
                 key={`${participant.identity}-${participant.source}-focus-mobile-pip`}
-                className="h-20 w-20 overflow-hidden rounded-[1.1rem] shadow-[0_12px_30px_rgba(0,0,0,0.38)]"
+                className="h-20 w-20"
               >
                 <VideoTile
                   participant={participant}
@@ -634,6 +642,7 @@ export default function VideoGrid({
                   : undefined
               }
               isMobile={isMobile}
+              overlayTopInset={mobileTopOverlayInset}
             />
           </div>
         ))}
@@ -654,14 +663,18 @@ export default function VideoGrid({
           }
           dominant
           isMobile
+          overlayTopInset={mobileTopOverlayInset}
         />
 
         {mobileFullscreenPipTiles.length ? (
-          <div className="absolute right-4 top-[calc(env(safe-area-inset-top,0px)+84px)] z-10 flex gap-2">
+          <div
+            className="absolute right-3 z-10 flex gap-2 sm:right-4"
+            style={{ top: mobilePipTopInset || "12px" }}
+          >
             {mobileFullscreenPipTiles.map((participant) => (
               <div
                 key={`${participant.identity}-${participant.source}-mobile-pip`}
-                className="h-20 w-20 overflow-hidden rounded-[1.1rem] shadow-[0_12px_30px_rgba(0,0,0,0.38)]"
+                className="h-20 w-20"
               >
                 <VideoTile
                   participant={participant}
@@ -777,6 +790,7 @@ export default function VideoGrid({
                   }
                   isMobile={isMobile}
                   compact
+                  overlayTopInset={mobileTopOverlayInset}
                 />
               </div>
             ))}
@@ -822,6 +836,7 @@ export default function VideoGrid({
               }
               dominant
               isMobile
+              overlayTopInset={mobileTopOverlayInset}
             />
           </div>
 
@@ -854,6 +869,7 @@ export default function VideoGrid({
                     }
                     compact
                     isMobile
+                    overlayTopInset={mobileTopOverlayInset}
                   />
                 </div>
               ))}
@@ -896,6 +912,7 @@ export default function VideoGrid({
             }
             isMobile={isMobile}
             dominant
+            overlayTopInset={mobileTopOverlayInset}
           />
         </div>
         {dominantStripCount ? (
@@ -932,6 +949,7 @@ export default function VideoGrid({
                   }
                   isMobile={isMobile}
                   compact
+                  overlayTopInset={mobileTopOverlayInset}
                 />
               </div>
             ))}
@@ -982,6 +1000,7 @@ export default function VideoGrid({
                 : undefined
             }
             isMobile={isMobile}
+            overlayTopInset={mobileTopOverlayInset}
           />
         </div>
       ))}

@@ -4,6 +4,9 @@ import { CornerDownRight, Send, Trash2, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { usePosts } from "../../../contexts/PostsContext";
 import useAuthStore from "../../../store/authStore";
+import MobileModalSheet, {
+  useMobileSheetViewport,
+} from "../../../components/ui/mobile-sheet";
 import { SidebarIconButton as ButtonWrapper } from "../../../shared/ui/buttons/IconButton";
 import ConfirmDialog from "../../../shared/ui/dialogs/ConfirmDialog";
 import UserNameWithDecoration from "../../../shared/ui/users/UserNameWithDecoration";
@@ -88,6 +91,7 @@ const PostComments = ({ post, onClose }) => {
 
   const inputRef = useRef(null);
   const currentUserId = getEntityId(currentUser);
+  const isMobileSheet = useMobileSheetViewport();
 
   const fetchComments = async (pageNum = 1) => {
     if (pageNum === 1) setLoading(true);
@@ -165,183 +169,193 @@ const PostComments = ({ post, onClose }) => {
 
   if (!post) return null;
 
+  const commentsPanel = (
+    <>
+      <Header>
+        <HeaderTitle>{t("comments.title")}</HeaderTitle>
+        <ButtonWrapper onClick={onClose}>
+          <X size={18} />
+        </ButtonWrapper>
+      </Header>
+
+      <CommentsList id="scrollableComments">
+        <CommentsFeed
+          dataLength={comments.length}
+          next={() => fetchComments(page + 1)}
+          hasMore={hasMore}
+          loader={<ListStatus>{t("common.loading")}</ListStatus>}
+          endMessage={
+            comments.length > 0 ? (
+              <ListStatus $small>{t("comments.allShown")}</ListStatus>
+            ) : null
+          }
+          scrollableTarget="scrollableComments"
+        >
+          {loading && comments.length === 0 ? (
+            <EmptyState>{t("common.loading")}</EmptyState>
+          ) : comments.length === 0 ? (
+            <EmptyState>{t("comments.empty")}</EmptyState>
+          ) : (
+            comments.map((comment) => {
+              const user = comment.user || {};
+              const name =
+                user.nickname || user.username || t("common.userFallback");
+              const isOwnComment = getEntityId(user) === currentUserId;
+
+              return (
+                <div key={comment._id}>
+                  <CommentRow>
+                    <Avatar $color={colorOf(name)} $size={36}>
+                      {user.avatar ? (
+                        <img src={user.avatar} alt={name} />
+                      ) : (
+                        name.charAt(0).toUpperCase()
+                      )}
+                    </Avatar>
+                    <CommentContent>
+                      <CommentBubble>
+                        <AuthorRow>
+                          <AuthorName>
+                            <UserNameWithDecoration
+                              user={user}
+                              fallback={t("common.userFallback")}
+                            />
+                          </AuthorName>
+                          <CommentTime>{timeAgo(comment.createdAt)}</CommentTime>
+                        </AuthorRow>
+                        <CommentText>{comment.content}</CommentText>
+                      </CommentBubble>
+                      <CommentMeta>
+                        <ReplyButton
+                          onClick={() =>
+                            handleReply(comment._id, getEntityId(user), name)
+                          }
+                        >
+                          <CornerDownRight size={12} /> {t("comments.reply")}
+                        </ReplyButton>
+                        {isOwnComment && (
+                          <DeleteButton
+                            onClick={() => setCommentToDelete(comment)}
+                            disabled={deletingCommentId === comment._id}
+                          >
+                            <Trash2 size={12} /> {t("common.delete")}
+                          </DeleteButton>
+                        )}
+                      </CommentMeta>
+
+                      {comment.replies?.length > 0 && (
+                        <RepliesContainer>
+                          {comment.replies.map((reply) => {
+                            const replyUser = reply.user || {};
+                            const replyName =
+                              replyUser.nickname ||
+                              replyUser.username ||
+                              t("common.userFallback");
+                            const isOwnReply =
+                              getEntityId(replyUser) === currentUserId;
+
+                            return (
+                              <ReplyRow key={reply._id}>
+                                <Avatar $color={colorOf(replyName)} $size={28}>
+                                  {replyUser.avatar ? (
+                                    <img src={replyUser.avatar} alt={replyName} />
+                                  ) : (
+                                    replyName.charAt(0).toUpperCase()
+                                  )}
+                                </Avatar>
+                                <CommentContent>
+                                  <ReplyBubble>
+                                    <AuthorRow>
+                                      <AuthorName>{replyName}</AuthorName>
+                                      <CommentTime>
+                                        {timeAgo(reply.createdAt)}
+                                      </CommentTime>
+                                    </AuthorRow>
+                                    <CommentText>
+                                      {reply.replyToUser && (
+                                        <MentionTag>@{reply.replyToUser}</MentionTag>
+                                      )}
+                                      {reply.content}
+                                    </CommentText>
+                                  </ReplyBubble>
+                                  <CommentMeta>
+                                    <ReplyButton
+                                      onClick={() =>
+                                        handleReply(
+                                          comment._id,
+                                          getEntityId(replyUser),
+                                          replyName,
+                                        )
+                                      }
+                                    >
+                                      <CornerDownRight size={12} />{" "}
+                                      {t("comments.reply")}
+                                    </ReplyButton>
+                                    {isOwnReply && (
+                                      <DeleteButton
+                                        onClick={() => setCommentToDelete(reply)}
+                                        disabled={deletingCommentId === reply._id}
+                                      >
+                                        <Trash2 size={12} /> {t("common.delete")}
+                                      </DeleteButton>
+                                    )}
+                                  </CommentMeta>
+                                </CommentContent>
+                              </ReplyRow>
+                            );
+                          })}
+                        </RepliesContainer>
+                      )}
+                    </CommentContent>
+                  </CommentRow>
+                </div>
+              );
+            })
+          )}
+        </CommentsFeed>
+      </CommentsList>
+
+      <InputWrapper>
+        {replyingTo && (
+          <ReplyingToBar>
+            <div>
+              {t("comments.replyingTo")}: <span>@{replyingTo.nickname}</span>
+            </div>
+            <CancelReplyButton onClick={() => setReplyingTo(null)}>
+              <X size={14} />
+            </CancelReplyButton>
+          </ReplyingToBar>
+        )}
+        <InputRow onSubmit={handleSubmit}>
+          <Input
+            ref={inputRef}
+            placeholder={
+              replyingTo
+                ? t("comments.replyPlaceholder", { name: replyingTo.nickname })
+                : t("comments.commentPlaceholder")
+            }
+            value={text}
+            onChange={(event) => setText(event.target.value)}
+          />
+          <SendButton type="submit" $disabled={!text.trim() || sending}>
+            <Send size={16} />
+          </SendButton>
+        </InputRow>
+      </InputWrapper>
+    </>
+  );
+
   return (
     <>
-      <Overlay onClick={onClose}>
-        <Modal onClick={(event) => event.stopPropagation()}>
-          <Header>
-            <HeaderTitle>{t("comments.title")}</HeaderTitle>
-            <ButtonWrapper onClick={onClose}>
-              <X size={18} />
-            </ButtonWrapper>
-          </Header>
-
-          <CommentsList id="scrollableComments">
-            <CommentsFeed
-              dataLength={comments.length}
-              next={() => fetchComments(page + 1)}
-              hasMore={hasMore}
-              loader={<ListStatus>{t("common.loading")}</ListStatus>}
-              endMessage={
-                comments.length > 0 ? (
-                  <ListStatus $small>{t("comments.allShown")}</ListStatus>
-                ) : null
-              }
-              scrollableTarget="scrollableComments"
-            >
-              {loading && comments.length === 0 ? (
-                <EmptyState>{t("common.loading")}</EmptyState>
-              ) : comments.length === 0 ? (
-                <EmptyState>{t("comments.empty")}</EmptyState>
-              ) : (
-                comments.map((comment) => {
-                  const user = comment.user || {};
-                  const name =
-                    user.nickname || user.username || t("common.userFallback");
-                  const isOwnComment = getEntityId(user) === currentUserId;
-
-                  return (
-                    <div key={comment._id}>
-                      <CommentRow>
-                        <Avatar $color={colorOf(name)} $size={36}>
-                          {user.avatar ? (
-                            <img src={user.avatar} alt={name} />
-                          ) : (
-                            name.charAt(0).toUpperCase()
-                          )}
-                        </Avatar>
-                        <CommentContent>
-                          <CommentBubble>
-                            <AuthorRow>
-                              <AuthorName>
-                                <UserNameWithDecoration
-                                  user={user}
-                                  fallback={t("common.userFallback")}
-                                />
-                              </AuthorName>
-                              <CommentTime>{timeAgo(comment.createdAt)}</CommentTime>
-                            </AuthorRow>
-                            <CommentText>{comment.content}</CommentText>
-                          </CommentBubble>
-                          <CommentMeta>
-                            <ReplyButton
-                              onClick={() =>
-                                handleReply(comment._id, getEntityId(user), name)
-                              }
-                            >
-                              <CornerDownRight size={12} /> {t("comments.reply")}
-                            </ReplyButton>
-                            {isOwnComment && (
-                              <DeleteButton
-                                onClick={() => setCommentToDelete(comment)}
-                                disabled={deletingCommentId === comment._id}
-                              >
-                                <Trash2 size={12} /> {t("common.delete")}
-                              </DeleteButton>
-                            )}
-                          </CommentMeta>
-
-                          {comment.replies?.length > 0 && (
-                            <RepliesContainer>
-                              {comment.replies.map((reply) => {
-                                const replyUser = reply.user || {};
-                                const replyName =
-                                  replyUser.nickname ||
-                                  replyUser.username ||
-                                  t("common.userFallback");
-                                const isOwnReply =
-                                  getEntityId(replyUser) === currentUserId;
-
-                                return (
-                                  <ReplyRow key={reply._id}>
-                                    <Avatar $color={colorOf(replyName)} $size={28}>
-                                      {replyUser.avatar ? (
-                                        <img src={replyUser.avatar} alt={replyName} />
-                                      ) : (
-                                        replyName.charAt(0).toUpperCase()
-                                      )}
-                                    </Avatar>
-                                    <CommentContent>
-                                      <ReplyBubble>
-                                        <AuthorRow>
-                                          <AuthorName>{replyName}</AuthorName>
-                                          <CommentTime>
-                                            {timeAgo(reply.createdAt)}
-                                          </CommentTime>
-                                        </AuthorRow>
-                                        <CommentText>
-                                          {reply.replyToUser && (
-                                            <MentionTag>@{reply.replyToUser}</MentionTag>
-                                          )}
-                                          {reply.content}
-                                        </CommentText>
-                                      </ReplyBubble>
-                                      <CommentMeta>
-                                        <ReplyButton
-                                          onClick={() =>
-                                            handleReply(
-                                              comment._id,
-                                              getEntityId(replyUser),
-                                              replyName,
-                                            )
-                                          }
-                                        >
-                                          <CornerDownRight size={12} />{" "}
-                                          {t("comments.reply")}
-                                        </ReplyButton>
-                                        {isOwnReply && (
-                                          <DeleteButton
-                                            onClick={() => setCommentToDelete(reply)}
-                                            disabled={deletingCommentId === reply._id}
-                                          >
-                                            <Trash2 size={12} /> {t("common.delete")}
-                                          </DeleteButton>
-                                        )}
-                                      </CommentMeta>
-                                    </CommentContent>
-                                  </ReplyRow>
-                                );
-                              })}
-                            </RepliesContainer>
-                          )}
-                        </CommentContent>
-                      </CommentRow>
-                    </div>
-                  );
-                })
-              )}
-            </CommentsFeed>
-          </CommentsList>
-
-          <InputWrapper>
-            {replyingTo && (
-              <ReplyingToBar>
-                <div>
-                  {t("comments.replyingTo")}: <span>@{replyingTo.nickname}</span>
-                </div>
-                <CancelReplyButton onClick={() => setReplyingTo(null)}>
-                  <X size={14} />
-                </CancelReplyButton>
-              </ReplyingToBar>
-            )}
-            <InputRow onSubmit={handleSubmit}>
-              <Input
-                ref={inputRef}
-                placeholder={
-                  replyingTo
-                    ? t("comments.replyPlaceholder", { name: replyingTo.nickname })
-                    : t("comments.commentPlaceholder")
-                }
-                value={text}
-                onChange={(event) => setText(event.target.value)}
-              />
-              <SendButton type="submit" $disabled={!text.trim() || sending}>
-                <Send size={16} />
-              </SendButton>
-            </InputRow>
-          </InputWrapper>
-        </Modal>
-      </Overlay>
+      {isMobileSheet ? (
+        <MobileModalSheet open={Boolean(post)} onClose={onClose}>
+          {commentsPanel}
+        </MobileModalSheet>
+      ) : (
+        <Overlay onClick={onClose}>
+          <Modal onClick={(event) => event.stopPropagation()}>{commentsPanel}</Modal>
+        </Overlay>
+      )}
       <ConfirmDialog
         isOpen={Boolean(commentToDelete)}
         onClose={() => setCommentToDelete(null)}

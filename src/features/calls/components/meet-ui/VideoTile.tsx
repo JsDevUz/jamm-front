@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef } from "react";
-import { Maximize2, MicOff, Minimize2, MonitorUp, Pin } from "lucide-react";
+import { Hand, Maximize2, MicOff, Minimize2, MonitorUp, Pin } from "lucide-react";
 import type { TrackPublication } from "livekit-client";
 import { cn } from "../../../../lib/utils";
 
@@ -10,6 +10,7 @@ export type TileParticipant = {
   isSpeaking: boolean;
   isMuted: boolean;
   hasCamera: boolean;
+  isHandRaised?: boolean;
   publication: TrackPublication | null;
   source: "camera" | "screen";
 };
@@ -24,6 +25,7 @@ type VideoTileProps = {
   dominant?: boolean;
   isMobile?: boolean;
   tiny?: boolean;
+  overlayTopInset?: string;
 };
 
 function getAvatarTone(identity: string) {
@@ -50,6 +52,7 @@ export default function VideoTile({
   dominant = false,
   isMobile = false,
   tiny = false,
+  overlayTopInset,
 }: VideoTileProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
@@ -69,7 +72,7 @@ export default function VideoTile({
     [participant.identity],
   );
 
-  const showVideo = Boolean(participant.publication?.track) && participant.hasCamera;
+  const showVideo = Boolean(participant.publication?.track);
   const bottomLabelClass = tiny
     ? "text-[10px]"
     : compact
@@ -80,15 +83,23 @@ export default function VideoTile({
   const muteBadgeClass = tiny ? "h-7 w-7" : compact ? "h-10 w-10" : "h-11 w-11";
   const pinButtonClass = tiny ? "h-7 w-7" : compact ? "h-8 w-8" : "h-9 w-9";
   const floatingButtonVisibility = isMobile ? "opacity-100" : "opacity-0 group-hover:opacity-100";
+  const topInsetStyle = overlayTopInset ? { top: overlayTopInset } : undefined;
+  const screenPinTopInsetStyle =
+    participant.source === "screen" && overlayTopInset
+      ? { top: `calc(${overlayTopInset} + 2.75rem)` }
+      : topInsetStyle;
 
   return (
     <div
       className={cn(
-        "group relative h-full w-full overflow-hidden rounded-[1.6rem] bg-[var(--meet-tile-bg)] shadow-[var(--meet-shadow-color)] transition duration-200 ease-out hover:scale-[1.01] hover:brightness-105 sm:rounded-[2rem]",
+        "group relative h-full w-full overflow-hidden bg-[var(--meet-tile-bg)] transition duration-200 ease-out sm:rounded-[2rem]",
+        tiny
+          ? "rounded-[1.1rem] shadow-[0_10px_26px_rgba(15,23,42,0.18)]"
+          : "rounded-[1.6rem] shadow-[var(--meet-shadow-color)] hover:scale-[1.01] hover:brightness-105",
         "min-h-[136px] sm:min-h-[180px]",
         compact && "min-h-[112px] sm:min-h-[132px]",
         dominant && "rounded-[1.35rem] sm:rounded-[1.5rem]",
-        tiny && "!min-h-0 rounded-[1.1rem] shadow-xl sm:rounded-[1.1rem]",
+        tiny && "!min-h-0 sm:rounded-[1.1rem]",
         participant.isSpeaking &&
           "border-emerald-400/70 ring-2 ring-emerald-400/70 shadow-[0_0_0_1px_rgba(52,168,83,0.5),0_0_40px_rgba(52,168,83,0.18)]",
       )}
@@ -105,12 +116,17 @@ export default function VideoTile({
           )}
         />
       ) : (
-        <div className="flex h-full w-full items-center justify-center bg-[var(--meet-tile-bg)]">
+        <div
+          className={cn(
+            "flex h-full w-full items-center justify-center bg-[var(--meet-tile-bg)]",
+            tiny && "bg-gradient-to-br from-white/90 via-slate-100 to-slate-200",
+          )}
+        >
           <div
             className={cn(
               "flex aspect-square items-center justify-center rounded-full bg-gradient-to-br text-white shadow-lg",
               tiny
-                ? "w-[46%] min-w-[34px]"
+                ? "w-[58%] min-w-[42px]"
                 : compact
                 ? "w-[34%] min-w-[72px]"
                 : dominant
@@ -127,20 +143,27 @@ export default function VideoTile({
       )}
 
       {participant.source === "screen" ? (
-        <div className="absolute left-3 top-3 inline-flex items-center gap-2 rounded-full bg-[var(--meet-overlay-bg)] px-2.5 py-1.5 text-[11px] font-medium text-[var(--meet-text-color)] backdrop-blur-md sm:left-4 sm:top-4 sm:px-3 sm:text-xs">
+        <div
+          className="absolute left-3 top-3 inline-flex items-center gap-2 rounded-full bg-[var(--meet-overlay-bg)] px-2.5 py-1.5 text-[11px] font-medium text-[var(--meet-text-color)] backdrop-blur-md sm:left-4 sm:top-4 sm:px-3 sm:text-xs"
+          style={topInsetStyle}
+        >
           <MonitorUp className="h-4 w-4" />
           Presenting
         </div>
       ) : null}
 
-      <div
-        className="pointer-events-none absolute inset-x-0 top-0 h-24"
-        style={{ background: "var(--meet-dim-overlay-top)" }}
-      />
-      <div
-        className="pointer-events-none absolute inset-x-0 bottom-0 h-24"
-        style={{ background: "var(--meet-dim-overlay-bottom)" }}
-      />
+      {!tiny ? (
+        <>
+          <div
+            className="pointer-events-none absolute inset-x-0 top-0 h-24"
+            style={{ background: "var(--meet-dim-overlay-top)" }}
+          />
+          <div
+            className="pointer-events-none absolute inset-x-0 bottom-0 h-24"
+            style={{ background: "var(--meet-dim-overlay-bottom)" }}
+          />
+        </>
+      ) : null}
 
       {!tiny ? (
         <button
@@ -152,6 +175,7 @@ export default function VideoTile({
             pinButtonClass,
             pinned ? "opacity-100" : floatingButtonVisibility,
           )}
+          style={screenPinTopInsetStyle}
           aria-label={pinned ? "Unpin participant" : "Pin participant"}
         >
           <Pin className={cn("h-4 w-4 transition-transform", pinned && "rotate-45 text-[#8ab4f8]")} />
@@ -179,6 +203,7 @@ export default function VideoTile({
             "absolute right-3 top-3 inline-flex items-center justify-center rounded-full bg-[var(--meet-overlay-bg)] text-[var(--meet-text-color)] backdrop-blur-md sm:right-4 sm:top-4",
             muteBadgeClass,
           )}
+          style={topInsetStyle}
         >
           <MicOff className={tiny ? "h-3.5 w-3.5" : "h-4 w-4"} />
         </div>
@@ -199,6 +224,17 @@ export default function VideoTile({
       >
           {participant.name}
           {participant.isLocal ? <span className="ml-1 text-[var(--meet-text-muted-color)]">(You)</span> : null}
+          {participant.isHandRaised ? (
+            <span
+              className={cn(
+                "ml-2 inline-flex items-center gap-1 rounded-full bg-amber-400/18 px-2 py-0.5 align-middle text-amber-100",
+                tiny ? "text-[9px]" : "text-[11px]",
+              )}
+            >
+              <Hand className={tiny ? "h-3 w-3" : "h-3.5 w-3.5"} />
+              {!tiny ? "Hand raised" : null}
+            </span>
+          ) : null}
         </div>
       </div>
     </div>

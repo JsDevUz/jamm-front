@@ -34,6 +34,7 @@ export default function CallOverlays() {
         <IncomingCallRequest
           isOpen={Boolean(incomingCall)}
           caller={incomingCall.fromUser}
+          callType={incomingCall.callType}
           onAccept={acceptCall}
           onReject={rejectCall}
         />
@@ -42,6 +43,7 @@ export default function CallOverlays() {
         <OutgoingCallRequest
           isOpen={Boolean(outgoingCall)}
           target={outgoingCall.targetUser}
+          callType={outgoingCall.callType}
           onCancel={cancelCall}
         />
       )}
@@ -50,6 +52,7 @@ export default function CallOverlays() {
           isOpen={Boolean(activeCall)}
           roomId={activeCall.roomId}
           remoteUser={activeCall.remoteUser}
+          callType={activeCall.callType}
           isCaller={activeCall.isCaller}
           onClose={endActiveCall}
         />

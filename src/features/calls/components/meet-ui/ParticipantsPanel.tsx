@@ -1,5 +1,5 @@
 import React from "react";
-import { Mic, MicOff, Pin, X } from "lucide-react";
+import { Hand, Mic, MicOff, Pin, X } from "lucide-react";
 import type { Room } from "livekit-client";
 import { Sheet, SheetContent } from "../../../../components/ui/sheet";
 import type { TileParticipant } from "./VideoTile";
@@ -9,8 +9,15 @@ type ParticipantsPanelProps = {
   onOpenChange: (open: boolean) => void;
   participants: TileParticipant[];
   room: Room;
+  isCreator?: boolean;
   pinnedIdentity: string | null;
   onPin: (identity: string | null) => void;
+  remoteMediaLocks?: Record<string, { micLocked?: boolean; camLocked?: boolean }>;
+  onForceMuteMic?: (identity: string) => void;
+  onForceMuteCam?: (identity: string) => void;
+  onAllowMic?: (identity: string) => void;
+  onAllowCam?: (identity: string) => void;
+  raisedHands?: Record<string, { senderName?: string; raised?: boolean }>;
 };
 
 export default function ParticipantsPanel({
@@ -18,14 +25,31 @@ export default function ParticipantsPanel({
   onOpenChange,
   participants,
   room,
+  isCreator = false,
   pinnedIdentity,
   onPin,
+  remoteMediaLocks = {},
+  onForceMuteMic,
+  onForceMuteCam,
+  onAllowMic,
+  onAllowCam,
+  raisedHands = {},
 }: ParticipantsPanelProps) {
-  const uniqueParticipants = participants.filter(
-    (participant, index, allParticipants) =>
-      participant.source === "camera" &&
-      allParticipants.findIndex((item) => item.identity === participant.identity) === index,
-  );
+  const uniqueParticipants = participants
+    .filter(
+      (participant, index, allParticipants) =>
+        participant.source === "camera" &&
+        allParticipants.findIndex((item) => item.identity === participant.identity) === index,
+    )
+    .sort((left, right) => {
+      const leftRaised = Boolean(raisedHands[left.identity]?.raised);
+      const rightRaised = Boolean(raisedHands[right.identity]?.raised);
+      if (leftRaised && !rightRaised) return -1;
+      if (!leftRaised && rightRaised) return 1;
+      if (left.isLocal && !right.isLocal) return -1;
+      if (!left.isLocal && right.isLocal) return 1;
+      return left.name.localeCompare(right.name);
+    });
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -42,6 +66,12 @@ export default function ParticipantsPanel({
         <div className="scrollbar-thin flex-1 overflow-y-auto px-4 py-4 sm:px-5">
           <div className="space-y-3">
             {uniqueParticipants.map((participant) => (
+              (() => {
+                const mediaLock = remoteMediaLocks[participant.identity] || {};
+                const micLocked = Boolean(mediaLock.micLocked);
+                const camLocked = Boolean(mediaLock.camLocked);
+                const handRaised = Boolean(raisedHands[participant.identity]?.raised);
+                return (
                 <div
                   key={participant.identity}
                   className="flex items-center justify-between gap-3 rounded-2xl border border-[var(--meet-border-color)] bg-[var(--meet-control-bg)] px-4 py-3"
@@ -53,6 +83,12 @@ export default function ParticipantsPanel({
                     <div className="mt-1 flex items-center gap-2 text-xs text-[var(--meet-text-muted-color)]">
                       {participant.isMuted ? <MicOff className="h-3.5 w-3.5" /> : <Mic className="h-3.5 w-3.5" />}
                       {participant.isMuted ? "Muted" : "Microphone on"}
+                      {handRaised ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-amber-400/15 px-2 py-0.5 text-amber-200">
+                          <Hand className="h-3.5 w-3.5" />
+                          Hand raised
+                        </span>
+                      ) : null}
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
@@ -65,6 +101,32 @@ export default function ParticipantsPanel({
                         {participant.isMuted ? "Unmute" : "Mute"}
                       </button>
                     ) : null}
+                    {isCreator && !participant.isLocal ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            micLocked
+                              ? onAllowMic?.(participant.identity)
+                              : onForceMuteMic?.(participant.identity)
+                          }
+                          className="inline-flex h-10 items-center justify-center rounded-full border border-[var(--meet-border-color)] bg-[var(--meet-control-bg)] px-3 text-sm text-[var(--meet-text-color)] hover:bg-[var(--meet-control-hover-bg)]"
+                        >
+                          {micLocked ? "Allow mic" : "Mute mic"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            camLocked
+                              ? onAllowCam?.(participant.identity)
+                              : onForceMuteCam?.(participant.identity)
+                          }
+                          className="inline-flex h-10 items-center justify-center rounded-full border border-[var(--meet-border-color)] bg-[var(--meet-control-bg)] px-3 text-sm text-[var(--meet-text-color)] hover:bg-[var(--meet-control-hover-bg)]"
+                        >
+                          {camLocked ? "Allow cam" : "Stop cam"}
+                        </button>
+                      </>
+                    ) : null}
                     <button
                       type="button"
                       onClick={() => onPin(pinnedIdentity === participant.identity ? null : participant.identity)}
@@ -74,7 +136,9 @@ export default function ParticipantsPanel({
                     </button>
                   </div>
                 </div>
-              ))}
+                );
+              })()
+            ))}
           </div>
         </div>
       </SheetContent>

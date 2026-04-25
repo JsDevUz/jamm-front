@@ -1,10 +1,12 @@
 import React, { createContext, useContext, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "../../lib/utils";
+import MobileModalSheet, { useMobileSheetViewport } from "./mobile-sheet";
 
 type SheetContextValue = {
   open: boolean;
   setOpen: React.Dispatch<React.SetStateAction<boolean>>;
+  isMobile: boolean;
 };
 
 const SheetContext = createContext<SheetContextValue | null>(null);
@@ -26,15 +28,17 @@ export function Sheet({
   onOpenChange: (open: boolean) => void;
   children: React.ReactNode;
 }) {
+  const isMobile = useMobileSheetViewport();
   const value = useMemo(
     () => ({
       open,
+      isMobile,
       setOpen: (next: React.SetStateAction<boolean>) => {
         const resolved = typeof next === "function" ? next(open) : next;
         onOpenChange(resolved);
       },
     }),
-    [onOpenChange, open],
+    [isMobile, onOpenChange, open],
   );
 
   return <SheetContext.Provider value={value}>{children}</SheetContext.Provider>;
@@ -47,12 +51,20 @@ export function SheetContent({
   children: React.ReactNode;
   className?: string;
 }) {
-  const { open, setOpen } = useSheetContext();
+  const { open, setOpen, isMobile } = useSheetContext();
 
   if (!open || typeof document === "undefined") return null;
 
+  if (isMobile) {
+    return (
+      <MobileModalSheet open={open} onClose={() => setOpen(false)} contentClassName={className}>
+        {children}
+      </MobileModalSheet>
+    );
+  }
+
   return createPortal(
-    <div className="fixed inset-0 z-[140]">
+    <div className="fixed inset-0 z-[10040]">
       <button
         type="button"
         className="absolute inset-0 bg-black/45 backdrop-blur-[2px]"

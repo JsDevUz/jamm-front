@@ -4,22 +4,25 @@ import type { Room } from "livekit-client";
 import { RoomEvent } from "livekit-client";
 import { Sheet, SheetContent } from "../../../../components/ui/sheet";
 import { Button } from "../../../../components/ui/button";
-
-type ChatMessage = {
-  id: string;
-  senderName: string;
-  senderIdentity: string;
-  text: string;
-  sentAt: number;
-};
+import {
+  parseMeetingDataPayload,
+  type MeetingChatPayload,
+} from "./meeting-events";
+type ChatMessage = MeetingChatPayload;
 
 type ChatPanelProps = {
   room: Room;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onLocalMessageSent?: () => void;
 };
 
-export default function ChatPanel({ room, open, onOpenChange }: ChatPanelProps) {
+export default function ChatPanel({
+  room,
+  open,
+  onOpenChange,
+  onLocalMessageSent,
+}: ChatPanelProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState("");
 
@@ -28,8 +31,8 @@ export default function ChatPanel({ room, open, onOpenChange }: ChatPanelProps) 
 
     const handleDataReceived = (payload: Uint8Array, participant?: { identity?: string; name?: string | undefined }) => {
       try {
-        const data = JSON.parse(encoder.decode(payload)) as Omit<ChatMessage, "id" | "sentAt"> & Partial<Pick<ChatMessage, "id" | "sentAt">>;
-        if (!data?.text) return;
+        const data = parseMeetingDataPayload(encoder.decode(payload));
+        if (!data || data.kind !== "chat" || !data.text) return;
         setMessages((current) => [
           ...current,
           {
@@ -61,6 +64,7 @@ export default function ChatPanel({ room, open, onOpenChange }: ChatPanelProps) 
     if (!text) return;
 
     const message: ChatMessage = {
+      kind: "chat",
       id: `${room.localParticipant.identity}-${Date.now()}`,
       senderIdentity: room.localParticipant.identity,
       senderName: room.localParticipant.name || room.localParticipant.identity,
@@ -70,6 +74,7 @@ export default function ChatPanel({ room, open, onOpenChange }: ChatPanelProps) 
 
     setMessages((current) => [...current, message]);
     setDraft("");
+    onLocalMessageSent?.();
 
     await room.localParticipant.publishData(
       new TextEncoder().encode(JSON.stringify(message)),

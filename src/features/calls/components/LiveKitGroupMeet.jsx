@@ -47,6 +47,11 @@ import WhiteboardTile from "./WhiteboardTile";
 import MeetingUI from "./meet-ui/MeetingUI";
 import { useLiveKitMeetSignaling } from "../hooks/useLiveKitMeetSignaling";
 import { useMeetRecorder } from "../hooks/useMeetRecorder";
+import { applyPreferredAudioOutput } from "../utils/audioOutput";
+import {
+  buildCameraDeviceOptions,
+  parseCameraDeviceSelection,
+} from "../utils/cameraOptions";
 
 const WHITEBOARD_DEFAULT_COLOR = "#0f172a";
 const WHITEBOARD_DEFAULT_FILL_COLOR = "";
@@ -1867,12 +1872,9 @@ function MeetContent({
 
     try {
       const devices = await navigator.mediaDevices.enumerateDevices();
-      const nextCameraDevices = devices
-        .filter((device) => device.kind === "videoinput")
-        .map((device, index) => ({
-          id: device.deviceId,
-          label: device.label || `Camera ${index + 1}`,
-        }));
+      const nextCameraDevices = buildCameraDeviceOptions(
+        devices.filter((device) => device.kind === "videoinput"),
+      );
       const nextMicrophoneDevices = devices
         .filter((device) => device.kind === "audioinput")
         .map((device, index) => ({
@@ -1906,6 +1908,10 @@ function MeetContent({
   }, [refreshDevices]);
 
   const handleToggleMicrophone = useCallback(async () => {
+    if (signaling.localMediaLocks?.micLocked) {
+      toast("Mikrofon host tomonidan bloklangan");
+      return;
+    }
     try {
       await room.localParticipant.setMicrophoneEnabled(
         !room.localParticipant.isMicrophoneEnabled,
@@ -1913,15 +1919,41 @@ function MeetContent({
     } catch {
       toast.error("Mikrofonni boshqarib bo'lmadi");
     }
-  }, [room.localParticipant]);
+  }, [room.localParticipant, signaling.localMediaLocks?.micLocked]);
 
   const handleToggleCamera = useCallback(async () => {
+    if (signaling.localMediaLocks?.camLocked) {
+      toast("Kamera host tomonidan bloklangan");
+      return;
+    }
     try {
-      await room.localParticipant.setCameraEnabled(!room.localParticipant.isCameraEnabled);
+      if (!room.localParticipant.isCameraEnabled) {
+        const nextSelection = parseCameraDeviceSelection(selectedCameraId);
+        if (nextSelection.mode === "facing") {
+          await room.localParticipant.setCameraEnabled(true, {
+            deviceId: nextSelection.deviceId || undefined,
+            facingMode: nextSelection.facingMode,
+          });
+        } else {
+          await room.localParticipant.setCameraEnabled(true);
+        }
+      } else {
+        await room.localParticipant.setCameraEnabled(false);
+      }
     } catch {
       toast.error("Kamerani boshqarib bo'lmadi");
     }
-  }, [room.localParticipant]);
+  }, [room.localParticipant, selectedCameraId, signaling.localMediaLocks?.camLocked]);
+
+  useEffect(() => {
+    if (!room?.localParticipant || !signaling.localMediaLocks?.micLocked) return;
+    void room.localParticipant.setMicrophoneEnabled(false).catch(() => {});
+  }, [room, signaling.localMediaLocks?.micLocked]);
+
+  useEffect(() => {
+    if (!room?.localParticipant || !signaling.localMediaLocks?.camLocked) return;
+    void room.localParticipant.setCameraEnabled(false).catch(() => {});
+  }, [room, signaling.localMediaLocks?.camLocked]);
 
   const handleToggleScreenShare = useCallback(async () => {
     try {
@@ -1935,8 +1967,30 @@ function MeetContent({
 
   const handleSelectCamera = useCallback(
     async (deviceId) => {
+      const selection = parseCameraDeviceSelection(deviceId);
       try {
-        await room.switchActiveDevice("videoinput", deviceId);
+        if (selection.mode === "facing") {
+          const cameraPublication = Array.from(
+            room.localParticipant.videoTrackPublications.values(),
+          ).find((publication) => publication.source === Track.Source.Camera);
+          const cameraTrack = cameraPublication?.videoTrack;
+
+          if (cameraTrack) {
+            await cameraTrack.restartTrack({
+              deviceId: selection.deviceId || undefined,
+              facingMode: selection.facingMode,
+            });
+          } else if (room.localParticipant.isCameraEnabled) {
+            await room.localParticipant.setCameraEnabled(true, {
+              deviceId: selection.deviceId || undefined,
+              facingMode: selection.facingMode,
+            });
+          } else if (selection.deviceId) {
+            await room.switchActiveDevice("videoinput", selection.deviceId);
+          }
+        } else {
+          await room.switchActiveDevice("videoinput", deviceId);
+        }
         setSelectedCameraId(deviceId);
       } catch {
         toast.error("Kamera almashtirilmadi");
@@ -1959,16 +2013,36 @@ function MeetContent({
 
   const handleSelectSpeaker = useCallback(
     async (deviceId) => {
-      if (typeof room.switchActiveDevice !== "function") return;
+      const selectedDevice = speakerDevices.find((device) => device.id === deviceId);
+      const label = String(selectedDevice?.label || "").toLowerCase();
+      const prefersReceiver =
+        deviceId === "communications" ||
+        deviceId === "receiver" ||
+        /(receiver|earpiece|phone|communication|kichik)/i.test(label);
 
       try {
-        await room.switchActiveDevice("audiooutput", deviceId);
+        let switchedByRoom = false;
+        if (
+          typeof room.switchActiveDevice === "function" &&
+          deviceId &&
+          deviceId !== "receiver" &&
+          deviceId !== "speaker"
+        ) {
+          await room.switchActiveDevice("audiooutput", deviceId);
+          switchedByRoom = true;
+        }
+
+        const switchedBySink = await applyPreferredAudioOutput(!prefersReceiver);
+        if (!switchedByRoom && !switchedBySink && !deviceId) {
+          throw new Error("speaker-switch-failed");
+        }
+
         setSelectedSpeakerId(deviceId);
       } catch {
         toast.error("Speaker almashtirilmadi");
       }
     },
-    [room],
+    [room, speakerDevices],
   );
 
   const closePiPWindow = useCallback(() => {
@@ -2247,6 +2321,7 @@ function MeetContent({
       <MeetingUI
         room={room}
         meetingName={roomId}
+        isCreator={isCreator}
         onLeave={handleLeave}
         onCopyLink={handleCopy}
         onToggleWhiteboard={handleWhiteboardToggle}
@@ -2270,6 +2345,11 @@ function MeetContent({
         onSelectCamera={handleSelectCamera}
         onSelectMic={handleSelectMicrophone}
         onSelectSpeaker={handleSelectSpeaker}
+        remoteMediaLocks={signaling.remoteMediaLocks}
+        onForceMuteMic={signaling.forceMuteMic}
+        onForceMuteCam={signaling.forceMuteCam}
+        onAllowMic={signaling.allowMic}
+        onAllowCam={signaling.allowCam}
       />
       <RoomAudioRenderer />
     </Overlay>

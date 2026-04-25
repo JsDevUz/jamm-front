@@ -1010,6 +1010,11 @@ export function useLiveKitMeetSignaling({
   const [roomIsPrivate, setRoomIsPrivate] = useState(Boolean(isPrivate));
   const [roomCreatorId, setRoomCreatorId] = useState("");
   const [knockRequests, setKnockRequests] = useState([]);
+  const [localMediaLocks, setLocalMediaLocks] = useState({
+    micLocked: false,
+    camLocked: false,
+  });
+  const [remoteMediaLocks, setRemoteMediaLocks] = useState({});
   const [whiteboardState, setWhiteboardState] = useState(() =>
     createInitialWhiteboardState(),
   );
@@ -1035,6 +1040,8 @@ export function useLiveKitMeetSignaling({
     setRoomTitle(chatTitle || "");
     setRoomIsPrivate(Boolean(isPrivate));
     setRoomCreatorId("");
+    setLocalMediaLocks({ micLocked: false, camLocked: false });
+    setRemoteMediaLocks({});
   }, [chatTitle, isPrivate, roomId]);
 
   useEffect(() => {
@@ -1316,6 +1323,18 @@ export function useLiveKitMeetSignaling({
         }),
       );
     });
+    socket.on("force-mute-mic", () => {
+      setLocalMediaLocks((current) => ({ ...current, micLocked: true }));
+    });
+    socket.on("force-mute-cam", () => {
+      setLocalMediaLocks((current) => ({ ...current, camLocked: true }));
+    });
+    socket.on("allow-mic", () => {
+      setLocalMediaLocks((current) => ({ ...current, micLocked: false }));
+    });
+    socket.on("allow-cam", () => {
+      setLocalMediaLocks((current) => ({ ...current, camLocked: false }));
+    });
 
     const timeoutId = window.setTimeout(() => {
       if (!cancelled) {
@@ -1339,6 +1358,8 @@ export function useLiveKitMeetSignaling({
         socketRef.current = null;
       }
       setKnockRequests([]);
+      setLocalMediaLocks({ micLocked: false, camLocked: false });
+      setRemoteMediaLocks({});
       commitWhiteboardCursor(null);
       commitWhiteboardState({
         ...createInitialWhiteboardState(),
@@ -1378,6 +1399,70 @@ export function useLiveKitMeetSignaling({
       return true;
     },
     [roomId],
+  );
+
+  const forceMuteMic = useCallback(
+    (peerId) => {
+      if (!isCreator || !socketRef.current || !peerId) return false;
+      socketRef.current.emit("force-mute-mic", { roomId, peerId });
+      setRemoteMediaLocks((current) => ({
+        ...current,
+        [peerId]: {
+          micLocked: true,
+          camLocked: Boolean(current?.[peerId]?.camLocked),
+        },
+      }));
+      return true;
+    },
+    [isCreator, roomId],
+  );
+
+  const forceMuteCam = useCallback(
+    (peerId) => {
+      if (!isCreator || !socketRef.current || !peerId) return false;
+      socketRef.current.emit("force-mute-cam", { roomId, peerId });
+      setRemoteMediaLocks((current) => ({
+        ...current,
+        [peerId]: {
+          micLocked: Boolean(current?.[peerId]?.micLocked),
+          camLocked: true,
+        },
+      }));
+      return true;
+    },
+    [isCreator, roomId],
+  );
+
+  const allowMic = useCallback(
+    (peerId) => {
+      if (!isCreator || !socketRef.current || !peerId) return false;
+      socketRef.current.emit("allow-mic", { roomId, peerId });
+      setRemoteMediaLocks((current) => ({
+        ...current,
+        [peerId]: {
+          micLocked: false,
+          camLocked: Boolean(current?.[peerId]?.camLocked),
+        },
+      }));
+      return true;
+    },
+    [isCreator, roomId],
+  );
+
+  const allowCam = useCallback(
+    (peerId) => {
+      if (!isCreator || !socketRef.current || !peerId) return false;
+      socketRef.current.emit("allow-cam", { roomId, peerId });
+      setRemoteMediaLocks((current) => ({
+        ...current,
+        [peerId]: {
+          micLocked: Boolean(current?.[peerId]?.micLocked),
+          camLocked: false,
+        },
+      }));
+      return true;
+    },
+    [isCreator, roomId],
   );
 
   const setRoomPrivacy = useCallback(
@@ -1902,9 +1987,15 @@ export function useLiveKitMeetSignaling({
     roomTitle,
     roomIsPrivate,
     roomCreatorId,
+    localMediaLocks,
+    remoteMediaLocks,
     knockRequests,
     approveKnock,
     rejectKnock,
+    forceMuteMic,
+    forceMuteCam,
+    allowMic,
+    allowCam,
     setRoomPrivacy,
     whiteboardState,
     whiteboardCursor,

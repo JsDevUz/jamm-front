@@ -46,19 +46,14 @@ export function DropdownMenuTrigger({
   asChild?: boolean;
 }) {
   const { open, setOpen, triggerRef } = useDropdownMenuContext();
-  const toggleOpen = (event: React.PointerEvent<HTMLButtonElement>) => {
-    event.preventDefault();
+  const toggleOpen = (event: React.MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation();
     setOpen((prev) => !prev);
-  };
-  const stopClick = (event: React.MouseEvent<HTMLButtonElement>) => {
-    event.preventDefault();
-    event.stopPropagation();
   };
 
   if (!asChild) {
     return (
-      <button ref={triggerRef} type="button" onPointerDown={toggleOpen} onClick={stopClick}>
+      <button ref={triggerRef} type="button" onClick={toggleOpen}>
         {children}
       </button>
     );
@@ -73,14 +68,10 @@ export function DropdownMenuTrigger({
       }
     },
     "aria-expanded": open,
-    onPointerDown: (event: React.PointerEvent<HTMLButtonElement>) => {
-      children.props.onPointerDown?.(event);
-      if (event.defaultPrevented) return;
-      toggleOpen(event);
-    },
     onClick: (event: React.MouseEvent<HTMLButtonElement>) => {
       children.props.onClick?.(event);
-      stopClick(event);
+      if (event.defaultPrevented) return;
+      toggleOpen(event);
     },
   });
 }
@@ -119,7 +110,7 @@ export function DropdownMenuContent({
   useEffect(() => {
     if (!open) return;
 
-    const handlePointerDown = (event: MouseEvent) => {
+    const handlePointerDown = (event: PointerEvent) => {
       const target = event.target as Node;
       if (
         contentRef.current?.contains(target) ||
@@ -130,11 +121,9 @@ export function DropdownMenuContent({
       setOpen(false);
     };
 
-    window.addEventListener("mousedown", handlePointerDown);
-    window.addEventListener("touchstart", handlePointerDown);
+    window.addEventListener("pointerdown", handlePointerDown);
     return () => {
-      window.removeEventListener("mousedown", handlePointerDown);
-      window.removeEventListener("touchstart", handlePointerDown);
+      window.removeEventListener("pointerdown", handlePointerDown);
     };
   }, [open, setOpen, triggerRef]);
 
@@ -143,8 +132,8 @@ export function DropdownMenuContent({
   return createPortal(
     <div
       ref={contentRef}
-      className={cn(
-        "fixed z-[120] min-w-[220px] rounded-2xl border border-[var(--meet-border-color)] bg-[var(--meet-panel-muted-bg)] p-2 text-[var(--meet-text-color)] shadow-[var(--meet-shadow-color)] backdrop-blur-2xl",
+        className={cn(
+        "fixed z-[10030] min-w-[220px] rounded-2xl border border-[var(--meet-border-color)] bg-[var(--meet-panel-muted-bg)] p-2 text-[var(--meet-text-color)] shadow-[var(--meet-shadow-color)] backdrop-blur-2xl",
         className,
       )}
       style={{

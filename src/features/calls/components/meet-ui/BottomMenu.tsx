@@ -1,16 +1,18 @@
-import React from "react";
+import React, { CSSProperties, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   Camera,
   CameraOff,
   ChevronDown,
+  Hand,
   Mic,
   MicOff,
-  MoreVertical,
   MonitorUp,
   PhoneOff,
+  Sparkles,
 } from "lucide-react";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from "../../../../components/ui/dropdown-menu";
 import { cn } from "../../../../lib/utils";
+import { MEETING_REACTION_OPTIONS } from "./meeting-events";
 
 export type DeviceOption = {
   id: string;
@@ -30,13 +32,13 @@ type BottomMenuProps = {
   onLeave: () => void;
   micDevices: DeviceOption[];
   cameraDevices: DeviceOption[];
-  speakerDevices?: DeviceOption[];
   selectedMicId?: string;
   selectedCameraId?: string;
-  selectedSpeakerId?: string;
   onSelectMic?: (id: string) => void;
   onSelectCamera?: (id: string) => void;
-  onSelectSpeaker?: (id: string) => void;
+  isHandRaised?: boolean;
+  onToggleRaiseHand?: () => void;
+  onSendReaction?: (emoji: string, label: string) => void;
 };
 
 type ControlButtonProps = {
@@ -47,6 +49,79 @@ type ControlButtonProps = {
   label: string;
   hideLabel?: boolean;
 };
+
+type MenuKey = "mic" | "camera" | "reaction" | null;
+
+function FloatingMenu({
+  open,
+  anchorRef,
+  surfaceRef,
+  align = "left",
+  minWidth = 220,
+  children,
+}: {
+  open: boolean;
+  anchorRef: React.RefObject<HTMLElement | null>;
+  surfaceRef: React.RefObject<HTMLDivElement | null>;
+  align?: "left" | "right";
+  minWidth?: number;
+  children: React.ReactNode;
+}) {
+  const [style, setStyle] = useState<CSSProperties | null>(null);
+
+  useEffect(() => {
+    if (!open || typeof window === "undefined" || !anchorRef.current) {
+      setStyle(null);
+      return undefined;
+    }
+
+    const updatePosition = () => {
+      const anchor = anchorRef.current;
+      if (!anchor) return;
+
+      const rect = anchor.getBoundingClientRect();
+      const viewportPadding = 8;
+      const desiredWidth = Math.max(minWidth, rect.width);
+      const maxWidth = Math.max(180, window.innerWidth - viewportPadding * 2);
+      const width = Math.min(desiredWidth, maxWidth);
+      const unclampedLeft = align === "right" ? rect.right - width : rect.left;
+      const left = Math.min(
+        Math.max(viewportPadding, unclampedLeft),
+        window.innerWidth - width - viewportPadding,
+      );
+
+      setStyle({
+        position: "fixed",
+        left,
+        top: Math.max(viewportPadding, rect.top - 10),
+        width,
+        zIndex: 10060,
+        transform: "translateY(-100%)",
+      });
+    };
+
+    updatePosition();
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+    return () => {
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+    };
+  }, [align, anchorRef, minWidth, open]);
+
+  if (!open || !style || typeof document === "undefined") return null;
+
+  return createPortal(
+    <div
+      ref={surfaceRef}
+      style={style}
+      className="rounded-2xl border border-[var(--meet-border-color)] bg-[var(--meet-panel-muted-bg)] p-2 text-[var(--meet-text-color)] shadow-[var(--meet-shadow-color)] backdrop-blur-2xl"
+    >
+      {children}
+    </div>,
+    document.body,
+  );
+}
 
 function ControlButton({
   active = false,
@@ -76,6 +151,7 @@ function ControlButton({
 }
 
 function DeviceControl({
+  anchorRef,
   label,
   enabled,
   onToggle,
@@ -85,7 +161,11 @@ function DeviceControl({
   iconOn,
   iconOff,
   hideLabel,
+  menuKey,
+  openMenu,
+  onMenuToggle,
 }: {
+  anchorRef: React.RefObject<HTMLDivElement | null>;
   label: string;
   enabled: boolean;
   onToggle: () => void;
@@ -95,9 +175,15 @@ function DeviceControl({
   iconOn: React.ReactNode;
   iconOff: React.ReactNode;
   hideLabel: boolean;
+  menuKey: Exclude<MenuKey, "reaction" | null>;
+  openMenu: MenuKey;
+  onMenuToggle: (menu: MenuKey) => void;
 }) {
   return (
-    <div className="inline-flex shrink-0 items-center overflow-hidden rounded-[18px] border border-[var(--meet-border-color)] bg-[var(--meet-control-bg)] sm:rounded-2xl">
+    <div
+      ref={anchorRef}
+      className="relative inline-flex shrink-0 items-center overflow-visible rounded-[18px] border border-[var(--meet-border-color)] bg-[var(--meet-control-bg)] sm:rounded-2xl"
+    >
       <ControlButton
         active={enabled}
         onClick={onToggle}
@@ -105,28 +191,18 @@ function DeviceControl({
         label={label}
         hideLabel={hideLabel}
       />
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <button
-            type="button"
-            className="inline-flex min-h-[44px] min-w-[38px] items-center justify-center border-l border-[var(--meet-border-color)] px-2.5 text-[var(--meet-text-color)] hover:bg-[var(--meet-control-hover-bg)] sm:min-h-[48px] sm:min-w-[42px] sm:px-3"
-            aria-label={`${label} devices`}
-          >
-            <ChevronDown className="h-4 w-4" />
-          </button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="center">
-          <DropdownMenuLabel>{label} devices</DropdownMenuLabel>
-          {options.map((option) => (
-            <DropdownMenuItem key={option.id} onSelect={() => onSelect?.(option.id)}>
-              <span className="truncate">{option.label}</span>
-              {selectedId === option.id ? (
-                <span className="text-xs text-[var(--meet-text-muted-color)]">Selected</span>
-              ) : null}
-            </DropdownMenuItem>
-          ))}
-        </DropdownMenuContent>
-      </DropdownMenu>
+      <button
+        type="button"
+        onClick={(event) => {
+          event.stopPropagation();
+          onMenuToggle(openMenu === menuKey ? null : menuKey);
+        }}
+        className="inline-flex min-h-[44px] min-w-[38px] items-center justify-center border-l border-[var(--meet-border-color)] px-2.5 text-[var(--meet-text-color)] hover:bg-[var(--meet-control-hover-bg)] sm:min-h-[48px] sm:min-w-[42px] sm:px-3"
+        aria-label={`${label} devices`}
+        aria-expanded={openMenu === menuKey}
+      >
+        <ChevronDown className="h-4 w-4" />
+      </button>
     </div>
   );
 }
@@ -144,19 +220,42 @@ export default function BottomMenu({
   onLeave,
   micDevices,
   cameraDevices,
-  speakerDevices = [],
   selectedMicId,
   selectedCameraId,
-  selectedSpeakerId,
   onSelectMic,
   onSelectCamera,
-  onSelectSpeaker,
+  isHandRaised = false,
+  onToggleRaiseHand,
+  onSendReaction,
 }: BottomMenuProps) {
+  const [openMenu, setOpenMenu] = useState<MenuKey>(null);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const menuSurfaceRef = useRef<HTMLDivElement | null>(null);
+  const micAnchorRef = useRef<HTMLDivElement | null>(null);
+  const cameraAnchorRef = useRef<HTMLDivElement | null>(null);
+  const reactionAnchorRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!openMenu) return undefined;
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target as Node;
+      if (rootRef.current?.contains(target) || menuSurfaceRef.current?.contains(target)) return;
+      setOpenMenu(null);
+    };
+
+    window.addEventListener("pointerdown", handlePointerDown);
+    return () => window.removeEventListener("pointerdown", handlePointerDown);
+  }, [openMenu]);
+
   return (
     <div
+      ref={rootRef}
       className={cn(
-        "pointer-events-none absolute inset-x-0 bottom-0 z-30 px-2 transition duration-300 sm:px-6",
-        isVisible ? "translate-y-0 opacity-100" : "translate-y-full opacity-0",
+        "absolute inset-x-0 bottom-0 z-30 px-2 transition duration-300 sm:px-6",
+        isVisible
+          ? "pointer-events-auto translate-y-0 opacity-100"
+          : "pointer-events-none translate-y-full opacity-0",
       )}
       style={{
         paddingBottom: `calc(env(safe-area-inset-bottom, 0px) + ${isMobile && isLandscape ? 6 : 10}px)`,
@@ -165,7 +264,7 @@ export default function BottomMenu({
       <div className="mx-auto flex max-w-max justify-center">
         <div
           className={cn(
-            "pointer-events-auto scrollbar-thin flex items-center overflow-x-auto rounded-[24px] border border-[var(--meet-border-color)] bg-[var(--meet-overlay-bg)] shadow-[var(--meet-shadow-color)] backdrop-blur-2xl sm:max-w-[calc(100vw-3rem)] sm:gap-3 sm:rounded-[28px] sm:px-5 sm:py-3",
+            "scrollbar-thin flex items-center overflow-x-auto rounded-[24px] border border-[var(--meet-border-color)] bg-[var(--meet-overlay-bg)] shadow-[var(--meet-shadow-color)] backdrop-blur-2xl sm:max-w-[calc(100vw-3rem)] sm:gap-3 sm:rounded-[28px] sm:px-5 sm:py-3",
             isMobile
               ? isLandscape
                 ? "max-w-[calc(100vw-0.75rem)] gap-1.5 px-2 py-2"
@@ -174,6 +273,7 @@ export default function BottomMenu({
           )}
         >
           <DeviceControl
+            anchorRef={micAnchorRef}
             label="Mic"
             enabled={isMicrophoneEnabled}
             onToggle={onToggleMicrophone}
@@ -183,9 +283,13 @@ export default function BottomMenu({
             iconOn={<Mic className="h-5 w-5" />}
             iconOff={<MicOff className="h-5 w-5" />}
             hideLabel={isMobile}
+            menuKey="mic"
+            openMenu={openMenu}
+            onMenuToggle={setOpenMenu}
           />
 
           <DeviceControl
+            anchorRef={cameraAnchorRef}
             label="Camera"
             enabled={isCameraEnabled}
             onToggle={onToggleCamera}
@@ -195,6 +299,9 @@ export default function BottomMenu({
             iconOn={<Camera className="h-5 w-5" />}
             iconOff={<CameraOff className="h-5 w-5" />}
             hideLabel={isMobile}
+            menuKey="camera"
+            openMenu={openMenu}
+            onMenuToggle={setOpenMenu}
           />
 
           {!isMobile ? (
@@ -206,33 +313,30 @@ export default function BottomMenu({
             />
           ) : null}
 
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button
-                type="button"
-                className="inline-flex min-h-[44px] shrink-0 items-center justify-center gap-2 rounded-[18px] border border-[var(--meet-border-color)] bg-[var(--meet-control-bg)] px-3 py-2.5 text-sm font-medium text-[var(--meet-text-color)] transition hover:bg-[var(--meet-control-hover-bg)] sm:min-h-[48px] sm:rounded-2xl sm:px-4 sm:py-3"
-              >
-                <MoreVertical className="h-5 w-5" />
-                {!isMobile ? <span>More</span> : null}
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuLabel>More options</DropdownMenuLabel>
-              {speakerDevices.map((option) => (
-                <DropdownMenuItem key={option.id} onSelect={() => onSelectSpeaker?.(option.id)}>
-                  <span className="truncate">{option.label}</span>
-                  {selectedSpeakerId === option.id ? (
-                    <span className="text-xs text-[var(--meet-text-muted-color)]">Selected</span>
-                  ) : null}
-                </DropdownMenuItem>
-              ))}
-              {!speakerDevices.length ? (
-                <DropdownMenuItem>
-                  <span className="truncate">Settings</span>
-                </DropdownMenuItem>
-              ) : null}
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <div className="relative shrink-0">
+            <ControlButton
+              active={isHandRaised}
+              onClick={onToggleRaiseHand}
+              icon={<Hand className="h-5 w-5" />}
+              label="Hand"
+              hideLabel={isMobile}
+            />
+          </div>
+
+          <div ref={reactionAnchorRef} className="relative shrink-0">
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                setOpenMenu(openMenu === "reaction" ? null : "reaction");
+              }}
+              className="inline-flex min-h-[44px] shrink-0 items-center justify-center gap-2 rounded-[18px] border border-[var(--meet-border-color)] bg-[var(--meet-control-bg)] px-3 py-2.5 text-sm font-medium text-[var(--meet-text-color)] transition hover:bg-[var(--meet-control-hover-bg)] sm:min-h-[48px] sm:rounded-2xl sm:px-4 sm:py-3"
+              aria-expanded={openMenu === "reaction"}
+            >
+              <Sparkles className="h-5 w-5" />
+              {!isMobile ? <span>React</span> : null}
+            </button>
+          </div>
 
           <ControlButton
             danger
@@ -243,6 +347,87 @@ export default function BottomMenu({
           />
         </div>
       </div>
+
+      <FloatingMenu
+        open={openMenu === "mic"}
+        anchorRef={micAnchorRef}
+        surfaceRef={menuSurfaceRef}
+      >
+        <div className="px-3 pb-2 pt-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--meet-text-muted-color)]">
+          Mic devices
+        </div>
+        {micDevices.map((option) => (
+          <button
+            key={option.id}
+            type="button"
+            className="flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm text-[var(--meet-text-color)] transition-colors hover:bg-[var(--meet-control-hover-bg)]"
+            onClick={() => {
+              onSelectMic?.(option.id);
+              setOpenMenu(null);
+            }}
+          >
+            <span className="truncate">{option.label}</span>
+            {selectedMicId === option.id ? (
+              <span className="text-xs text-[var(--meet-text-muted-color)]">Selected</span>
+            ) : null}
+          </button>
+        ))}
+      </FloatingMenu>
+
+      <FloatingMenu
+        open={openMenu === "camera"}
+        anchorRef={cameraAnchorRef}
+        surfaceRef={menuSurfaceRef}
+      >
+        <div className="px-3 pb-2 pt-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--meet-text-muted-color)]">
+          Camera devices
+        </div>
+        {cameraDevices.map((option) => (
+          <button
+            key={option.id}
+            type="button"
+            className="flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm text-[var(--meet-text-color)] transition-colors hover:bg-[var(--meet-control-hover-bg)]"
+            onClick={() => {
+              onSelectCamera?.(option.id);
+              setOpenMenu(null);
+            }}
+          >
+            <span className="truncate">{option.label}</span>
+            {selectedCameraId === option.id ? (
+              <span className="text-xs text-[var(--meet-text-muted-color)]">Selected</span>
+            ) : null}
+          </button>
+        ))}
+      </FloatingMenu>
+
+      <FloatingMenu
+        open={openMenu === "reaction"}
+        anchorRef={reactionAnchorRef}
+        surfaceRef={menuSurfaceRef}
+        align="right"
+      >
+        <div className="px-3 pb-2 pt-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--meet-text-muted-color)]">
+          Quick reactions
+        </div>
+        <div className="grid grid-cols-3 gap-2">
+          {MEETING_REACTION_OPTIONS.map((option) => (
+            <button
+              key={option.label}
+              type="button"
+              className="flex flex-col items-center justify-center rounded-2xl border border-[var(--meet-border-color)] bg-[var(--meet-control-bg)] px-3 py-3 text-center text-[var(--meet-text-color)] transition hover:bg-[var(--meet-control-hover-bg)]"
+              onClick={() => {
+                onSendReaction?.(option.emoji, option.label);
+                setOpenMenu(null);
+              }}
+            >
+              <span className="text-2xl leading-none">{option.emoji}</span>
+              <span className="mt-1 text-[11px] font-medium text-[var(--meet-text-muted-color)]">
+                {option.label}
+              </span>
+            </button>
+          ))}
+        </div>
+      </FloatingMenu>
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import {
   Copy,
+  Hand,
   MessageSquare,
   Minimize2,
   MonitorUp,
@@ -13,6 +14,8 @@ import { cn } from "../../../../lib/utils";
 type HeaderProps = {
   meetingName: string;
   participantCount: number;
+  chatCount?: number;
+  handRaisedCount?: number;
   isVisible: boolean;
   isMobile?: boolean;
   isMobileLandscape?: boolean;
@@ -30,6 +33,8 @@ type HeaderProps = {
 export default function Header({
   meetingName,
   participantCount,
+  chatCount = 0,
+  handRaisedCount = 0,
   isVisible,
   isMobile = false,
   isMobileLandscape = false,
@@ -64,32 +69,25 @@ export default function Header({
     return () => window.clearInterval(intervalId);
   }, []);
 
-  const openParticipants = (
-    event: React.MouseEvent<HTMLButtonElement> | React.PointerEvent<HTMLButtonElement>,
-  ) => {
+  const openParticipants = (event: React.MouseEvent<HTMLButtonElement>) => {
     event.preventDefault();
     event.stopPropagation();
     onToggleParticipants?.();
   };
 
-  const openChat = (
-    event: React.MouseEvent<HTMLButtonElement> | React.PointerEvent<HTMLButtonElement>,
-  ) => {
+  const openChat = (event: React.MouseEvent<HTMLButtonElement>) => {
     event.preventDefault();
     event.stopPropagation();
     onToggleChat?.();
   };
 
-  const stopClick = (event: React.MouseEvent<HTMLButtonElement>) => {
-    event.preventDefault();
-    event.stopPropagation();
-  };
-
   return (
     <header
       className={cn(
-        "pointer-events-none absolute inset-x-0 top-0 z-30 px-2 pt-2 transition duration-300 sm:px-6 sm:pt-4",
-        isVisible ? "translate-y-0 opacity-100" : "-translate-y-full opacity-0",
+        "absolute inset-x-0 top-0 z-30 px-2 pt-2 transition duration-300 sm:px-6 sm:pt-4",
+        isVisible
+          ? "pointer-events-auto translate-y-0 opacity-100"
+          : "pointer-events-none -translate-y-full opacity-0",
       )}
       style={{
         paddingTop: "calc(env(safe-area-inset-top, 0px) + 8px)",
@@ -102,25 +100,28 @@ export default function Header({
           </div>
           <div className="mt-1 flex items-center gap-2.5 text-[11px] text-[var(--meet-text-muted-color)] sm:hidden">
             <span>{isMobileLandscape ? meetId : currentTime}</span>
-            <span className="inline-flex items-center gap-1.5">
-              <Users className="h-3.5 w-3.5" />
-              {participantCount}
-            </span>
           </div>
           <div className="mt-1 hidden items-center gap-3 text-sm text-[var(--meet-text-muted-color)] sm:flex">
             <span>{currentTime}</span>
-            <span className="inline-flex items-center gap-1.5">
-              <Users className="h-4 w-4" />
-              {participantCount}
-            </span>
           </div>
         </div>
-        <div className="pointer-events-auto flex items-center gap-1.5 sm:gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2">
           {isRecording ? (
             <div className="hidden items-center gap-2 rounded-full bg-red-500/20 px-3 py-2 text-sm font-medium text-red-300 sm:inline-flex">
               <span className="h-2 w-2 rounded-full bg-red-400" />
               REC
             </div>
+          ) : null}
+          {handRaisedCount > 0 ? (
+            <button
+              type="button"
+              onClick={openParticipants}
+              className="inline-flex h-9 items-center gap-2 rounded-full border border-amber-300/20 bg-amber-400/15 px-3 text-sm font-medium text-amber-100 transition hover:bg-amber-400/20 sm:h-11 sm:px-4"
+              title="Ko'tarilgan qo'llar"
+            >
+              <Hand className="h-4 w-4" />
+              <span>{handRaisedCount > 99 ? "99+" : handRaisedCount}</span>
+            </button>
           ) : null}
           {onCopyLink && !isMobileLandscape ? (
             <button
@@ -167,25 +168,35 @@ export default function Header({
           {onToggleParticipants ? (
             <button
               type="button"
-              onPointerDown={openParticipants}
-              onClick={stopClick}
-              className="inline-flex h-9 w-9 items-center justify-center gap-2 rounded-full border border-[var(--meet-border-color)] bg-[var(--meet-control-bg)] text-[var(--meet-text-color)] transition hover:bg-[var(--meet-control-hover-bg)] sm:h-11 sm:w-auto sm:px-4"
+              onClick={openParticipants}
+              className="relative inline-flex h-9 w-9 items-center justify-center gap-2 rounded-full border border-[var(--meet-border-color)] bg-[var(--meet-control-bg)] text-[var(--meet-text-color)] transition hover:bg-[var(--meet-control-hover-bg)] sm:h-11 sm:w-auto sm:px-4"
               title="People"
             >
               <Users className="h-4 w-4" />
+              {isMobile ? (
+                <span className="absolute -right-1 -top-1 inline-flex min-w-[18px] items-center justify-center rounded-full bg-[#2b7fff] px-1 text-[10px] font-semibold leading-[18px] text-white shadow-[0_4px_12px_rgba(43,127,255,0.35)]">
+                  {participantCount > 99 ? "99+" : participantCount}
+                </span>
+              ) : null}
               <span className="hidden text-sm lg:inline">{participantCount}</span>
             </button>
           ) : null}
           {onToggleChat ? (
             <button
               type="button"
-              onPointerDown={openChat}
-              onClick={stopClick}
-              className="inline-flex h-9 w-9 items-center justify-center gap-2 rounded-full border border-[var(--meet-border-color)] bg-[var(--meet-control-bg)] text-[var(--meet-text-color)] transition hover:bg-[var(--meet-control-hover-bg)] sm:h-11 sm:w-auto sm:px-4"
+              onClick={openChat}
+              className="relative inline-flex h-9 w-9 items-center justify-center gap-2 rounded-full border border-[var(--meet-border-color)] bg-[var(--meet-control-bg)] text-[var(--meet-text-color)] transition hover:bg-[var(--meet-control-hover-bg)] sm:h-11 sm:w-auto sm:px-4"
               title="Chat"
             >
               <MessageSquare className="h-4 w-4" />
-              <span className="hidden text-sm lg:inline">Chat</span>
+              {chatCount > 0 ? (
+                <span className="absolute -right-1 -top-1 inline-flex min-w-[18px] items-center justify-center rounded-full bg-[#111827] px-1 text-[10px] font-semibold leading-[18px] text-white shadow-[0_4px_12px_rgba(15,23,42,0.28)]">
+                  {chatCount > 99 ? "99+" : chatCount}
+                </span>
+              ) : null}
+              <span className="hidden text-sm sm:inline">
+                {chatCount > 99 ? "99+" : chatCount}
+              </span>
             </button>
           ) : null}
           {onMinimize && !isMobile ? (
