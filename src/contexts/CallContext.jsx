@@ -189,6 +189,30 @@ export const CallProvider = ({ children }) => {
     setActiveCall(null);
   }, [socket, activeCall]);
 
+  useEffect(() => {
+    if (!socket || !activeCall?.roomId || !activeCall?.remoteUser) return undefined;
+
+    const notifyRemoteCallClosed = () => {
+      const targetUserId =
+        activeCall.remoteUser._id ||
+        activeCall.remoteUser.id ||
+        null;
+      if (!targetUserId) return;
+
+      socket.emit("call:cancel", {
+        toUserId: targetUserId,
+        roomId: activeCall.roomId,
+      });
+    };
+
+    window.addEventListener("pagehide", notifyRemoteCallClosed);
+    window.addEventListener("beforeunload", notifyRemoteCallClosed);
+    return () => {
+      window.removeEventListener("pagehide", notifyRemoteCallClosed);
+      window.removeEventListener("beforeunload", notifyRemoteCallClosed);
+    };
+  }, [activeCall, socket]);
+
   const value = {
     incomingCall,
     outgoingCall,

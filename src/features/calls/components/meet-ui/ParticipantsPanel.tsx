@@ -84,7 +84,7 @@ export default function ParticipantsPanel({
                       {participant.isMuted ? <MicOff className="h-3.5 w-3.5" /> : <Mic className="h-3.5 w-3.5" />}
                       {participant.isMuted ? "Muted" : "Microphone on"}
                       {handRaised ? (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-amber-400/15 px-2 py-0.5 text-amber-200">
+                        <span className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-100 px-2 py-0.5 font-medium text-amber-700">
                           <Hand className="h-3.5 w-3.5" />
                           Hand raised
                         </span>

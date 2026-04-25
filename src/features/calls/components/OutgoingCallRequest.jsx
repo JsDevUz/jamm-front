@@ -22,13 +22,13 @@ const Content = styled.div`
   flex-direction: column;
   align-items: center;
   justify-content: space-between;
-  padding: calc(env(safe-area-inset-top, 0px) + 28px) 28px
-    calc(env(safe-area-inset-bottom, 0px) + 28px);
+  padding: calc(env(safe-area-inset-top, 0px) + 24px) 24px
+    calc(env(safe-area-inset-bottom, 0px) + 24px);
   text-align: center;
 
   @media (max-width: 768px) {
-    padding: calc(env(safe-area-inset-top, 0px) + 22px) 22px
-      calc(env(safe-area-inset-bottom, 0px) + 22px);
+    padding: calc(env(safe-area-inset-top, 0px) + 18px) 18px
+      calc(env(safe-area-inset-bottom, 0px) + 18px);
   }
 `;
 
@@ -41,11 +41,11 @@ const TopMeta = styled.div`
 const MetaPill = styled.div`
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 7px;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.16);
-  padding: 10px 16px;
-  font-size: 14px;
+  padding: 8px 14px;
+  font-size: 13px;
   font-weight: 600;
   backdrop-filter: blur(18px);
 `;
@@ -53,24 +53,24 @@ const MetaPill = styled.div`
 const CenterStage = styled.div`
   display: grid;
   justify-items: center;
-  gap: 20px;
+  gap: 16px;
 `;
 
 const AvatarHalo = styled.div`
   display: grid;
   place-items: center;
-  height: 188px;
-  width: 188px;
+  height: 154px;
+  width: 154px;
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.12);
   box-shadow:
-    0 0 0 12px rgba(255, 255, 255, 0.06),
-    0 0 0 26px rgba(255, 255, 255, 0.03),
-    0 34px 76px rgba(33, 22, 87, 0.24);
+    0 0 0 9px rgba(255, 255, 255, 0.06),
+    0 0 0 20px rgba(255, 255, 255, 0.03),
+    0 26px 60px rgba(33, 22, 87, 0.24);
 
   @media (max-width: 768px) {
-    height: 164px;
-    width: 164px;
+    height: 132px;
+    width: 132px;
   }
 `;
 
@@ -79,9 +79,12 @@ const Avatar = styled.div`
   width: 100%;
   overflow: hidden;
   border-radius: 50%;
-  background: rgba(50, 35, 20, 0.28);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background:
+    radial-gradient(circle at 34% 28%, rgba(255, 255, 255, 0.32), transparent 30%),
+    linear-gradient(135deg, color-mix(in srgb, var(--primary-color, #5865f2) 92%, #ffffff 8%), #4f7cf7);
   color: #fff;
-  font-size: 58px;
+  font-size: 46px;
   font-weight: 700;
   display: grid;
   place-items: center;
@@ -93,12 +96,12 @@ const Avatar = styled.div`
   }
 
   @media (max-width: 768px) {
-    font-size: 50px;
+    font-size: 40px;
   }
 `;
 
 const Name = styled.div`
-  font-size: clamp(30px, 4vw, 58px);
+  font-size: clamp(24px, 3vw, 40px);
   font-weight: 400;
   line-height: 1.02;
 `;
@@ -106,9 +109,9 @@ const Name = styled.div`
 const Status = styled.div`
   display: inline-flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   color: rgba(255, 255, 255, 0.9);
-  font-size: clamp(18px, 2vw, 30px);
+  font-size: clamp(14px, 1.35vw, 18px);
   font-weight: 400;
 `;
 
@@ -116,12 +119,11 @@ const ControlRow = styled.div`
   display: flex;
   align-items: flex-end;
   justify-content: center;
-  gap: 22px;
+  gap: 16px;
 
   @media (max-width: 768px) {
     width: 100%;
-    justify-content: space-between;
-    gap: 14px;
+    gap: 10px;
   }
 `;
 
@@ -131,15 +133,15 @@ const Control = styled.button`
   color: #fff;
   display: grid;
   justify-items: center;
-  gap: 12px;
+  gap: 10px;
   cursor: ${(props) => (props.disabled ? "default" : "pointer")};
   opacity: ${(props) => (props.disabled ? 0.8 : 1)};
 `;
 
 const ControlCircle = styled.span`
   display: inline-flex;
-  height: ${(props) => (props.$primary ? "94px" : "82px")};
-  width: ${(props) => (props.$primary ? "94px" : "82px")};
+  height: ${(props) => (props.$primary ? "48px" : "48px")};
+  width: ${(props) => (props.$primary ? "48px" : "48px")};
   align-items: center;
   justify-content: center;
   border-radius: 50%;
@@ -151,22 +153,36 @@ const ControlCircle = styled.span`
   backdrop-filter: blur(20px);
 
   @media (max-width: 768px) {
-    height: ${(props) => (props.$primary ? "88px" : "76px")};
-    width: ${(props) => (props.$primary ? "88px" : "76px")};
+    height: ${(props) => (props.$primary ? "48px" : "48px")};
+    width: ${(props) => (props.$primary ? "48px" : "48px")};
   }
 `;
 
 const ControlLabel = styled.span`
-  font-size: 15px;
+  font-size: 13px;
   font-weight: 400;
 
   @media (max-width: 768px) {
-    font-size: 13px;
+    font-size: 12px;
   }
 `;
 
 const getTargetName = (target) =>
   target?.nickname || target?.username || target?.name || "Unknown";
+
+const getAvatarInitials = (name) => {
+  const parts = String(name || "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+
+  if (!parts.length) return "?";
+  return parts
+    .slice(0, 2)
+    .map((part) => part.charAt(0))
+    .join("")
+    .toUpperCase();
+};
 
 export default function OutgoingCallRequest({
   isOpen,
@@ -214,7 +230,7 @@ export default function OutgoingCallRequest({
       <Content>
         <TopMeta>
           <MetaPill>
-            <Clock3 size={16} />
+            <Clock3 size={14} />
             {callType === "video" ? "Video qo'ng'iroq" : "Audio qo'ng'iroq"}
           </MetaPill>
         </TopMeta>
@@ -225,13 +241,13 @@ export default function OutgoingCallRequest({
               {target?.avatar ? (
                 <img src={target.avatar} alt={targetName} />
               ) : (
-                targetName.charAt(0).toUpperCase()
+                getAvatarInitials(targetName)
               )}
             </Avatar>
           </AvatarHalo>
           <Name>{targetName}</Name>
           <Status>
-            <Clock3 size={18} />
+            <Clock3 size={16} />
             jiringlamoqda {timeLabel}
           </Status>
         </CenterStage>
@@ -239,25 +255,25 @@ export default function OutgoingCallRequest({
         <ControlRow>
           <Control type="button" disabled>
             <ControlCircle>
-              <Volume2 size={34} />
+              <Volume2 size={20} />
             </ControlCircle>
             <ControlLabel>karnay</ControlLabel>
           </Control>
           <Control type="button" disabled>
             <ControlCircle>
-              <Video size={32} />
+              <Video size={20} />
             </ControlCircle>
             <ControlLabel>{callType === "video" ? "video" : "audio"}</ControlLabel>
           </Control>
           <Control type="button" disabled>
             <ControlCircle>
-              <MicOff size={34} />
+              <MicOff size={20} />
             </ControlCircle>
             <ControlLabel>sukut</ControlLabel>
           </Control>
           <Control type="button" onClick={onCancel}>
             <ControlCircle $danger $primary>
-              <PhoneOff size={36} />
+              <PhoneOff size={20} />
             </ControlCircle>
             <ControlLabel>tugatish</ControlLabel>
           </Control>

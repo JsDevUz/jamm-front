@@ -48,6 +48,7 @@ const pulse = keyframes`
 
 // Styled Components
 const Page = styled.div`
+width: 100%;
   min-height: 100vh;
   background: #f8fafc;
   color: #1e293b;

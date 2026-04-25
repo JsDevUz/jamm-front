@@ -22,13 +22,13 @@ const Content = styled.div`
   flex-direction: column;
   align-items: center;
   justify-content: space-between;
-  padding: calc(env(safe-area-inset-top, 0px) + 28px) 28px
-    calc(env(safe-area-inset-bottom, 0px) + 28px);
+  padding: calc(env(safe-area-inset-top, 0px) + 24px) 24px
+    calc(env(safe-area-inset-bottom, 0px) + 24px);
   text-align: center;
 
   @media (max-width: 768px) {
-    padding: calc(env(safe-area-inset-top, 0px) + 22px) 22px
-      calc(env(safe-area-inset-bottom, 0px) + 22px);
+    padding: calc(env(safe-area-inset-top, 0px) + 18px) 18px
+      calc(env(safe-area-inset-bottom, 0px) + 18px);
   }
 `;
 
@@ -41,11 +41,11 @@ const TopMeta = styled.div`
 const MetaPill = styled.div`
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 7px;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.16);
-  padding: 10px 16px;
-  font-size: 14px;
+  padding: 8px 14px;
+  font-size: 13px;
   font-weight: 600;
   backdrop-filter: blur(18px);
   box-shadow: 0 18px 40px rgba(33, 29, 83, 0.14);
@@ -54,23 +54,23 @@ const MetaPill = styled.div`
 const CenterStage = styled.div`
   display: grid;
   justify-items: center;
-  gap: 20px;
+  gap: 16px;
 `;
 
 const AvatarWrap = styled.div`
   display: grid;
   place-items: center;
-  height: 182px;
-  width: 182px;
+  height: 150px;
+  width: 150px;
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.12);
   box-shadow:
-    0 0 0 10px rgba(255, 255, 255, 0.06),
-    0 32px 72px rgba(31, 22, 87, 0.24);
+    0 0 0 8px rgba(255, 255, 255, 0.06),
+    0 24px 56px rgba(31, 22, 87, 0.24);
 
   @media (max-width: 768px) {
-    height: 162px;
-    width: 162px;
+    height: 128px;
+    width: 128px;
   }
 `;
 
@@ -79,9 +79,12 @@ const Avatar = styled.div`
   width: 100%;
   overflow: hidden;
   border-radius: 50%;
-  background: rgba(50, 35, 20, 0.28);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background:
+    radial-gradient(circle at 34% 28%, rgba(255, 255, 255, 0.32), transparent 30%),
+    linear-gradient(135deg, color-mix(in srgb, var(--primary-color, #5865f2) 92%, #ffffff 8%), #4f7cf7);
   color: #fff;
-  font-size: 58px;
+  font-size: 46px;
   font-weight: 700;
   display: grid;
   place-items: center;
@@ -93,12 +96,12 @@ const Avatar = styled.div`
   }
 
   @media (max-width: 768px) {
-    font-size: 50px;
+    font-size: 40px;
   }
 `;
 
 const Name = styled.div`
-  font-size: clamp(30px, 4vw, 58px);
+  font-size: clamp(24px, 3vw, 40px);
   font-weight: 400;
   line-height: 1.02;
 `;
@@ -106,9 +109,9 @@ const Name = styled.div`
 const Status = styled.div`
   display: inline-flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   color: rgba(255, 255, 255, 0.88);
-  font-size: clamp(18px, 2vw, 30px);
+  font-size: clamp(14px, 1.35vw, 18px);
   font-weight: 400;
 `;
 
@@ -116,12 +119,11 @@ const BottomActions = styled.div`
   display: flex;
   align-items: flex-end;
   justify-content: center;
-  gap: 24px;
+  gap: 18px;
 
   @media (max-width: 768px) {
     width: 100%;
-    gap: 16px;
-    justify-content: space-between;
+    gap: 12px;
   }
 `;
 
@@ -131,14 +133,14 @@ const Action = styled.button`
   color: #fff;
   display: grid;
   justify-items: center;
-  gap: 12px;
+  gap: 10px;
   cursor: pointer;
 `;
 
 const ActionCircle = styled.span`
   display: inline-flex;
-  height: ${(props) => (props.$primary ? "94px" : "82px")};
-  width: ${(props) => (props.$primary ? "94px" : "82px")};
+  height: ${(props) => (props.$primary ? "48px" : "48px")};
+  width: ${(props) => (props.$primary ? "48px" : "48px")};
   align-items: center;
   justify-content: center;
   border-radius: 50%;
@@ -154,23 +156,37 @@ const ActionCircle = styled.span`
   backdrop-filter: blur(20px);
 
   @media (max-width: 768px) {
-    height: ${(props) => (props.$primary ? "88px" : "76px")};
-    width: ${(props) => (props.$primary ? "88px" : "76px")};
+    height: ${(props) => (props.$primary ? "70px" : "62px")};
+    width: ${(props) => (props.$primary ? "70px" : "62px")};
   }
 `;
 
 const ActionLabel = styled.span`
-  font-size: 15px;
+  font-size: 13px;
   font-weight: 400;
   opacity: 0.96;
 
   @media (max-width: 768px) {
-    font-size: 13px;
+    font-size: 12px;
   }
 `;
 
 const getCallerName = (caller) =>
   caller?.nickname || caller?.username || caller?.name || "Unknown";
+
+const getAvatarInitials = (name) => {
+  const parts = String(name || "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+
+  if (!parts.length) return "?";
+  return parts
+    .slice(0, 2)
+    .map((part) => part.charAt(0))
+    .join("")
+    .toUpperCase();
+};
 
 export default function IncomingCallRequest({
   isOpen,
@@ -219,7 +235,7 @@ export default function IncomingCallRequest({
       <Content>
         <TopMeta>
           <MetaPill>
-            <Clock3 size={16} />
+            <Clock3 size={14} />
             {callType === "video" ? "Kiruvchi video qo'ng'iroq" : "Kiruvchi audio qo'ng'iroq"}
           </MetaPill>
         </TopMeta>
@@ -230,13 +246,13 @@ export default function IncomingCallRequest({
               {caller?.avatar ? (
                 <img src={caller.avatar} alt={callerName} />
               ) : (
-                callerName.charAt(0).toUpperCase()
+                getAvatarInitials(callerName)
               )}
             </Avatar>
           </AvatarWrap>
           <Name>{callerName}</Name>
           <Status>
-            <Clock3 size={18} />
+            <Clock3 size={16} />
             {timeLabel}
           </Status>
         </CenterStage>
@@ -244,13 +260,13 @@ export default function IncomingCallRequest({
         <BottomActions>
           <Action type="button" onClick={onAccept}>
             <ActionCircle $accept $primary>
-              {callType === "video" ? <Video size={34} /> : <Phone size={34} />}
+              {callType === "video" ? <Video size={20} /> : <Phone size={20} />}
             </ActionCircle>
             <ActionLabel>{callType === "video" ? "qabul qilish" : "javob berish"}</ActionLabel>
           </Action>
           <Action type="button" onClick={onReject}>
             <ActionCircle $danger $primary>
-              <PhoneOff size={36} />
+              <PhoneOff size={20} />
             </ActionCircle>
             <ActionLabel>rad etish</ActionLabel>
           </Action>

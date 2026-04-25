@@ -90,7 +90,10 @@ const Overlay = styled.div`
   --meet-input: var(--input-color);
 
   position: fixed;
-  inset: ${(props) => (props.$minimized ? "auto 18px 18px auto" : "0")};
+  inset: ${(props) =>
+    props.$minimized
+      ? "calc(env(safe-area-inset-top, 0px) + 18px) calc(env(safe-area-inset-right, 0px) + 18px) auto auto"
+      : "0"};
   width: ${(props) => (props.$minimized ? "340px" : "100vw")};
   height: ${(props) => (props.$minimized ? "190px" : "100dvh")};
   min-height: ${(props) => (props.$minimized ? "190px" : "100dvh")};
@@ -157,7 +160,7 @@ const Overlay = styled.div`
   .lk-participant-media-video {
     object-fit: contain !important;
     object-position: center;
-    background: var(--meet-panel);
+    background: var(--meet-tile-bg, var(--meet-panel));
   }
 
   .lk-focus-layout .lk-participant-media-video {
@@ -1103,46 +1106,112 @@ const LoadingLine = styled.div`
 `;
 
 const MiniCard = styled.button`
+  position: relative;
   width: 100%;
   height: 100%;
+  max-height: 100%;
   border: none;
-  color: var(--meet-text);
-  background: transparent;
+  color: var(--meet-pip-text, var(--meet-text));
+  background: var(--meet-pip-surface, var(--meet-tile-bg, var(--meet-panel)));
   text-align: left;
   cursor: pointer;
-  display: grid;
-  grid-template-rows: 1fr auto;
+  display: block;
   padding: 0;
+  overflow: hidden;
+
+  .lk-participant-media-video {
+    object-fit: contain !important;
+    object-position: center;
+    background: var(--meet-pip-surface, var(--meet-tile-bg, var(--meet-panel)));
+  }
 `;
 
 const MiniBody = styled.div`
+  position: absolute;
+  inset: 0;
+  height: 100%;
+  max-height: 100%;
   min-height: 0;
-  padding: 10px;
+  padding: 0;
+  overflow: hidden;
 
   .lk-participant-tile {
+    position: absolute;
+    inset: 0;
     width: 100%;
     height: 100%;
-    min-height: 100%;
-    border-radius: 12px;
+    max-height: 100%;
+    min-height: 0 !important;
+    border: none;
+    border-radius: 0;
+    background: var(--meet-pip-surface, var(--meet-tile-bg, var(--meet-panel)));
+    overflow: hidden;
+  }
+
+  .lk-participant-media-video,
+  video {
+    height: 100% !important;
+    max-height: 100%;
+  }
+
+  .lk-participant-metadata,
+  .lk-participant-name {
+    display: none !important;
   }
 `;
 
 const MiniFooter = styled.div`
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  padding: 12px;
-  border-top: 1px solid var(--meet-border);
-  background: var(--meet-panel);
+  padding: 36px 12px 12px;
+  border: none;
+  background: linear-gradient(
+    180deg,
+    transparent,
+    var(--meet-pip-footer-bg, color-mix(in srgb, var(--meet-tile-bg, var(--meet-panel)) 86%, transparent))
+  );
+  color: var(--meet-pip-text, var(--meet-text));
+  font-size: 13px;
+  font-weight: 600;
+  pointer-events: none;
 `;
 
 const MiniActions = styled.div`
   display: flex;
   gap: 6px;
+  pointer-events: auto;
+
+  ${IconButton} {
+    height: 34px;
+    min-width: 34px;
+    border-color: var(--meet-pip-control-border, rgba(255, 255, 255, 0.18));
+    border-radius: 999px;
+    background: var(--meet-pip-control-bg, rgba(255, 255, 255, 0.18));
+    color: var(--meet-pip-control-text, var(--meet-text));
+    box-shadow: none;
+    backdrop-filter: blur(16px);
+
+    &:hover:not(:disabled) {
+      background: var(--meet-pip-control-hover-bg, rgba(255, 255, 255, 0.28));
+    }
+  }
 `;
 
 const PiPFrame = styled(Overlay)`
+  --meet-pip-surface: var(--meet-tile-bg, var(--meet-panel));
+  --meet-pip-footer-bg: color-mix(in srgb, var(--meet-bg) 88%, transparent);
+  --meet-pip-text: var(--meet-text);
+  --meet-pip-control-bg: var(--meet-panel-strong);
+  --meet-pip-control-hover-bg: var(--meet-hover);
+  --meet-pip-control-border: var(--meet-border);
+  --meet-pip-control-text: var(--meet-text);
+
   position: static;
   inset: auto;
   width: 100%;
@@ -1150,6 +1219,26 @@ const PiPFrame = styled(Overlay)`
   border: none;
   border-radius: 0;
   animation: none;
+
+  [data-theme="light"] & {
+    --meet-pip-surface: #e8edf5;
+    --meet-pip-footer-bg: rgba(232, 237, 245, 0.94);
+    --meet-pip-text: #1f2937;
+    --meet-pip-control-bg: rgba(15, 23, 42, 0.12);
+    --meet-pip-control-hover-bg: rgba(15, 23, 42, 0.18);
+    --meet-pip-control-border: rgba(15, 23, 42, 0.16);
+    --meet-pip-control-text: #1f2937;
+  }
+
+  [data-theme="dark"] & {
+    --meet-pip-surface: #202124;
+    --meet-pip-footer-bg: rgba(32, 33, 36, 0.88);
+    --meet-pip-text: #fff;
+    --meet-pip-control-bg: rgba(255, 255, 255, 0.16);
+    --meet-pip-control-hover-bg: rgba(255, 255, 255, 0.26);
+    --meet-pip-control-border: rgba(255, 255, 255, 0.18);
+    --meet-pip-control-text: #fff;
+  }
 `;
 
 const HiddenOnMobile = styled.span`
@@ -1403,16 +1492,10 @@ function FocusableParticipantTile({ trackRef }) {
 function FocusableParticipantLayout({ tracks, whiteboardTile }) {
   const layoutContext = useMaybeLayoutContext();
   const pinnedTracks = usePinnedTracks();
-  const autoFocusedScreenShareRef = useRef(null);
   const autoFocusedWhiteboardRef = useRef(false);
   const [isRailHidden, setIsRailHidden] = useState(false);
   const [isWhiteboardPinned, setIsWhiteboardPinned] = useState(false);
   const visibleTracks = useMemo(() => tracks.filter(Boolean), [tracks]);
-  const screenShareTrack = useMemo(
-    () =>
-      visibleTracks.find((trackRef) => trackRef.source === Track.Source.ScreenShare) || null,
-    [visibleTracks],
-  );
   const focusedTrack = useMemo(
     () =>
       pinnedTracks.find((pinnedTrack) =>
@@ -1428,32 +1511,6 @@ function FocusableParticipantLayout({ tracks, whiteboardTile }) {
         : visibleTracks,
     [focusedTrack, visibleTracks],
   );
-
-  useEffect(() => {
-    const pinDispatch = layoutContext?.pin?.dispatch;
-    if (!pinDispatch) return;
-
-    if (screenShareTrack) {
-      if (
-        !autoFocusedScreenShareRef.current ||
-        !isSameTrackReference(autoFocusedScreenShareRef.current, screenShareTrack)
-      ) {
-        pinDispatch({ msg: "set_pin", trackReference: screenShareTrack });
-        autoFocusedScreenShareRef.current = screenShareTrack;
-      }
-      return;
-    }
-
-    if (autoFocusedScreenShareRef.current) {
-      if (
-        focusedTrack &&
-        isSameTrackReference(focusedTrack, autoFocusedScreenShareRef.current)
-      ) {
-        pinDispatch({ msg: "clear_pin" });
-      }
-      autoFocusedScreenShareRef.current = null;
-    }
-  }, [focusedTrack, layoutContext, screenShareTrack]);
 
   useEffect(() => {
     if (whiteboardTile) {
@@ -1677,6 +1734,7 @@ function MeetContent({
 }) {
   const [pipWindow, setPipWindow] = useState(null);
   const [pipContainer, setPipContainer] = useState(null);
+  const [documentPipMinimized, setDocumentPipMinimized] = useState(false);
   const connectionToastStateRef = useRef(null);
   const lastSpeakingParticipantKeyRef = useRef(null);
   const pipCloseIntentRef = useRef(false);
@@ -1714,6 +1772,7 @@ function MeetContent({
   const connectionState = useConnectionState(room);
   const supportsDocumentPiP =
     typeof window !== "undefined" && Boolean(window.documentPictureInPicture?.requestWindow);
+  const effectiveMinimized = isMinimized || documentPipMinimized;
   const participants = useParticipants({ room });
   const speakingParticipants = useSpeakingParticipants();
   const liveKitServerIsRecording = useIsRecording(room);
@@ -1957,8 +2016,15 @@ function MeetContent({
 
   const handleToggleScreenShare = useCallback(async () => {
     try {
+      const nextEnabled = !room.localParticipant.isScreenShareEnabled;
       await room.localParticipant.setScreenShareEnabled(
-        !room.localParticipant.isScreenShareEnabled,
+        nextEnabled,
+        nextEnabled
+          ? {
+              selfBrowserSurface: "include",
+              surfaceSwitching: "include",
+            }
+          : undefined,
       );
     } catch {
       toast.error("Screen share boshqarib bo'lmadi");
@@ -2068,8 +2134,8 @@ function MeetContent({
 
     try {
       const nextPipWindow = await documentPiP.requestWindow({
-        width: 360,
-        height: 220,
+        width: 420,
+        height: 340,
       });
       const currentTheme = document.documentElement.getAttribute("data-theme") || "light";
       const themeBackground =
@@ -2140,13 +2206,21 @@ function MeetContent({
       return;
     }
 
+    if (supportsDocumentPiP) {
+      setDocumentPipMinimized(true);
+      return;
+    }
+
     onMinimize?.();
   }, [onMinimize, openPiPWindow, supportsDocumentPiP]);
 
   const handleMaximize = useCallback(() => {
+    setDocumentPipMinimized(false);
     closePiPWindow();
-    onMaximize?.();
-  }, [closePiPWindow, onMaximize]);
+    if (isMinimized) {
+      onMaximize?.();
+    }
+  }, [closePiPWindow, isMinimized, onMaximize]);
 
   const whiteboardTile = hasWhiteboard ? (
     <WhiteboardTile
@@ -2236,31 +2310,34 @@ function MeetContent({
   );
 
   useEffect(() => {
-    if (!isMinimized && pipWindow) {
+    if (!effectiveMinimized && pipWindow) {
       closePiPWindow();
     }
-  }, [closePiPWindow, isMinimized, pipWindow]);
+  }, [closePiPWindow, effectiveMinimized, pipWindow]);
 
   useEffect(() => {
-    if (!isMinimized || !pipWindow) {
+    if (!effectiveMinimized || !pipWindow) {
       return undefined;
     }
 
     const handlePageHide = () => {
       setPipWindow(null);
       setPipContainer(null);
+      setDocumentPipMinimized(false);
 
       if (pipCloseIntentRef.current) {
         pipCloseIntentRef.current = false;
         return;
       }
 
-      onMaximize?.();
+      if (isMinimized) {
+        onMaximize?.();
+      }
     };
 
     pipWindow.addEventListener("pagehide", handlePageHide);
     return () => pipWindow.removeEventListener("pagehide", handlePageHide);
-  }, [isMinimized, onMaximize, pipWindow]);
+  }, [effectiveMinimized, isMinimized, onMaximize, pipWindow]);
 
   const miniView = (
     <MiniCard type="button" onClick={handleMaximize}>
@@ -2284,7 +2361,7 @@ function MeetContent({
     </MiniCard>
   );
 
-  if (isMinimized) {
+  if (effectiveMinimized) {
     if (pipContainer) {
       const pipPortalContent = pipWindow?.document?.head ? (
         <StyleSheetManager target={pipWindow.document.head}>

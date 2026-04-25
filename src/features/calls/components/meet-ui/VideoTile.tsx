@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef } from "react";
-import { Hand, Maximize2, MicOff, Minimize2, MonitorUp, Pin } from "lucide-react";
+import { Hand, Maximize2, MicOff, Minimize2, MonitorUp } from "lucide-react";
 import type { TrackPublication } from "livekit-client";
 import { cn } from "../../../../lib/utils";
 
@@ -44,8 +44,6 @@ function getAvatarTone(identity: string) {
 
 export default function VideoTile({
   participant,
-  pinned,
-  onPin,
   fullscreen = false,
   onFullscreen,
   compact = false,
@@ -80,23 +78,17 @@ export default function VideoTile({
     : dominant
       ? "text-[15px]"
       : "text-[15px]";
-  const muteBadgeClass = tiny ? "h-7 w-7" : compact ? "h-10 w-10" : "h-11 w-11";
-  const pinButtonClass = tiny ? "h-7 w-7" : compact ? "h-8 w-8" : "h-9 w-9";
   const floatingButtonVisibility = isMobile ? "opacity-100" : "opacity-0 group-hover:opacity-100";
   const topInsetStyle = overlayTopInset ? { top: overlayTopInset } : undefined;
-  const screenPinTopInsetStyle =
-    participant.source === "screen" && overlayTopInset
-      ? { top: `calc(${overlayTopInset} + 2.75rem)` }
-      : topInsetStyle;
 
   return (
     <div
       className={cn(
-        "group relative h-full w-full overflow-hidden bg-[var(--meet-tile-bg)] transition duration-200 ease-out sm:rounded-[2rem]",
+        "group relative h-full w-full overflow-hidden bg-[var(--meet-tile-bg)] transition duration-200 ease-out sm:rounded-[1.35rem]",
         tiny
           ? "rounded-[1.1rem] shadow-[0_10px_26px_rgba(15,23,42,0.18)]"
           : "rounded-[1.6rem] shadow-[var(--meet-shadow-color)] hover:scale-[1.01] hover:brightness-105",
-        "min-h-[136px] sm:min-h-[180px]",
+        "min-h-[136px] sm:min-h-[132px]",
         compact && "min-h-[112px] sm:min-h-[132px]",
         dominant && "rounded-[1.35rem] sm:rounded-[1.5rem]",
         tiny && "!min-h-0 sm:rounded-[1.1rem]",
@@ -111,8 +103,8 @@ export default function VideoTile({
           muted={participant.isLocal}
           playsInline
           className={cn(
-            "h-full w-full bg-[var(--meet-panel-bg)]",
-            participant.source === "screen" ? "object-contain" : "object-cover",
+            "h-full w-full bg-[var(--meet-tile-bg)]",
+            "object-contain",
           )}
         />
       ) : (
@@ -126,12 +118,12 @@ export default function VideoTile({
             className={cn(
               "flex aspect-square items-center justify-center rounded-full bg-gradient-to-br text-white shadow-lg",
               tiny
-                ? "w-[58%] min-w-[42px]"
+                ? "w-[44%] max-h-[62%] max-w-[96px] min-w-[42px]"
                 : compact
-                ? "w-[34%] min-w-[72px]"
+                ? "w-[28%] max-h-[100px] max-w-[112px] min-w-[72px]"
                 : dominant
-                  ? "w-[28%] min-w-[110px]"
-                  : "w-[30%] min-w-[88px]",
+                  ? "w-[24%] max-h-[44%] max-w-[160px] min-w-[96px]"
+                  : "w-[26%] max-h-[100px] max-w-[140px] min-w-[80px]",
               avatarTone,
             )}
           >
@@ -152,7 +144,7 @@ export default function VideoTile({
         </div>
       ) : null}
 
-      {!tiny ? (
+      {!tiny && isMobile ? (
         <>
           <div
             className="pointer-events-none absolute inset-x-0 top-0 h-24"
@@ -165,24 +157,7 @@ export default function VideoTile({
         </>
       ) : null}
 
-      {!tiny ? (
-        <button
-          type="button"
-          onClick={() => onPin(pinned ? null : participant.identity)}
-          className={cn(
-            "absolute left-3 inline-flex items-center justify-center rounded-full bg-[var(--meet-overlay-bg)] text-[var(--meet-text-color)] backdrop-blur-md transition hover:bg-[var(--meet-control-hover-bg)] sm:left-4",
-            participant.source === "screen" ? "top-14 sm:top-[4.25rem]" : "top-3 sm:top-4",
-            pinButtonClass,
-            pinned ? "opacity-100" : floatingButtonVisibility,
-          )}
-          style={screenPinTopInsetStyle}
-          aria-label={pinned ? "Unpin participant" : "Pin participant"}
-        >
-          <Pin className={cn("h-4 w-4 transition-transform", pinned && "rotate-45 text-[#8ab4f8]")} />
-        </button>
-      ) : null}
-
-      {onFullscreen ? (
+      {onFullscreen && showVideo ? (
         <button
           type="button"
           onClick={onFullscreen}
@@ -197,37 +172,37 @@ export default function VideoTile({
         </button>
       ) : null}
 
-      {participant.isMuted ? (
-        <div
-          className={cn(
-            "absolute right-3 top-3 inline-flex items-center justify-center rounded-full bg-[var(--meet-overlay-bg)] text-[var(--meet-text-color)] backdrop-blur-md sm:right-4 sm:top-4",
-            muteBadgeClass,
-          )}
-          style={topInsetStyle}
-        >
-          <MicOff className={tiny ? "h-3.5 w-3.5" : "h-4 w-4"} />
-        </div>
-      ) : null}
-
       <div
         className={cn(
           "absolute bottom-3 left-3 right-3 sm:bottom-4 sm:left-4 sm:right-4",
           tiny && "bottom-1.5 left-1.5 right-1.5 sm:bottom-1.5 sm:left-1.5 sm:right-1.5",
         )}
       >
-        <div
-          className={cn(
-            "max-w-[82%] truncate font-medium text-[var(--meet-text-color)]",
-          bottomLabelClass,
-        )}
-        style={{ textShadow: "var(--meet-text-shadow)" }}
-      >
-          {participant.name}
-          {participant.isLocal ? <span className="ml-1 text-[var(--meet-text-muted-color)]">(You)</span> : null}
+        <div className="flex max-w-full items-center gap-1.5">
+          <div
+            className={cn(
+              "inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-full bg-[var(--meet-overlay-bg)] px-2.5 py-1.5 font-medium text-[var(--meet-text-color)] backdrop-blur-md",
+              tiny ? "px-2 py-1" : compact ? "px-2.5 py-1.5" : "px-3 py-1.5",
+              bottomLabelClass,
+            )}
+            style={{ textShadow: "var(--meet-text-shadow)" }}
+          >
+            <span className="truncate">
+              {participant.name}
+              {participant.isLocal && !tiny ? (
+                <span className="ml-1 text-[var(--meet-text-muted-color)]">(You)</span>
+              ) : null}
+            </span>
+            {participant.isMuted ? (
+              <span className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-black/10 text-[var(--meet-text-color)]">
+                <MicOff className={tiny ? "h-2.5 w-2.5" : "h-3 w-3"} />
+              </span>
+            ) : null}
+          </div>
           {participant.isHandRaised ? (
             <span
               className={cn(
-                "ml-2 inline-flex items-center gap-1 rounded-full bg-amber-400/18 px-2 py-0.5 align-middle text-amber-100",
+                "inline-flex shrink-0 items-center gap-1 rounded-full border border-amber-200/50 bg-amber-100/85 px-2 py-1 align-middle font-medium text-amber-900 shadow-[0_6px_18px_rgba(251,191,36,0.16)]",
                 tiny ? "text-[9px]" : "text-[11px]",
               )}
             >

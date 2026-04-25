@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Maximize2, Minimize2, Pin } from "lucide-react";
+import { Grid2x2, Maximize2, Minimize2, Pin } from "lucide-react";
 import { cn } from "../../../../lib/utils";
 import VideoTile, { type TileParticipant } from "./VideoTile";
 
@@ -37,6 +37,7 @@ type PipPosition = {
   x: number;
   y: number;
 };
+type FullscreenCompanionMode = "pip" | "rail";
 
 function getTileKey(participant: TileParticipant) {
   return `${participant.identity}:${participant.source}`;
@@ -229,6 +230,8 @@ export default function VideoGrid({
   const [pipCorner, setPipCorner] = useState<PipCorner>("bottom-right");
   const [pipDragPosition, setPipDragPosition] = useState<PipPosition | null>(null);
   const [lastSpeakingPipKey, setLastSpeakingPipKey] = useState<string | null>(null);
+  const [fullscreenCompanionMode, setFullscreenCompanionMode] =
+    useState<FullscreenCompanionMode>("pip");
 
   const { dominantTile, stripTiles, gridTiles } = useMemo(() => {
     const screenShareTile = participants.find((participant) => participant.source === "screen") || null;
@@ -331,6 +334,12 @@ export default function VideoGrid({
       setLastSpeakingPipKey(lastSpeakingCandidateKey);
     }
   }, [lastSpeakingCandidateKey]);
+
+  useEffect(() => {
+    if (!fullscreenTileKey && !focusFullscreen) {
+      setFullscreenCompanionMode("pip");
+    }
+  }, [focusFullscreen, fullscreenTileKey]);
 
   const mobileFullscreenPipTiles = useMemo(() => {
     if (!dominantTile) return [];
@@ -519,6 +528,91 @@ export default function VideoGrid({
     }
   };
 
+  const renderTileModeActions = (participant: TileParticipant) => (
+    <div
+      className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center opacity-0 transition group-hover/pip:opacity-100"
+      onPointerDown={(event) => event.stopPropagation()}
+    >
+      <div className="pointer-events-auto inline-flex items-center gap-1 rounded-full bg-black/45 p-1 text-white shadow-[0_12px_30px_rgba(0,0,0,0.22)] backdrop-blur-md">
+        <button
+          type="button"
+          onClick={() => onPin(pinnedIdentity === participant.identity ? null : participant.identity)}
+          className="inline-flex h-9 w-9 items-center justify-center rounded-full transition hover:bg-white/10"
+          aria-label="Ekranga qadash"
+        >
+          <Pin className="h-4 w-4" />
+        </button>
+        <button
+          type="button"
+          onClick={() =>
+            setFullscreenCompanionMode((current) => (current === "rail" ? "pip" : "rail"))
+          }
+          className="inline-flex h-9 w-9 items-center justify-center rounded-full transition hover:bg-white/10"
+          aria-label={
+            fullscreenCompanionMode === "rail" ? "PiP mode ga qaytish" : "Katakchada ko'rsatish"
+          }
+        >
+          <Grid2x2 className="h-4 w-4" />
+        </button>
+      </div>
+    </div>
+  );
+
+  const renderFloatingPipTile = (participant: TileParticipant, keySuffix: string) => (
+    <div
+      key={`${participant.identity}-${participant.source}-${keySuffix}`}
+      className="group/pip relative aspect-video w-[clamp(240px,18vw,340px)] min-w-[220px] max-w-[min(340px,calc(100vw-3rem))] overflow-visible"
+    >
+      <div className="relative h-full overflow-hidden rounded-[1.35rem] shadow-[0_18px_46px_rgba(15,23,42,0.24)]">
+        <VideoTile
+          participant={participant}
+          pinned={pinnedIdentity === participant.identity}
+          onPin={onPin}
+          fullscreen={fullscreenTileKey === getTileKey(participant)}
+          onFullscreen={
+            onFullscreenTileChange
+              ? () => onFullscreenTileChange(getTileKey(participant))
+              : undefined
+          }
+          compact
+        />
+        {renderTileModeActions(participant)}
+      </div>
+    </div>
+  );
+
+  const renderRailTile = (
+    participant: TileParticipant,
+    className: string,
+    keySuffix: string,
+  ) => (
+    <div
+      key={`${participant.identity}-${participant.source}-${keySuffix}`}
+      className={cn("group/pip relative overflow-visible", className)}
+    >
+      <div className="relative h-full min-h-0 overflow-hidden rounded-[1.35rem]">
+        <VideoTile
+          participant={participant}
+          pinned={pinnedIdentity === participant.identity}
+          onPin={onPin}
+          fullscreen={fullscreenTileKey === getTileKey(participant)}
+          onFullscreen={
+            onFullscreenTileChange
+              ? () =>
+                  onFullscreenTileChange(
+                    fullscreenTileKey === getTileKey(participant)
+                      ? null
+                      : getTileKey(participant),
+                  )
+              : undefined
+          }
+          compact
+        />
+        {renderTileModeActions(participant)}
+      </div>
+    </div>
+  );
+
   if (focusContent && isMobile && focusFullscreen) {
     return (
       <div className="relative h-full min-h-0 w-full">
@@ -551,6 +645,30 @@ export default function VideoGrid({
   }
 
   if (focusContent && !isMobile && focusFullscreen) {
+    if (fullscreenCompanionMode === "rail") {
+      return (
+        <div
+          className="grid h-full min-h-0 gap-4 transition-all duration-300"
+          style={{
+            gridTemplateColumns: "minmax(0, 1fr) minmax(320px, clamp(340px, 24vw, 560px))",
+          }}
+        >
+          <div className="min-h-0">{renderFocusContentFrame(true)}</div>
+          {participants.length ? (
+            <div className="scrollbar-thin flex min-h-0 flex-col gap-3 overflow-y-auto overflow-x-hidden">
+              {participants.map((participant) =>
+                renderRailTile(
+                  participant,
+                  "aspect-video w-full flex-none min-h-0",
+                  "focus-fullscreen-rail",
+                ),
+              )}
+            </div>
+          ) : null}
+        </div>
+      );
+    }
+
     return (
       <div ref={fullscreenStageRef} className="relative h-full min-h-0 w-full">
         {renderFocusContentFrame(true)}
@@ -568,25 +686,9 @@ export default function VideoGrid({
             onPointerUp={handlePipPointerUp}
             onPointerCancel={handlePipPointerUp}
           >
-            {focusDesktopPipTiles.map((participant) => (
-              <div
-                key={`${participant.identity}-${participant.source}-focus-pip`}
-                className="aspect-video w-[clamp(360px,28vw,560px)] min-w-[320px] max-w-[min(560px,calc(100vw-4rem))]"
-              >
-                <VideoTile
-                  participant={participant}
-                  pinned={pinnedIdentity === participant.identity}
-                  onPin={onPin}
-                  fullscreen={fullscreenTileKey === getTileKey(participant)}
-                  onFullscreen={
-                    onFullscreenTileChange
-                      ? () => onFullscreenTileChange(getTileKey(participant))
-                      : undefined
-                  }
-                  compact
-                />
-              </div>
-            ))}
+            {focusDesktopPipTiles.map((participant) =>
+              renderFloatingPipTile(participant, "focus-pip"),
+            )}
           </div>
         ) : null}
       </div>
@@ -642,7 +744,11 @@ export default function VideoGrid({
                   : undefined
               }
               isMobile={isMobile}
-              overlayTopInset={mobileTopOverlayInset}
+              overlayTopInset={
+                isMobile && index + 1 < defaultFocusGridLayout.columns
+                  ? mobileTopOverlayInset
+                  : undefined
+              }
             />
           </div>
         ))}
@@ -693,6 +799,44 @@ export default function VideoGrid({
   }
 
   if (dominantTile && !isMobile && fullscreenTileKey) {
+    if (fullscreenCompanionMode === "rail") {
+      return (
+        <div
+          className="grid h-full min-h-0 gap-4 transition-all duration-300"
+          style={focusContainerStyles}
+        >
+          <div className="min-h-0">
+            <VideoTile
+              participant={dominantTile}
+              pinned={pinnedIdentity === dominantTile.identity}
+              onPin={onPin}
+              fullscreen
+              onFullscreen={
+                onFullscreenTileChange ? () => onFullscreenTileChange(null) : undefined
+              }
+              dominant
+            />
+          </div>
+          {dominantStripCount ? (
+            <div className="scrollbar-thin flex min-h-0 flex-col gap-3 overflow-y-auto overflow-x-hidden">
+              {focusAsRegularTile ? (
+                <div key={`${focusKey}-fullscreen-rail`} className={focusStrip.itemClassName}>
+                  {renderFocusContentFrame(false)}
+                </div>
+              ) : null}
+              {stripTiles.map((participant) =>
+                renderRailTile(
+                  participant,
+                  "aspect-video w-full flex-none min-h-0",
+                  "dominant-fullscreen-rail",
+                ),
+              )}
+            </div>
+          ) : null}
+        </div>
+      );
+    }
+
     return (
       <div ref={fullscreenStageRef} className="relative h-full min-h-0 w-full">
         <VideoTile
@@ -719,25 +863,9 @@ export default function VideoGrid({
             onPointerUp={handlePipPointerUp}
             onPointerCancel={handlePipPointerUp}
           >
-            {desktopFullscreenPipTiles.map((participant) => (
-              <div
-                key={`${participant.identity}-${participant.source}`}
-                className="aspect-video w-[clamp(360px,28vw,560px)] min-w-[320px] max-w-[min(560px,calc(100vw-4rem))]"
-              >
-                <VideoTile
-                  participant={participant}
-                  pinned={pinnedIdentity === participant.identity}
-                  onPin={onPin}
-                  fullscreen={fullscreenTileKey === getTileKey(participant)}
-                  onFullscreen={
-                    onFullscreenTileChange
-                      ? () => onFullscreenTileChange(getTileKey(participant))
-                      : undefined
-                  }
-                  compact
-                />
-              </div>
-            ))}
+            {desktopFullscreenPipTiles.map((participant) =>
+              renderFloatingPipTile(participant, "desktop-pip"),
+            )}
           </div>
         ) : null}
       </div>
@@ -790,7 +918,6 @@ export default function VideoGrid({
                   }
                   isMobile={isMobile}
                   compact
-                  overlayTopInset={mobileTopOverlayInset}
                 />
               </div>
             ))}
@@ -869,7 +996,6 @@ export default function VideoGrid({
                     }
                     compact
                     isMobile
-                    overlayTopInset={mobileTopOverlayInset}
                   />
                 </div>
               ))}
@@ -912,7 +1038,7 @@ export default function VideoGrid({
             }
             isMobile={isMobile}
             dominant
-            overlayTopInset={mobileTopOverlayInset}
+            overlayTopInset={isMobile && index < gridLayout.columns ? mobileTopOverlayInset : undefined}
           />
         </div>
         {dominantStripCount ? (
@@ -949,7 +1075,6 @@ export default function VideoGrid({
                   }
                   isMobile={isMobile}
                   compact
-                  overlayTopInset={mobileTopOverlayInset}
                 />
               </div>
             ))}

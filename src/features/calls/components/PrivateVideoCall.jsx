@@ -4,12 +4,13 @@ import styled from "styled-components";
 import { toast } from "react-hot-toast";
 import {
   Check,
+  ChevronDown,
   Loader2,
   Mic,
   MicOff,
+  Minimize2,
   MonitorUp,
   PhoneOff,
-  Settings,
   Signal,
   Video,
   VideoOff,
@@ -36,6 +37,7 @@ import {
   buildCameraDeviceOptions,
   parseCameraDeviceSelection,
 } from "../utils/cameraOptions";
+import { useIdleTimeout } from "./meet-ui/useIdleTimeout";
 
 const detectMobileViewport = () => {
   if (typeof window === "undefined") return false;
@@ -47,6 +49,20 @@ const detectMobileViewport = () => {
 
 const getDisplayName = (user, fallback) =>
   user?.nickname || user?.username || user?.name || fallback;
+
+const getAvatarInitials = (name) => {
+  const parts = String(name || "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+
+  if (!parts.length) return "?";
+  return parts
+    .slice(0, 2)
+    .map((part) => part.charAt(0))
+    .join("")
+    .toUpperCase();
+};
 
 const formatDuration = (totalSeconds) => {
   const mins = Math.floor(totalSeconds / 60)
@@ -66,6 +82,9 @@ const getConnectionLabel = (connectionState) => {
   return "preparing";
 };
 
+const hasRenderableTrack = (trackRef) =>
+  Boolean(trackRef?.publication?.track || trackRef?.track);
+
 const Overlay = styled.div`
   --private-text: #ffffff;
   --private-text-muted: rgba(255, 255, 255, 0.84);
@@ -76,6 +95,7 @@ const Overlay = styled.div`
   --private-shadow: 0 24px 54px rgba(24, 12, 65, 0.22);
   --private-danger: #ff5645;
   --private-success: #61d64b;
+  --private-video-bg: rgba(19, 15, 29, 0.92);
   --private-gradient:
     radial-gradient(circle at 16% 22%, rgba(115, 176, 255, 0.3), transparent 28%),
     radial-gradient(circle at 82% 16%, rgba(185, 114, 235, 0.3), transparent 24%),
@@ -93,14 +113,15 @@ const Overlay = styled.div`
     width: 100%;
     border: none;
     border-radius: 0;
-    background: #130f13;
+    background: var(--private-video-bg);
   }
 
   .lk-participant-media-video {
     height: 100%;
     width: 100%;
-    object-fit: cover !important;
-    background: #130f13;
+    object-fit: contain !important;
+    object-position: center;
+    background: var(--private-video-bg);
   }
 
   .lk-participant-placeholder,
@@ -125,7 +146,13 @@ const Stage = styled.div`
 const VideoStage = styled.div`
   position: absolute;
   inset: 0;
-  background: #130f13;
+  background: var(--private-gradient);
+`;
+
+const VideoFallbackSurface = styled.div`
+  position: absolute;
+  inset: 0;
+  background: var(--private-gradient);
 `;
 
 const VideoChrome = styled.div`
@@ -143,26 +170,26 @@ const CenterIdentity = styled.div`
   z-index: 2;
   display: grid;
   justify-items: center;
-  gap: 18px;
+  gap: 12px;
   text-align: center;
   transform: translate(-50%, -46%);
-  padding: 0 24px;
+  padding: 0 16px;
 `;
 
 const AvatarHalo = styled.div`
   display: grid;
   place-items: center;
-  height: 178px;
-  width: 178px;
+  height: 118px;
+  width: 118px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.12);
+  background: transparent;
   box-shadow:
-    0 0 0 10px rgba(255, 255, 255, 0.06),
-    0 32px 76px rgba(24, 12, 65, 0.24);
+    0 0 0 1px rgba(255, 255, 255, 0.18),
+    0 24px 56px rgba(24, 12, 65, 0.18);
 
   @media (max-width: 768px) {
-    height: 152px;
-    width: 152px;
+    height: 104px;
+    width: 104px;
   }
 `;
 
@@ -171,12 +198,14 @@ const IdentityAvatar = styled.div`
   width: 100%;
   overflow: hidden;
   border-radius: 50%;
-  background: rgba(48, 28, 18, 0.34);
+  border: none;
+  background: linear-gradient(135deg, #5865f2 0%, #4f6df6 100%);
   display: grid;
   place-items: center;
   color: #fff;
-  font-size: 56px;
-  font-weight: 600;
+  font-size: 42px;
+  font-weight: 800;
+  letter-spacing: -0.04em;
 
   img {
     height: 100%;
@@ -185,13 +214,13 @@ const IdentityAvatar = styled.div`
   }
 
   @media (max-width: 768px) {
-    font-size: 48px;
+    font-size: 38px;
   }
 `;
 
 const IdentityName = styled.div`
   max-width: min(88vw, 540px);
-  font-size: clamp(32px, 4.5vw, 64px);
+  font-size: clamp(22px, 2.8vw, 36px);
   font-weight: 400;
   line-height: 1.02;
 `;
@@ -199,8 +228,8 @@ const IdentityName = styled.div`
 const IdentityStatus = styled.div`
   display: inline-flex;
   align-items: center;
-  gap: 10px;
-  font-size: clamp(18px, 2.2vw, 28px);
+  gap: 7px;
+  font-size: clamp(13px, 1.2vw, 17px);
   font-weight: 400;
   color: var(--private-text-muted);
 `;
@@ -214,7 +243,14 @@ const HeaderLayer = styled.div`
   justify-content: space-between;
   padding: calc(env(safe-area-inset-top, 0px) + 18px) calc(env(safe-area-inset-right, 0px) + 18px) 0
     calc(env(safe-area-inset-left, 0px) + 18px);
+  opacity: ${(props) => (props.$visible ? 1 : 0)};
   pointer-events: none;
+  transform: translateY(${(props) => (props.$visible ? "0" : "-18px")});
+  transition:
+    opacity 0.24s ease,
+    transform 0.24s ease,
+    visibility 0s linear ${(props) => (props.$visible ? "0s" : "0.24s")};
+  visibility: ${(props) => (props.$visible ? "visible" : "hidden")};
 
   @media (max-width: 768px) {
     padding: calc(env(safe-area-inset-top, 0px) + 16px)
@@ -224,25 +260,59 @@ const HeaderLayer = styled.div`
 `;
 
 const HeaderSpacer = styled.div`
-  width: 40px;
-  height: 40px;
+  width: 24px;
+  height: 24px;
 
   @media (max-width: 768px) {
-    width: 36px;
-    height: 36px;
+    width: 20px;
+    height: 20px;
+  }
+`;
+
+const HeaderTools = styled.div`
+  display: flex;
+  justify-content: flex-end;
+  min-width: 24px;
+  pointer-events: auto;
+
+  @media (max-width: 980px) {
+    display: none;
+  }
+`;
+
+const HeaderToolButton = styled.button`
+  display: inline-flex;
+  height: 40px;
+  width: 40px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+  cursor: pointer;
+  box-shadow: 0 18px 38px rgba(18, 9, 44, 0.16);
+  backdrop-filter: blur(22px);
+  transition:
+    background 0.18s ease,
+    transform 0.18s ease;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.26);
+    transform: translateY(-1px);
   }
 `;
 
 const HeaderCenter = styled.div`
   display: grid;
   justify-items: center;
-  gap: 8px;
+  gap: 4px;
   padding-top: 2px;
   text-align: center;
 `;
 
 const HeaderName = styled.div`
-  font-size: clamp(26px, 3vw, 34px);
+  font-size: clamp(18px, 1.8vw, 24px);
   font-weight: 500;
   line-height: 1;
 `;
@@ -250,51 +320,25 @@ const HeaderName = styled.div`
 const HeaderMeta = styled.div`
   display: inline-flex;
   align-items: center;
-  gap: 10px;
+  gap: 6px;
   color: var(--private-text-muted);
-  font-size: clamp(14px, 1.3vw, 18px);
+  font-size: clamp(11px, 0.9vw, 14px);
   font-weight: 500;
 `;
 
 const WeakSignalPill = styled.div`
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  margin-top: 2px;
+  gap: 6px;
+  margin-top: 1px;
   border-radius: 999px;
   background: rgba(255, 241, 231, 0.48);
-  padding: 9px 16px;
+  padding: 6px 11px;
   color: #fff8f4;
-  font-size: 15px;
+  font-size: 12px;
   font-weight: 600;
   box-shadow: 0 18px 32px rgba(25, 14, 34, 0.14);
   backdrop-filter: blur(18px);
-`;
-
-const HeaderTools = styled.div`
-  display: flex;
-  gap: 10px;
-  pointer-events: auto;
-`;
-
-const HeaderTool = styled.button`
-  display: inline-flex;
-  height: 40px;
-  width: 40px;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.12);
-  color: #fff;
-  box-shadow: 0 14px 28px rgba(18, 9, 44, 0.16);
-  backdrop-filter: blur(18px);
-  cursor: pointer;
-
-  @media (max-width: 768px) {
-    height: 36px;
-    width: 36px;
-  }
 `;
 
 const SettingsPanel = styled.div`
@@ -305,7 +349,7 @@ const SettingsPanel = styled.div`
   width: min(360px, calc(100vw - 28px));
   max-height: min(70vh, 520px);
   overflow-y: auto;
-  border-radius: 28px;
+  border-radius: 10px;
   border: 1px solid rgba(255, 255, 255, 0.14);
   background: rgba(24, 17, 37, 0.82);
   padding: 16px;
@@ -373,10 +417,10 @@ const SettingsLabel = styled.span`
 const PreviewWindow = styled.div`
   position: absolute;
   z-index: 5;
-  width: min(24vw, 172px);
+  width: min(18vw, 126px);
   aspect-ratio: 9 / 16;
   overflow: hidden;
-  border-radius: 28px;
+  border-radius: 10px;
   border: 1px solid rgba(255, 255, 255, 0.14);
   background: rgba(17, 13, 25, 0.82);
   box-shadow: 0 28px 68px rgba(16, 10, 28, 0.34);
@@ -403,17 +447,17 @@ const PreviewWindow = styled.div`
       : ""}
 
   @media (max-width: 768px) {
-    width: min(28vw, 122px);
-    border-radius: 22px;
+    width: min(22vw, 94px);
+    border-radius: 10px;
   }
 `;
 
 const SecondaryPreviewWindow = styled(PreviewWindow)`
-  width: min(19vw, 138px);
+  width: min(14vw, 104px);
   z-index: 4;
 
   @media (max-width: 768px) {
-    width: min(22vw, 98px);
+    width: min(18vw, 78px);
   }
 `;
 
@@ -422,22 +466,31 @@ const PreviewFallback = styled.div`
   height: 100%;
   width: 100%;
   place-items: center;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.04));
+  background: var(--private-gradient);
+`;
+
+const PreviewFallbackAvatar = styled(IdentityAvatar)`
+  aspect-ratio: 1 / 1;
+  height: auto;
+  width: min(58%, 92px);
+  min-height: 44px;
+  min-width: 44px;
+  font-size: clamp(22px, 3.4vw, 34px);
 `;
 
 const PreviewBadge = styled.div`
   position: absolute;
-  left: 10px;
-  right: 10px;
-  bottom: 10px;
+  left: 6px;
+  right: 6px;
+  bottom: 6px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: 6px;
   border-radius: 999px;
   background: rgba(22, 16, 34, 0.58);
-  padding: 7px 10px;
-  font-size: 12px;
+  padding: 5px 7px;
+  font-size: 10px;
   font-weight: 600;
   color: #fff;
   backdrop-filter: blur(14px);
@@ -449,51 +502,157 @@ const BottomLayer = styled.div`
   right: 0;
   bottom: 0;
   z-index: 4;
+  opacity: ${(props) => (props.$visible ? 1 : 0)};
   pointer-events: none;
-  padding: 0 calc(env(safe-area-inset-right, 0px) + 16px)
-    calc(env(safe-area-inset-bottom, 0px) + 16px)
-    calc(env(safe-area-inset-left, 0px) + 16px);
+  padding: 0 calc(env(safe-area-inset-right, 0px) + 14px)
+    calc(env(safe-area-inset-bottom, 0px) + 14px)
+    calc(env(safe-area-inset-left, 0px) + 14px);
+  transform: translateY(${(props) => (props.$visible ? "0" : "22px")});
+  transition:
+    opacity 0.24s ease,
+    transform 0.24s ease,
+    visibility 0s linear ${(props) => (props.$visible ? "0s" : "0.24s")};
+  visibility: ${(props) => (props.$visible ? "visible" : "hidden")};
 
   @media (max-width: 768px) {
-    padding: 0 calc(env(safe-area-inset-right, 0px) + 14px)
-      calc(env(safe-area-inset-bottom, 0px) + 14px)
-      calc(env(safe-area-inset-left, 0px) + 14px);
+    padding: 0 calc(env(safe-area-inset-right, 0px) + 12px)
+      calc(env(safe-area-inset-bottom, 0px) + 12px)
+      calc(env(safe-area-inset-left, 0px) + 12px);
   }
 `;
 
 const StatusToastStack = styled.div`
   display: grid;
   justify-items: center;
-  gap: 10px;
-  margin-bottom: 18px;
+  gap: 6px;
+  margin-bottom: 10px;
 `;
 
 const StatusToast = styled.div`
   display: inline-flex;
   align-items: center;
-  gap: 10px;
-  max-width: min(92vw, 520px);
+  gap: 7px;
+  max-width: min(92vw, 460px);
   border-radius: 999px;
-  background: rgba(219, 214, 214, 0.74);
-  padding: 10px 18px;
+  background: rgba(219, 214, 214, 0.46);
+  padding: 7px 12px;
   color: #fff;
-  font-size: clamp(14px, 1.45vw, 18px);
+  font-size: clamp(12px, 0.95vw, 14px);
   font-weight: 500;
   box-shadow: 0 18px 38px rgba(18, 9, 44, 0.12);
   backdrop-filter: blur(18px);
+`;
+
+const ReconnectOverlay = styled.div`
+  position: absolute;
+  inset: 0;
+  z-index: 12;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(19, 12, 31, 0.28);
+  backdrop-filter: blur(4px);
+`;
+
+const ReconnectCard = styled.div`
+  width: min(100%, 360px);
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 28px;
+  background: rgba(32, 33, 36, 0.88);
+  padding: 22px 20px;
+  text-align: center;
+  color: #fff;
+  box-shadow: 0 28px 70px rgba(18, 9, 44, 0.28);
+  backdrop-filter: blur(26px);
+`;
+
+const ReconnectIcon = styled.div`
+  display: grid;
+  height: 52px;
+  width: 52px;
+  place-items: center;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.14);
+`;
+
+const ReconnectTitle = styled.div`
+  font-size: 18px;
+  font-weight: 700;
+`;
+
+const ReconnectText = styled.div`
+  max-width: 300px;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 14px;
+  line-height: 1.45;
+`;
+
+const ReconnectTimer = styled.div`
+  margin-top: 2px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  padding: 8px 16px;
+  font-size: 24px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
 `;
 
 const Controls = styled.div`
   display: flex;
   align-items: flex-end;
   justify-content: center;
-  gap: 18px;
+  gap: 12px;
   pointer-events: auto;
 
   @media (max-width: 768px) {
-    justify-content: space-between;
-    gap: 10px;
+    gap: 6px;
   }
+`;
+
+const DeviceControl = styled.div`
+  position: relative;
+  display: grid;
+  min-width: 76px;
+  justify-items: center;
+  gap: 6px;
+`;
+
+const DeviceButtonGroup = styled.div`
+  display: inline-flex;
+  height: 48px;
+  align-items: stretch;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.16);
+  box-shadow: 0 20px 40px rgba(18, 9, 44, 0.16);
+  backdrop-filter: blur(22px);
+`;
+
+const DeviceToggleButton = styled.button`
+  display: inline-flex;
+  width: 48px;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: ${(props) => (props.$active ? "rgba(255, 255, 255, 0.24)" : "transparent")};
+  color: #fff;
+  cursor: pointer;
+`;
+
+const DeviceMenuButton = styled.button`
+  display: inline-flex;
+  width: 32px;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-left: 1px solid rgba(255, 255, 255, 0.1);
+  background: ${(props) => (props.$open ? "rgba(255, 255, 255, 0.2)" : "transparent")};
+  color: #fff;
+  cursor: pointer;
 `;
 
 const Control = styled.button`
@@ -502,9 +661,9 @@ const Control = styled.button`
   color: #fff;
   display: grid;
   justify-items: center;
-  gap: 10px;
+  gap: 6px;
   cursor: pointer;
-  min-width: 74px;
+  min-width: 48px;
 
   &:disabled {
     opacity: 0.48;
@@ -512,14 +671,14 @@ const Control = styled.button`
   }
 
   @media (max-width: 768px) {
-    min-width: 64px;
+    min-width: 48px;
   }
 `;
 
 const ControlCircle = styled.span`
   display: inline-flex;
-  height: ${(props) => (props.$danger ? "86px" : "76px")};
-  width: ${(props) => (props.$danger ? "86px" : "76px")};
+  height: ${(props) => (props.$danger ? "48px" : "48px")};
+  width: ${(props) => (props.$danger ? "48px" : "48px")};
   align-items: center;
   justify-content: center;
   border-radius: 50%;
@@ -534,15 +693,89 @@ const ControlCircle = styled.span`
   backdrop-filter: blur(22px);
 
   @media (max-width: 768px) {
-    height: ${(props) => (props.$danger ? "78px" : "68px")};
-    width: ${(props) => (props.$danger ? "78px" : "68px")};
+    height: ${(props) => (props.$danger ? "48px" : "48px")};
+    width: ${(props) => (props.$danger ? "48px" : "48px")};
   }
 `;
 
 const ControlLabel = styled.span`
-  font-size: clamp(13px, 1.2vw, 18px);
+  font-size: clamp(10px, 0.8vw, 13px);
   font-weight: 400;
   color: rgba(255, 255, 255, 0.96);
+`;
+
+const DeviceMenu = styled.div`
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 12px);
+  z-index: 8;
+  width: min(292px, calc(100vw - 28px));
+  transform: translateX(-50%);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.18);
+  padding: 7px;
+  box-shadow: 0 24px 52px rgba(18, 9, 44, 0.2);
+  backdrop-filter: blur(28px);
+`;
+
+const DeviceMenuTitle = styled.div`
+  padding: 7px 10px 9px;
+  color: rgba(255, 255, 255, 0.66);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+`;
+
+const DeviceMenuOption = styled.button`
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border: 1px solid ${(props) => (props.$active ? "rgba(255, 255, 255, 0.18)" : "transparent")};
+  border-radius: 16px;
+  background: ${(props) => (props.$active ? "rgba(255, 255, 255, 0.24)" : "rgba(255, 255, 255, 0.16)")};
+  color: #fff;
+  padding: 10px 12px;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background 0.18s ease,
+    border-color 0.18s ease,
+    transform 0.18s ease;
+
+  & + & {
+    margin-top: 5px;
+  }
+
+  &:hover {
+    border-color: rgba(255, 255, 255, 0.14);
+    background: rgba(255, 255, 255, 0.22);
+    transform: translateY(-1px);
+  }
+`;
+
+const DeviceMenuLabel = styled.span`
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 500;
+`;
+
+const DeviceMenuSelected = styled.span`
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  height: 22px;
+  width: 22px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.16);
+  color: rgba(255, 255, 255, 0.9);
 `;
 
 const CenterState = styled.div`
@@ -557,14 +790,14 @@ const CenterState = styled.div`
 `;
 
 const StateCard = styled.div`
-  width: min(100%, 420px);
+  width: min(100%, 320px);
   display: grid;
   justify-items: center;
-  gap: 16px;
-  border-radius: 34px;
+  gap: 12px;
+  border-radius: 24px;
   border: 1px solid rgba(255, 255, 255, 0.14);
   background: rgba(25, 18, 39, 0.36);
-  padding: 32px 28px;
+  padding: 20px 18px;
   text-align: center;
   box-shadow: 0 28px 64px rgba(24, 12, 65, 0.22);
   backdrop-filter: blur(24px);
@@ -572,8 +805,8 @@ const StateCard = styled.div`
 
 const StateAction = styled.button`
   display: inline-flex;
-  height: 72px;
-  width: 72px;
+  height: 48px;
+  width: 48px;
   align-items: center;
   justify-content: center;
   border: none;
@@ -620,6 +853,7 @@ function DeviceSection({ title, options, selectedValue, onSelect }) {
 
 function PrivateLiveKitContent({
   localName,
+  localAvatar,
   remoteName,
   remoteAvatar,
   callType,
@@ -631,12 +865,15 @@ function PrivateLiveKitContent({
   const participants = useParticipants();
   const connectionState = useConnectionState(room);
   const { localParticipant } = useLocalParticipant();
+  const { isVisible: chromeVisible } = useIdleTimeout({ mobileDelay: 3000 });
   const stageRef = useRef(null);
+  const videoStageRef = useRef(null);
   const primaryPreviewRef = useRef(null);
   const secondaryPreviewRef = useRef(null);
   const primaryDragStateRef = useRef(null);
   const secondaryDragStateRef = useRef(null);
   const settingsRef = useRef(null);
+  const controlsRef = useRef(null);
   const tracks = useTracks(
     [
       { source: Track.Source.Camera, withPlaceholder: true },
@@ -659,11 +896,21 @@ function PrivateLiveKitContent({
   const [selectedCameraId, setSelectedCameraId] = useState("");
   const [selectedAudioInputId, setSelectedAudioInputId] = useState("");
   const [audioRoute, setAudioRoute] = useState("speaker");
-  const [primaryPreviewCorner, setPrimaryPreviewCorner] = useState("bottom-right");
+  const [primaryPreviewCorner, setPrimaryPreviewCorner] = useState("top-left");
   const [primaryPreviewPosition, setPrimaryPreviewPosition] = useState(null);
   const [secondaryPreviewCorner, setSecondaryPreviewCorner] = useState("top-right");
   const [secondaryPreviewPosition, setSecondaryPreviewPosition] = useState(null);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [cameraMenuOpen, setCameraMenuOpen] = useState(false);
+  const [micMenuOpen, setMicMenuOpen] = useState(false);
+  const [mainCameraOwner, setMainCameraOwner] = useState("remote");
+  const [isOnline, setIsOnline] = useState(() =>
+    typeof navigator === "undefined" ? true : navigator.onLine,
+  );
+  const [hasEstablishedConnection, setHasEstablishedConnection] = useState(false);
+  const [hadRemoteParticipant, setHadRemoteParticipant] = useState(false);
+  const [reconnectSecondsLeft, setReconnectSecondsLeft] = useState(60);
+  const controlsVisible = !isMobileViewport || chromeVisible || cameraMenuOpen || micMenuOpen;
 
   const localCameraTrack = useMemo(
     () => cameraTracks.find((trackRef) => trackRef.participant?.isLocal) || null,
@@ -688,15 +935,42 @@ function PrivateLiveKitContent({
   const isMicEnabled = localParticipant?.isMicrophoneEnabled ?? true;
   const isCamEnabled = localParticipant?.isCameraEnabled ?? false;
   const isScreenShareEnabled = localParticipant?.isScreenShareEnabled ?? false;
+  const remoteMuted = remoteParticipant?.isMicrophoneEnabled === false;
+  const primaryPreviewOwner = mainCameraOwner === "local" ? "remote" : "local";
   const mainTrack = useMemo(
-    () => activeScreenShareTrack || remoteCameraTrack || null,
-    [activeScreenShareTrack, remoteCameraTrack],
+    () =>
+      activeScreenShareTrack ||
+      (mainCameraOwner === "local" ? localCameraTrack : remoteCameraTrack) ||
+      null,
+    [activeScreenShareTrack, localCameraTrack, mainCameraOwner, remoteCameraTrack],
   );
-  const primaryPreviewTrack = useMemo(() => localCameraTrack || null, [localCameraTrack]);
+  const mainTrackHasVideo = hasRenderableTrack(mainTrack);
+  const primaryPreviewTrack = useMemo(
+    () =>
+      primaryPreviewOwner === "local"
+        ? localCameraTrack || null
+        : remoteCameraTrack || null,
+    [localCameraTrack, primaryPreviewOwner, remoteCameraTrack],
+  );
+  const primaryPreviewHasVideo = hasRenderableTrack(primaryPreviewTrack);
   const secondaryPreviewTrack = useMemo(() => {
     if (activeScreenShareTrack && remoteCameraTrack) return remoteCameraTrack;
     return null;
   }, [activeScreenShareTrack, remoteCameraTrack]);
+  const secondaryPreviewHasVideo = hasRenderableTrack(secondaryPreviewTrack);
+  const primaryPreviewName = primaryPreviewOwner === "local" ? localName : remoteName;
+  const primaryPreviewAvatar = primaryPreviewOwner === "local" ? localAvatar : remoteAvatar;
+  const primaryPreviewMuted =
+    primaryPreviewOwner === "local" ? !isMicEnabled : remoteMuted;
+  const mainFallbackName =
+    activeScreenShareTrack?.participant?.name ||
+    activeScreenShareTrack?.participant?.identity ||
+    (mainCameraOwner === "local" ? localName : remoteName);
+  const mainFallbackAvatar = mainCameraOwner === "local" ? localAvatar : remoteAvatar;
+  const shouldShowPrimaryPreview =
+    primaryPreviewOwner === "local"
+      ? Boolean(primaryPreviewTrack || isCamEnabled)
+      : Boolean(primaryPreviewTrack || remoteParticipant);
 
   const previewInset = isMobileViewport ? 16 : 24;
   const previewStyle = useMemo(() => {
@@ -715,7 +989,7 @@ function PrivateLiveKitContent({
       "bottom-right": { bottom: inset, right: inset },
     };
 
-    return positions[primaryPreviewCorner] || positions["bottom-right"];
+    return positions[primaryPreviewCorner] || positions["top-left"];
   }, [previewInset, primaryPreviewCorner, primaryPreviewPosition]);
 
   const secondaryPreviewStyle = useMemo(() => {
@@ -741,10 +1015,29 @@ function PrivateLiveKitContent({
     () => getConnectionLabel(connectionState),
     [connectionState],
   );
+  const hasConnectionProblem = useMemo(() => {
+    const normalized = String(connectionState || "").toLowerCase();
+    return (
+      hasEstablishedConnection &&
+      (!isOnline ||
+        normalized.includes("reconnect") ||
+        normalized.includes("disconnect") ||
+        (hadRemoteParticipant && !remoteParticipant))
+    );
+  }, [
+    connectionState,
+    hadRemoteParticipant,
+    hasEstablishedConnection,
+    isOnline,
+    remoteParticipant,
+  ]);
+  const reconnectTimeLabel = `${String(Math.floor(reconnectSecondsLeft / 60)).padStart(
+    2,
+    "0",
+  )}:${String(reconnectSecondsLeft % 60).padStart(2, "0")}`;
   const showWeakSignal = connectionLabel === "reconnecting";
   const headerStatus = connectionLabel === "connected" ? formatDuration(elapsedSeconds) : connectionLabel;
-  const remoteMuted = remoteParticipant?.isMicrophoneEnabled === false;
-  const showCenteredIdentity = !mainTrack || callType === "audio";
+  const showCenteredIdentity = !mainTrackHasVideo || callType === "audio";
 
   const snapPreviewToNearestCorner = useCallback(
     ({ position, previewRef, currentCorner, setCorner, setPosition }) => {
@@ -789,6 +1082,9 @@ function PrivateLiveKitContent({
 
       dragRef.current = {
         pointerId: event.pointerId,
+        startX: event.clientX,
+        startY: event.clientY,
+        moved: false,
         offsetX: event.clientX - previewRect.left,
         offsetY: event.clientY - previewRect.top,
         width: previewRect.width,
@@ -812,12 +1108,14 @@ function PrivateLiveKitContent({
     const nextY = event.clientY - stageRect.top - dragState.offsetY;
     const clampedX = Math.min(Math.max(0, nextX), stageRect.width - dragState.width);
     const clampedY = Math.min(Math.max(0, nextY), stageRect.height - dragState.height);
+    dragState.moved = Math.hypot(event.clientX - dragState.startX, event.clientY - dragState.startY) > 6;
     setPosition({ x: clampedX, y: clampedY });
   }, []);
 
   const handlePreviewPointerUp = useCallback(
-    ({ event, dragRef, previewRef, position, currentCorner, setCorner, setPosition }) => {
+    ({ event, dragRef, previewRef, position, currentCorner, setCorner, setPosition, onTap }) => {
       if (!dragRef.current || !position) return;
+      const wasTap = !dragRef.current.moved;
       event.currentTarget.releasePointerCapture?.(dragRef.current.pointerId);
       dragRef.current = null;
       snapPreviewToNearestCorner({
@@ -827,12 +1125,15 @@ function PrivateLiveKitContent({
         setCorner,
         setPosition,
       });
+      if (wasTap) {
+        onTap?.();
+      }
     },
     [snapPreviewToNearestCorner],
   );
 
   useEffect(() => {
-    setPrimaryPreviewCorner("bottom-right");
+    setPrimaryPreviewCorner("top-left");
     setPrimaryPreviewPosition(null);
     setSecondaryPreviewCorner("top-right");
     setSecondaryPreviewPosition(null);
@@ -850,6 +1151,50 @@ function PrivateLiveKitContent({
       window.clearInterval(timerId);
     };
   }, [connectionLabel]);
+
+  useEffect(() => {
+    if (connectionLabel === "connected") {
+      setHasEstablishedConnection(true);
+    }
+  }, [connectionLabel]);
+
+  useEffect(() => {
+    if (remoteParticipant) {
+      setHadRemoteParticipant(true);
+    }
+  }, [remoteParticipant]);
+
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!hasConnectionProblem) {
+      setReconnectSecondsLeft(60);
+      return undefined;
+    }
+
+    setReconnectSecondsLeft(60);
+    const intervalId = window.setInterval(() => {
+      setReconnectSecondsLeft((current) => Math.max(0, current - 1));
+    }, 1000);
+
+    return () => window.clearInterval(intervalId);
+  }, [hasConnectionProblem]);
+
+  useEffect(() => {
+    if (!hasConnectionProblem || reconnectSecondsLeft > 0) return;
+    toast.error("Ulanish tiklanmadi");
+    onLeave();
+  }, [hasConnectionProblem, onLeave, reconnectSecondsLeft]);
 
   const refreshDevices = useCallback(async () => {
     if (!navigator.mediaDevices?.enumerateDevices) return;
@@ -896,6 +1241,21 @@ function PrivateLiveKitContent({
     if (!isMobileViewport) return;
     applyPreferredAudioOutput(audioRoute === "speaker", renderRootRef.current).catch(() => false);
   }, [audioRoute, isMobileViewport, renderRootRef]);
+
+  useEffect(() => {
+    if (!cameraMenuOpen && !micMenuOpen) return undefined;
+
+    const handlePointerDown = (event) => {
+      if (controlsRef.current?.contains(event.target)) return;
+      setCameraMenuOpen(false);
+      setMicMenuOpen(false);
+    };
+
+    window.addEventListener("pointerdown", handlePointerDown);
+    return () => {
+      window.removeEventListener("pointerdown", handlePointerDown);
+    };
+  }, [cameraMenuOpen, micMenuOpen]);
 
   useEffect(() => {
     if (!settingsOpen) return undefined;
@@ -949,11 +1309,45 @@ function PrivateLiveKitContent({
   const handleToggleScreenShare = useCallback(async () => {
     if (isMobileViewport) return;
     try {
-      await room.localParticipant.setScreenShareEnabled(!isScreenShareEnabled);
+      const nextEnabled = !isScreenShareEnabled;
+      await room.localParticipant.setScreenShareEnabled(
+        nextEnabled,
+        nextEnabled
+          ? {
+              selfBrowserSurface: "include",
+              surfaceSwitching: "include",
+            }
+          : undefined,
+      );
     } catch {
       toast.error("Screen share boshqarib bo'lmadi");
     }
   }, [isMobileViewport, isScreenShareEnabled, room.localParticipant]);
+
+  const handleOpenPictureInPicture = useCallback(async () => {
+    const video = videoStageRef.current?.querySelector("video");
+
+    if (!video) {
+      toast.error("PiP uchun video topilmadi");
+      return;
+    }
+
+    if (!document.pictureInPictureEnabled || typeof video.requestPictureInPicture !== "function") {
+      toast.error("Bu browser PiP oynasini qo'llamaydi");
+      return;
+    }
+
+    try {
+      if (document.pictureInPictureElement) {
+        await document.exitPictureInPicture();
+        return;
+      }
+
+      await video.requestPictureInPicture();
+    } catch {
+      toast.error("PiP oynasini ochib bo'lmadi");
+    }
+  }, []);
 
   const handleSwitchCamera = useCallback(
     async (deviceId) => {
@@ -982,6 +1376,8 @@ function PrivateLiveKitContent({
           await room.switchActiveDevice("videoinput", deviceId);
         }
         setSelectedCameraId(deviceId);
+        setCameraMenuOpen(false);
+        setMicMenuOpen(false);
         setSettingsOpen(false);
       } catch {
         toast.error("Kamera almashtirilmadi");
@@ -995,6 +1391,7 @@ function PrivateLiveKitContent({
       try {
         await room.switchActiveDevice("audioinput", deviceId);
         setSelectedAudioInputId(deviceId);
+        setMicMenuOpen(false);
         setSettingsOpen(false);
       } catch {
         toast.error("Mikrofon almashtirilmadi");
@@ -1012,7 +1409,6 @@ function PrivateLiveKitContent({
         if (output) {
           try {
             await room.switchActiveDevice("audiooutput", output.value);
-            setSettingsOpen(false);
             return;
           } catch {
             // fall through
@@ -1022,7 +1418,6 @@ function PrivateLiveKitContent({
 
       try {
         await applyPreferredAudioOutput(mode === "speaker", renderRootRef.current);
-        setSettingsOpen(false);
       } catch {
         toast.error("Kalonkani almashtirib bo'lmadi");
       }
@@ -1054,13 +1449,19 @@ function PrivateLiveKitContent({
   return (
     <Shell ref={renderRootRef}>
       <Stage ref={stageRef}>
-        <VideoStage>{mainTrack ? <ParticipantTile trackRef={mainTrack} /> : null}</VideoStage>
+        <VideoStage ref={videoStageRef}>
+          {mainTrackHasVideo && callType !== "audio" ? (
+            <ParticipantTile trackRef={mainTrack} />
+          ) : (
+            <VideoFallbackSurface />
+          )}
+        </VideoStage>
         <VideoChrome />
 
-        <HeaderLayer>
+        <HeaderLayer $visible={controlsVisible}>
           <HeaderSpacer />
           <HeaderCenter>
-            <HeaderName>{remoteName}</HeaderName>
+            <HeaderName>{mainFallbackName || remoteName}</HeaderName>
             <HeaderMeta>
               <Signal size={16} />
               <span>{headerStatus}</span>
@@ -1068,52 +1469,29 @@ function PrivateLiveKitContent({
             {showWeakSignal ? <WeakSignalPill>Weak network signal</WeakSignalPill> : null}
           </HeaderCenter>
           <HeaderTools>
-            <HeaderTool
+            <HeaderToolButton
               type="button"
-              onClick={() => setSettingsOpen((current) => !current)}
-              title="Settings"
+              onClick={handleOpenPictureInPicture}
+              title="Picture in picture"
+              aria-label="Picture in picture"
             >
-              <Settings size={18} />
-            </HeaderTool>
+              <Minimize2 size={18} />
+            </HeaderToolButton>
           </HeaderTools>
         </HeaderLayer>
-
-        {settingsOpen ? (
-          <SettingsPanel ref={settingsRef}>
-            <SettingsTitle>Private call settings</SettingsTitle>
-            <DeviceSection
-              title="Camera"
-              options={cameraDevices}
-              selectedValue={selectedCameraId}
-              onSelect={handleSwitchCamera}
-            />
-            <DeviceSection
-              title="Microphone"
-              options={audioInputDevices}
-              selectedValue={selectedAudioInputId}
-              onSelect={handleSwitchMic}
-            />
-            <DeviceSection
-              title="Speaker"
-              options={speakerOptions}
-              selectedValue={audioRoute}
-              onSelect={handleSwitchSpeaker}
-            />
-          </SettingsPanel>
-        ) : null}
 
         {showCenteredIdentity ? (
           <CenterIdentity>
             <AvatarHalo>
               <IdentityAvatar>
-                {remoteAvatar ? (
-                  <img src={remoteAvatar} alt={remoteName} />
+                {mainFallbackAvatar ? (
+                  <img src={mainFallbackAvatar} alt={mainFallbackName} />
                 ) : (
-                  remoteName.charAt(0).toUpperCase()
+                  getAvatarInitials(mainFallbackName)
                 )}
               </IdentityAvatar>
             </AvatarHalo>
-            <IdentityName>{remoteName}</IdentityName>
+            <IdentityName>{mainFallbackName}</IdentityName>
             <IdentityStatus>
               <Signal size={18} />
               <span>
@@ -1129,7 +1507,7 @@ function PrivateLiveKitContent({
           </CenterIdentity>
         ) : null}
 
-        {primaryPreviewTrack ? (
+        {shouldShowPrimaryPreview ? (
           <PreviewWindow
             ref={primaryPreviewRef}
             style={previewStyle}
@@ -1158,6 +1536,7 @@ function PrivateLiveKitContent({
                 currentCorner: primaryPreviewCorner,
                 setCorner: setPrimaryPreviewCorner,
                 setPosition: setPrimaryPreviewPosition,
+                onTap: () => setMainCameraOwner(primaryPreviewOwner),
               })
             }
             onPointerCancel={(event) =>
@@ -1172,62 +1551,25 @@ function PrivateLiveKitContent({
               })
             }
           >
-            <ParticipantTile trackRef={primaryPreviewTrack} />
-            <PreviewBadge>
-              <span>{localName}</span>
-              {isMicEnabled ? <Mic size={13} /> : <MicOff size={13} />}
-            </PreviewBadge>
-          </PreviewWindow>
-        ) : isCamEnabled ? (
-          <PreviewWindow
-            ref={primaryPreviewRef}
-            style={previewStyle}
-            $dragging={Boolean(primaryPreviewPosition)}
-            onPointerDown={(event) =>
-              handlePreviewPointerDown({
-                event,
-                previewRef: primaryPreviewRef,
-                dragRef: primaryDragStateRef,
-                setPosition: setPrimaryPreviewPosition,
-              })
-            }
-            onPointerMove={(event) =>
-              handlePreviewPointerMove({
-                event,
-                dragRef: primaryDragStateRef,
-                setPosition: setPrimaryPreviewPosition,
-              })
-            }
-            onPointerUp={(event) =>
-              handlePreviewPointerUp({
-                event,
-                dragRef: primaryDragStateRef,
-                previewRef: primaryPreviewRef,
-                position: primaryPreviewPosition,
-                currentCorner: primaryPreviewCorner,
-                setCorner: setPrimaryPreviewCorner,
-                setPosition: setPrimaryPreviewPosition,
-              })
-            }
-            onPointerCancel={(event) =>
-              handlePreviewPointerUp({
-                event,
-                dragRef: primaryDragStateRef,
-                previewRef: primaryPreviewRef,
-                position: primaryPreviewPosition,
-                currentCorner: primaryPreviewCorner,
-                setCorner: setPrimaryPreviewCorner,
-                setPosition: setPrimaryPreviewPosition,
-              })
-            }
-          >
-            <PreviewFallback>
-              <IdentityAvatar>{localName.charAt(0).toUpperCase()}</IdentityAvatar>
-            </PreviewFallback>
-            <PreviewBadge>
-              <span>{localName}</span>
-              {isMicEnabled ? <Mic size={13} /> : <MicOff size={13} />}
-            </PreviewBadge>
+            {primaryPreviewHasVideo ? (
+              <ParticipantTile trackRef={primaryPreviewTrack} />
+            ) : (
+              <PreviewFallback>
+                <PreviewFallbackAvatar>
+                  {primaryPreviewAvatar ? (
+                    <img src={primaryPreviewAvatar} alt={primaryPreviewName} />
+                  ) : (
+                    getAvatarInitials(primaryPreviewName)
+                  )}
+                </PreviewFallbackAvatar>
+              </PreviewFallback>
+            )}
+            {controlsVisible ? (
+              <PreviewBadge>
+                <span>{primaryPreviewName}</span>
+                {primaryPreviewMuted ? <MicOff size={13} /> : <Mic size={13} />}
+              </PreviewBadge>
+            ) : null}
           </PreviewWindow>
         ) : null}
 
@@ -1274,67 +1616,186 @@ function PrivateLiveKitContent({
               })
             }
           >
-            <ParticipantTile trackRef={secondaryPreviewTrack} />
-            <PreviewBadge>
-              <span>{remoteName}</span>
-            </PreviewBadge>
+            {secondaryPreviewHasVideo ? (
+              <ParticipantTile trackRef={secondaryPreviewTrack} />
+            ) : (
+              <PreviewFallback>
+                <PreviewFallbackAvatar>
+                  {remoteAvatar ? (
+                    <img src={remoteAvatar} alt={remoteName} />
+                  ) : (
+                    getAvatarInitials(remoteName)
+                  )}
+                </PreviewFallbackAvatar>
+              </PreviewFallback>
+            )}
+            {controlsVisible ? (
+              <PreviewBadge>
+                <span>{remoteName}</span>
+              </PreviewBadge>
+            ) : null}
           </SecondaryPreviewWindow>
         ) : null}
       </Stage>
 
-      <BottomLayer>
-        <StatusToastStack>
-          {remoteMuted ? (
-            <StatusToast>
-              <MicOff size={18} />
-              {remoteName} mikrofoni o'chirilgan
-            </StatusToast>
-          ) : null}
-          {!isMicEnabled ? (
-            <StatusToast>
-              <MicOff size={18} />
-              Mikrofoningiz o'chiq
-            </StatusToast>
-          ) : null}
-        </StatusToastStack>
+      <BottomLayer $visible={controlsVisible}>
+        {controlsVisible ? (
+          <StatusToastStack>
+            {remoteMuted ? (
+              <StatusToast>
+                <MicOff size={18} />
+                {remoteName} mikrofoni o'chirilgan
+              </StatusToast>
+            ) : null}
+            {!isMicEnabled ? (
+              <StatusToast>
+                <MicOff size={18} />
+                Mikrofoningiz o'chiq
+              </StatusToast>
+            ) : null}
+          </StatusToastStack>
+        ) : null}
 
-        <Controls>
+        <Controls ref={controlsRef}>
           {isMobileViewport ? (
             <Control type="button" onClick={handleQuickSpeakerToggle}>
               <ControlCircle $active={audioRoute === "speaker"}>
-                {audioRoute === "speaker" ? <Volume2 size={30} /> : <Volume1 size={30} />}
+                {audioRoute === "speaker" ? <Volume2 size={20} /> : <Volume1 size={20} />}
               </ControlCircle>
               <ControlLabel>karnay</ControlLabel>
             </Control>
           ) : null}
-          <Control type="button" onClick={handleToggleCam}>
-            <ControlCircle $active={isCamEnabled}>
-              {isCamEnabled ? <Video size={30} /> : <VideoOff size={30} />}
-            </ControlCircle>
+          <DeviceControl>
+            <DeviceButtonGroup>
+              <DeviceToggleButton type="button" $active={isCamEnabled} onClick={handleToggleCam}>
+                {isCamEnabled ? <Video size={20} /> : <VideoOff size={20} />}
+              </DeviceToggleButton>
+              <DeviceMenuButton
+                type="button"
+                $open={cameraMenuOpen}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setCameraMenuOpen((current) => !current);
+                  setMicMenuOpen(false);
+                  if (!cameraDevices.length) {
+                    void refreshDevices();
+                  }
+                }}
+                aria-label="Camera devices"
+                aria-expanded={cameraMenuOpen}
+              >
+                <ChevronDown size={16} />
+              </DeviceMenuButton>
+            </DeviceButtonGroup>
             <ControlLabel>video</ControlLabel>
-          </Control>
+            {cameraMenuOpen ? (
+              <DeviceMenu>
+                <DeviceMenuTitle>Kamera tanlash</DeviceMenuTitle>
+                {cameraDevices.length ? (
+                  cameraDevices.map((option) => (
+                    <DeviceMenuOption
+                      key={option.value}
+                      type="button"
+                      $active={selectedCameraId === option.value}
+                      onClick={() => handleSwitchCamera(option.value)}
+                    >
+                      <DeviceMenuLabel>{option.label}</DeviceMenuLabel>
+                      {selectedCameraId === option.value ? (
+                        <DeviceMenuSelected>
+                          <Check size={14} />
+                        </DeviceMenuSelected>
+                      ) : null}
+                    </DeviceMenuOption>
+                  ))
+                ) : (
+                  <DeviceMenuOption as="div">
+                    <DeviceMenuLabel>Kamera topilmadi</DeviceMenuLabel>
+                  </DeviceMenuOption>
+                )}
+              </DeviceMenu>
+            ) : null}
+          </DeviceControl>
           {!isMobileViewport ? (
             <Control type="button" onClick={handleToggleScreenShare}>
               <ControlCircle $active={isScreenShareEnabled}>
-                <MonitorUp size={30} />
+                <MonitorUp size={20} />
               </ControlCircle>
               <ControlLabel>screen</ControlLabel>
             </Control>
           ) : null}
-          <Control type="button" onClick={handleToggleMic}>
-            <ControlCircle $active={isMicEnabled}>
-              {isMicEnabled ? <Mic size={30} /> : <MicOff size={30} />}
-            </ControlCircle>
-            <ControlLabel>sukut qilish</ControlLabel>
-          </Control>
+          <DeviceControl>
+            <DeviceButtonGroup>
+              <DeviceToggleButton type="button" $active={isMicEnabled} onClick={handleToggleMic}>
+                {isMicEnabled ? <Mic size={20} /> : <MicOff size={20} />}
+              </DeviceToggleButton>
+              <DeviceMenuButton
+                type="button"
+                $open={micMenuOpen}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setMicMenuOpen((current) => !current);
+                  setCameraMenuOpen(false);
+                  if (!audioInputDevices.length) {
+                    void refreshDevices();
+                  }
+                }}
+                aria-label="Microphone devices"
+                aria-expanded={micMenuOpen}
+              >
+                <ChevronDown size={16} />
+              </DeviceMenuButton>
+            </DeviceButtonGroup>
+            <ControlLabel>sukut</ControlLabel>
+            {micMenuOpen ? (
+              <DeviceMenu>
+                <DeviceMenuTitle>Mikrofon tanlash</DeviceMenuTitle>
+                {audioInputDevices.length ? (
+                  audioInputDevices.map((option) => (
+                    <DeviceMenuOption
+                      key={option.value}
+                      type="button"
+                      $active={selectedAudioInputId === option.value}
+                      onClick={() => handleSwitchMic(option.value)}
+                    >
+                      <DeviceMenuLabel>{option.label}</DeviceMenuLabel>
+                      {selectedAudioInputId === option.value ? (
+                        <DeviceMenuSelected>
+                          <Check size={14} />
+                        </DeviceMenuSelected>
+                      ) : null}
+                    </DeviceMenuOption>
+                  ))
+                ) : (
+                  <DeviceMenuOption as="div">
+                    <DeviceMenuLabel>Mikrofon topilmadi</DeviceMenuLabel>
+                  </DeviceMenuOption>
+                )}
+              </DeviceMenu>
+            ) : null}
+          </DeviceControl>
           <Control type="button" onClick={onLeave}>
             <ControlCircle $danger>
-              <PhoneOff size={34} />
+              <PhoneOff size={20} />
             </ControlCircle>
             <ControlLabel>tugatish</ControlLabel>
           </Control>
         </Controls>
       </BottomLayer>
+
+      {hasConnectionProblem ? (
+        <ReconnectOverlay>
+          <ReconnectCard>
+            <ReconnectIcon>
+              <LoadingIcon size={24} />
+            </ReconnectIcon>
+            <ReconnectTitle>Qayta ulanmoqda...</ReconnectTitle>
+            <ReconnectText>
+              Qo'ng'iroq ochiq turadi. Internet tiklansa suhbat avtomatik davom etadi.
+            </ReconnectText>
+            <ReconnectTimer>{reconnectTimeLabel}</ReconnectTimer>
+          </ReconnectCard>
+        </ReconnectOverlay>
+      ) : null}
 
       <RoomAudioRenderer />
     </Shell>
@@ -1457,7 +1918,7 @@ const PrivateVideoCall = ({
           <IdentityName>{remoteName}</IdentityName>
           <IdentityStatus>Private call tayyorlanmoqda...</IdentityStatus>
           <StateAction type="button" onClick={handleLeave}>
-            <PhoneOff size={30} />
+            <PhoneOff size={20} />
           </StateAction>
         </StateCard>
       </CenterState>
@@ -1470,8 +1931,8 @@ const PrivateVideoCall = ({
         serverUrl={liveKitSession.url}
         token={liveKitSession.token}
         connect={Boolean(liveKitSession.token)}
-        audio
-        video
+        audio={false}
+        video={false}
         options={{
           adaptiveStream: true,
           dynacast: true,
@@ -1481,14 +1942,14 @@ const PrivateVideoCall = ({
           },
         }}
         connectOptions={{ autoSubscribe: true }}
-        onDisconnected={handleLeave}
         onError={(error) => {
-          setLiveKitError(error?.message || "Private call ulanishida xatolik");
+          toast.error(error?.message || "Private call ulanayotganda vaqtinchalik xatolik yuz berdi");
         }}
       >
         <PrivateLiveKitContent
           remoteName={remoteName}
           localName={localName}
+          localAvatar={currentUser?.avatar}
           remoteAvatar={remoteUser?.avatar}
           callType={callType}
           isMobileViewport={isMobileViewport}

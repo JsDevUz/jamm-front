@@ -116,7 +116,7 @@ export default function Header({
             <button
               type="button"
               onClick={openParticipants}
-              className="inline-flex h-9 items-center gap-2 rounded-full border border-amber-300/20 bg-amber-400/15 px-3 text-sm font-medium text-amber-100 transition hover:bg-amber-400/20 sm:h-11 sm:px-4"
+              className="inline-flex h-9 items-center gap-2 rounded-full border border-[#f4b942]/45 bg-[#fff2cc] px-3 text-sm font-semibold text-[#7a3b08] shadow-[0_10px_24px_rgba(180,83,9,0.14)] transition hover:bg-[#ffe7a3] sm:h-11 sm:px-4"
               title="Ko'tarilgan qo'llar"
             >
               <Hand className="h-4 w-4" />

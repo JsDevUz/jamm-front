@@ -104,13 +104,14 @@ function FloatingReactionToast({
           ? `translate(calc(-50% + ${motion.horizontalTravel}px), -${motion.lift}px) rotate(${motion.rotate}deg) scale(${motion.scale})`
           : `translate(calc(-50% + ${motion.horizontalStart}px), 22px) rotate(0deg) scale(0.92)`,
         transition:
-          "transform 2600ms cubic-bezier(0.16, 0.78, 0.22, 1), opacity 2600ms ease-out",
+          "transform 4200ms cubic-bezier(0.16, 0.78, 0.22, 1), opacity 4200ms ease-out",
         textShadow:
-          "0 2px 10px rgba(15,23,42,0.28), 0 10px 24px rgba(15,23,42,0.18)",
+          "0 2px 12px rgba(15,23,42,0.52), 0 10px 28px rgba(15,23,42,0.34), 0 0 2px rgba(15,23,42,0.45)",
+        WebkitTextStroke: "0.35px rgba(15,23,42,0.3)",
       }}
     >
-      <span className="text-[34px] leading-none sm:text-[38px]">{reaction.emoji}</span>
-      <span className="mt-1 text-[11px] font-semibold tracking-[0.01em] text-white/95 sm:text-xs">
+      <span className="text-[36px] leading-none sm:text-[42px]">{reaction.emoji}</span>
+      <span className="mt-1 text-[11px] font-semibold tracking-[0.01em] text-white/95 sm:text-[13px]">
         {reaction.senderName}
       </span>
     </div>
@@ -214,6 +215,7 @@ export default function MeetingUI({
     typeof navigator === "undefined" ? true : navigator.onLine,
   );
   const [reconnectSecondsLeft, setReconnectSecondsLeft] = useState(60);
+  const [hasEstablishedConnection, setHasEstablishedConnection] = useState(false);
   const [activeReactions, setActiveReactions] = useState<ActiveReaction[]>([]);
   const [raisedHands, setRaisedHands] = useState<Record<string, RaisedHandState>>({});
   const reactionTimeoutsRef = useRef<number[]>([]);
@@ -223,7 +225,7 @@ export default function MeetingUI({
     const timeoutId = window.setTimeout(() => {
       setActiveReactions((current) => current.filter((item) => item.id !== reaction.id));
       reactionTimeoutsRef.current = reactionTimeoutsRef.current.filter((id) => id !== timeoutId);
-    }, 2600);
+    }, 4200);
     reactionTimeoutsRef.current.push(timeoutId);
   };
 
@@ -246,6 +248,16 @@ export default function MeetingUI({
       isHandRaised: Boolean(raisedHands[participant.identity]?.raised),
     }));
   }, [participants, raisedHands, room.localParticipant]);
+
+  const participantCount = useMemo(
+    () =>
+      new Set(
+        allParticipants
+          .filter((participant) => participant.source === "camera")
+          .map((participant) => participant.identity),
+      ).size,
+    [allParticipants],
+  );
 
   const sortedParticipants = useMemo(() => {
     const ordered = [...allParticipants];
@@ -294,8 +306,11 @@ export default function MeetingUI({
 
   const hasConnectionProblem = useMemo(() => {
     const normalized = String(connectionState || "").toLowerCase();
-    return !isOnline || normalized.includes("reconnect") || normalized.includes("disconnect");
-  }, [connectionState, isOnline]);
+    return (
+      hasEstablishedConnection &&
+      (!isOnline || normalized.includes("reconnect") || normalized.includes("disconnect"))
+    );
+  }, [connectionState, hasEstablishedConnection, isOnline]);
   const handRaisedCount = useMemo(
     () => Object.values(raisedHands).filter((entry) => entry.raised).length,
     [raisedHands],
@@ -363,6 +378,12 @@ export default function MeetingUI({
       return Object.fromEntries(nextEntries);
     });
   }, [allParticipants]);
+
+  useEffect(() => {
+    if (String(connectionState || "").toLowerCase() === "connected") {
+      setHasEstablishedConnection(true);
+    }
+  }, [connectionState]);
 
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
@@ -482,7 +503,7 @@ export default function MeetingUI({
     <div className="relative h-full min-h-screen w-full overflow-hidden bg-[var(--meet-shell-bg)] text-[var(--meet-text-color)] [padding-bottom:env(safe-area-inset-bottom)]">
       <Header
         meetingName={meetingName}
-        participantCount={participants.length + 1}
+        participantCount={participantCount}
         chatCount={chatCount}
         handRaisedCount={handRaisedCount}
         isVisible={controlsVisible}
