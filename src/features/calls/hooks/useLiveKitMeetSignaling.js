@@ -4,7 +4,8 @@ import axiosInstance from "../../../api/axiosInstance";
 import { API_BASE_URL, buildSocketOptions } from "../../../config/env";
 import { APP_LIMITS, getTierLimit } from "../../../constants/appLimits";
 import useAuthStore from "../../../store/authStore";
-import { isValidMeetRoomId } from "../../../utils/meetStore";
+import { isValidMeetRoomId, updateMeetPrivacy } from "../../../utils/meetStore";
+import { playJoinRequestTone, playMeetStartedTone } from "../utils/ringtone";
 
 const WHITEBOARD_COLOR_PATTERN = /^#[0-9a-f]{6}$/i;
 const WHITEBOARD_DEFAULT_COLOR = "#0f172a";
@@ -1010,6 +1011,7 @@ export function useLiveKitMeetSignaling({
   const [roomIsPrivate, setRoomIsPrivate] = useState(Boolean(isPrivate));
   const [roomCreatorId, setRoomCreatorId] = useState("");
   const [knockRequests, setKnockRequests] = useState([]);
+  const [roomPrivacyUpdating, setRoomPrivacyUpdating] = useState(false);
   const [localMediaLocks, setLocalMediaLocks] = useState({
     micLocked: false,
     camLocked: false,
@@ -1025,6 +1027,8 @@ export function useLiveKitMeetSignaling({
   const joinRetryCountRef = useRef(0);
   const didFallbackLiveKitOnlyRef = useRef(false);
   const displayNameRef = useRef(displayName);
+  const meetStartedToneRoomRef = useRef("");
+  const knockRequestTonePeerIdsRef = useRef(new Set());
 
   const whiteboardPdfTabLimit = getTierLimit(APP_LIMITS.whiteboardPdfTabs, currentUser);
   const whiteboardPdfLibraryBytesLimit = getTierLimit(
@@ -1040,9 +1044,19 @@ export function useLiveKitMeetSignaling({
     setRoomTitle(chatTitle || "");
     setRoomIsPrivate(Boolean(isPrivate));
     setRoomCreatorId("");
+    setRoomPrivacyUpdating(false);
+    meetStartedToneRoomRef.current = "";
+    knockRequestTonePeerIdsRef.current = new Set();
     setLocalMediaLocks({ micLocked: false, camLocked: false });
     setRemoteMediaLocks({});
   }, [chatTitle, isPrivate, roomId]);
+
+  useEffect(() => {
+    if (joinStatus !== "joined" || !enabled || !roomId) return;
+    if (meetStartedToneRoomRef.current === roomId) return;
+    meetStartedToneRoomRef.current = roomId;
+    playMeetStartedTone().catch(() => {});
+  }, [enabled, joinStatus, roomId]);
 
   useEffect(() => {
     const storedLibrary = readStoredWhiteboardPdfLibrary(currentUserId);
@@ -1108,6 +1122,7 @@ export function useLiveKitMeetSignaling({
     setJoinStatus("connecting");
     setError("");
     setKnockRequests([]);
+    knockRequestTonePeerIdsRef.current = new Set();
 
     const emitAdmission = () => {
       if (!socket.connected) return;
@@ -1190,6 +1205,11 @@ export function useLiveKitMeetSignaling({
 
     socket.on("knock-request", ({ peerId, displayName: guestName }) => {
       if (!isCreator || !peerId) return;
+      const shouldPlayTone = !knockRequestTonePeerIdsRef.current.has(peerId);
+      if (shouldPlayTone) {
+        knockRequestTonePeerIdsRef.current.add(peerId);
+        playJoinRequestTone().catch(() => {});
+      }
       setKnockRequests((previousRequests) => {
         const existingIndex = previousRequests.findIndex(
           (request) => request.peerId === peerId,
@@ -1466,14 +1486,34 @@ export function useLiveKitMeetSignaling({
   );
 
   const setRoomPrivacy = useCallback(
-    (nextIsPrivate) => {
-      setRoomIsPrivate(Boolean(nextIsPrivate));
+    async (nextIsPrivate) => {
+      if (!isCreator || roomPrivacyUpdating) return false;
+      const normalizedValue = Boolean(nextIsPrivate);
+      if (roomIsPrivate === normalizedValue) return true;
+
+      const previousValue = roomIsPrivate;
+      setRoomPrivacyUpdating(true);
+      setRoomIsPrivate(normalizedValue);
       socketRef.current?.emit("set-room-privacy", {
         roomId,
-        isPrivate: Boolean(nextIsPrivate),
+        isPrivate: normalizedValue,
       });
+
+      try {
+        await updateMeetPrivacy(roomId, normalizedValue);
+        return true;
+      } catch (error) {
+        setRoomIsPrivate(previousValue);
+        socketRef.current?.emit("set-room-privacy", {
+          roomId,
+          isPrivate: previousValue,
+        });
+        throw error;
+      } finally {
+        setRoomPrivacyUpdating(false);
+      }
     },
-    [roomId],
+    [isCreator, roomId, roomIsPrivate, roomPrivacyUpdating],
   );
 
   const toggleWhiteboard = useCallback(() => {
@@ -1986,6 +2026,7 @@ export function useLiveKitMeetSignaling({
     error,
     roomTitle,
     roomIsPrivate,
+    roomPrivacyUpdating,
     roomCreatorId,
     localMediaLocks,
     remoteMediaLocks,

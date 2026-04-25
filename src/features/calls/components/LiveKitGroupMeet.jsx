@@ -1908,6 +1908,21 @@ function MeetContent({
     }
   }, [isCreator, signaling]);
 
+  const handleRoomPrivacyChange = useCallback(
+    async (nextIsPrivate) => {
+      try {
+        await signaling.setRoomPrivacy(nextIsPrivate);
+      } catch (error) {
+        toast.error(
+          error?.response?.data?.message ||
+            error?.message ||
+            "Meet turi saqlanmadi",
+        );
+      }
+    },
+    [signaling],
+  );
+
   const handlePdfUpload = useCallback(
     async (file) => {
       const result = await signaling.uploadWhiteboardPdf(file);
@@ -2423,10 +2438,16 @@ function MeetContent({
         onSelectMic={handleSelectMicrophone}
         onSelectSpeaker={handleSelectSpeaker}
         remoteMediaLocks={signaling.remoteMediaLocks}
+        roomIsPrivate={signaling.roomIsPrivate}
+        roomPrivacyUpdating={signaling.roomPrivacyUpdating}
+        knockRequests={signaling.knockRequests}
         onForceMuteMic={signaling.forceMuteMic}
         onForceMuteCam={signaling.forceMuteCam}
         onAllowMic={signaling.allowMic}
         onAllowCam={signaling.allowCam}
+        onSetRoomPrivacy={handleRoomPrivacyChange}
+        onApproveKnock={signaling.approveKnock}
+        onRejectKnock={signaling.rejectKnock}
       />
       <RoomAudioRenderer />
     </Overlay>

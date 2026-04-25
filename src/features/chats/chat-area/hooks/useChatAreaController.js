@@ -1152,11 +1152,11 @@ export default function useChatAreaController({
   };
 
   const showContextMenu = (message, event) => {
-    const menuWidth = 180;
+    const menuWidth = 204;
     const isOwnMessage =
       message.user === "You" ||
       String(message.senderId || "") === String(currentUser?._id || currentUser?.id || "");
-    const menuHeight = isOwnMessage ? 152 : 58;
+    const menuHeight = isOwnMessage ? 166 : 62;
     const viewport = window.visualViewport;
     const viewportLeft = viewport?.offsetLeft || 0;
     const viewportTop = viewport?.offsetTop || 0;

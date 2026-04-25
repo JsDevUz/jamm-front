@@ -230,6 +230,7 @@ export default function VideoGrid({
   const [pipCorner, setPipCorner] = useState<PipCorner>("bottom-right");
   const [pipDragPosition, setPipDragPosition] = useState<PipPosition | null>(null);
   const [lastSpeakingPipKey, setLastSpeakingPipKey] = useState<string | null>(null);
+  const [visibleMobilePipLabelKey, setVisibleMobilePipLabelKey] = useState<string | null>(null);
   const [fullscreenCompanionMode, setFullscreenCompanionMode] =
     useState<FullscreenCompanionMode>("pip");
 
@@ -283,6 +284,15 @@ export default function VideoGrid({
       gridTiles: orderedCameraTiles,
     };
   }, [fullscreenTileKey, participants, pinnedIdentity]);
+
+  useEffect(() => {
+    if (
+      visibleMobilePipLabelKey &&
+      !participants.some((participant) => getTileKey(participant) === visibleMobilePipLabelKey)
+    ) {
+      setVisibleMobilePipLabelKey(null);
+    }
+  }, [participants, visibleMobilePipLabelKey]);
 
   const gridLayout = useMemo(
     () => getGridLayoutSpec(gridTiles.length, isMobile, isLandscape),
@@ -627,6 +637,7 @@ export default function VideoGrid({
               <div
                 key={`${participant.identity}-${participant.source}-focus-mobile-pip`}
                 className="h-20 w-20"
+                onClick={() => setVisibleMobilePipLabelKey(getTileKey(participant))}
               >
                 <VideoTile
                   participant={participant}
@@ -635,6 +646,7 @@ export default function VideoGrid({
                   compact
                   tiny
                   isMobile
+                  hideLabel={visibleMobilePipLabelKey !== getTileKey(participant)}
                 />
               </div>
             ))}
@@ -781,6 +793,7 @@ export default function VideoGrid({
               <div
                 key={`${participant.identity}-${participant.source}-mobile-pip`}
                 className="h-20 w-20"
+                onClick={() => setVisibleMobilePipLabelKey(getTileKey(participant))}
               >
                 <VideoTile
                   participant={participant}
@@ -789,6 +802,7 @@ export default function VideoGrid({
                   compact
                   tiny
                   isMobile
+                  hideLabel={visibleMobilePipLabelKey !== getTileKey(participant)}
                 />
               </div>
             ))}

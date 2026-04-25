@@ -241,7 +241,7 @@ const HeaderLayer = styled.div`
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  padding: calc(env(safe-area-inset-top, 0px) + 18px) calc(env(safe-area-inset-right, 0px) + 18px) 0
+  padding: calc(max(env(safe-area-inset-top, 0px), 12px) + 18px) calc(env(safe-area-inset-right, 0px) + 18px) 0
     calc(env(safe-area-inset-left, 0px) + 18px);
   opacity: ${(props) => (props.$visible ? 1 : 0)};
   pointer-events: none;
@@ -253,7 +253,7 @@ const HeaderLayer = styled.div`
   visibility: ${(props) => (props.$visible ? "visible" : "hidden")};
 
   @media (max-width: 768px) {
-    padding: calc(env(safe-area-inset-top, 0px) + 16px)
+    padding: calc(max(env(safe-area-inset-top, 0px), 12px) + 16px)
       calc(env(safe-area-inset-right, 0px) + 14px) 0
       calc(env(safe-area-inset-left, 0px) + 14px);
   }
@@ -344,7 +344,7 @@ const WeakSignalPill = styled.div`
 const SettingsPanel = styled.div`
   position: absolute;
   right: calc(env(safe-area-inset-right, 0px) + 18px);
-  top: calc(env(safe-area-inset-top, 0px) + 66px);
+  top: calc(max(env(safe-area-inset-top, 0px), 12px) + 66px);
   z-index: 6;
   width: min(360px, calc(100vw - 28px));
   max-height: min(70vh, 520px);
@@ -358,7 +358,7 @@ const SettingsPanel = styled.div`
 
   @media (max-width: 768px) {
     right: calc(env(safe-area-inset-right, 0px) + 12px);
-    top: calc(env(safe-area-inset-top, 0px) + 58px);
+    top: calc(max(env(safe-area-inset-top, 0px), 12px) + 58px);
     width: min(340px, calc(100vw - 24px));
     border-radius: 24px;
     padding: 14px;

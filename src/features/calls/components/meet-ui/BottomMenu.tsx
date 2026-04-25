@@ -258,7 +258,9 @@ export default function BottomMenu({
           : "pointer-events-none translate-y-full opacity-0",
       )}
       style={{
-        paddingBottom: `calc(env(safe-area-inset-bottom, 0px) + ${isMobile && isLandscape ? 6 : 10}px)`,
+        paddingBottom: `calc(max(env(safe-area-inset-bottom, 0px), ${
+          isMobile ? 12 : 0
+        }px) + ${isMobile && isLandscape ? 8 : 12}px)`,
       }}
     >
       <div className="mx-auto flex max-w-max justify-center">

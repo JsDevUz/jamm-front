@@ -107,7 +107,7 @@ const CloseReplyButton = styled.span`
 
 const InputWrapper = styled.div`
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   background-color: var(--input-color);
   border-radius: 22px;
   padding: 8px 12px;
@@ -127,8 +127,8 @@ const InputButtons = styled.div`
   gap: 16px;
   position: relative;
   flex-shrink: 0;
-  align-self: flex-end;
-  padding-bottom: 1px;
+  align-self: center;
+  padding-bottom: 0;
   min-width: ${(props) => (props.$side === "right" ? "40px" : "0px")};
   justify-content: ${(props) =>
     props.$side === "right" ? "flex-end" : "flex-start"};

@@ -19,17 +19,6 @@ const popIn = keyframes`
   }
 `;
 
-const slideUp = keyframes`
-  from {
-    opacity: 0;
-    transform: translateY(12px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-`;
-
 const Backdrop = styled.div`
   position: fixed;
   inset: 0;
@@ -38,9 +27,7 @@ const Backdrop = styled.div`
   animation: ${fadeIn} 0.14s ease-out;
 
   @media (max-width: 768px) {
-    background: rgba(0, 0, 0, 0.32);
-    backdrop-filter: blur(2px);
-    -webkit-backdrop-filter: blur(2px);
+    background: transparent;
   }
 `;
 
@@ -66,35 +53,9 @@ const ContextMenu = styled.div`
   will-change: transform, opacity;
 
   @media (max-width: 768px) {
-    /* Convert into a bottom action-sheet on mobile — matches iMessage/Telegram
-       feel: a large finger-friendly list slides up from the bottom. */
-    left: 0 !important;
-    top: auto !important;
-    right: 0;
-    bottom: 0;
-    min-width: 0;
-    width: 100%;
-    max-width: none;
-    padding: 8px 8px calc(12px + env(safe-area-inset-bottom, 0px));
-    border-radius: 18px 18px 0 0;
-    border-bottom: none;
-    animation: ${slideUp} 0.22s cubic-bezier(0.22, 1, 0.36, 1);
-    transform-origin: bottom center;
-    max-height: 70vh;
-    background: color-mix(in srgb, var(--secondary-color) 96%, transparent);
-  }
-`;
-
-const SheetHandle = styled.span`
-  display: none;
-
-  @media (max-width: 768px) {
-    display: block;
-    width: 36px;
-    height: 4px;
-    border-radius: 999px;
-    background: color-mix(in srgb, var(--text-muted-color) 42%, transparent);
-    margin: 4px auto 10px;
+    min-width: 204px;
+    max-width: calc(100vw - 24px);
+    max-height: min(300px, calc(100vh - 24px));
   }
 `;
 
@@ -206,7 +167,6 @@ const ChatAreaContextMenu = () => {
           event.stopPropagation();
         }}
       >
-        <SheetHandle aria-hidden="true" />
         <ContextMenuItem
           role="menuitem"
           onClick={() => handleContextMenuAction("reply", contextMenu.message)}

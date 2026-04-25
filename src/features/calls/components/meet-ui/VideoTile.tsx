@@ -25,6 +25,7 @@ type VideoTileProps = {
   dominant?: boolean;
   isMobile?: boolean;
   tiny?: boolean;
+  hideLabel?: boolean;
   overlayTopInset?: string;
 };
 
@@ -50,6 +51,7 @@ export default function VideoTile({
   dominant = false,
   isMobile = false,
   tiny = false,
+  hideLabel = false,
   overlayTopInset,
 }: VideoTileProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -179,26 +181,32 @@ export default function VideoTile({
         )}
       >
         <div className="flex max-w-full items-center gap-1.5">
-          <div
-            className={cn(
-              "inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-full bg-[var(--meet-overlay-bg)] px-2.5 py-1.5 font-medium text-[var(--meet-text-color)] backdrop-blur-md",
-              tiny ? "px-2 py-1" : compact ? "px-2.5 py-1.5" : "px-3 py-1.5",
-              bottomLabelClass,
-            )}
-            style={{ textShadow: "var(--meet-text-shadow)" }}
-          >
-            <span className="truncate">
-              {participant.name}
-              {participant.isLocal && !tiny ? (
-                <span className="ml-1 text-[var(--meet-text-muted-color)]">(You)</span>
-              ) : null}
-            </span>
-            {participant.isMuted ? (
-              <span className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-black/10 text-[var(--meet-text-color)]">
-                <MicOff className={tiny ? "h-2.5 w-2.5" : "h-3 w-3"} />
+          {!hideLabel ? (
+            <div
+              className={cn(
+                "inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-full bg-[var(--meet-overlay-bg)] px-2.5 py-1.5 font-medium text-[var(--meet-text-color)] backdrop-blur-md",
+                tiny ? "px-2 py-1" : compact ? "px-2.5 py-1.5" : "px-3 py-1.5",
+                bottomLabelClass,
+              )}
+              style={{ textShadow: "var(--meet-text-shadow)" }}
+            >
+              <span className="truncate">
+                {participant.name}
+                {participant.isLocal && !tiny ? (
+                  <span className="ml-1 text-[var(--meet-text-muted-color)]">(You)</span>
+                ) : null}
               </span>
-            ) : null}
-          </div>
+              {participant.isMuted ? (
+                <span className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-black/10 text-[var(--meet-text-color)]">
+                  <MicOff className={tiny ? "h-2.5 w-2.5" : "h-3 w-3"} />
+                </span>
+              ) : null}
+            </div>
+          ) : participant.isMuted ? (
+            <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[var(--meet-overlay-bg)] text-[var(--meet-text-color)] backdrop-blur-md">
+              <MicOff className="h-3 w-3" />
+            </span>
+          ) : null}
           {participant.isHandRaised ? (
             <span
               className={cn(
@@ -207,7 +215,7 @@ export default function VideoTile({
               )}
             >
               <Hand className={tiny ? "h-3 w-3" : "h-3.5 w-3.5"} />
-              {!tiny ? "Hand raised" : null}
+              {!tiny && !hideLabel ? "Hand raised" : null}
             </span>
           ) : null}
         </div>

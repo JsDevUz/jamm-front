@@ -43,10 +43,16 @@ type MeetingUIProps = {
   onSelectMic?: (id: string) => void;
   onSelectSpeaker?: (id: string) => void;
   remoteMediaLocks?: Record<string, { micLocked?: boolean; camLocked?: boolean }>;
+  roomIsPrivate?: boolean;
+  roomPrivacyUpdating?: boolean;
+  knockRequests?: Array<{ peerId: string; displayName?: string }>;
   onForceMuteMic?: (identity: string) => void;
   onForceMuteCam?: (identity: string) => void;
   onAllowMic?: (identity: string) => void;
   onAllowCam?: (identity: string) => void;
+  onSetRoomPrivacy?: (isPrivate: boolean) => void | Promise<unknown>;
+  onApproveKnock?: (peerId: string) => void;
+  onRejectKnock?: (peerId: string) => void;
 };
 
 type ActiveReaction = {
@@ -194,10 +200,16 @@ export default function MeetingUI({
   onSelectMic,
   onSelectSpeaker,
   remoteMediaLocks = {},
+  roomIsPrivate = false,
+  roomPrivacyUpdating = false,
+  knockRequests = [],
   onForceMuteMic,
   onForceMuteCam,
   onAllowMic,
   onAllowCam,
+  onSetRoomPrivacy,
+  onApproveKnock,
+  onRejectKnock,
 }: MeetingUIProps) {
   const participants = useParticipants({ room });
   const connectionState = useConnectionState(room);
@@ -531,9 +543,9 @@ export default function MeetingUI({
           paddingBottom: isMobile
             ? controlsVisible
               ? isLandscape
-                ? "calc(env(safe-area-inset-bottom, 0px) + 92px)"
-                : "calc(env(safe-area-inset-bottom, 0px) + 112px)"
-              : "calc(env(safe-area-inset-bottom, 0px) + 4px)"
+                ? "calc(max(env(safe-area-inset-bottom, 0px), 12px) + 100px)"
+                : "calc(max(env(safe-area-inset-bottom, 0px), 12px) + 124px)"
+              : "calc(max(env(safe-area-inset-bottom, 0px), 12px) + 4px)"
             : undefined,
         }}
       >
@@ -601,6 +613,9 @@ export default function MeetingUI({
         participants={sortedParticipants}
         room={room}
         isCreator={isCreator}
+        roomIsPrivate={roomIsPrivate}
+        roomPrivacyUpdating={roomPrivacyUpdating}
+        knockRequests={knockRequests}
         pinnedIdentity={pinnedIdentity}
         onPin={setPinnedIdentity}
         remoteMediaLocks={remoteMediaLocks}
@@ -608,6 +623,9 @@ export default function MeetingUI({
         onForceMuteCam={onForceMuteCam}
         onAllowMic={onAllowMic}
         onAllowCam={onAllowCam}
+        onSetRoomPrivacy={onSetRoomPrivacy}
+        onApproveKnock={onApproveKnock}
+        onRejectKnock={onRejectKnock}
         raisedHands={raisedHands}
       />
 
