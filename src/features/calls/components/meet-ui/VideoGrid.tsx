@@ -48,11 +48,12 @@ function clamp(value: number, min: number, max: number) {
 }
 
 function getPipCornerStyle(corner: PipCorner): React.CSSProperties {
-  const offset = 20;
+  const offset = 24;
+  const rightOffset = 84;
   if (corner === "top-left") return { left: offset, top: offset };
-  if (corner === "top-right") return { right: offset, top: offset };
+  if (corner === "top-right") return { right: rightOffset, top: offset };
   if (corner === "bottom-left") return { left: offset, bottom: offset };
-  return { right: offset, bottom: offset };
+  return { right: rightOffset, bottom: offset };
 }
 
 function getGridColumnCount(count: number, isMobile: boolean, isLandscape: boolean) {
@@ -571,7 +572,7 @@ export default function VideoGrid({
   const renderFloatingPipTile = (participant: TileParticipant, keySuffix: string) => (
     <div
       key={`${participant.identity}-${participant.source}-${keySuffix}`}
-      className="group/pip relative aspect-video w-[clamp(240px,18vw,340px)] min-w-[220px] max-w-[min(340px,calc(100vw-3rem))] overflow-visible"
+      className="group/pip relative h-[100px] w-[200px] max-w-[calc(100vw-1.5rem)] overflow-visible"
     >
       <div className="relative h-full overflow-hidden rounded-[1.35rem] shadow-[0_18px_46px_rgba(15,23,42,0.24)]">
         <VideoTile
@@ -585,6 +586,7 @@ export default function VideoGrid({
               : undefined
           }
           compact
+          tiny
         />
         {renderTileModeActions(participant)}
       </div>
@@ -636,7 +638,7 @@ export default function VideoGrid({
             {focusMobilePipTiles.map((participant) => (
               <div
                 key={`${participant.identity}-${participant.source}-focus-mobile-pip`}
-                className="h-20 w-20"
+                className="h-10 w-10"
                 onClick={() => setVisibleMobilePipLabelKey(getTileKey(participant))}
               >
                 <VideoTile
@@ -792,7 +794,7 @@ export default function VideoGrid({
             {mobileFullscreenPipTiles.map((participant) => (
               <div
                 key={`${participant.identity}-${participant.source}-mobile-pip`}
-                className="h-20 w-20"
+                className="h-10 w-10"
                 onClick={() => setVisibleMobilePipLabelKey(getTileKey(participant))}
               >
                 <VideoTile

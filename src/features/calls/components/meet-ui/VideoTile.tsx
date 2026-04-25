@@ -72,7 +72,11 @@ export default function VideoTile({
     [participant.identity],
   );
 
-  const showVideo = Boolean(participant.publication?.track);
+  const showVideo = Boolean(
+    participant.publication?.track &&
+      !participant.publication.isMuted &&
+      (participant.source === "screen" || participant.hasCamera),
+  );
   const bottomLabelClass = tiny
     ? "text-[10px]"
     : compact
@@ -177,7 +181,8 @@ export default function VideoTile({
       <div
         className={cn(
           "absolute bottom-3 left-3 right-3 sm:bottom-4 sm:left-4 sm:right-4",
-          tiny && "bottom-1.5 left-1.5 right-1.5 sm:bottom-1.5 sm:left-1.5 sm:right-1.5",
+          tiny &&
+            "bottom-1 left-1 right-auto max-w-[calc(100%-3rem)] sm:bottom-1 sm:left-1 sm:right-auto",
         )}
       >
         <div className="flex max-w-full items-center gap-1.5">
@@ -188,7 +193,15 @@ export default function VideoTile({
                 tiny ? "px-2 py-1" : compact ? "px-2.5 py-1.5" : "px-3 py-1.5",
                 bottomLabelClass,
               )}
-              style={{ textShadow: "var(--meet-text-shadow)" }}
+              style={{
+                textShadow: "var(--meet-text-shadow)",
+                ...(tiny
+                  ? {
+                      background:
+                        "color-mix(in srgb, var(--meet-overlay-bg) 62%, transparent)",
+                    }
+                  : {}),
+              }}
             >
               <span className="truncate">
                 {participant.name}

@@ -136,7 +136,7 @@ function ControlButton({
       type="button"
       onClick={onClick}
       className={cn(
-        "inline-flex min-h-[44px] shrink-0 items-center justify-center gap-2 rounded-[18px] border px-3 py-2.5 text-sm font-medium transition-all sm:min-h-[48px] sm:rounded-2xl sm:px-4 sm:py-3",
+        "inline-flex min-h-[44px] shrink-0 items-center justify-center gap-2 rounded-[18px] border px-3 py-2.5 text-sm font-medium transition-all sm:min-h-[48px] sm:rounded-2xl sm:px-4 sm:py-3 lg:min-h-[40px] lg:gap-1.5 lg:rounded-[14px] lg:px-3 lg:py-2 lg:text-xs",
         danger
           ? "border-red-400/30 bg-red-500 text-white hover:bg-red-400"
           : active
@@ -182,7 +182,7 @@ function DeviceControl({
   return (
     <div
       ref={anchorRef}
-      className="relative inline-flex shrink-0 items-center overflow-visible rounded-[18px] border border-[var(--meet-border-color)] bg-[var(--meet-control-bg)] sm:rounded-2xl"
+      className="relative inline-flex shrink-0 items-center overflow-visible rounded-[18px] border border-[var(--meet-border-color)] bg-[var(--meet-control-bg)] sm:rounded-2xl lg:rounded-[14px]"
     >
       <ControlButton
         active={enabled}
@@ -197,11 +197,11 @@ function DeviceControl({
           event.stopPropagation();
           onMenuToggle(openMenu === menuKey ? null : menuKey);
         }}
-        className="inline-flex min-h-[44px] min-w-[38px] items-center justify-center border-l border-[var(--meet-border-color)] px-2.5 text-[var(--meet-text-color)] hover:bg-[var(--meet-control-hover-bg)] sm:min-h-[48px] sm:min-w-[42px] sm:px-3"
+        className="inline-flex min-h-[44px] min-w-[38px] items-center justify-center border-l border-[var(--meet-border-color)] px-2.5 text-[var(--meet-text-color)] hover:bg-[var(--meet-control-hover-bg)] sm:min-h-[48px] sm:min-w-[42px] sm:px-3 lg:min-h-[40px] lg:min-w-[34px] lg:px-2"
         aria-label={`${label} devices`}
         aria-expanded={openMenu === menuKey}
       >
-        <ChevronDown className="h-4 w-4" />
+        <ChevronDown className="h-4 w-4 lg:h-3.5 lg:w-3.5" />
       </button>
     </div>
   );
@@ -260,13 +260,13 @@ export default function BottomMenu({
       style={{
         paddingBottom: `calc(max(env(safe-area-inset-bottom, 0px), ${
           isMobile ? 12 : 0
-        }px) + ${isMobile && isLandscape ? 8 : 12}px)`,
+        }px) + ${isMobile ? (isLandscape ? 8 : 12) : 8}px)`,
       }}
     >
       <div className="mx-auto flex max-w-max justify-center">
         <div
           className={cn(
-            "scrollbar-thin flex items-center overflow-x-auto rounded-[24px] border border-[var(--meet-border-color)] bg-[var(--meet-overlay-bg)] shadow-[var(--meet-shadow-color)] backdrop-blur-2xl sm:max-w-[calc(100vw-3rem)] sm:gap-3 sm:rounded-[28px] sm:px-5 sm:py-3",
+            "scrollbar-thin flex items-center overflow-x-auto rounded-[24px] border border-[var(--meet-border-color)] bg-[var(--meet-overlay-bg)] shadow-[var(--meet-shadow-color)] backdrop-blur-2xl sm:max-w-[calc(100vw-3rem)] sm:gap-3 sm:rounded-[28px] sm:px-5 sm:py-3 lg:gap-2 lg:rounded-[22px] lg:px-3 lg:py-2",
             isMobile
               ? isLandscape
                 ? "max-w-[calc(100vw-0.75rem)] gap-1.5 px-2 py-2"
@@ -282,8 +282,8 @@ export default function BottomMenu({
             onSelect={onSelectMic}
             options={micDevices}
             selectedId={selectedMicId}
-            iconOn={<Mic className="h-5 w-5" />}
-            iconOff={<MicOff className="h-5 w-5" />}
+            iconOn={<Mic className="h-5 w-5 lg:h-4 lg:w-4" />}
+            iconOff={<MicOff className="h-5 w-5 lg:h-4 lg:w-4" />}
             hideLabel={isMobile}
             menuKey="mic"
             openMenu={openMenu}
@@ -298,8 +298,8 @@ export default function BottomMenu({
             onSelect={onSelectCamera}
             options={cameraDevices}
             selectedId={selectedCameraId}
-            iconOn={<Camera className="h-5 w-5" />}
-            iconOff={<CameraOff className="h-5 w-5" />}
+            iconOn={<Camera className="h-5 w-5 lg:h-4 lg:w-4" />}
+            iconOff={<CameraOff className="h-5 w-5 lg:h-4 lg:w-4" />}
             hideLabel={isMobile}
             menuKey="camera"
             openMenu={openMenu}
@@ -310,7 +310,7 @@ export default function BottomMenu({
             <ControlButton
               active={isScreenShareEnabled}
               onClick={onToggleScreenShare}
-              icon={<MonitorUp className="h-5 w-5" />}
+              icon={<MonitorUp className="h-5 w-5 lg:h-4 lg:w-4" />}
               label="Present now"
             />
           ) : null}
@@ -319,7 +319,7 @@ export default function BottomMenu({
             <ControlButton
               active={isHandRaised}
               onClick={onToggleRaiseHand}
-              icon={<Hand className="h-5 w-5" />}
+              icon={<Hand className="h-5 w-5 lg:h-4 lg:w-4" />}
               label="Hand"
               hideLabel={isMobile}
             />
@@ -332,10 +332,10 @@ export default function BottomMenu({
                 event.stopPropagation();
                 setOpenMenu(openMenu === "reaction" ? null : "reaction");
               }}
-              className="inline-flex min-h-[44px] shrink-0 items-center justify-center gap-2 rounded-[18px] border border-[var(--meet-border-color)] bg-[var(--meet-control-bg)] px-3 py-2.5 text-sm font-medium text-[var(--meet-text-color)] transition hover:bg-[var(--meet-control-hover-bg)] sm:min-h-[48px] sm:rounded-2xl sm:px-4 sm:py-3"
+              className="inline-flex min-h-[44px] shrink-0 items-center justify-center gap-2 rounded-[18px] border border-[var(--meet-border-color)] bg-[var(--meet-control-bg)] px-3 py-2.5 text-sm font-medium text-[var(--meet-text-color)] transition hover:bg-[var(--meet-control-hover-bg)] sm:min-h-[48px] sm:rounded-2xl sm:px-4 sm:py-3 lg:min-h-[40px] lg:gap-1.5 lg:rounded-[14px] lg:px-3 lg:py-2 lg:text-xs"
               aria-expanded={openMenu === "reaction"}
             >
-              <Sparkles className="h-5 w-5" />
+              <Sparkles className="h-5 w-5 lg:h-4 lg:w-4" />
               {!isMobile ? <span>React</span> : null}
             </button>
           </div>
@@ -343,7 +343,7 @@ export default function BottomMenu({
           <ControlButton
             danger
             onClick={onLeave}
-            icon={<PhoneOff className="h-5 w-5" />}
+            icon={<PhoneOff className="h-5 w-5 lg:h-4 lg:w-4" />}
             label="Leave call"
             hideLabel={isMobile}
           />

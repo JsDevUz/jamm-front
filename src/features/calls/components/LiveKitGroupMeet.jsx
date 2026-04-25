@@ -7,13 +7,15 @@ import {
   ChevronLeft,
   ChevronRight,
   Clock,
-  Maximize2,
+  Mic,
+  MicOff,
   MonitorUp,
   PhoneOff,
   ShieldCheck,
   Sparkles,
   Users,
   Video,
+  VideoOff,
 } from "lucide-react";
 import {
   ChatEntry,
@@ -1105,112 +1107,136 @@ const LoadingLine = styled.div`
   }
 `;
 
-const MiniCard = styled.button`
+const MiniCard = styled.div`
   position: relative;
   width: 100%;
   height: 100%;
   max-height: 100%;
   border: none;
-  color: var(--meet-pip-text, var(--meet-text));
-  background: var(--meet-pip-surface, var(--meet-tile-bg, var(--meet-panel)));
+  color: var(--meet-pip-text);
+  background: var(--meet-pip-shell);
   text-align: left;
-  cursor: pointer;
-  display: block;
-  padding: 0;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: 8px;
+  padding: 8px;
   overflow: hidden;
-
-  .lk-participant-media-video {
-    object-fit: contain !important;
-    object-position: center;
-    background: var(--meet-pip-surface, var(--meet-tile-bg, var(--meet-panel)));
-  }
 `;
 
 const MiniBody = styled.div`
-  position: absolute;
-  inset: 0;
-  height: 100%;
-  max-height: 100%;
+  position: relative;
   min-height: 0;
-  padding: 0;
   overflow: hidden;
+  border-radius: 14px;
+  background:
+    radial-gradient(circle at 50% 42%, rgba(255, 255, 255, 0.06), transparent 34%),
+    linear-gradient(135deg, #324965 0%, #617692 100%);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
 
-  .lk-participant-tile {
+  video {
     position: absolute;
     inset: 0;
     width: 100%;
     height: 100%;
-    max-height: 100%;
-    min-height: 0 !important;
-    border: none;
-    border-radius: 0;
-    background: var(--meet-pip-surface, var(--meet-tile-bg, var(--meet-panel)));
-    overflow: hidden;
-  }
-
-  .lk-participant-media-video,
-  video {
-    height: 100% !important;
-    max-height: 100%;
-  }
-
-  .lk-participant-metadata,
-  .lk-participant-name {
-    display: none !important;
+    object-fit: contain;
+    background: transparent;
   }
 `;
 
-const MiniFooter = styled.div`
+const MiniAvatarWrap = styled.div`
   position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  inset: 0;
+  display: grid;
+  place-items: center;
+`;
+
+const MiniAvatar = styled.div`
+  width: 58px;
+  height: 58px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(236, 240, 246, 0.92));
+  color: #1f2937;
+  font-size: 20px;
+  font-weight: 800;
+  box-shadow:
+    0 12px 32px rgba(15, 23, 42, 0.18),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.72);
+
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+`;
+
+const MiniMutedBadge = styled.div`
+  position: absolute;
+  right: 8px;
+  top: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: #0b3d85;
+  color: #dbeafe;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.18);
+`;
+
+const MiniName = styled.div`
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 10px;
+  overflow: hidden;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
+  white-space: nowrap;
+`;
+
+const MiniControls = styled.div`
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 36px 12px 12px;
-  border: none;
-  background: linear-gradient(
-    180deg,
-    transparent,
-    var(--meet-pip-footer-bg, color-mix(in srgb, var(--meet-tile-bg, var(--meet-panel)) 86%, transparent))
-  );
-  color: var(--meet-pip-text, var(--meet-text));
-  font-size: 13px;
-  font-weight: 600;
-  pointer-events: none;
+  justify-content: center;
+  gap: 8px;
 `;
 
-const MiniActions = styled.div`
-  display: flex;
-  gap: 6px;
-  pointer-events: auto;
+const MiniControlButton = styled.button`
+  width: ${(props) =>
+    props.$wide ? "clamp(48px, 14vw, 60px)" : "clamp(38px, 10vw, 44px)"};
+  height: clamp(38px, 10vw, 44px);
+  border: none;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: ${(props) =>
+    props.$danger ? "#ea4335" : props.$active ? "#fde1e1" : "#2d2f33"};
+  color: ${(props) => (props.$active ? "#7f1d1d" : "#fff")};
+  cursor: pointer;
+  transition: filter 0.16s ease, transform 0.16s ease;
 
-  ${IconButton} {
-    height: 34px;
-    min-width: 34px;
-    border-color: var(--meet-pip-control-border, rgba(255, 255, 255, 0.18));
-    border-radius: 999px;
-    background: var(--meet-pip-control-bg, rgba(255, 255, 255, 0.18));
-    color: var(--meet-pip-control-text, var(--meet-text));
-    box-shadow: none;
-    backdrop-filter: blur(16px);
+  &:hover {
+    filter: brightness(1.06);
+  }
 
-    &:hover:not(:disabled) {
-      background: var(--meet-pip-control-hover-bg, rgba(255, 255, 255, 0.28));
-    }
+  &:active {
+    transform: scale(0.97);
   }
 `;
 
 const PiPFrame = styled(Overlay)`
-  --meet-pip-surface: var(--meet-tile-bg, var(--meet-panel));
-  --meet-pip-footer-bg: color-mix(in srgb, var(--meet-bg) 88%, transparent);
-  --meet-pip-text: var(--meet-text);
-  --meet-pip-control-bg: var(--meet-panel-strong);
-  --meet-pip-control-hover-bg: var(--meet-hover);
-  --meet-pip-control-border: var(--meet-border);
-  --meet-pip-control-text: var(--meet-text);
+  --meet-pip-shell: #111214;
+  --meet-pip-text: #fff;
 
   position: static;
   inset: auto;
@@ -1218,27 +1244,8 @@ const PiPFrame = styled(Overlay)`
   height: 100%;
   border: none;
   border-radius: 0;
+  background: #111214;
   animation: none;
-
-  [data-theme="light"] & {
-    --meet-pip-surface: #e8edf5;
-    --meet-pip-footer-bg: rgba(232, 237, 245, 0.94);
-    --meet-pip-text: #1f2937;
-    --meet-pip-control-bg: rgba(15, 23, 42, 0.12);
-    --meet-pip-control-hover-bg: rgba(15, 23, 42, 0.18);
-    --meet-pip-control-border: rgba(15, 23, 42, 0.16);
-    --meet-pip-control-text: #1f2937;
-  }
-
-  [data-theme="dark"] & {
-    --meet-pip-surface: #202124;
-    --meet-pip-footer-bg: rgba(32, 33, 36, 0.88);
-    --meet-pip-text: #fff;
-    --meet-pip-control-bg: rgba(255, 255, 255, 0.16);
-    --meet-pip-control-hover-bg: rgba(255, 255, 255, 0.26);
-    --meet-pip-control-border: rgba(255, 255, 255, 0.18);
-    --meet-pip-control-text: #fff;
-  }
 `;
 
 const HiddenOnMobile = styled.span`
@@ -1331,6 +1338,72 @@ function ErrorState({ title, description, onClose }) {
         </StateCard>
       </CenterState>
     </Overlay>
+  );
+}
+
+const getMiniParticipantName = (participant, fallback = "Guest") =>
+  participant?.name || participant?.identity || fallback;
+
+const getMiniParticipantAvatar = (participant) => {
+  const metadata = String(participant?.metadata || "").trim();
+  if (!metadata) return "";
+
+  try {
+    const parsed = JSON.parse(metadata);
+    return parsed?.avatar || parsed?.avatarUrl || parsed?.picture || "";
+  } catch {
+    return "";
+  }
+};
+
+function MiniParticipantPreview({ trackRef, participant }) {
+  const videoRef = useRef(null);
+  const track = trackRef?.publication?.track || trackRef?.track || null;
+  const participantForPreview = participant || trackRef?.participant;
+  const previewSource = String(trackRef?.publication?.source || trackRef?.source || "");
+  const isScreenPreview = previewSource.includes("screen");
+  const canShowTrack = Boolean(
+    track &&
+      !trackRef?.publication?.isMuted &&
+      (isScreenPreview || participantForPreview?.isCameraEnabled !== false),
+  );
+  const name = getMiniParticipantName(participantForPreview);
+  const avatar = getMiniParticipantAvatar(participantForPreview);
+  const initials = name
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part.charAt(0))
+    .join("")
+    .toUpperCase() || "?";
+
+  useEffect(() => {
+    const element = videoRef.current;
+    if (!element || !canShowTrack || !track) return undefined;
+
+    track.attach(element);
+    return () => {
+      track.detach(element);
+    };
+  }, [canShowTrack, track]);
+
+  if (canShowTrack) {
+    return (
+      <video
+        ref={videoRef}
+        autoPlay
+        playsInline
+        muted={Boolean(participantForPreview?.isLocal)}
+      />
+    );
+  }
+
+  return (
+    <MiniAvatarWrap>
+      <MiniAvatar>
+        {avatar ? <img src={avatar} alt="" /> : initials}
+      </MiniAvatar>
+    </MiniAvatarWrap>
   );
 }
 
@@ -1738,6 +1811,7 @@ function MeetContent({
   const connectionToastStateRef = useRef(null);
   const lastSpeakingParticipantKeyRef = useRef(null);
   const pipCloseIntentRef = useRef(false);
+  const pipWindowRef = useRef(null);
   const [whiteboardTool, setWhiteboardTool] = useState(WHITEBOARD_DEFAULT_TOOL);
   const [whiteboardColor, setWhiteboardColor] = useState(WHITEBOARD_DEFAULT_COLOR);
   const [whiteboardFillColor, setWhiteboardFillColor] = useState(
@@ -1772,7 +1846,6 @@ function MeetContent({
   const connectionState = useConnectionState(room);
   const supportsDocumentPiP =
     typeof window !== "undefined" && Boolean(window.documentPictureInPicture?.requestWindow);
-  const effectiveMinimized = isMinimized || documentPipMinimized;
   const participants = useParticipants({ room });
   const speakingParticipants = useSpeakingParticipants();
   const liveKitServerIsRecording = useIsRecording(room);
@@ -1888,7 +1961,23 @@ function MeetContent({
     }
   }, [roomId]);
 
+  const closePiPWindow = useCallback(() => {
+    const activePipWindow = pipWindowRef.current;
+    if (activePipWindow && !activePipWindow.closed) {
+      pipCloseIntentRef.current = true;
+      activePipWindow.close();
+    }
+
+    pipWindowRef.current = null;
+    setPipWindow(null);
+    setPipContainer(null);
+    setDocumentPipMinimized(false);
+  }, []);
+
+  useEffect(() => () => closePiPWindow(), [closePiPWindow]);
+
   const handleLeave = useCallback(async () => {
+    closePiPWindow();
     if (recorder.isRecording || recorder.isBusy) {
       try {
         await recorder.stop();
@@ -1899,7 +1988,7 @@ function MeetContent({
     signaling.leaveSignaling();
     room.disconnect();
     onClose?.();
-  }, [onClose, recorder, room, signaling]);
+  }, [closePiPWindow, onClose, recorder, room, signaling]);
 
   const handleWhiteboardToggle = useCallback(() => {
     const ok = signaling.toggleWhiteboard();
@@ -2126,16 +2215,6 @@ function MeetContent({
     [room, speakerDevices],
   );
 
-  const closePiPWindow = useCallback(() => {
-    if (pipWindow && !pipWindow.closed) {
-      pipCloseIntentRef.current = true;
-      pipWindow.close();
-    }
-
-    setPipWindow(null);
-    setPipContainer(null);
-  }, [pipWindow]);
-
   const openPiPWindow = useCallback(async () => {
     if (!supportsDocumentPiP) {
       return false;
@@ -2149,13 +2228,11 @@ function MeetContent({
 
     try {
       const nextPipWindow = await documentPiP.requestWindow({
-        width: 420,
-        height: 340,
+        width: 210,
+        height: 280,
       });
       const currentTheme = document.documentElement.getAttribute("data-theme") || "light";
-      const themeBackground =
-        getComputedStyle(document.documentElement).getPropertyValue("--background-color").trim() ||
-        (currentTheme === "dark" ? "#111315" : "#ffffff");
+      const themeBackground = "#111214";
 
       nextPipWindow.document.title = title || "Jamm Meet";
       nextPipWindow.document.body.innerHTML = "";
@@ -2205,6 +2282,8 @@ function MeetContent({
       nextPipWindow.document.body.appendChild(mountNode);
 
       pipCloseIntentRef.current = false;
+      pipWindowRef.current = nextPipWindow;
+      setDocumentPipMinimized(true);
       setPipWindow(nextPipWindow);
       setPipContainer(mountNode);
       return true;
@@ -2223,6 +2302,7 @@ function MeetContent({
 
     if (supportsDocumentPiP) {
       setDocumentPipMinimized(true);
+      onMinimize?.();
       return;
     }
 
@@ -2325,17 +2405,18 @@ function MeetContent({
   );
 
   useEffect(() => {
-    if (!effectiveMinimized && pipWindow) {
+    if (!isMinimized && !documentPipMinimized && pipWindow) {
       closePiPWindow();
     }
-  }, [closePiPWindow, effectiveMinimized, pipWindow]);
+  }, [closePiPWindow, documentPipMinimized, isMinimized, pipWindow]);
 
   useEffect(() => {
-    if (!effectiveMinimized || !pipWindow) {
+    if (!pipWindow) {
       return undefined;
     }
 
     const handlePageHide = () => {
+      pipWindowRef.current = null;
       setPipWindow(null);
       setPipContainer(null);
       setDocumentPipMinimized(false);
@@ -2352,45 +2433,84 @@ function MeetContent({
 
     pipWindow.addEventListener("pagehide", handlePageHide);
     return () => pipWindow.removeEventListener("pagehide", handlePageHide);
-  }, [effectiveMinimized, isMinimized, onMaximize, pipWindow]);
+  }, [isMinimized, onMaximize, pipWindow]);
 
+  const miniParticipant = previewTrackRef?.participant || participants[0] || room.localParticipant;
+  const miniParticipantName = getMiniParticipantName(miniParticipant, primaryTitle);
+  const miniParticipantMuted = miniParticipant?.isMicrophoneEnabled === false;
+  const localMicEnabled = Boolean(room.localParticipant?.isMicrophoneEnabled);
+  const localCamEnabled = Boolean(room.localParticipant?.isCameraEnabled);
+  const localScreenEnabled = Boolean(room.localParticipant?.isScreenShareEnabled);
   const miniView = (
-    <MiniCard type="button" onClick={handleMaximize}>
-      <MiniBody>
-        {previewTrackRef ? <ParticipantTile trackRef={previewTrackRef} /> : <Video size={24} />}
+    <MiniCard>
+      <MiniBody onDoubleClick={handleMaximize}>
+        <MiniParticipantPreview
+          trackRef={previewTrackRef}
+          participant={miniParticipant}
+        />
+        {miniParticipantMuted ? (
+          <MiniMutedBadge>
+            <MicOff size={12} />
+          </MiniMutedBadge>
+        ) : null}
+        <MiniName>{miniParticipantName}</MiniName>
       </MiniBody>
-      <MiniFooter>
-        <span>
-          {participants.length} odam
-          {hasWhiteboard ? " • Whiteboard" : ""}
-        </span>
-        <MiniActions onClick={(event) => event.stopPropagation()}>
-          <IconButton type="button" onClick={handleMaximize}>
-            <Maximize2 size={15} />
-          </IconButton>
-          <IconButton type="button" onClick={handleLeave}>
-            <PhoneOff size={15} />
-          </IconButton>
-        </MiniActions>
-      </MiniFooter>
+      <MiniControls>
+        <MiniControlButton
+          type="button"
+          $active={!localMicEnabled}
+          onClick={handleToggleMicrophone}
+          aria-label={localMicEnabled ? "Mikrofonni o'chirish" : "Mikrofonni yoqish"}
+        >
+          {localMicEnabled ? <Mic size={19} /> : <MicOff size={19} />}
+        </MiniControlButton>
+        <MiniControlButton
+          type="button"
+          $active={!localCamEnabled}
+          onClick={handleToggleCamera}
+          aria-label={localCamEnabled ? "Kamerani o'chirish" : "Kamerani yoqish"}
+        >
+          {localCamEnabled ? <Video size={19} /> : <VideoOff size={19} />}
+        </MiniControlButton>
+        <MiniControlButton
+          type="button"
+          $active={localScreenEnabled}
+          onClick={handleToggleScreenShare}
+          aria-label={localScreenEnabled ? "Screen shareni to'xtatish" : "Screen share"}
+        >
+          <MonitorUp size={19} />
+        </MiniControlButton>
+        <MiniControlButton
+          type="button"
+          $danger
+          $wide
+          onClick={handleLeave}
+          aria-label="Meetdan chiqish"
+        >
+          <PhoneOff size={22} />
+        </MiniControlButton>
+      </MiniControls>
     </MiniCard>
   );
 
-  if (effectiveMinimized) {
-    if (pipContainer) {
-      const pipPortalContent = pipWindow?.document?.head ? (
-        <StyleSheetManager target={pipWindow.document.head}>
-          <PiPFrame $minimized data-lk-theme="default">
-            {miniView}
-          </PiPFrame>
-        </StyleSheetManager>
-      ) : (
-        <PiPFrame $minimized data-lk-theme="default">{miniView}</PiPFrame>
-      );
+  const pipPortalContent = pipContainer ? (
+    pipWindow?.document?.head ? (
+      <StyleSheetManager target={pipWindow.document.head}>
+        <PiPFrame $minimized data-lk-theme="default">
+          {miniView}
+        </PiPFrame>
+      </StyleSheetManager>
+    ) : (
+      <PiPFrame $minimized data-lk-theme="default">{miniView}</PiPFrame>
+    )
+  ) : null;
+  const pipPortal = pipContainer ? createPortal(pipPortalContent, pipContainer) : null;
 
+  if (isMinimized) {
+    if (pipPortal) {
       return (
         <>
-          {createPortal(pipPortalContent, pipContainer)}
+          {pipPortal}
           <RoomAudioRenderer />
         </>
       );
@@ -2409,48 +2529,51 @@ function MeetContent({
   }
 
   return (
-    <Overlay data-lk-theme="default">
-      <MeetingUI
-        room={room}
-        meetingName={roomId}
-        isCreator={isCreator}
-        onLeave={handleLeave}
-        onCopyLink={handleCopy}
-        onToggleWhiteboard={handleWhiteboardToggle}
-        onMinimize={onMinimize ? handleMinimize : undefined}
-        focusContent={hasWhiteboard ? whiteboardTile : null}
-        focusKey={hasWhiteboard ? WHITEBOARD_TILE_KEY : undefined}
-        isRecording={liveKitServerIsRecording || recorder.isRecording}
-        whiteboardActive={hasWhiteboard}
-        isMicrophoneEnabled={Boolean(room.localParticipant?.isMicrophoneEnabled)}
-        isCameraEnabled={Boolean(room.localParticipant?.isCameraEnabled)}
-        isScreenShareEnabled={Boolean(room.localParticipant?.isScreenShareEnabled)}
-        onToggleMicrophone={handleToggleMicrophone}
-        onToggleCamera={handleToggleCamera}
-        onToggleScreenShare={handleToggleScreenShare}
-        cameraDevices={cameraDevices}
-        micDevices={microphoneDevices}
-        speakerDevices={speakerDevices}
-        selectedCameraId={selectedCameraId}
-        selectedMicId={selectedMicrophoneId}
-        selectedSpeakerId={selectedSpeakerId}
-        onSelectCamera={handleSelectCamera}
-        onSelectMic={handleSelectMicrophone}
-        onSelectSpeaker={handleSelectSpeaker}
-        remoteMediaLocks={signaling.remoteMediaLocks}
-        roomIsPrivate={signaling.roomIsPrivate}
-        roomPrivacyUpdating={signaling.roomPrivacyUpdating}
-        knockRequests={signaling.knockRequests}
-        onForceMuteMic={signaling.forceMuteMic}
-        onForceMuteCam={signaling.forceMuteCam}
-        onAllowMic={signaling.allowMic}
-        onAllowCam={signaling.allowCam}
-        onSetRoomPrivacy={handleRoomPrivacyChange}
-        onApproveKnock={signaling.approveKnock}
-        onRejectKnock={signaling.rejectKnock}
-      />
-      <RoomAudioRenderer />
-    </Overlay>
+    <>
+      {pipPortal}
+      <Overlay data-lk-theme="default">
+        <MeetingUI
+          room={room}
+          meetingName={roomId}
+          isCreator={isCreator}
+          onLeave={handleLeave}
+          onCopyLink={handleCopy}
+          onToggleWhiteboard={handleWhiteboardToggle}
+          onMinimize={onMinimize ? handleMinimize : undefined}
+          focusContent={hasWhiteboard ? whiteboardTile : null}
+          focusKey={hasWhiteboard ? WHITEBOARD_TILE_KEY : undefined}
+          isRecording={liveKitServerIsRecording || recorder.isRecording}
+          whiteboardActive={hasWhiteboard}
+          isMicrophoneEnabled={Boolean(room.localParticipant?.isMicrophoneEnabled)}
+          isCameraEnabled={Boolean(room.localParticipant?.isCameraEnabled)}
+          isScreenShareEnabled={Boolean(room.localParticipant?.isScreenShareEnabled)}
+          onToggleMicrophone={handleToggleMicrophone}
+          onToggleCamera={handleToggleCamera}
+          onToggleScreenShare={handleToggleScreenShare}
+          cameraDevices={cameraDevices}
+          micDevices={microphoneDevices}
+          speakerDevices={speakerDevices}
+          selectedCameraId={selectedCameraId}
+          selectedMicId={selectedMicrophoneId}
+          selectedSpeakerId={selectedSpeakerId}
+          onSelectCamera={handleSelectCamera}
+          onSelectMic={handleSelectMicrophone}
+          onSelectSpeaker={handleSelectSpeaker}
+          remoteMediaLocks={signaling.remoteMediaLocks}
+          roomIsPrivate={signaling.roomIsPrivate}
+          roomPrivacyUpdating={signaling.roomPrivacyUpdating}
+          knockRequests={signaling.knockRequests}
+          onForceMuteMic={signaling.forceMuteMic}
+          onForceMuteCam={signaling.forceMuteCam}
+          onAllowMic={signaling.allowMic}
+          onAllowCam={signaling.allowCam}
+          onSetRoomPrivacy={handleRoomPrivacyChange}
+          onApproveKnock={signaling.approveKnock}
+          onRejectKnock={signaling.rejectKnock}
+        />
+        <RoomAudioRenderer />
+      </Overlay>
+    </>
   );
 }
 

@@ -695,7 +695,7 @@ const buildVectorPath = (tool, start, end, rotation = 0, edgeStyle = "sharp") =>
       return path;
     case "arrow": {
       const angle = Math.atan2(end.y - start.y, end.x - start.x);
-      const headLength = Math.max(12, Math.hypot(end.x - start.x, end.y - start.y) * 0.14);
+      const headLength = 18;
       path.moveTo(start.x, start.y);
       path.lineTo(end.x, end.y);
       path.moveTo(end.x, end.y);

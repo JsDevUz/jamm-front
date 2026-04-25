@@ -38,8 +38,17 @@ export default function MeetCallHost() {
   const handleMinimize = () => {
     minimizeCall();
 
-    if (location.pathname.startsWith("/join/") && currentUser) {
-      navigate(activeCall.returnPath || "/chats");
+    if (currentUser && location.pathname !== "/chats") {
+      navigate("/chats");
+    }
+  };
+
+  const handleMaximize = () => {
+    maximizeCall();
+
+    const meetPath = `/join/${activeCall.roomId}`;
+    if (location.pathname !== meetPath) {
+      navigate(meetPath);
     }
   };
 
@@ -56,7 +65,7 @@ export default function MeetCallHost() {
         initialCamOn={activeCall.initialCamOn}
         isMinimized={isMinimized}
         onMinimize={handleMinimize}
-        onMaximize={maximizeCall}
+        onMaximize={handleMaximize}
         onClose={handleClose}
         roomCreatorId={
           activeCall.roomCreatorId ||

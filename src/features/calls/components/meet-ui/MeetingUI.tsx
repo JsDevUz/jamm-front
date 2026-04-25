@@ -304,7 +304,7 @@ export default function MeetingUI({
       : controlsVisible
         ? "px-2 pb-[84px] pt-[74px]"
       : "px-1 pb-1 pt-1"
-    : "px-4 pb-[104px] pt-[96px] sm:px-6";
+    : "px-4 pb-[86px] pt-[72px] sm:px-6";
   const mobileTopOverlayInset = isMobile
     ? controlsVisible
       ? "calc(env(safe-area-inset-top, 0px) + 84px)"
