@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useMemo, useState } from "react";
+import React, { createContext, useContext, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "../../lib/utils";
 
@@ -26,22 +26,15 @@ export function Sheet({
   onOpenChange: (open: boolean) => void;
   children: React.ReactNode;
 }) {
-  const [internalOpen, setInternalOpen] = useState(open);
-
-  React.useEffect(() => {
-    setInternalOpen(open);
-  }, [open]);
-
   const value = useMemo(
     () => ({
-      open: internalOpen,
+      open,
       setOpen: (next: React.SetStateAction<boolean>) => {
-        const resolved = typeof next === "function" ? next(internalOpen) : next;
-        setInternalOpen(resolved);
+        const resolved = typeof next === "function" ? next(open) : next;
         onOpenChange(resolved);
       },
     }),
-    [internalOpen, onOpenChange],
+    [onOpenChange, open],
   );
 
   return <SheetContext.Provider value={value}>{children}</SheetContext.Provider>;
@@ -59,7 +52,7 @@ export function SheetContent({
   if (!open || typeof document === "undefined") return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[110]">
+    <div className="fixed inset-0 z-[140]">
       <button
         type="button"
         className="absolute inset-0 bg-black/45 backdrop-blur-[2px]"
@@ -68,7 +61,7 @@ export function SheetContent({
       />
       <aside
         className={cn(
-          "absolute inset-x-0 bottom-0 flex h-[min(78dvh,680px)] w-full flex-col rounded-t-[28px] border-t border-[var(--meet-border-color)] bg-[var(--meet-panel-muted-bg)] text-[var(--meet-text-color)] shadow-[var(--meet-shadow-color)] backdrop-blur-2xl transition-transform duration-200 md:inset-y-0 md:left-auto md:right-0 md:top-0 md:h-full md:max-w-[420px] md:rounded-none md:border-l md:border-t-0",
+          "absolute inset-x-0 bottom-0 flex h-[min(82dvh,720px)] w-full flex-col rounded-t-[28px] border-t border-[var(--meet-border-color)] bg-[var(--meet-panel-muted-bg)] text-[var(--meet-text-color)] shadow-[var(--meet-shadow-color)] backdrop-blur-2xl transition-transform duration-200 md:inset-y-4 md:left-auto md:right-4 md:top-4 md:h-[calc(100dvh-2rem)] md:max-w-[420px] md:rounded-[28px] md:border md:border-[var(--meet-border-color)]",
           className,
         )}
         style={{

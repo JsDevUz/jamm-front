@@ -46,10 +46,19 @@ export function DropdownMenuTrigger({
   asChild?: boolean;
 }) {
   const { open, setOpen, triggerRef } = useDropdownMenuContext();
+  const toggleOpen = (event: React.PointerEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setOpen((prev) => !prev);
+  };
+  const stopClick = (event: React.MouseEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+  };
 
   if (!asChild) {
     return (
-      <button ref={triggerRef} type="button" onClick={() => setOpen((prev) => !prev)}>
+      <button ref={triggerRef} type="button" onPointerDown={toggleOpen} onClick={stopClick}>
         {children}
       </button>
     );
@@ -64,9 +73,14 @@ export function DropdownMenuTrigger({
       }
     },
     "aria-expanded": open,
+    onPointerDown: (event: React.PointerEvent<HTMLButtonElement>) => {
+      children.props.onPointerDown?.(event);
+      if (event.defaultPrevented) return;
+      toggleOpen(event);
+    },
     onClick: (event: React.MouseEvent<HTMLButtonElement>) => {
       children.props.onClick?.(event);
-      setOpen((prev) => !prev);
+      stopClick(event);
     },
   });
 }

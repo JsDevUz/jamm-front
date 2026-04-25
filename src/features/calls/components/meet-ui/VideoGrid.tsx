@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { Maximize2, Minimize2, Pin } from "lucide-react";
 import { cn } from "../../../../lib/utils";
 import VideoTile, { type TileParticipant } from "./VideoTile";
 
@@ -280,17 +281,25 @@ export default function VideoGrid({
     () => getGridLayoutSpec(gridTiles.length, isMobile, isLandscape),
     [gridTiles.length, isLandscape, isMobile],
   );
+  const focusPinned = Boolean(focusContent && pinnedIdentity === focusKey);
+  const focusFullscreen = Boolean(focusContent && fullscreenTileKey === focusKey);
+  const defaultFocusGridLayout = useMemo(
+    () => getGridLayoutSpec(gridTiles.length + (focusContent ? 1 : 0), isMobile, isLandscape),
+    [focusContent, gridTiles.length, isLandscape, isMobile],
+  );
+  const focusAsRegularTile = Boolean(focusContent && !focusPinned && !focusFullscreen);
+  const dominantStripCount = stripTiles.length + (focusAsRegularTile ? 1 : 0);
   const focusStrip = useMemo(
     () =>
       getFocusStripSpec(
-        participants.filter((participant) => participant.source === "camera").length,
+        Math.max(1, participants.length + (focusAsRegularTile ? 1 : 0)),
         isMobile,
         isLandscape,
       ),
-    [isLandscape, isMobile, participants],
+    [focusAsRegularTile, isLandscape, isMobile, participants.length],
   );
   const focusContainerStyles =
-    stripTiles.length || isMobile ? focusStrip.containerStyles : { gridTemplateColumns: "minmax(0, 1fr)" };
+    dominantStripCount || isMobile ? focusStrip.containerStyles : { gridTemplateColumns: "minmax(0, 1fr)" };
   const pipStyle: React.CSSProperties = pipDragPosition
     ? {
         left: pipDragPosition.x,
@@ -360,6 +369,84 @@ export default function VideoGrid({
     if (!dominantTile || !localCameraTile) return [];
     return getTileKey(localCameraTile) === getTileKey(dominantTile) ? [] : [localCameraTile];
   }, [dominantTile, localCameraTile]);
+  const focusMobilePipTiles = useMemo(() => {
+    if (!focusContent) return [];
+    const tiles: TileParticipant[] = [];
+
+    if (localCameraTile) {
+      tiles.push(localCameraTile);
+    }
+
+    const lastSpeakingTile =
+      (lastSpeakingPipKey &&
+        participants.find(
+          (participant) =>
+            getTileKey(participant) === lastSpeakingPipKey &&
+            participant.source === "camera" &&
+            !participant.isLocal,
+        )) ||
+      participants.find(
+        (participant) =>
+          participant.source === "camera" &&
+          !participant.isLocal &&
+          (!localCameraTile || getTileKey(participant) !== getTileKey(localCameraTile)),
+      ) ||
+      null;
+
+    if (
+      lastSpeakingTile &&
+      !tiles.some((participant) => getTileKey(participant) === getTileKey(lastSpeakingTile))
+    ) {
+      tiles.push(lastSpeakingTile);
+    }
+
+    return tiles.slice(0, 2);
+  }, [focusContent, lastSpeakingPipKey, localCameraTile, participants]);
+  const focusDesktopPipTiles = useMemo(
+    () => (focusContent && localCameraTile ? [localCameraTile] : []),
+    [focusContent, localCameraTile],
+  );
+  const toggleFocusPin = () => onPin(focusPinned ? null : focusKey);
+  const toggleFocusFullscreen = () => {
+    onFullscreenTileChange?.(focusFullscreen ? null : focusKey);
+  };
+  const renderFocusContentFrame = (fullscreen = false) => (
+    <div
+      className={cn(
+        "group relative h-full min-h-0 overflow-hidden bg-[var(--meet-tile-bg)] shadow-[var(--meet-shadow-color)]",
+        fullscreen ? "rounded-[1.35rem] sm:rounded-[1.5rem]" : "rounded-[1.5rem]",
+      )}
+    >
+      {focusContent}
+      <button
+        type="button"
+        onClick={toggleFocusPin}
+        className={cn(
+          "absolute left-3 top-3 z-20 inline-flex h-9 w-9 items-center justify-center rounded-full bg-[var(--meet-overlay-bg)] text-[var(--meet-text-color)] backdrop-blur-md transition hover:bg-[var(--meet-control-hover-bg)] sm:left-4 sm:top-4",
+          focusPinned ? "opacity-100" : isMobile ? "opacity-100" : "opacity-0 group-hover:opacity-100",
+        )}
+        aria-pressed={focusPinned}
+        aria-label={focusPinned ? "Whiteboard pinini olib tashlash" : "Whiteboard pin qilish"}
+        title={focusPinned ? "Whiteboard pinini olib tashlash" : "Whiteboard pin qilish"}
+      >
+        <Pin className={cn("h-4 w-4 transition-transform", focusPinned && "rotate-45 text-[#8ab4f8]")} />
+      </button>
+      {onFullscreenTileChange ? (
+        <button
+          type="button"
+          onClick={toggleFocusFullscreen}
+          className={cn(
+            "absolute bottom-3 right-3 z-20 inline-flex h-11 w-11 items-center justify-center rounded-full bg-[var(--meet-overlay-bg)] text-[var(--meet-text-color)] backdrop-blur-md transition hover:bg-[var(--meet-control-hover-bg)] sm:bottom-4 sm:right-4",
+            focusFullscreen ? "opacity-100" : isMobile ? "opacity-100" : "opacity-0 group-hover:opacity-100",
+          )}
+          aria-label={focusFullscreen ? "Whiteboard fullscreen'dan chiqish" : "Whiteboard fullscreen"}
+          title={focusFullscreen ? "Whiteboard fullscreen'dan chiqish" : "Whiteboard fullscreen"}
+        >
+          {focusFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+        </button>
+      ) : null}
+    </div>
+  );
 
   const handlePipPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     const target = event.target as HTMLElement;
@@ -426,6 +513,133 @@ export default function VideoGrid({
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
   };
+
+  if (focusContent && isMobile && focusFullscreen) {
+    return (
+      <div className="relative h-full min-h-0 w-full">
+        {renderFocusContentFrame(true)}
+
+        {focusMobilePipTiles.length ? (
+          <div className="absolute right-4 top-[calc(env(safe-area-inset-top,0px)+84px)] z-10 flex gap-2">
+            {focusMobilePipTiles.map((participant) => (
+              <div
+                key={`${participant.identity}-${participant.source}-focus-mobile-pip`}
+                className="h-20 w-20 overflow-hidden rounded-[1.1rem] shadow-[0_12px_30px_rgba(0,0,0,0.38)]"
+              >
+                <VideoTile
+                  participant={participant}
+                  pinned={pinnedIdentity === participant.identity}
+                  onPin={onPin}
+                  compact
+                  tiny
+                  isMobile
+                />
+              </div>
+            ))}
+          </div>
+        ) : null}
+      </div>
+    );
+  }
+
+  if (focusContent && !isMobile && focusFullscreen) {
+    return (
+      <div ref={fullscreenStageRef} className="relative h-full min-h-0 w-full">
+        {renderFocusContentFrame(true)}
+
+        {focusDesktopPipTiles.length ? (
+          <div
+            ref={pipRef}
+            className={cn(
+              "absolute z-10 flex max-h-[calc(100%-2.5rem)] cursor-grab touch-none select-none flex-col-reverse gap-3 transition-[left,top,right,bottom,transform] duration-200 active:cursor-grabbing",
+              pipDragPosition && "transition-none",
+            )}
+            style={pipStyle}
+            onPointerDown={handlePipPointerDown}
+            onPointerMove={handlePipPointerMove}
+            onPointerUp={handlePipPointerUp}
+            onPointerCancel={handlePipPointerUp}
+          >
+            {focusDesktopPipTiles.map((participant) => (
+              <div
+                key={`${participant.identity}-${participant.source}-focus-pip`}
+                className="aspect-video w-[clamp(360px,28vw,560px)] min-w-[320px] max-w-[min(560px,calc(100vw-4rem))]"
+              >
+                <VideoTile
+                  participant={participant}
+                  pinned={pinnedIdentity === participant.identity}
+                  onPin={onPin}
+                  fullscreen={fullscreenTileKey === getTileKey(participant)}
+                  onFullscreen={
+                    onFullscreenTileChange
+                      ? () => onFullscreenTileChange(getTileKey(participant))
+                      : undefined
+                  }
+                  compact
+                />
+              </div>
+            ))}
+          </div>
+        ) : null}
+      </div>
+    );
+  }
+
+  if (focusContent && !focusPinned && !focusFullscreen && !dominantTile) {
+    return (
+      <div
+        className={cn(
+          "grid h-full min-h-0 content-stretch",
+          isMobile
+            ? controlsVisible
+              ? "gap-2.5"
+              : "gap-1.5"
+            : controlsVisible
+              ? "gap-4"
+              : "gap-2 sm:gap-3",
+          defaultFocusGridLayout.containerClassName,
+        )}
+        style={{
+          gridTemplateColumns: `repeat(${defaultFocusGridLayout.columns}, minmax(0, 1fr))`,
+          gridTemplateRows:
+            defaultFocusGridLayout.rowTemplate ||
+            `repeat(${defaultFocusGridLayout.rows}, minmax(0, 1fr))`,
+        }}
+      >
+        <div
+          className={cn("h-full min-h-0 w-full", defaultFocusGridLayout.tileClassName)}
+          style={defaultFocusGridLayout.itemStyles?.[0]}
+        >
+          {renderFocusContentFrame(false)}
+        </div>
+        {gridTiles.map((participant, index) => (
+          <div
+            key={`${participant.identity}-${participant.source}`}
+            className={cn("h-full min-h-0 w-full", defaultFocusGridLayout.tileClassName)}
+            style={defaultFocusGridLayout.itemStyles?.[index + 1]}
+          >
+            <VideoTile
+              participant={participant}
+              pinned={pinnedIdentity === participant.identity}
+              onPin={onPin}
+              fullscreen={fullscreenTileKey === getTileKey(participant)}
+              onFullscreen={
+                onFullscreenTileChange
+                  ? () =>
+                      onFullscreenTileChange(
+                        fullscreenTileKey === getTileKey(participant)
+                          ? null
+                          : getTileKey(participant),
+                      )
+                  : undefined
+              }
+              isMobile={isMobile}
+            />
+          </div>
+        ))}
+      </div>
+    );
+  }
 
   if (dominantTile && isMobile && fullscreenTileKey) {
     return (
@@ -517,7 +731,7 @@ export default function VideoGrid({
     );
   }
 
-  if (focusContent) {
+  if (focusContent && focusPinned) {
     return (
       <div
         className={cn(
@@ -533,43 +747,39 @@ export default function VideoGrid({
           ...focusContainerStyles,
         }}
         >
-        <div className="min-h-0 overflow-hidden rounded-[1.5rem] border border-[var(--meet-border-color)] bg-[var(--meet-tile-bg)] shadow-[var(--meet-shadow-color)]">
-          {focusContent}
-        </div>
-        {participants.filter((participant) => participant.source === "camera").length ? (
+        <div className="min-h-0">{renderFocusContentFrame(false)}</div>
+        {participants.length ? (
           <div
             className={cn(
               "scrollbar-thin flex min-h-0 gap-2.5 overflow-x-auto overflow-y-hidden lg:gap-3 lg:flex-col lg:overflow-y-auto lg:overflow-x-hidden",
               isMobile && isLandscape && "flex-col overflow-y-auto overflow-x-hidden",
             )}
           >
-            {participants
-              .filter((participant) => participant.source === "camera")
-              .map((participant) => (
-                <div
-                  key={`${focusKey}-${participant.identity}-${participant.source}`}
-                  className={focusStrip.itemClassName}
-                >
-                  <VideoTile
-                    participant={participant}
-                    pinned={pinnedIdentity === participant.identity}
-                    onPin={onPin}
-                    fullscreen={fullscreenTileKey === getTileKey(participant)}
-                    onFullscreen={
-                      onFullscreenTileChange
-                        ? () =>
-                            onFullscreenTileChange(
-                              fullscreenTileKey === getTileKey(participant)
-                                ? null
-                                : getTileKey(participant),
-                            )
-                        : undefined
-                    }
-                    isMobile={isMobile}
-                    compact
-                  />
-                </div>
-              ))}
+            {participants.map((participant) => (
+              <div
+                key={`${focusKey}-${participant.identity}-${participant.source}`}
+                className={focusStrip.itemClassName}
+              >
+                <VideoTile
+                  participant={participant}
+                  pinned={pinnedIdentity === participant.identity}
+                  onPin={onPin}
+                  fullscreen={fullscreenTileKey === getTileKey(participant)}
+                  onFullscreen={
+                    onFullscreenTileChange
+                      ? () =>
+                          onFullscreenTileChange(
+                            fullscreenTileKey === getTileKey(participant)
+                              ? null
+                              : getTileKey(participant),
+                          )
+                      : undefined
+                  }
+                  isMobile={isMobile}
+                  compact
+                />
+              </div>
+            ))}
           </div>
         ) : null}
       </div>
@@ -589,7 +799,7 @@ export default function VideoGrid({
             className={cn(
               "mx-auto w-full max-w-[760px]",
               controlsVisible
-                ? stripTiles.length
+                ? dominantStripCount
                   ? "h-[min(58vh,560px)] min-h-[280px]"
                   : "h-full min-h-[360px]"
                 : "h-full min-h-0",
@@ -615,8 +825,13 @@ export default function VideoGrid({
             />
           </div>
 
-          {controlsVisible && stripTiles.length ? (
+          {controlsVisible && dominantStripCount ? (
             <div className="mx-auto grid w-full max-w-[760px] grid-cols-2 gap-3 pb-2">
+              {focusAsRegularTile ? (
+                <div className="h-[clamp(150px,26vh,240px)] min-h-0">
+                  {renderFocusContentFrame(false)}
+                </div>
+              ) : null}
               {stripTiles.map((participant) => (
                 <div
                   key={`${participant.identity}-${participant.source}`}
@@ -683,13 +898,18 @@ export default function VideoGrid({
             dominant
           />
         </div>
-        {stripTiles.length ? (
+        {dominantStripCount ? (
           <div
             className={cn(
               "scrollbar-thin flex min-h-0 gap-2.5 overflow-x-auto overflow-y-hidden lg:gap-3 lg:flex-col lg:overflow-y-auto lg:overflow-x-hidden",
               isMobile && isLandscape && "flex-col overflow-y-auto overflow-x-hidden",
             )}
           >
+            {focusAsRegularTile ? (
+              <div key={`${focusKey}-dominant-strip`} className={focusStrip.itemClassName}>
+                {renderFocusContentFrame(false)}
+              </div>
+            ) : null}
             {stripTiles.map((participant) => (
               <div
                 key={`${participant.identity}-${participant.source}`}

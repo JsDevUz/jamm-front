@@ -64,6 +64,27 @@ export default function Header({
     return () => window.clearInterval(intervalId);
   }, []);
 
+  const openParticipants = (
+    event: React.MouseEvent<HTMLButtonElement> | React.PointerEvent<HTMLButtonElement>,
+  ) => {
+    event.preventDefault();
+    event.stopPropagation();
+    onToggleParticipants?.();
+  };
+
+  const openChat = (
+    event: React.MouseEvent<HTMLButtonElement> | React.PointerEvent<HTMLButtonElement>,
+  ) => {
+    event.preventDefault();
+    event.stopPropagation();
+    onToggleChat?.();
+  };
+
+  const stopClick = (event: React.MouseEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+  };
+
   return (
     <header
       className={cn(
@@ -146,7 +167,8 @@ export default function Header({
           {onToggleParticipants ? (
             <button
               type="button"
-              onClick={onToggleParticipants}
+              onPointerDown={openParticipants}
+              onClick={stopClick}
               className="inline-flex h-9 w-9 items-center justify-center gap-2 rounded-full border border-[var(--meet-border-color)] bg-[var(--meet-control-bg)] text-[var(--meet-text-color)] transition hover:bg-[var(--meet-control-hover-bg)] sm:h-11 sm:w-auto sm:px-4"
               title="People"
             >
@@ -157,7 +179,8 @@ export default function Header({
           {onToggleChat ? (
             <button
               type="button"
-              onClick={onToggleChat}
+              onPointerDown={openChat}
+              onClick={stopClick}
               className="inline-flex h-9 w-9 items-center justify-center gap-2 rounded-full border border-[var(--meet-border-color)] bg-[var(--meet-control-bg)] text-[var(--meet-text-color)] transition hover:bg-[var(--meet-control-hover-bg)] sm:h-11 sm:w-auto sm:px-4"
               title="Chat"
             >
