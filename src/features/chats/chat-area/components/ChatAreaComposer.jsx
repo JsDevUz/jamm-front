@@ -12,14 +12,13 @@ const MessageInputContainer = styled.div`
   position: relative;
   z-index: 5;
   flex-shrink: 0;
-  transition:
-    border-color 0.25s ease,
-    box-shadow 0.3s ease,
-    background-color 0.3s ease;
   box-shadow: ${(props) =>
     props.$keyboardOpen ? "0 -8px 22px rgba(0, 0, 0, 0.12)" : "0 0 0 rgba(0, 0, 0, 0)"};
 
   @media (max-width: 768px) {
+    /* No transition on padding — the keyboard itself animates nearly
+       instantly on iOS, and a CSS transition desyncs from the system keyboard
+       and produces a visible bounce. Match iMessage/Telegram: snap. */
     padding: ${(props) => (props.$keyboardOpen ? "6px" : "8px")} 12px
       ${(props) =>
         props.$keyboardOpen
@@ -32,7 +31,6 @@ const ComposerStack = styled.div`
   display: flex;
   flex-direction: column;
   gap: 8px;
-  transition: gap 0.26s cubic-bezier(0.22, 1, 0.36, 1);
 `;
 
 const JoinPreview = styled.div`
@@ -109,14 +107,12 @@ const CloseReplyButton = styled.span`
 
 const InputWrapper = styled.div`
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   background-color: var(--input-color);
-  border-radius: 20px;
+  border-radius: 22px;
   padding: 8px 12px;
   min-height: 44px;
-  transition:
-    background-color 0.2s ease,
-    border-radius 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+  transition: background-color 0.18s ease;
   opacity: ${(props) => (props.$disabled ? 0.72 : 1)};
   pointer-events: ${(props) => (props.$disabled ? "none" : "auto")};
 
@@ -131,11 +127,13 @@ const InputButtons = styled.div`
   gap: 16px;
   position: relative;
   flex-shrink: 0;
-  min-width: ${(props) => (props.$side === "right" ? "72px" : "0px")};
+  align-self: flex-end;
+  padding-bottom: 1px;
+  min-width: ${(props) => (props.$side === "right" ? "40px" : "0px")};
   justify-content: ${(props) =>
     props.$side === "right" ? "flex-end" : "flex-start"};
-  margin-right: ${(props) => (props.$side === "left" ? "16px" : "0")};
-  margin-left: ${(props) => (props.$side === "right" ? "16px" : "0")};
+  margin-right: ${(props) => (props.$side === "left" ? "12px" : "0")};
+  margin-left: ${(props) => (props.$side === "right" ? "12px" : "0")};
 `;
 
 const InputButton = styled.button`
@@ -195,11 +193,13 @@ const MessageInput = styled.textarea`
   background: none;
   border: none;
   color: var(--text-color);
-  font-size: 15px;
-  line-height: 25px;
+  /* iOS Safari auto-zooms any input whose computed font-size is < 16px.
+     Keeping 16px+ prevents the jarring zoom-on-focus on iPhone. */
+  font-size: 16px;
+  line-height: 22px;
   outline: none;
   resize: none;
-  min-height: 25px;
+  min-height: 22px;
   max-height: 400px;
   padding: 0;
   font-family: inherit;
@@ -246,6 +246,17 @@ const ChatAreaComposer = ({
     const caretPosition = messageInputRef.current.value.length;
     messageInputRef.current.setSelectionRange(caretPosition, caretPosition);
   };
+
+  // Auto-resize textarea so it grows with content (like iMessage/Telegram),
+  // up to a cap. Runs on every value change — cheap because we only read
+  // scrollHeight on a single node.
+  useEffect(() => {
+    const node = messageInputRef?.current;
+    if (!node) return;
+    node.style.height = "auto";
+    const next = Math.min(node.scrollHeight, 160);
+    node.style.height = `${next}px`;
+  }, [messageInput, messageInputRef]);
 
   useEffect(() => {
     if (!showComingSoonTooltip) return undefined;

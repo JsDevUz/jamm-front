@@ -59,9 +59,9 @@ const MessagesContainer = styled.div`
   overscroll-behavior-y: contain;
   overflow-anchor: none;
   scroll-padding-bottom: 28px;
-  transition:
-    padding-top 0.28s cubic-bezier(0.22, 1, 0.36, 1),
-    padding-bottom 0.25s ease;
+  /* No padding transitions on mobile — the system keyboard animates almost
+     instantly and a competing CSS transition creates the visible "bounce"
+     where the last messages appear to jump. Snap with the keyboard instead. */
 
   [data-theme="light"] & {
     background-image: url("/chat-area-bg-lite.jpg");
@@ -897,11 +897,14 @@ const ChatAreaMessageList = ({ keyboardHeight = 0 }) => {
       suppressClickRef.current = true;
       swipeGestureRef.current = null;
       setSwipeState({ messageId: null, offset: 0 });
+      if (typeof navigator !== "undefined" && navigator.vibrate) {
+        try { navigator.vibrate(8); } catch {}
+      }
       showContextMenu(group, {
         clientX: touch.clientX,
         clientY: touch.clientY,
       });
-    }, 600);
+    }, 380);
   };
 
   const triggerReply = (message) => {

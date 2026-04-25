@@ -19,6 +19,21 @@
   --scrollbar-track-color: #eef1f4;
   --scrollbar-thumb-color: #c6ccd5;
   --scrollbar-thumb-hover-color: #aab3bf;
+  --meet-shell-bg: #f6f7f9;
+  --meet-overlay-bg: rgba(255, 255, 255, 0.72);
+  --meet-panel-bg: #ffffff;
+  --meet-panel-muted-bg: rgba(255, 255, 255, 0.88);
+  --meet-tile-bg: #edf1f6;
+  --meet-control-bg: rgba(255, 255, 255, 0.92);
+  --meet-control-hover-bg: rgba(0, 0, 0, 0.06);
+  --meet-control-active-bg: color-mix(in srgb, var(--primary-color) 14%, #ffffff);
+  --meet-border-color: rgba(46, 51, 56, 0.12);
+  --meet-text-color: #1f1f1f;
+  --meet-text-muted-color: rgba(31, 31, 31, 0.68);
+  --meet-shadow-color: 0 18px 40px rgba(27, 31, 35, 0.12);
+  --meet-dim-overlay-top: linear-gradient(to bottom, rgba(0, 0, 0, 0.08), transparent);
+  --meet-dim-overlay-bottom: linear-gradient(to top, rgba(0, 0, 0, 0.12), rgba(0, 0, 0, 0.04), transparent);
+  --meet-text-shadow: 0 1px 4px rgba(255, 255, 255, 0.35);
 }
 
 /* Light Theme */
@@ -41,6 +56,21 @@
   --scrollbar-track-color: #eef1f4;
   --scrollbar-thumb-color: #c6ccd5;
   --scrollbar-thumb-hover-color: #aab3bf;
+  --meet-shell-bg: #f6f7f9;
+  --meet-overlay-bg: rgba(255, 255, 255, 0.72);
+  --meet-panel-bg: #ffffff;
+  --meet-panel-muted-bg: rgba(255, 255, 255, 0.88);
+  --meet-tile-bg: #edf1f6;
+  --meet-control-bg: rgba(255, 255, 255, 0.92);
+  --meet-control-hover-bg: rgba(0, 0, 0, 0.06);
+  --meet-control-active-bg: color-mix(in srgb, var(--primary-color) 14%, #ffffff);
+  --meet-border-color: rgba(46, 51, 56, 0.12);
+  --meet-text-color: #1f1f1f;
+  --meet-text-muted-color: rgba(31, 31, 31, 0.68);
+  --meet-shadow-color: 0 18px 40px rgba(27, 31, 35, 0.12);
+  --meet-dim-overlay-top: linear-gradient(to bottom, rgba(0, 0, 0, 0.08), transparent);
+  --meet-dim-overlay-bottom: linear-gradient(to top, rgba(0, 0, 0, 0.12), rgba(0, 0, 0, 0.04), transparent);
+  --meet-text-shadow: 0 1px 4px rgba(255, 255, 255, 0.35);
 }
 
 /* Dark Theme */
@@ -63,6 +93,21 @@
   --scrollbar-track-color: #2f3136;
   --scrollbar-thumb-color: #4f545c;
   --scrollbar-thumb-hover-color: #6a7079;
+  --meet-shell-bg: #121314;
+  --meet-overlay-bg: rgba(18, 19, 20, 0.78);
+  --meet-panel-bg: #1f2022;
+  --meet-panel-muted-bg: rgba(31, 32, 34, 0.88);
+  --meet-tile-bg: #2a2b2f;
+  --meet-control-bg: rgba(42, 43, 47, 0.92);
+  --meet-control-hover-bg: rgba(255, 255, 255, 0.08);
+  --meet-control-active-bg: color-mix(in srgb, var(--primary-color) 24%, #1f2022);
+  --meet-border-color: rgba(255, 255, 255, 0.08);
+  --meet-text-color: #f5f7fa;
+  --meet-text-muted-color: rgba(245, 247, 250, 0.68);
+  --meet-shadow-color: 0 18px 40px rgba(0, 0, 0, 0.28);
+  --meet-dim-overlay-top: linear-gradient(to bottom, rgba(0, 0, 0, 0.18), transparent);
+  --meet-dim-overlay-bottom: linear-gradient(to top, rgba(0, 0, 0, 0.2), rgba(0, 0, 0, 0.06), transparent);
+  --meet-text-shadow: 0 1px 6px rgba(0, 0, 0, 0.5);
 }
 
 /* Base styles that use CSS variables */

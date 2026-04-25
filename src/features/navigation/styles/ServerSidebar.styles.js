@@ -34,6 +34,16 @@ export const SidebarContainer = styled.div`
     box-shadow: 0 -10px 32px rgba(0, 0, 0, 0.22);
     overflow: hidden;
     pointer-events: none;
+    /* Slide the tab bar off-screen while the keyboard is open — otherwise
+       iOS Safari stacks the fixed bar on top of the keyboard and the user
+       loses the composer. Matches native iOS messenger behavior. */
+    transform: translateY(0);
+    transition: transform 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+
+    :root[data-mobile-keyboard-open="true"] & {
+      transform: translateY(110%);
+      pointer-events: none;
+    }
   }
 `;
 

@@ -1739,6 +1739,7 @@ export default function useChatAreaController({
       handleMessageDoubleClick,
       focusReplyTargetMessage,
       showContextMenu,
+      closeContextMenu: () => setContextMenu(null),
       handleContextMenuAction,
       handleUsernameClick,
       handleMemberProfileOpen,

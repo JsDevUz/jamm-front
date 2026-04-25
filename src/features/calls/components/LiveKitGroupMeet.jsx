@@ -6,25 +6,18 @@ import {
   AlertCircle,
   ChevronLeft,
   ChevronRight,
-  Clipboard,
   Clock,
-  Copy,
   Maximize2,
-  MessageCircle,
-  Minimize2,
   MonitorUp,
   PhoneOff,
   ShieldCheck,
   Sparkles,
   Users,
   Video,
-  X,
 } from "lucide-react";
 import {
   ChatEntry,
   ConnectionQualityIndicator,
-  ControlBar,
-  DisconnectButton,
   FocusLayout,
   FocusToggleIcon,
   FocusLayoutContainer,
@@ -34,7 +27,6 @@ import {
   ParticipantTile,
   RoomAudioRenderer,
   formatChatMessageLinks,
-  useChat,
   useConnectionState,
   useIsRecording,
   useMaybeLayoutContext,
@@ -43,7 +35,6 @@ import {
   usePinnedTracks,
   useRoomContext,
   useRoomInfo,
-  useSortedParticipants,
   useSpeakingParticipants,
   useTracks,
   UnfocusToggleIcon,
@@ -53,6 +44,7 @@ import { createLivekitToken } from "../../../api/livekitApi";
 import useAuthStore from "../../../store/authStore";
 import { RESOLVED_APP_BASE_URL } from "../../../config/env";
 import WhiteboardTile from "./WhiteboardTile";
+import MeetingUI from "./meet-ui/MeetingUI";
 import { useLiveKitMeetSignaling } from "../hooks/useLiveKitMeetSignaling";
 import { useMeetRecorder } from "../hooks/useMeetRecorder";
 
@@ -1678,7 +1670,6 @@ function MeetContent({
   signaling,
   roomCreatorId,
 }) {
-  const [drawer, setDrawer] = useState(null);
   const [pipWindow, setPipWindow] = useState(null);
   const [pipContainer, setPipContainer] = useState(null);
   const connectionToastStateRef = useRef(null);
@@ -1706,6 +1697,12 @@ function MeetContent({
   );
   const [recordSurfaceNode, setRecordSurfaceNode] = useState(null);
   const [recordSurfaceType, setRecordSurfaceType] = useState(null);
+  const [cameraDevices, setCameraDevices] = useState([]);
+  const [microphoneDevices, setMicrophoneDevices] = useState([]);
+  const [speakerDevices, setSpeakerDevices] = useState([]);
+  const [selectedCameraId, setSelectedCameraId] = useState("");
+  const [selectedMicrophoneId, setSelectedMicrophoneId] = useState("");
+  const [selectedSpeakerId, setSelectedSpeakerId] = useState("");
 
   const room = useRoomContext();
   const roomInfo = useRoomInfo();
@@ -1713,7 +1710,6 @@ function MeetContent({
   const supportsDocumentPiP =
     typeof window !== "undefined" && Boolean(window.documentPictureInPicture?.requestWindow);
   const participants = useParticipants({ room });
-  const sortedParticipants = useSortedParticipants(participants);
   const speakingParticipants = useSpeakingParticipants();
   const liveKitServerIsRecording = useIsRecording(room);
 
@@ -1759,8 +1755,6 @@ function MeetContent({
       toast.error(result.error);
     }
   }, [recorder]);
-  const { chatMessages, send, isSending } = useChat();
-  const [chatDraft, setChatDraft] = useState("");
   const tracks = useTracks(
     [
       { source: Track.Source.Camera, withPlaceholder: true },
@@ -1868,6 +1862,115 @@ function MeetContent({
     [signaling],
   );
 
+  const refreshDevices = useCallback(async () => {
+    if (!navigator.mediaDevices?.enumerateDevices) return;
+
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const nextCameraDevices = devices
+        .filter((device) => device.kind === "videoinput")
+        .map((device, index) => ({
+          id: device.deviceId,
+          label: device.label || `Camera ${index + 1}`,
+        }));
+      const nextMicrophoneDevices = devices
+        .filter((device) => device.kind === "audioinput")
+        .map((device, index) => ({
+          id: device.deviceId,
+          label: device.label || `Microphone ${index + 1}`,
+        }));
+      const nextSpeakerDevices = devices
+        .filter((device) => device.kind === "audiooutput")
+        .map((device, index) => ({
+          id: device.deviceId,
+          label: device.label || `Speaker ${index + 1}`,
+        }));
+
+      setCameraDevices(nextCameraDevices);
+      setMicrophoneDevices(nextMicrophoneDevices);
+      setSpeakerDevices(nextSpeakerDevices);
+      setSelectedCameraId((current) => current || nextCameraDevices[0]?.id || "");
+      setSelectedMicrophoneId((current) => current || nextMicrophoneDevices[0]?.id || "");
+      setSelectedSpeakerId((current) => current || nextSpeakerDevices[0]?.id || "");
+    } catch {
+      // ignore device enumeration failures
+    }
+  }, []);
+
+  useEffect(() => {
+    refreshDevices();
+    if (!navigator.mediaDevices?.addEventListener) return undefined;
+
+    navigator.mediaDevices.addEventListener("devicechange", refreshDevices);
+    return () => navigator.mediaDevices.removeEventListener("devicechange", refreshDevices);
+  }, [refreshDevices]);
+
+  const handleToggleMicrophone = useCallback(async () => {
+    try {
+      await room.localParticipant.setMicrophoneEnabled(
+        !room.localParticipant.isMicrophoneEnabled,
+      );
+    } catch {
+      toast.error("Mikrofonni boshqarib bo'lmadi");
+    }
+  }, [room.localParticipant]);
+
+  const handleToggleCamera = useCallback(async () => {
+    try {
+      await room.localParticipant.setCameraEnabled(!room.localParticipant.isCameraEnabled);
+    } catch {
+      toast.error("Kamerani boshqarib bo'lmadi");
+    }
+  }, [room.localParticipant]);
+
+  const handleToggleScreenShare = useCallback(async () => {
+    try {
+      await room.localParticipant.setScreenShareEnabled(
+        !room.localParticipant.isScreenShareEnabled,
+      );
+    } catch {
+      toast.error("Screen share boshqarib bo'lmadi");
+    }
+  }, [room.localParticipant]);
+
+  const handleSelectCamera = useCallback(
+    async (deviceId) => {
+      try {
+        await room.switchActiveDevice("videoinput", deviceId);
+        setSelectedCameraId(deviceId);
+      } catch {
+        toast.error("Kamera almashtirilmadi");
+      }
+    },
+    [room],
+  );
+
+  const handleSelectMicrophone = useCallback(
+    async (deviceId) => {
+      try {
+        await room.switchActiveDevice("audioinput", deviceId);
+        setSelectedMicrophoneId(deviceId);
+      } catch {
+        toast.error("Mikrofon almashtirilmadi");
+      }
+    },
+    [room],
+  );
+
+  const handleSelectSpeaker = useCallback(
+    async (deviceId) => {
+      if (typeof room.switchActiveDevice !== "function") return;
+
+      try {
+        await room.switchActiveDevice("audiooutput", deviceId);
+        setSelectedSpeakerId(deviceId);
+      } catch {
+        toast.error("Speaker almashtirilmadi");
+      }
+    },
+    [room],
+  );
+
   const closePiPWindow = useCallback(() => {
     if (pipWindow && !pipWindow.closed) {
       pipCloseIntentRef.current = true;
@@ -1970,18 +2073,6 @@ function MeetContent({
     closePiPWindow();
     onMaximize?.();
   }, [closePiPWindow, onMaximize]);
-
-  const handleChatSubmit = useCallback(
-    async (event) => {
-      event.preventDefault();
-      const nextMessage = chatDraft.trim();
-      if (!nextMessage) return;
-
-      await send(nextMessage);
-      setChatDraft("");
-    },
-    [chatDraft, send],
-  );
 
   const whiteboardTile = hasWhiteboard ? (
     <WhiteboardTile
@@ -2153,140 +2244,33 @@ function MeetContent({
 
   return (
     <Overlay data-lk-theme="default">
-      <Shell>
-        <TopBar>
-          <TopActions>
-            {liveKitServerIsRecording || recorder.isRecording ? (
-              <Pill $tone="var(--danger-color)">
-                <Clipboard size={13} />
-                REC
-              </Pill>
-            ) : null}
-            <IconButton type="button" onClick={handleCopy} title="Havolani nusxalash">
-              <Copy size={16} />
-              <HiddenOnMobile>Copy</HiddenOnMobile>
-            </IconButton>
-            <IconButton
-              type="button"
-              $active={hasWhiteboard}
-              onClick={handleWhiteboardToggle}
-              title="Whiteboard"
-            >
-              <MonitorUp size={16} />
-              <HiddenOnMobile>Board</HiddenOnMobile>
-            </IconButton>
-            <IconButton
-              type="button"
-              $active={drawer === "chat"}
-              onClick={() => setDrawer((current) => (current === "chat" ? null : "chat"))}
-              title="Chat"
-            >
-              <MessageCircle size={16} />
-              <HiddenOnMobile>{chatMessages.length}</HiddenOnMobile>
-            </IconButton>
-            <IconButton
-              type="button"
-              $active={drawer === "people"}
-              onClick={() => setDrawer((current) => (current === "people" ? null : "people"))}
-              title="Ishtirokchilar"
-            >
-              <Users size={16} />
-              <HiddenOnMobile>{participants.length}</HiddenOnMobile>
-            </IconButton>
-            {onMinimize ? (
-              <IconButton type="button" onClick={handleMinimize} title="Minimize">
-                <Minimize2 size={16} />
-              </IconButton>
-            ) : null}
-          </TopActions>
-        </TopBar>
-
-        <Stage $drawerOpen={Boolean(drawer)}>
-          <StagePanel>
-            <VideoPanel>
-              <FocusableParticipantLayout
-                tracks={stageTracks}
-                whiteboardTile={whiteboardTile}
-              />
-            </VideoPanel>
-          </StagePanel>
-
-          {drawer ? (
-            <Drawer>
-              <DrawerHeader>
-                <DrawerTabs>
-                  <DrawerTab
-                    type="button"
-                    $active={drawer === "people"}
-                    onClick={() => setDrawer("people")}
-                  >
-                    Odamlar
-                  </DrawerTab>
-                  <DrawerTab
-                    type="button"
-                    $active={drawer === "chat"}
-                    onClick={() => setDrawer("chat")}
-                  >
-                    Chat
-                  </DrawerTab>
-                </DrawerTabs>
-                <DrawerCloseButton
-                  type="button"
-                  onClick={() => setDrawer(null)}
-                  aria-label="Panelni yopish"
-                  title="Panelni yopish"
-                >
-                  <X size={18} />
-                </DrawerCloseButton>
-              </DrawerHeader>
-              <DrawerBody $flush={drawer === "chat"}>
-                {drawer === "chat" ? (
-                  <PersistentChatPanel
-                    chatMessages={chatMessages}
-                    chatDraft={chatDraft}
-                    isSending={isSending}
-                    onChatDraftChange={setChatDraft}
-                    onChatSubmit={handleChatSubmit}
-                  />
-                ) : (
-                  <ParticipantsPanel
-                    participants={sortedParticipants}
-                    knockRequests={signaling.knockRequests}
-                    isCreator={isCreator}
-                    roomIsPrivate={signaling.roomIsPrivate}
-                    onApproveKnock={signaling.approveKnock}
-                    onRejectKnock={signaling.rejectKnock}
-                    onSetRoomPrivacy={signaling.setRoomPrivacy}
-                  />
-                )}
-              </DrawerBody>
-            </Drawer>
-          ) : null}
-        </Stage>
-
-        <BottomBar>
-          <BottomControlDock>
-            <ControlBar
-              variation="minimal"
-              controls={{
-                microphone: true,
-                camera: true,
-                screenShare: true,
-                chat: false,
-                leave: false,
-                settings: false,
-              }}
-            />
-            <DisconnectButton
-              stopTracks
-              className="lk-disconnect-button"
-              onClick={handleLeave}
-            >
-              <PhoneOff size={18} />
-            </DisconnectButton>
-          </BottomControlDock>
-        </BottomBar>
-      </Shell>
+      <MeetingUI
+        room={room}
+        meetingName={roomId}
+        onLeave={handleLeave}
+        onCopyLink={handleCopy}
+        onToggleWhiteboard={handleWhiteboardToggle}
+        onMinimize={onMinimize ? handleMinimize : undefined}
+        focusContent={hasWhiteboard ? whiteboardTile : null}
+        focusKey={hasWhiteboard ? WHITEBOARD_TILE_KEY : undefined}
+        isRecording={liveKitServerIsRecording || recorder.isRecording}
+        whiteboardActive={hasWhiteboard}
+        isMicrophoneEnabled={Boolean(room.localParticipant?.isMicrophoneEnabled)}
+        isCameraEnabled={Boolean(room.localParticipant?.isCameraEnabled)}
+        isScreenShareEnabled={Boolean(room.localParticipant?.isScreenShareEnabled)}
+        onToggleMicrophone={handleToggleMicrophone}
+        onToggleCamera={handleToggleCamera}
+        onToggleScreenShare={handleToggleScreenShare}
+        cameraDevices={cameraDevices}
+        micDevices={microphoneDevices}
+        speakerDevices={speakerDevices}
+        selectedCameraId={selectedCameraId}
+        selectedMicId={selectedMicrophoneId}
+        selectedSpeakerId={selectedSpeakerId}
+        onSelectCamera={handleSelectCamera}
+        onSelectMic={handleSelectMicrophone}
+        onSelectSpeaker={handleSelectSpeaker}
+      />
       <RoomAudioRenderer />
     </Overlay>
   );
@@ -2445,8 +2429,8 @@ const LiveKitGroupMeet = ({
         autoSubscribe: true,
       }}
       onDisconnected={() => {
-        signaling.leaveSignaling();
-        onClose?.();
+        // LiveKit may emit this during temporary network loss; keep the meet UI open
+        // and let the reconnect overlay handle the waiting state.
       }}
       onError={(error) => {
         setLiveKitError(error?.message || "Suhbat ulanishida xatolik");

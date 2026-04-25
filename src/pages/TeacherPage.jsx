@@ -124,18 +124,19 @@ const Shell = styled.div`
   width: 100%;
   min-width: 0;
   flex: 1 1 auto;
+  height: var(--app-height, 100dvh);
   min-height: var(--app-height, 100dvh);
+  overflow: hidden;
   background: var(--background-color);
 
   @media (max-width: 700px) {
-    height: var(--app-height, 100dvh);
     min-height: 0;
-    overflow: hidden;
   }
 `;
 
 const Layout = styled.div`
   height: var(--app-height, 100dvh);
+  max-height: var(--app-height, 100dvh);
   width: 100%;
   display: grid;
   grid-template-columns: 78px minmax(0, 1fr);
@@ -318,10 +319,13 @@ const ProfileSub = styled.div`
 
 const Main = styled(Panel)`
   min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
   height: 100%;
   display: flex;
   flex-direction: column;
   justify-self: stretch;
+  overflow: hidden;
 
   @media (max-width: 700px) {
     order: 1;
@@ -329,10 +333,15 @@ const Main = styled(Panel)`
 `;
 
 const MainScroll = styled.div`
-  flex: 1;
+  flex: 1 1 0;
+  width: 100%;
+  height: 100%;
+  max-height: 100%;
+  min-width: 0;
   min-height: 0;
   padding: 16px;
   overflow-y: auto;
+  overflow-x: hidden;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
   touch-action: pan-y;

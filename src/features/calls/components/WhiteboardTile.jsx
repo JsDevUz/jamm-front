@@ -70,7 +70,7 @@ const WHITEBOARD_MIN_BOARD_BASE_WIDTH = 120;
 const WHITEBOARD_MIN_BOARD_BASE_HEIGHT = 120;
 const WHITEBOARD_MIN_VIEWPORT_BASE_HEIGHT = 120;
 const WHITEBOARD_PDF_RENDER_VERSION = "v3";
-const WHITEBOARD_PDF_BUFFER_CACHE_MAX_ITEMS = 12;
+const WHITEBOARD_PDF_BUFFER_CACHE_MAX_ITEMS = 48;
 const WHITEBOARD_MAX_TEXT_CHARS = 240;
 const WHITEBOARD_VIEWPORT_TOP_SAFE_SPACE = 92;
 const WHITEBOARD_VIEWPORT_BOTTOM_SAFE_SPACE = 176;
@@ -6489,34 +6489,29 @@ const WhiteboardTile = ({
         ),
       )
     : 0;
-  const activePdfRenderWidth =
-    shouldUseContainedMobilePdfViewport
-      ? containedPdfBaseWidth
-      : shouldContainRemotePdfViewport && activePdfViewportBaseWidth > 0
-      ? Math.max(
-          WHITEBOARD_MIN_PDF_RENDER_WIDTH,
-          Math.round(activePdfViewportBaseWidth * activePdfZoom),
-        )
+  // Zoom is now applied via CSS transform on a scale-layer, so PDF raster width
+  // stays independent of zoom level. This prevents expensive pdf.js re-rasterization
+  // on every wheel tick and keeps the stroke overlay perfectly aligned with the PDF.
+  // A debounced hi-res pass can still sharpen at zoom > 1 (see debounced effect below).
+  const pdfRenderWidthBaseUnclamped = shouldUseContainedMobilePdfViewport
+    ? containedPdfBaseWidth
+    : shouldContainRemotePdfViewport && activePdfViewportBaseWidth > 0
+      ? activePdfViewportBaseWidth
       : !interactive && activeTab?.type === "pdf" && activePdfViewportBaseWidth > 0
-      ? Math.max(
-          WHITEBOARD_MIN_PDF_RENDER_WIDTH,
-          Math.round(pdfRenderWidth * activePdfZoom),
-        )
-      : activeTab?.type === "pdf" && pdfRenderWidth > 0
-      ? Math.max(
-          WHITEBOARD_MIN_PDF_RENDER_WIDTH,
-          Math.round(pdfRenderWidth * activePdfZoom),
-        )
-      : Math.max(
-          WHITEBOARD_MIN_PDF_RENDER_WIDTH,
-          pdfRenderWidth || WHITEBOARD_MIN_PDF_RENDER_WIDTH,
-        );
-  const activePdfWidth = shouldUseContainedMobilePdfViewport
-    ? Math.max(
-        WHITEBOARD_MIN_PDF_RENDER_WIDTH,
-        Math.round(activePdfRenderWidth * activePdfZoom),
-      )
-    : activePdfRenderWidth;
+        ? pdfRenderWidth
+        : activeTab?.type === "pdf" && pdfRenderWidth > 0
+          ? pdfRenderWidth
+          : pdfRenderWidth || WHITEBOARD_MIN_PDF_RENDER_WIDTH;
+  const activePdfRenderWidth = Math.max(
+    WHITEBOARD_MIN_PDF_RENDER_WIDTH,
+    Math.round(pdfRenderWidthBaseUnclamped),
+  );
+  // Visual (rendered) width for the PdfPageFrame — this is what determines the
+  // scrollable area and includes the zoom factor (always, not only mobile).
+  const activePdfWidth = Math.max(
+    WHITEBOARD_MIN_PDF_RENDER_WIDTH,
+    Math.round(activePdfRenderWidth * activePdfZoom),
+  );
   const activePdfRenderScale =
     activeTab?.type === "pdf"
       ? activePdfRenderWidth / activePdfViewportBaseWidth
@@ -7500,26 +7495,30 @@ const WhiteboardTile = ({
             continue;
           }
 
-          const containedSharpnessZoom = shouldUseContainedMobilePdfViewport
-            ? Math.round(Math.min(2, Math.max(1, activePdfZoom)) * 100)
-            : 100;
           const renderSignature = `${WHITEBOARD_PDF_RENDER_VERSION}:${activeTab.fileUrl}:${pageMeta.pageNumber}:${Math.round(
             activePdfRenderWidth,
-          )}:${
-            shouldUseContainedMobilePdfViewport
-              ? `contained:${containedSharpnessZoom}`
-              : Math.round(activePdfZoom * 1000)
-          }`;
+          )}`;
           const cachedBitmap = pdfPageBitmapCacheRef.current.get(renderSignature);
           if (cachedBitmap) {
+            // Re-insert for LRU ordering
+            pdfPageBitmapCacheRef.current.delete(renderSignature);
+            pdfPageBitmapCacheRef.current.set(renderSignature, cachedBitmap);
             const context = canvas.getContext("2d");
             if (context) {
-              canvas.width = cachedBitmap.width;
-              canvas.height = cachedBitmap.height;
+              // Only resize the canvas if dimensions actually changed — resizing
+              // a canvas implicitly clears it (which causes the white-flash on
+              // page turns). Reusing the pixel buffer means the previous frame
+              // stays visible until drawImage completes in the same tick.
+              if (
+                canvas.width !== cachedBitmap.width ||
+                canvas.height !== cachedBitmap.height
+              ) {
+                canvas.width = cachedBitmap.width;
+                canvas.height = cachedBitmap.height;
+              }
               canvas.style.width = `${cachedBitmap.viewportWidth}px`;
               canvas.style.height = `${cachedBitmap.viewportHeight}px`;
               context.setTransform(1, 0, 0, 1, 0, 0);
-              context.clearRect(0, 0, canvas.width, canvas.height);
               context.drawImage(cachedBitmap.canvas, 0, 0);
               canvas.dataset.renderKey = renderSignature;
               delete canvas.dataset.pendingRenderKey;
@@ -7588,24 +7587,31 @@ const WhiteboardTile = ({
             rotation !== 0 && canvas.dataset.stableRenderKey !== renderSignature;
 
           if (shouldUseContainedMobilePdfViewport) {
+            // Raster ratio is zoom-independent: zoom is applied via CSS transform
+            // on the scale-layer, so we only need enough pixels for 1x display
+            // (plus devicePixelRatio headroom for crispness).
             const mobileRasterRatio = Math.max(
               1,
               Math.min(
-                3,
-                (window.devicePixelRatio || 1) * Math.min(2, Math.max(1, activePdfZoom)),
+                2,
+                window.devicePixelRatio || 1,
                 WHITEBOARD_MOBILE_PDF_MAX_RENDER_EDGE /
                   Math.max(1, viewport.width, viewport.height),
               ),
             );
-            canvas.width = Math.max(1, Math.floor(Math.max(1, viewport.width) * mobileRasterRatio));
-            canvas.height = Math.max(1, Math.floor(Math.max(1, viewport.height) * mobileRasterRatio));
+            const nextWidth = Math.max(1, Math.floor(Math.max(1, viewport.width) * mobileRasterRatio));
+            const nextHeight = Math.max(1, Math.floor(Math.max(1, viewport.height) * mobileRasterRatio));
+            if (canvas.width !== nextWidth || canvas.height !== nextHeight) {
+              canvas.width = nextWidth;
+              canvas.height = nextHeight;
+            }
             canvas.style.width = `${Math.max(1, viewport.width)}px`;
             canvas.style.height = `${Math.max(1, viewport.height)}px`;
             context.setTransform(mobileRasterRatio, 0, 0, mobileRasterRatio, 0, 0);
-            context.clearRect(0, 0, canvas.width, canvas.height);
 
             const renderDirectly = async () => {
-              context.clearRect(0, 0, canvas.width, canvas.height);
+              // Don't clear before render: pdf.js draws opaque page background
+              // over the whole canvas itself. Clearing creates a white flash.
               const renderTask = page.render({
                 canvasContext: context,
                 viewport,
@@ -7632,19 +7638,8 @@ const WhiteboardTile = ({
 
             canvas.dataset.renderKey = renderSignature;
             delete canvas.dataset.pendingRenderKey;
-            if (!interactive) {
-              try {
-                const nextImageSrc = canvas.toDataURL("image/png");
-                setPdfPageImages((prev) =>
-                  prev[pageMeta.pageNumber] === nextImageSrc
-                    ? prev
-                    : {
-                        ...prev,
-                        [pageMeta.pageNumber]: nextImageSrc,
-                      },
-                );
-              } catch {}
-            }
+            // Guests (remote) read directly from the canvas — no expensive
+            // toDataURL per render. The canvas itself is kept in the DOM.
             setPdfPageMetrics((prev) => {
               const nextWidth = viewport.width;
               const nextHeight = viewport.height;
@@ -7679,7 +7674,8 @@ const WhiteboardTile = ({
           renderContext.setTransform(ratio, 0, 0, ratio, 0, 0);
 
           const renderIntoCanvas = async () => {
-            renderContext.clearRect(0, 0, viewport.width, viewport.height);
+            // Offscreen canvas is freshly allocated (already transparent/black)
+            // and pdf.js renders an opaque page background, so no clear needed.
             const renderTask = page.render({
               canvasContext: renderContext,
               viewport: rasterViewport,
@@ -7704,12 +7700,16 @@ const WhiteboardTile = ({
             canvas.dataset.stableRenderKey = renderSignature;
           }
 
-          canvas.width = renderCanvas.width;
-          canvas.height = renderCanvas.height;
+          if (
+            canvas.width !== renderCanvas.width ||
+            canvas.height !== renderCanvas.height
+          ) {
+            canvas.width = renderCanvas.width;
+            canvas.height = renderCanvas.height;
+          }
           canvas.style.width = `${viewport.width}px`;
           canvas.style.height = `${viewport.height}px`;
           context.setTransform(1, 0, 0, 1, 0, 0);
-          context.clearRect(0, 0, canvas.width, canvas.height);
           context.drawImage(renderCanvas, 0, 0);
           const cacheCanvas = document.createElement("canvas");
           cacheCanvas.width = renderCanvas.width;
@@ -7723,6 +7723,14 @@ const WhiteboardTile = ({
             viewportWidth: viewport.width,
             viewportHeight: viewport.height,
           });
+          while (
+            pdfPageBitmapCacheRef.current.size >
+            WHITEBOARD_PDF_BUFFER_CACHE_MAX_ITEMS
+          ) {
+            const oldestKey = pdfPageBitmapCacheRef.current.keys().next().value;
+            if (!oldestKey) break;
+            pdfPageBitmapCacheRef.current.delete(oldestKey);
+          }
           canvas.dataset.renderKey = renderSignature;
           delete canvas.dataset.pendingRenderKey;
           setPdfPageMetrics((prev) => {
@@ -7762,7 +7770,6 @@ const WhiteboardTile = ({
     currentPdfPage,
     pdfMeta,
     pdfRenderWidth,
-    activePdfZoom,
     activePdfRenderWidth,
     initialVisiblePdfPages,
     isMobile,
@@ -8401,8 +8408,19 @@ const WhiteboardTile = ({
       }
 
       event.preventDefault();
+      const viewportRect = viewport.getBoundingClientRect();
+      const anchorX = event.clientX - viewportRect.left;
+      const anchorY = event.clientY - viewportRect.top;
+      const liveZoom = livePdfZoomRef.current || 1;
+      const safeZoom = Math.max(WHITEBOARD_MIN_ZOOM, liveZoom);
+      pdfZoomAnchorRef.current = {
+        anchorX,
+        anchorY,
+        contentX: (viewport.scrollLeft + anchorX) / safeZoom,
+        contentY: (viewport.scrollTop + anchorY) / safeZoom,
+      };
       const zoomFactor = Math.exp(-event.deltaY * WHITEBOARD_WHEEL_ZOOM_SENSITIVITY);
-      scheduleZoom(livePdfZoomRef.current * zoomFactor);
+      scheduleZoom(liveZoom * zoomFactor);
     };
 
     const handleTouchStart = (event) => {
@@ -10270,9 +10288,7 @@ const WhiteboardTile = ({
                                   pageMeta.baseWidth,
                               )
                             : 720);
-                        const displayedPageHeight = shouldUseContainedMobilePdfViewport
-                          ? Math.max(1, Math.round(pageHeight * activePdfZoom))
-                          : pageHeight;
+                        const displayedPageHeight = Math.max(1, Math.round(pageHeight * activePdfZoom));
                         const shouldRenderPage =
                           !interactive ||
                           visiblePdfPages.includes(pageMeta.pageNumber) ||
@@ -10280,10 +10296,8 @@ const WhiteboardTile = ({
                           pageMeta.pageNumber === currentPdfPage ||
                           pageMeta.pageNumber === Number(activeTab.viewportPageNumber);
                         const pageStrokes = getPdfTabPageStrokes(activeTab, pageMeta.pageNumber);
-                        const mobilePdfImage =
-                          shouldUseContainedMobilePdfViewport &&
-                          !interactive &&
-                          pdfPageImages[pageMeta.pageNumber]
+                        const pdfImage =
+                          !interactive && pdfPageImages[pageMeta.pageNumber]
                             ? pdfPageImages[pageMeta.pageNumber]
                             : "";
 
@@ -10303,91 +10317,50 @@ const WhiteboardTile = ({
                                 current: pageMeta.pageNumber,
                               })}
                             </PageBadge>
-                            {shouldUseContainedMobilePdfViewport ? (
-                              <PdfPageScaleLayer
-                                style={{
-                                  width: `${activePdfRenderWidth}px`,
-                                  height: `${pageHeight}px`,
-                                  transform: `translateX(-50%) scale(${activePdfZoom})`,
-                                }}
-                              >
-                                {shouldRenderPage ? (
-                                  <>
-                                    {mobilePdfImage ? (
-                                      <PdfRasterImage src={mobilePdfImage} alt="" draggable={false} />
-                                    ) : null}
-                                    <PdfPageCanvas
-                                      id={`pdf-page-${activeTab.id}-${pageMeta.pageNumber}`}
-                                      $hidden={Boolean(mobilePdfImage)}
-                                    />
-                                  </>
-                                ) : (
-                                  <PdfPagePlaceholder />
-                                )}
-                                <StrokeCanvas
-                                  strokes={pageStrokes}
-                                  interactive={interactive}
-                                  tool={tool}
-                                  color={color}
-                                  fillColor={fillColor}
-                                  shapeEdge={shapeEdge}
-                                  brushSize={brushSize}
-                                  zoomScale={activePdfRenderScale}
-                                  textFontFamily={textFontFamily}
-                                  textSize={textSize}
-                                  textAlign={textAlign}
-                                  tabId={activeTab.id}
-                                  pageNumber={pageMeta.pageNumber}
-                                  onStrokeStart={onStrokeStart}
-                                  onStrokeAppend={onStrokeAppend}
-                                  onStrokeRemove={onStrokeRemove}
-                                  onStrokeUpdate={onStrokeUpdate}
-                                  onToolChange={onToolChange}
-                                  onTextEditorStateChange={setActiveTextEditorState}
-                                  surfaceMode="page"
-                                  textPlaceholder={t("groupCall.whiteboard.textPlaceholder")}
-                                />
-                              </PdfPageScaleLayer>
-                            ) : (
-                              <>
-                                {shouldRenderPage ? (
-                                  <>
-                                    {mobilePdfImage ? (
-                                      <PdfRasterImage src={mobilePdfImage} alt="" draggable={false} />
-                                    ) : null}
-                                    <PdfPageCanvas
-                                      id={`pdf-page-${activeTab.id}-${pageMeta.pageNumber}`}
-                                      $hidden={Boolean(mobilePdfImage)}
-                                    />
-                                  </>
-                                ) : (
-                                  <PdfPagePlaceholder />
-                                )}
-                                <StrokeCanvas
-                                  strokes={pageStrokes}
-                                  interactive={interactive}
-                                  tool={tool}
-                                  color={color}
-                                  fillColor={fillColor}
-                                  shapeEdge={shapeEdge}
-                                  brushSize={brushSize}
-                                  zoomScale={activePdfRenderScale}
-                                  textFontFamily={textFontFamily}
-                                  textSize={textSize}
-                                  textAlign={textAlign}
-                                  tabId={activeTab.id}
-                                  pageNumber={pageMeta.pageNumber}
-                                  onStrokeStart={onStrokeStart}
-                                  onStrokeAppend={onStrokeAppend}
-                                  onStrokeRemove={onStrokeRemove}
-                                  onStrokeUpdate={onStrokeUpdate}
-                                  onToolChange={onToolChange}
-                                  onTextEditorStateChange={setActiveTextEditorState}
-                                  surfaceMode="page"
-                                  textPlaceholder={t("groupCall.whiteboard.textPlaceholder")}
-                                />
-                              </>
-                            )}
+                            <PdfPageScaleLayer
+                              style={{
+                                width: `${activePdfRenderWidth}px`,
+                                height: `${pageHeight}px`,
+                                transform: `translateX(-50%) scale(${activePdfZoom})`,
+                              }}
+                            >
+                              {shouldRenderPage ? (
+                                <>
+                                  {pdfImage ? (
+                                    <PdfRasterImage src={pdfImage} alt="" draggable={false} />
+                                  ) : null}
+                                  <PdfPageCanvas
+                                    id={`pdf-page-${activeTab.id}-${pageMeta.pageNumber}`}
+                                    $hidden={Boolean(pdfImage)}
+                                  />
+                                </>
+                              ) : (
+                                <PdfPagePlaceholder />
+                              )}
+                              <StrokeCanvas
+                                strokes={pageStrokes}
+                                interactive={interactive}
+                                tool={tool}
+                                color={color}
+                                fillColor={fillColor}
+                                shapeEdge={shapeEdge}
+                                brushSize={brushSize}
+                                zoomScale={activePdfRenderScale}
+                                textFontFamily={textFontFamily}
+                                textSize={textSize}
+                                textAlign={textAlign}
+                                tabId={activeTab.id}
+                                pageNumber={pageMeta.pageNumber}
+                                onStrokeStart={onStrokeStart}
+                                onStrokeAppend={onStrokeAppend}
+                                onStrokeRemove={onStrokeRemove}
+                                onStrokeUpdate={onStrokeUpdate}
+                                onToolChange={onToolChange}
+                                onTextEditorStateChange={setActiveTextEditorState}
+                                surfaceMode="page"
+                                textPlaceholder={t("groupCall.whiteboard.textPlaceholder")}
+                              />
+                            </PdfPageScaleLayer>
                           </PdfPageFrame>
                         );
                       })}
@@ -10434,9 +10407,7 @@ const WhiteboardTile = ({
                               pageMeta.baseWidth,
                           )
                         : 720);
-                    const displayedPageHeight = shouldUseContainedMobilePdfViewport
-                      ? Math.max(1, Math.round(pageHeight * activePdfZoom))
-                      : pageHeight;
+                    const displayedPageHeight = Math.max(1, Math.round(pageHeight * activePdfZoom));
                     const shouldRenderPage =
                       !interactive ||
                       visiblePdfPages.includes(pageMeta.pageNumber) ||
@@ -10444,10 +10415,8 @@ const WhiteboardTile = ({
                       pageMeta.pageNumber === currentPdfPage ||
                       pageMeta.pageNumber === Number(activeTab.viewportPageNumber);
                     const pageStrokes = getPdfTabPageStrokes(activeTab, pageMeta.pageNumber);
-                    const mobilePdfImage =
-                      shouldUseContainedMobilePdfViewport &&
-                      !interactive &&
-                      pdfPageImages[pageMeta.pageNumber]
+                    const pdfImage =
+                      !interactive && pdfPageImages[pageMeta.pageNumber]
                         ? pdfPageImages[pageMeta.pageNumber]
                         : "";
 
@@ -10467,91 +10436,50 @@ const WhiteboardTile = ({
                             current: pageMeta.pageNumber,
                           })}
                         </PageBadge>
-                        {shouldUseContainedMobilePdfViewport ? (
-                          <PdfPageScaleLayer
-                            style={{
-                              width: `${activePdfRenderWidth}px`,
-                              height: `${pageHeight}px`,
-                              transform: `translateX(-50%) scale(${activePdfZoom})`,
-                            }}
-                          >
-                            {shouldRenderPage ? (
-                              <>
-                                {mobilePdfImage ? (
-                                  <PdfRasterImage src={mobilePdfImage} alt="" draggable={false} />
-                                ) : null}
-                                <PdfPageCanvas
-                                  id={`pdf-page-${activeTab.id}-${pageMeta.pageNumber}`}
-                                  $hidden={Boolean(mobilePdfImage)}
-                                />
-                              </>
-                            ) : (
-                              <PdfPagePlaceholder />
-                            )}
-                            <StrokeCanvas
-                              strokes={pageStrokes}
-                              interactive={interactive}
-                              tool={tool}
-                              color={color}
-                              fillColor={fillColor}
-                              shapeEdge={shapeEdge}
-                              brushSize={brushSize}
-                              zoomScale={activePdfRenderScale}
-                              textFontFamily={textFontFamily}
-                              textSize={textSize}
-                              textAlign={textAlign}
-                              tabId={activeTab.id}
-                              pageNumber={pageMeta.pageNumber}
-                              onStrokeStart={onStrokeStart}
-                              onStrokeAppend={onStrokeAppend}
-                              onStrokeRemove={onStrokeRemove}
-                              onStrokeUpdate={onStrokeUpdate}
-                              onToolChange={onToolChange}
-                              onTextEditorStateChange={setActiveTextEditorState}
-                              surfaceMode="page"
-                              textPlaceholder={t("groupCall.whiteboard.textPlaceholder")}
-                            />
-                          </PdfPageScaleLayer>
-                        ) : (
-                          <>
-                            {shouldRenderPage ? (
-                              <>
-                                {mobilePdfImage ? (
-                                  <PdfRasterImage src={mobilePdfImage} alt="" draggable={false} />
-                                ) : null}
-                                <PdfPageCanvas
-                                  id={`pdf-page-${activeTab.id}-${pageMeta.pageNumber}`}
-                                  $hidden={Boolean(mobilePdfImage)}
-                                />
-                              </>
-                            ) : (
-                              <PdfPagePlaceholder />
-                            )}
-                            <StrokeCanvas
-                              strokes={pageStrokes}
-                              interactive={interactive}
-                              tool={tool}
-                              color={color}
-                              fillColor={fillColor}
-                              shapeEdge={shapeEdge}
-                              brushSize={brushSize}
-                              zoomScale={activePdfRenderScale}
-                              textFontFamily={textFontFamily}
-                              textSize={textSize}
-                              textAlign={textAlign}
-                              tabId={activeTab.id}
-                              pageNumber={pageMeta.pageNumber}
-                              onStrokeStart={onStrokeStart}
-                              onStrokeAppend={onStrokeAppend}
-                              onStrokeRemove={onStrokeRemove}
-                              onStrokeUpdate={onStrokeUpdate}
-                              onToolChange={onToolChange}
-                              onTextEditorStateChange={setActiveTextEditorState}
-                              surfaceMode="page"
-                              textPlaceholder={t("groupCall.whiteboard.textPlaceholder")}
-                            />
-                          </>
-                        )}
+                        <PdfPageScaleLayer
+                          style={{
+                            width: `${activePdfRenderWidth}px`,
+                            height: `${pageHeight}px`,
+                            transform: `translateX(-50%) scale(${activePdfZoom})`,
+                          }}
+                        >
+                          {shouldRenderPage ? (
+                            <>
+                              {pdfImage ? (
+                                <PdfRasterImage src={pdfImage} alt="" draggable={false} />
+                              ) : null}
+                              <PdfPageCanvas
+                                id={`pdf-page-${activeTab.id}-${pageMeta.pageNumber}`}
+                                $hidden={Boolean(pdfImage)}
+                              />
+                            </>
+                          ) : (
+                            <PdfPagePlaceholder />
+                          )}
+                          <StrokeCanvas
+                            strokes={pageStrokes}
+                            interactive={interactive}
+                            tool={tool}
+                            color={color}
+                            fillColor={fillColor}
+                            shapeEdge={shapeEdge}
+                            brushSize={brushSize}
+                            zoomScale={activePdfRenderScale}
+                            textFontFamily={textFontFamily}
+                            textSize={textSize}
+                            textAlign={textAlign}
+                            tabId={activeTab.id}
+                            pageNumber={pageMeta.pageNumber}
+                            onStrokeStart={onStrokeStart}
+                            onStrokeAppend={onStrokeAppend}
+                            onStrokeRemove={onStrokeRemove}
+                            onStrokeUpdate={onStrokeUpdate}
+                            onToolChange={onToolChange}
+                            onTextEditorStateChange={setActiveTextEditorState}
+                            surfaceMode="page"
+                            textPlaceholder={t("groupCall.whiteboard.textPlaceholder")}
+                          />
+                        </PdfPageScaleLayer>
                       </PdfPageFrame>
                     );
                   })}
