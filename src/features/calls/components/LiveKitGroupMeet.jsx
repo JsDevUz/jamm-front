@@ -50,6 +50,7 @@ import { RESOLVED_APP_BASE_URL } from "../../../config/env";
 // whiteboard (`hasWhiteboard === true`).
 const WhiteboardTile = lazy(() => import("./WhiteboardTile"));
 import MeetingUI from "./meet-ui/MeetingUI";
+import MeetAttendancePanel from "./MeetAttendancePanel";
 import { useLiveKitMeetSignaling } from "../hooks/useLiveKitMeetSignaling";
 import { useMeetRecorder } from "../hooks/useMeetRecorder";
 import { applyPreferredAudioOutput } from "../utils/audioOutput";
@@ -1847,6 +1848,7 @@ function MeetContent({
   const [selectedCameraId, setSelectedCameraId] = useState("");
   const [selectedMicrophoneId, setSelectedMicrophoneId] = useState("");
   const [selectedSpeakerId, setSelectedSpeakerId] = useState("");
+  const [lessonControlsOpen, setLessonControlsOpen] = useState(false);
 
   const room = useRoomContext();
   const roomInfo = useRoomInfo();
@@ -1917,6 +1919,7 @@ function MeetContent({
   );
   const stageTracks = tracks.length > 0 ? tracks : fallbackParticipantTracks;
   const hasWhiteboard = signaling.whiteboardState.isActive;
+  const canShowLessonControls = Boolean(isCreator && signaling.lessonMeet);
   const primaryTitle = title || roomInfo.name || "Jamm Meet";
   const previewTracks = useMemo(
     () =>
@@ -2429,6 +2432,12 @@ function MeetContent({
   }, [closePiPWindow, documentPipMinimized, isMinimized, pipWindow]);
 
   useEffect(() => {
+    if (!canShowLessonControls) {
+      setLessonControlsOpen(false);
+    }
+  }, [canShowLessonControls]);
+
+  useEffect(() => {
     if (!pipWindow) {
       return undefined;
     }
@@ -2557,6 +2566,9 @@ function MeetContent({
           onLeave={handleLeave}
           onCopyLink={handleCopy}
           onToggleWhiteboard={handleWhiteboardToggle}
+          onToggleLessonControls={
+            canShowLessonControls ? () => setLessonControlsOpen(true) : undefined
+          }
           onMinimize={onMinimize ? handleMinimize : undefined}
           focusContent={hasWhiteboard ? whiteboardTile : null}
           focusKey={hasWhiteboard ? WHITEBOARD_TILE_KEY : undefined}
@@ -2589,6 +2601,15 @@ function MeetContent({
           onApproveKnock={signaling.approveKnock}
           onRejectKnock={signaling.rejectKnock}
         />
+        {canShowLessonControls ? (
+          <MeetAttendancePanel
+            open={lessonControlsOpen}
+            onOpenChange={setLessonControlsOpen}
+            lessonMeet={signaling.lessonMeet}
+            onSetAttendance={signaling.setLessonAttendance}
+            onSetGrade={signaling.setLessonGrade}
+          />
+        ) : null}
         <RoomAudioRenderer />
       </Overlay>
     </>

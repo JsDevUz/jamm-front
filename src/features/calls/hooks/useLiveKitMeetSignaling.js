@@ -251,7 +251,9 @@ const normalizeWhiteboardStroke = (stroke) => {
   if (points.length === 0) return null;
 
   const normalizedTool =
-    stroke.tool === "eraser"
+    stroke.tool === "marker"
+      ? "marker"
+      : stroke.tool === "eraser"
       ? "eraser"
       : stroke.tool === "text"
         ? "text"
@@ -1021,6 +1023,9 @@ export function useLiveKitMeetSignaling({
     createInitialWhiteboardState(),
   );
   const [whiteboardCursor, setWhiteboardCursor] = useState(null);
+  // Lesson meet state — populated by server's `meet-lesson-binding` after join.
+  // null = not bound to a lesson; otherwise { courseId, lessonId, attendance, grading }.
+  const [lessonMeet, setLessonMeet] = useState(null);
   const socketRef = useRef(null);
   const whiteboardStateRef = useRef(createInitialWhiteboardState());
   const storedPdfLibraryRef = useRef([]);
@@ -1366,6 +1371,116 @@ export function useLiveKitMeetSignaling({
         }),
       );
     });
+    socket.on("meet-lesson-binding", (payload = {}) => {
+      const courseId =
+        typeof payload?.courseId === "string" ? payload.courseId : "";
+      const lessonId =
+        typeof payload?.lessonId === "string" ? payload.lessonId : "";
+      if (!courseId || !lessonId) return;
+      setLessonMeet((current) => ({
+        courseId,
+        lessonId,
+        attendance: current?.attendance || null,
+        grading: current?.grading || null,
+      }));
+      // Teacher: pull initial roster + grading once binding is known.
+      if (isCreator) {
+        socket.emit("meet-request-roster", { roomId });
+      }
+    });
+
+    socket.on("meet-attendance-roster", (payload) => {
+      setLessonMeet((current) =>
+        current ? { ...current, attendance: payload } : current,
+      );
+    });
+
+    socket.on("meet-grade-roster", (payload) => {
+      setLessonMeet((current) =>
+        current ? { ...current, grading: payload } : current,
+      );
+    });
+
+    socket.on("meet-attendance-updated", (payload = {}) => {
+      const userId =
+        typeof payload?.userId === "string" ? payload.userId : "";
+      const status =
+        typeof payload?.status === "string" ? payload.status : "";
+      if (!userId || !status) return;
+      setLessonMeet((current) => {
+        if (!current?.attendance) return current;
+        const att = current.attendance;
+        // Server returns roster under `members` for owners, fall back to other
+        // shapes for safety.
+        const key = Array.isArray(att.members)
+          ? "members"
+          : Array.isArray(att.records)
+            ? "records"
+            : Array.isArray(att.attendance)
+              ? "attendance"
+              : null;
+        if (!key) return current;
+        const list = att[key];
+        const nextList = list.map((row) =>
+          String(row.userId) === userId ? { ...row, status } : row,
+        );
+        return {
+          ...current,
+          attendance: { ...att, [key]: nextList },
+        };
+      });
+    });
+
+    socket.on("meet-grade-updated", (payload = {}) => {
+      const userId =
+        typeof payload?.userId === "string" ? payload.userId : "";
+      if (!userId) return;
+      setLessonMeet((current) => {
+        if (!current?.grading) return current;
+        const grading = current.grading;
+        // Owner shape: { lesson: { students: [...] }, overview }
+        if (Array.isArray(grading.lesson?.students)) {
+          const nextStudents = grading.lesson.students.map((row) =>
+            String(row.userId) === userId
+              ? {
+                  ...row,
+                  oralScore:
+                    payload.score === undefined ? row.oralScore : payload.score,
+                  oralNote:
+                    payload.note === undefined ? row.oralNote : payload.note,
+                }
+              : row,
+          );
+          return {
+            ...current,
+            grading: {
+              ...grading,
+              lesson: { ...grading.lesson, students: nextStudents },
+            },
+          };
+        }
+        const key = Array.isArray(grading.students)
+          ? "students"
+          : Array.isArray(grading.rows)
+            ? "rows"
+            : Array.isArray(grading.records)
+              ? "records"
+              : null;
+        if (!key) return current;
+        const nextList = grading[key].map((row) =>
+          String(row.userId) === userId
+            ? {
+                ...row,
+                oralScore:
+                  payload.score === undefined ? row.oralScore : payload.score,
+                oralNote: payload.note === undefined ? row.oralNote : payload.note,
+              }
+            : row,
+        );
+        return { ...current, grading: { ...grading, [key]: nextList } };
+      });
+    });
+
     socket.on("force-mute-mic", () => {
       setLocalMediaLocks((current) => ({ ...current, micLocked: true }));
     });
@@ -1403,6 +1518,7 @@ export function useLiveKitMeetSignaling({
       setKnockRequests([]);
       setLocalMediaLocks({ micLocked: false, camLocked: false });
       setRemoteMediaLocks({});
+      setLessonMeet(null);
       commitWhiteboardCursor(null);
       commitWhiteboardState({
         ...createInitialWhiteboardState(),
@@ -2042,6 +2158,33 @@ export function useLiveKitMeetSignaling({
     socketRef.current?.emit("leave-room", { roomId });
   }, [roomId]);
 
+  const setLessonAttendance = useCallback(
+    (targetUserId, status) => {
+      const socket = socketRef.current;
+      if (!socket || !targetUserId || !status) return;
+      socket.emit("meet-set-attendance", { roomId, targetUserId, status });
+    },
+    [roomId],
+  );
+
+  const setLessonGrade = useCallback(
+    (targetUserId, { score, note } = {}) => {
+      const socket = socketRef.current;
+      if (!socket || !targetUserId) return;
+      const payload = { roomId, targetUserId };
+      if (score !== undefined) payload.score = score;
+      if (note !== undefined) payload.note = note;
+      socket.emit("meet-set-grade", payload);
+    },
+    [roomId],
+  );
+
+  const refreshLessonRoster = useCallback(() => {
+    const socket = socketRef.current;
+    if (!socket) return;
+    socket.emit("meet-request-roster", { roomId });
+  }, [roomId]);
+
   return {
     joinStatus,
     canConnectLiveKit: joinStatus === "joined",
@@ -2081,5 +2224,9 @@ export function useLiveKitMeetSignaling({
     removeWhiteboardStroke,
     updateWhiteboardStroke,
     leaveSignaling,
+    lessonMeet,
+    setLessonAttendance,
+    setLessonGrade,
+    refreshLessonRoster,
   };
 }

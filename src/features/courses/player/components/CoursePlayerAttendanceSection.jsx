@@ -1,7 +1,11 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { Video } from "lucide-react";
 import { useCourses } from "../../../../contexts/CoursesContext";
 import { useCoursePlayerContext } from "../context/CoursePlayerContext";
+import useMeetCallStore from "../../../../store/meetCallStore";
+import useAuthStore from "../../../../store/authStore";
+import { getMeetById } from "../../../../utils/meetStore";
 import {
   Skeleton,
   SkeletonCircle,
@@ -38,12 +42,39 @@ const hasAvatarImage = (value) =>
 
 const CoursePlayerAttendanceSection = () => {
   const { t } = useTranslation();
-  const { getLessonAttendance, setLessonAttendanceStatus } = useCourses();
+  const {
+    getLessonAttendance,
+    setLessonAttendanceStatus,
+    subscribeToLessonAttendance,
+  } = useCourses();
   const { admin, courseId, currentLessonData } = useCoursePlayerContext();
   const [attendanceData, setAttendanceData] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [activeMeet, setActiveMeet] = useState(null);
+  const [isJoiningMeet, setIsJoiningMeet] = useState(false);
   const lessonId =
     currentLessonData?._id || currentLessonData?.id || currentLessonData?.urlSlug;
+
+  const currentUser = useAuthStore((state) => state.user);
+  const startCall = useMeetCallStore((state) => state.startCall);
+
+  // Stable per-lesson roomId — must match the teacher workspace formula.
+  const lessonMeetRoomId = useMemo(() => {
+    if (!courseId || !lessonId) return "";
+    const safeCourse = String(courseId).slice(-12);
+    const safeLesson = String(lessonId).replace(/[^a-zA-Z0-9_-]/g, "").slice(-12);
+    return `lesson-${safeCourse}-${safeLesson}`.slice(0, 64);
+  }, [courseId, lessonId]);
+
+  const reloadAttendance = useCallback(async () => {
+    if (!courseId || !lessonId) return;
+    try {
+      const data = await getLessonAttendance(courseId, lessonId);
+      setAttendanceData(data);
+    } catch {
+      // keep previous data on transient error
+    }
+  }, [courseId, getLessonAttendance, lessonId]);
 
   useEffect(() => {
     if (!courseId || !lessonId) return;
@@ -72,6 +103,63 @@ const CoursePlayerAttendanceSection = () => {
       cancelled = true;
     };
   }, [courseId, getLessonAttendance, lessonId]);
+
+  // Real-time refresh: when the teacher toggles a status during a meet, the
+  // server fires lesson_attendance_updated; refetch only this lesson's roster.
+  useEffect(() => {
+    if (!courseId || !lessonId || !subscribeToLessonAttendance) return;
+    return subscribeToLessonAttendance(courseId, lessonId, () => {
+      reloadAttendance();
+    });
+  }, [courseId, lessonId, reloadAttendance, subscribeToLessonAttendance]);
+
+  // Probe whether a lesson meet is currently published; if so, show join button.
+  useEffect(() => {
+    if (!lessonMeetRoomId) {
+      setActiveMeet(null);
+      return;
+    }
+    let cancelled = false;
+    getMeetById(lessonMeetRoomId)
+      .then((meet) => {
+        if (!cancelled) setActiveMeet(meet || null);
+      })
+      .catch(() => {
+        if (!cancelled) setActiveMeet(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [lessonMeetRoomId, courseId, lessonId]);
+
+  const handleJoinLessonMeet = useCallback(() => {
+    if (!activeMeet || !lessonMeetRoomId || isJoiningMeet) return;
+    setIsJoiningMeet(true);
+    try {
+      startCall({
+        roomId: lessonMeetRoomId,
+        chatTitle: activeMeet.title || currentLessonData?.title || "Dars",
+        displayName:
+          currentUser?.nickname || currentUser?.username || "Student",
+        isCreator: false,
+        isPrivate: Boolean(activeMeet.isPrivate),
+        initialMicOn: true,
+        initialCamOn: true,
+        roomCreatorId: String(activeMeet.creator || ""),
+        returnPath:
+          typeof window !== "undefined" ? window.location.pathname : "/",
+      });
+    } finally {
+      setIsJoiningMeet(false);
+    }
+  }, [
+    activeMeet,
+    currentLessonData?.title,
+    currentUser,
+    isJoiningMeet,
+    lessonMeetRoomId,
+    startCall,
+  ]);
 
   const summary = useMemo(() => {
     if (admin) {
@@ -112,6 +200,33 @@ const CoursePlayerAttendanceSection = () => {
               ? t("coursePlayer.attendance.adminHint")
               : t("coursePlayer.attendance.studentHint")}
         </AttendanceMuted>
+        {activeMeet && !admin ? (
+          <button
+            type="button"
+            onClick={handleJoinLessonMeet}
+            disabled={isJoiningMeet}
+            style={{
+              marginLeft: "auto",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              padding: "8px 14px",
+              borderRadius: 10,
+              border: "none",
+              background: "#22c55e",
+              color: "#fff",
+              fontWeight: 600,
+              fontSize: 13,
+              cursor: isJoiningMeet ? "wait" : "pointer",
+              opacity: isJoiningMeet ? 0.6 : 1,
+            }}
+          >
+            <Video size={14} />
+            {t("coursePlayer.attendance.joinMeet", {
+              defaultValue: "Darsga qo'shilish",
+            })}
+          </button>
+        ) : null}
       </AttendanceHeader>
 
       {loading ? (

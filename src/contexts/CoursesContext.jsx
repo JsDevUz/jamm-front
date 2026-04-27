@@ -158,7 +158,23 @@ export const CoursesProvider = ({ children }) => {
     socketRef.current.on("member_rejected", handleEvent);
     socketRef.current.on("member_approved_broadcast", handleEvent);
     socketRef.current.on("member_rejected_broadcast", handleEvent);
-    socketRef.current.on("lesson_attendance_updated", handleEvent);
+    socketRef.current.on("lesson_attendance_updated", (payload) => {
+      // Notify per-lesson subscribers (cheap re-fetch of just that lesson's
+      // roster) instead of refetching the entire course list, which thrashes
+      // the player when teacher rapidly toggles statuses during a meet.
+      const courseId = payload?.courseId;
+      const lessonId = payload?.lessonId;
+      if (courseId && lessonId) {
+        const set = lessonAttendanceListenersRef.current.get(
+          `${courseId}:${lessonId}`,
+        );
+        set?.forEach((cb) => {
+          try {
+            cb(payload);
+          } catch {}
+        });
+      }
+    });
 
     return () => {
       if (socketRef.current) {
@@ -166,6 +182,34 @@ export const CoursesProvider = ({ children }) => {
       }
     };
   }, [currentUser, fetchCourses]);
+
+  // Per-lesson attendance subscribers: Map<"courseId:lessonId", Set<callback>>
+  const lessonAttendanceListenersRef = useRef(new Map());
+
+  const subscribeToLessonAttendance = useCallback(
+    (courseId, lessonId, callback) => {
+      if (!courseId || !lessonId || typeof callback !== "function") {
+        return () => {};
+      }
+      const key = `${courseId}:${lessonId}`;
+      const map = lessonAttendanceListenersRef.current;
+      let set = map.get(key);
+      if (!set) {
+        set = new Set();
+        map.set(key, set);
+      }
+      set.add(callback);
+      return () => {
+        const current = map.get(key);
+        if (!current) return;
+        current.delete(callback);
+        if (current.size === 0) {
+          map.delete(key);
+        }
+      };
+    },
+    [],
+  );
 
   const joinCourseRoom = useCallback((courseId) => {
     if (socketRef.current && socketRef.current.connected) {
@@ -895,6 +939,7 @@ export const CoursesProvider = ({ children }) => {
     upsertCourseReview,
     fetchLikedLessons,
     getLessonAttendance,
+    subscribeToLessonAttendance,
     markOwnAttendance,
     setLessonAttendanceStatus,
     getLessonLinkedTests,

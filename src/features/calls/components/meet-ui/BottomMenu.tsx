@@ -47,7 +47,6 @@ type ControlButtonProps = {
   onClick?: () => void;
   icon: React.ReactNode;
   label: string;
-  hideLabel?: boolean;
 };
 
 type MenuKey = "mic" | "camera" | "reaction" | null;
@@ -129,23 +128,22 @@ function ControlButton({
   onClick,
   icon,
   label,
-  hideLabel = false,
 }: ControlButtonProps) {
   return (
     <button
       type="button"
       onClick={onClick}
       className={cn(
-        "inline-flex min-h-[44px] shrink-0 items-center justify-center gap-2 rounded-[18px] border px-3 py-2.5 text-sm font-medium transition-all sm:min-h-[48px] sm:rounded-2xl sm:px-4 sm:py-3 lg:min-h-[40px] lg:gap-1.5 lg:rounded-[14px] lg:px-3 lg:py-2 lg:text-xs",
+        "inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[18px] border transition-all sm:h-12 sm:w-12 sm:rounded-2xl lg:h-10 lg:w-10 lg:rounded-[14px]",
         danger
           ? "border-red-400/30 bg-red-500 text-white hover:bg-red-400"
           : active
             ? "border-[#8ab4f8] bg-[var(--meet-control-active-bg)] text-[var(--meet-text-color)]"
             : "border-[var(--meet-border-color)] bg-[var(--meet-control-bg)] text-[var(--meet-text-color)] hover:bg-[var(--meet-control-hover-bg)]",
       )}
+      aria-label={label}
     >
       {icon}
-      {!hideLabel ? <span>{label}</span> : null}
     </button>
   );
 }
@@ -160,7 +158,6 @@ function DeviceControl({
   selectedId,
   iconOn,
   iconOff,
-  hideLabel,
   menuKey,
   openMenu,
   onMenuToggle,
@@ -174,7 +171,6 @@ function DeviceControl({
   selectedId?: string;
   iconOn: React.ReactNode;
   iconOff: React.ReactNode;
-  hideLabel: boolean;
   menuKey: Exclude<MenuKey, "reaction" | null>;
   openMenu: MenuKey;
   onMenuToggle: (menu: MenuKey) => void;
@@ -189,7 +185,6 @@ function DeviceControl({
         onClick={onToggle}
         icon={enabled ? iconOn : iconOff}
         label={label}
-        hideLabel={hideLabel}
       />
       <button
         type="button"
@@ -252,7 +247,7 @@ export default function BottomMenu({
     <div
       ref={rootRef}
       className={cn(
-        "absolute inset-x-0 bottom-0 z-30 px-2 transition duration-300 sm:px-6",
+        "absolute inset-x-0 bottom-0 z-30 px-2 transition duration-300 sm:px-6 max-w-min mx-auto",
         isVisible
           ? "pointer-events-auto translate-y-0 opacity-100"
           : "pointer-events-none translate-y-full opacity-0",
@@ -284,7 +279,6 @@ export default function BottomMenu({
             selectedId={selectedMicId}
             iconOn={<Mic className="h-5 w-5 lg:h-4 lg:w-4" />}
             iconOff={<MicOff className="h-5 w-5 lg:h-4 lg:w-4" />}
-            hideLabel={isMobile}
             menuKey="mic"
             openMenu={openMenu}
             onMenuToggle={setOpenMenu}
@@ -300,7 +294,6 @@ export default function BottomMenu({
             selectedId={selectedCameraId}
             iconOn={<Camera className="h-5 w-5 lg:h-4 lg:w-4" />}
             iconOff={<CameraOff className="h-5 w-5 lg:h-4 lg:w-4" />}
-            hideLabel={isMobile}
             menuKey="camera"
             openMenu={openMenu}
             onMenuToggle={setOpenMenu}
@@ -321,7 +314,6 @@ export default function BottomMenu({
               onClick={onToggleRaiseHand}
               icon={<Hand className="h-5 w-5 lg:h-4 lg:w-4" />}
               label="Hand"
-              hideLabel={isMobile}
             />
           </div>
 
@@ -332,11 +324,11 @@ export default function BottomMenu({
                 event.stopPropagation();
                 setOpenMenu(openMenu === "reaction" ? null : "reaction");
               }}
-              className="inline-flex min-h-[44px] shrink-0 items-center justify-center gap-2 rounded-[18px] border border-[var(--meet-border-color)] bg-[var(--meet-control-bg)] px-3 py-2.5 text-sm font-medium text-[var(--meet-text-color)] transition hover:bg-[var(--meet-control-hover-bg)] sm:min-h-[48px] sm:rounded-2xl sm:px-4 sm:py-3 lg:min-h-[40px] lg:gap-1.5 lg:rounded-[14px] lg:px-3 lg:py-2 lg:text-xs"
+              className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[18px] border border-[var(--meet-border-color)] bg-[var(--meet-control-bg)] text-[var(--meet-text-color)] transition hover:bg-[var(--meet-control-hover-bg)] sm:h-12 sm:w-12 sm:rounded-2xl lg:h-10 lg:w-10 lg:rounded-[14px]"
+              aria-label="React"
               aria-expanded={openMenu === "reaction"}
             >
               <Sparkles className="h-5 w-5 lg:h-4 lg:w-4" />
-              {!isMobile ? <span>React</span> : null}
             </button>
           </div>
 
@@ -345,7 +337,6 @@ export default function BottomMenu({
             onClick={onLeave}
             icon={<PhoneOff className="h-5 w-5 lg:h-4 lg:w-4" />}
             label="Leave call"
-            hideLabel={isMobile}
           />
         </div>
       </div>

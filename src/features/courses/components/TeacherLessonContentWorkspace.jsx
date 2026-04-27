@@ -21,6 +21,9 @@ import toast from "react-hot-toast";
 import axiosInstance from "../../../api/axiosInstance";
 import { APP_LIMITS } from "../../../constants/appLimits";
 import { useCourses } from "../../../contexts/CoursesContext";
+import useMeetCallStore from "../../../store/meetCallStore";
+import useAuthStore from "../../../store/authStore";
+import { saveMeet, removeMeet, getMeetById } from "../../../utils/meetStore";
 import {
   ModalBody,
   ModalCloseButton,
@@ -604,6 +607,80 @@ export default function TeacherLessonContentWorkspace({
   const [deletingTestId, setDeletingTestId] = useState(null);
   const [lessonStatus, setLessonStatus] = useState(lesson?.status || "draft");
   const [isPublishingLesson, setIsPublishingLesson] = useState(false);
+  const [isStartingLessonMeet, setIsStartingLessonMeet] = useState(false);
+
+  const currentUser = useAuthStore((state) => state.user);
+  const startCall = useMeetCallStore((state) => state.startCall);
+
+  const lessonMeetRoomId = useMemo(() => {
+    if (!courseId || !lessonId) return "";
+    // Stable per-lesson roomId so re-opens reuse the same room.
+    const safeCourse = String(courseId).slice(-12);
+    const safeLesson = String(lessonId).replace(/[^a-zA-Z0-9_-]/g, "").slice(-12);
+    return `lesson-${safeCourse}-${safeLesson}`.slice(0, 64);
+  }, [courseId, lessonId]);
+
+  const handleStartLessonMeet = useCallback(async () => {
+    if (!currentUser?._id || !courseId || !lessonId || !lessonMeetRoomId) return;
+    setIsStartingLessonMeet(true);
+    try {
+      // Reuse existing room if it's already bound to this lesson; otherwise create.
+      const existing = await getMeetById(lessonMeetRoomId);
+      if (!existing) {
+        try {
+          await saveMeet({
+            roomId: lessonMeetRoomId,
+            title: lesson?.title || courseTitle || "Dars",
+            isPrivate: false,
+            isCreator: true,
+            courseId,
+            lessonId: String(lessonId),
+          });
+        } catch (err) {
+          // 403 → user already has another active meet; advise them.
+          if (err?.response?.status === 403) {
+            toast.error(
+              t("teacher.lessonWorkspace.meetAlreadyActive", {
+                defaultValue: "Sizda boshqa faol meet bor. Avval uni yoping.",
+              }),
+            );
+            return;
+          }
+          throw err;
+        }
+      }
+      startCall({
+        roomId: lessonMeetRoomId,
+        chatTitle: lesson?.title || courseTitle || "Dars",
+        displayName: currentUser?.nickname || currentUser?.username || "Teacher",
+        isCreator: true,
+        isPrivate: false,
+        initialMicOn: true,
+        initialCamOn: true,
+        roomCreatorId: String(currentUser?._id || ""),
+        returnPath:
+          typeof window !== "undefined" ? window.location.pathname : "/teacher",
+      });
+    } catch (err) {
+      console.error("Failed to start lesson meet", err);
+      toast.error(
+        t("teacher.lessonWorkspace.meetStartFailed", {
+          defaultValue: "Meetni boshlab bo'lmadi",
+        }),
+      );
+    } finally {
+      setIsStartingLessonMeet(false);
+    }
+  }, [
+    courseId,
+    courseTitle,
+    currentUser,
+    lesson?.title,
+    lessonId,
+    lessonMeetRoomId,
+    startCall,
+    t,
+  ]);
 
   const videoInputRef = useRef(null);
   const materialInputRef = useRef(null);
@@ -2005,6 +2082,19 @@ const renderContent = () => (
                   })}
             </HeroButton>
           ) : null}
+          <HeroButton
+            type="button"
+            $primary
+            disabled={isStartingLessonMeet || !lessonId}
+            onClick={handleStartLessonMeet}
+          >
+            <Video size={14} />
+            {isStartingLessonMeet
+              ? t("common.loading", { defaultValue: "Yuklanmoqda..." })
+              : t("teacher.lessonWorkspace.startLessonMeet", {
+                  defaultValue: "Dars meetini boshlash",
+                })}
+          </HeroButton>
         </HeroActions>
       </Hero>
 

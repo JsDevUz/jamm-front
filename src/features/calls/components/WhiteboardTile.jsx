@@ -14,6 +14,8 @@ import {
   Circle,
   Diamond,
   Eraser,
+  FileText,
+  Highlighter,
   Maximize,
   Minimize2,
   Minus,
@@ -21,6 +23,7 @@ import {
   Pencil,
   Plus,
   Redo2,
+  RefreshCw,
   Square,
   Trash2,
   Triangle,
@@ -120,7 +123,27 @@ const WHITEBOARD_TEXT_SIZE_OPTIONS = [
 ];
 const WHITEBOARD_TEXT_ALIGN_OPTIONS = ["left", "center", "right"];
 const WHITEBOARD_SHAPE_TOOLS = ["rectangle", "diamond", "triangle", "circle"];
+const WHITEBOARD_SHAPE_TOOL_OPTIONS = [
+  { id: "rectangle", hotkey: "7" },
+  { id: "diamond", hotkey: "8" },
+  { id: "triangle", hotkey: "9" },
+  { id: "circle", hotkey: "0" },
+];
 const WHITEBOARD_VECTOR_TOOLS = [...WHITEBOARD_SHAPE_TOOLS, "arrow"];
+
+const renderShapeToolIcon = (shapeTool, size = 14) => {
+  switch (shapeTool) {
+    case "diamond":
+      return <Diamond size={size} />;
+    case "triangle":
+      return <Triangle size={size} />;
+    case "circle":
+      return <Circle size={size} />;
+    case "rectangle":
+    default:
+      return <Square size={size} />;
+  }
+};
 
 const getPdfViewportTopInset = (interactive) =>
   interactive ? WHITEBOARD_VIEWPORT_TOP_SAFE_SPACE : 0;
@@ -129,6 +152,8 @@ const getPdfViewportBottomInset = (interactive) =>
   interactive ? WHITEBOARD_VIEWPORT_BOTTOM_SAFE_SPACE : 0;
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerSrc;
+
+const PDFJS_ASSET_BASE_URL = `${import.meta.env.BASE_URL || "/"}pdfjs/`;
 
 const isMobileSafariBrowser = () => {
   if (typeof navigator === "undefined") {
@@ -178,6 +203,11 @@ const buildPdfDocumentInit = (source) => {
   const mobileSafeMode = isMobilePdfBrowser();
   return {
     ...source,
+    cMapUrl: `${PDFJS_ASSET_BASE_URL}cmaps/`,
+    cMapPacked: true,
+    standardFontDataUrl: `${PDFJS_ASSET_BASE_URL}standard_fonts/`,
+    wasmUrl: `${PDFJS_ASSET_BASE_URL}wasm/`,
+    iccUrl: `${PDFJS_ASSET_BASE_URL}iccs/`,
     ...(mobileSafeMode
       ? {
           disableRange: true,
@@ -186,7 +216,6 @@ const buildPdfDocumentInit = (source) => {
           isOffscreenCanvasSupported: false,
           isImageDecoderSupported: false,
           useWorkerFetch: false,
-          useWasm: false,
           enableHWA: false,
         }
       : {}),
@@ -314,10 +343,32 @@ const formatRecordingElapsed = (elapsedMs) => {
   const seconds = (totalSeconds % 60).toString().padStart(2, "0");
   return `${minutes}:${seconds}`;
 };
-const getSelectedPagesKey = (selectedPages) =>
-  Array.isArray(selectedPages) && selectedPages.length > 0
-    ? selectedPages.join(",")
-    : "__all__";
+const normalizePdfSelectedPages = (selectedPages, pageCount = Number.POSITIVE_INFINITY) => {
+  if (!Array.isArray(selectedPages)) {
+    return [];
+  }
+
+  const maxPage = Number(pageCount);
+  const hasPageLimit = Number.isFinite(maxPage) && maxPage > 0;
+
+  return Array.from(
+    new Set(
+      selectedPages
+        .map((pageNumber) => Math.round(Number(pageNumber)))
+        .filter(
+          (pageNumber) =>
+            Number.isFinite(pageNumber) &&
+            pageNumber > 0 &&
+            (!hasPageLimit || pageNumber <= maxPage),
+        ),
+    ),
+  ).sort((left, right) => left - right);
+};
+
+const getSelectedPagesKey = (selectedPages) => {
+  const normalizedPages = normalizePdfSelectedPages(selectedPages);
+  return normalizedPages.length > 0 ? normalizedPages.join(",") : "__all__";
+};
 const getInitialVisiblePdfPages = (tab, pageDescriptors = []) => {
   const descriptorPages = Array.isArray(pageDescriptors)
     ? pageDescriptors
@@ -1011,9 +1062,13 @@ const drawStroke = (ctx, stroke, width, height, zoomScale = 1, surfaceMode = "pa
   ctx.save();
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
-  ctx.lineWidth = Math.max(1, (Number(stroke?.size) || 4) * scale);
+  const isMarkerStroke = stroke?.tool === "marker";
+  ctx.lineWidth = Math.max(1, (Number(stroke?.size) || 4) * (isMarkerStroke ? 2.7 : 1) * scale);
   ctx.globalCompositeOperation =
     stroke?.tool === "eraser" ? "destination-out" : "source-over";
+  if (isMarkerStroke) {
+    ctx.globalAlpha = 0.38;
+  }
   ctx.strokeStyle = stroke?.tool === "eraser" ? "#000000" : stroke?.color || "#0f172a";
   ctx.fillStyle = stroke?.tool === "eraser" ? "#000000" : stroke?.color || "#0f172a";
 
@@ -2572,15 +2627,7 @@ const Toolbar = styled.div`
   @media (max-width: 768px) {
     width: calc(100% - 16px);
     max-width: calc(100% - 16px);
-    overflow-x: auto;
-    overflow-y: visible;
-    scrollbar-width: none;
-    touch-action: pan-x;
     justify-content: flex-start;
-
-    &::-webkit-scrollbar {
-      display: none;
-    }
   }
 `;
 
@@ -2589,12 +2636,24 @@ const ToolbarMain = styled.div`
   align-items: center;
   gap: 12px;
   flex-wrap: nowrap;
-  flex: 0 0 auto;
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: visible;
+  padding: 2px 0;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-x;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
 `;
 
 const ToolbarSpacer = styled.div`
-  flex: 1 1 auto;
-  min-width: 8px;
+  flex: 0 0 auto;
+  min-width: 0;
 
   @media (max-width: 768px) {
     flex: 0 0 0;
@@ -2603,6 +2662,13 @@ const ToolbarSpacer = styled.div`
 `;
 
 const ToolbarRight = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+`;
+
+const ToolbarHeaderActions = styled.div`
   display: flex;
   align-items: center;
   gap: 8px;
@@ -2684,6 +2750,43 @@ const ToolOptionButton = styled.button`
   transition: border-color 0.16s ease, background 0.16s ease, color 0.16s ease, box-shadow 0.16s ease;
 `;
 
+const SurfaceSwitch = styled.div`
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px;
+  border-radius: 14px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: rgba(241, 244, 249, 0.94);
+`;
+
+const SurfaceSwitchButton = styled.button`
+  height: 32px;
+  min-width: 76px;
+  padding: 0 10px;
+  border-radius: 11px;
+  border: 1px solid
+    ${(p) =>
+      p.$active
+        ? "color-mix(in srgb, var(--call-primary) 44%, transparent)"
+        : "transparent"};
+  background: ${(p) => (p.$active ? "rgba(255, 255, 255, 0.96)" : "transparent")};
+  color: ${(p) => (p.$active ? "#111111" : "rgba(15, 23, 42, 0.62)")};
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: ${(p) => (p.$active ? "0 8px 16px rgba(15, 23, 42, 0.08)" : "none")};
+  transition:
+    border-color 0.16s ease,
+    background 0.16s ease,
+    color 0.16s ease,
+    box-shadow 0.16s ease;
+`;
+
 const ToolHotkey = styled.span`
   position: absolute;
   right: 5px;
@@ -2731,6 +2834,7 @@ const RecordToolbarButton = styled.button`
     cursor: not-allowed;
     transform: none;
     box-shadow: none;
+    pointer-events: none;
   }
 `;
 
@@ -2893,11 +2997,9 @@ const CurrentFillSwatch = styled.span`
   box-shadow: 0 4px 10px rgba(15, 23, 42, 0.1);
 `;
 
-const PickerPopover = styled.div`
-  position: absolute;
-  top: calc(100% + 10px);
-  left: 0;
-  z-index: 10;
+const PickerPopoverPanel = styled.div`
+  position: fixed;
+  z-index: 10000;
   padding: 10px;
   border-radius: 16px;
   border: 1px solid rgba(15, 23, 42, 0.08);
@@ -2905,6 +3007,86 @@ const PickerPopover = styled.div`
   box-shadow: 0 18px 34px rgba(15, 23, 42, 0.14);
   backdrop-filter: blur(12px);
 `;
+
+const PickerPopover = ({ children }) => {
+  const panelRef = useRef(null);
+  const [position, setPosition] = useState({ left: -9999, top: -9999 });
+
+  useLayoutEffect(() => {
+    if (typeof document === "undefined") {
+      return undefined;
+    }
+
+    const resolveAnchor = () => {
+      const activeElement = document.activeElement;
+      if (activeElement instanceof HTMLElement) {
+        const activeRoot = activeElement.closest("[data-whiteboard-picker-root]");
+        if (activeRoot instanceof HTMLElement) {
+          return activeRoot;
+        }
+      }
+
+      const roots = Array.from(document.querySelectorAll("[data-whiteboard-picker-root]"));
+      return roots.find((root) => root instanceof HTMLElement && root.matches(":hover")) || null;
+    };
+
+    const updatePosition = () => {
+      const anchor = resolveAnchor();
+      if (!(anchor instanceof HTMLElement)) {
+        return;
+      }
+
+      const rect = anchor.getBoundingClientRect();
+      const panel = panelRef.current;
+      const panelWidth = panel?.offsetWidth || 220;
+      const panelHeight = panel?.offsetHeight || 160;
+      const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0;
+      const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
+      const gap = 10;
+      const nextLeft = Math.min(
+        Math.max(8, rect.left),
+        Math.max(8, viewportWidth - panelWidth - 8),
+      );
+      const belowTop = rect.bottom + gap;
+      const aboveTop = rect.top - panelHeight - gap;
+      const nextTop =
+        belowTop + panelHeight <= viewportHeight - 8
+          ? belowTop
+          : Math.max(8, aboveTop);
+
+      setPosition({ left: nextLeft, top: nextTop });
+    };
+
+    updatePosition();
+    const rafId = window.requestAnimationFrame(updatePosition);
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+
+    return () => {
+      window.cancelAnimationFrame(rafId);
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+    };
+  }, []);
+
+  if (typeof document === "undefined") {
+    return null;
+  }
+
+  return createPortal(
+    <PickerPopoverPanel
+      ref={panelRef}
+      data-whiteboard-picker-root
+      style={{
+        left: `${position.left}px`,
+        top: `${position.top}px`,
+      }}
+    >
+      {children}
+    </PickerPopoverPanel>,
+    document.body,
+  );
+};
 
 const PickerRow = styled.div`
   display: flex;
@@ -2922,14 +3104,13 @@ const PickerColumn = styled.div`
 const TextControlGroup = styled.div`
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 4px;
   border-radius: 14px;
   border: 1px solid rgba(15, 23, 42, 0.08);
   background: rgba(255, 255, 255, 0.9);
 `;
 
 const TextPillButton = styled.button`
+  position: relative;
   min-width: 36px;
   height: 36px;
   padding: 0 10px;
@@ -3066,7 +3247,7 @@ const WorkspaceBody = styled.div`
   position: relative;
   flex: 1;
   min-height: 0;
-  padding: ${(p) => (p.$compact ? "0" : "0 10px 10px")};
+  padding: ${(p) => (p.$compact || p.$viewerOnly ? "0" : "0 10px 10px")};
 `;
 
 const BoardViewport = styled.div`
@@ -3640,6 +3821,67 @@ const PdfStatusContent = styled.div`
   }
 `;
 
+const PdfMissingSurface = styled.div`
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  overflow: hidden;
+  border-radius: 0 0 18px 18px;
+  background:
+    linear-gradient(180deg, rgba(249, 250, 252, 0.98), rgba(241, 244, 248, 0.98)),
+    linear-gradient(rgba(148, 163, 184, 0.16) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(148, 163, 184, 0.16) 1px, transparent 1px);
+  background-size: auto, 24px 24px, 24px 24px;
+`;
+
+const PdfMissingPanel = styled.div`
+  width: min(100%, 420px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 24px;
+  border-radius: 22px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.1);
+  text-align: center;
+`;
+
+const PdfMissingTitle = styled.div`
+  color: #111827;
+  font-size: 16px;
+  font-weight: 850;
+`;
+
+const PdfMissingHint = styled.div`
+  color: rgba(15, 23, 42, 0.58);
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.45;
+`;
+
+const PdfMissingButton = styled.button`
+  height: 38px;
+  padding: 0 14px;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--call-primary) 42%, transparent);
+  background: color-mix(in srgb, var(--call-primary) 12%, white 88%);
+  color: #111111;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 10px 22px rgba(84, 91, 255, 0.12);
+`;
+
 const PdfPagesLoadingSkeleton = styled.div`
   width: min(100%, 720px);
   display: grid;
@@ -4044,8 +4286,10 @@ const PdfPickerPageCard = ({ pdfDocument, pageNumber, active = false, onClick })
       context.clearRect(0, 0, viewport.width, viewport.height);
 
       const renderTask = page.render({
+        canvas,
         canvasContext: context,
         viewport,
+        background: "#ffffff",
       });
       await renderTask.promise;
       page.cleanup?.();
@@ -4455,7 +4699,7 @@ const StrokeCanvas = ({
   }, [selectedShapeId, strokes]);
 
   useEffect(() => {
-    if (tool === "text" || tool === "pen" || tool === "eraser" || tool === "stroke-eraser") {
+    if (tool === "text" || tool === "pen" || tool === "marker" || tool === "eraser" || tool === "stroke-eraser") {
       setShapePreviewStroke(null);
     }
   }, [tool]);
@@ -6020,10 +6264,9 @@ const WhiteboardTile = ({
   onCursorMove,
   onCursorLeave,
   onRecordSurfaceChange,
-  onToggleRecording,
   isRecording = false,
   recordingElapsedMs = 0,
-  recordingReady = false,
+  toolbarTrailingContent = null,
   showToolbar = false,
   remoteCursor = null,
   participantCount = 1,
@@ -6105,6 +6348,7 @@ const WhiteboardTile = ({
     height: 0,
   });
   const [currentPdfPage, setCurrentPdfPage] = useState(1);
+  const [surfaceModePreference, setSurfaceModePreference] = useState("board");
   const [guestPdfOverride, setGuestPdfOverride] = useState(false);
   const [guestPdfZoom, setGuestPdfZoom] = useState(1);
   const [guestBoardOverride, setGuestBoardOverride] = useState(false);
@@ -6116,6 +6360,7 @@ const WhiteboardTile = ({
   const [pdfPageImages, setPdfPageImages] = useState({});
   const [boardZoom, setBoardZoom] = useState(1);
   const [isColorPickerOpen, setIsColorPickerOpen] = useState(false);
+  const [isShapePickerOpen, setIsShapePickerOpen] = useState(false);
   const [isFillPickerOpen, setIsFillPickerOpen] = useState(false);
   const [isEdgePickerOpen, setIsEdgePickerOpen] = useState(false);
   const [isSizePickerOpen, setIsSizePickerOpen] = useState(false);
@@ -6149,6 +6394,12 @@ const WhiteboardTile = ({
     tabs.find((tab) => tab.id === WHITEBOARD_BOARD_TAB_ID) ||
     null;
   const boardTab = tabs.find((tab) => tab.id === WHITEBOARD_BOARD_TAB_ID) || null;
+  const pdfTabs = tabs.filter((tab) => tab.type === "pdf");
+  const activePdfTab =
+    activeTab?.type === "pdf" ? activeTab : pdfTabs[0] || null;
+  const activeSurfaceMode = activeTab?.type === "pdf" ? "pdf" : "board";
+  const isPdfPlaceholderActive =
+    interactive && activeSurfaceMode === "pdf" && !activePdfTab;
   const hasBoardStrokes = Array.isArray(boardTab?.strokes) && boardTab.strokes.length > 0;
   const syncedBoardZoom = Math.min(
     WHITEBOARD_MAX_ZOOM,
@@ -6166,6 +6417,17 @@ const WhiteboardTile = ({
   const hasSyncedBoardScrollTopRatio = Number.isFinite(Number(boardTab?.scrollTopRatio));
   const syncedBoardScrollLeftRatio = clampViewportRatio(boardTab?.scrollLeftRatio);
   const syncedBoardScrollTopRatio = clampViewportRatio(boardTab?.scrollTopRatio);
+
+  useEffect(() => {
+    if (activeTab?.type === "pdf") {
+      setSurfaceModePreference("pdf");
+      return;
+    }
+
+    if (activeTab?.type === "board") {
+      setSurfaceModePreference("board");
+    }
+  }, [activeTab?.type]);
   const syncedPdfViewportBaseHeight =
     activeTab?.type === "pdf" && Number.isFinite(Number(activeTab.viewportBaseHeight))
       ? Math.max(
@@ -6301,13 +6563,21 @@ const WhiteboardTile = ({
     activeTab?.type === "pdf"
       ? Math.min(WHITEBOARD_MAX_ZOOM, Math.max(WHITEBOARD_MIN_ZOOM, Number(activeTab.zoom) || 1))
       : 1;
+  const liveBoardBaseWidth =
+    interactive && activeTab?.type !== "pdf" && boardViewportSize.width > 0
+      ? Math.round(boardViewportSize.width)
+      : 0;
+  const liveBoardBaseHeight =
+    interactive && activeTab?.type !== "pdf" && boardViewportSize.height > 0
+      ? Math.round(boardViewportSize.height)
+      : 0;
   const activeBoardBaseWidth = Math.max(
     WHITEBOARD_MIN_BOARD_BASE_WIDTH,
-    syncedBoardBaseWidth,
+    liveBoardBaseWidth || syncedBoardBaseWidth,
   );
   const activeBoardBaseHeight = Math.max(
     WHITEBOARD_MIN_BOARD_BASE_HEIGHT,
-    syncedBoardBaseHeight,
+    liveBoardBaseHeight || syncedBoardBaseHeight,
   );
   const remoteBoardContainScale =
     !interactive &&
@@ -7437,9 +7707,7 @@ const WhiteboardTile = ({
         });
         const selectedPages =
           activeTab.selectedPagesMode === "custom"
-            ? Array.isArray(activeTab.selectedPages)
-              ? activeTab.selectedPages
-              : []
+            ? normalizePdfSelectedPages(activeTab.selectedPages, pdfDocument.numPages)
             : Array.from({ length: pdfDocument.numPages }, (_, index) => index + 1);
         const pageDescriptors = selectedPages.map((pageNumber) => ({
           pageNumber,
@@ -7671,8 +7939,10 @@ const WhiteboardTile = ({
               // Don't clear before render: pdf.js draws opaque page background
               // over the whole canvas itself. Clearing creates a white flash.
               const renderTask = page.render({
+                canvas,
                 canvasContext: context,
                 viewport,
+                background: "#ffffff",
               });
               await renderTask.promise;
             };
@@ -7735,8 +8005,10 @@ const WhiteboardTile = ({
             // Offscreen canvas is freshly allocated (already transparent/black)
             // and pdf.js renders an opaque page background, so no clear needed.
             const renderTask = page.render({
+              canvas: renderCanvas,
               canvasContext: renderContext,
               viewport: rasterViewport,
+              background: "#ffffff",
             });
             await renderTask.promise;
           };
@@ -7812,7 +8084,15 @@ const WhiteboardTile = ({
             };
           });
         }
-      } catch {}
+      } catch (error) {
+        logPdfDebug("viewer-render:error", {
+          tabId: activeTab.id,
+          fileUrl: activeTab.fileUrl,
+          priorityPageNumber,
+          visiblePages: Array.from(visiblePageSet),
+          error: serializePdfError(error),
+        });
+      }
     };
 
     renderPages();
@@ -8966,7 +9246,7 @@ const WhiteboardTile = ({
 
   const handleTabSelect = useCallback(
     (event, tabId) => {
-      event.stopPropagation();
+      event?.stopPropagation?.();
       if (!interactive) {
         return;
       }
@@ -8974,6 +9254,36 @@ const WhiteboardTile = ({
     },
     [interactive, onTabActivate],
   );
+
+  const handleSurfaceModeSelect = useCallback(
+    (nextMode) => {
+      if (!interactive) {
+        return;
+      }
+
+      setSurfaceModePreference(nextMode);
+      if (nextMode === "board") {
+        setSurfaceModePreference("board");
+        onTabActivate?.(WHITEBOARD_BOARD_TAB_ID);
+        return;
+      }
+
+      if (activePdfTab?.id) {
+        setSurfaceModePreference("pdf");
+        onTabActivate?.(activePdfTab.id);
+        return;
+      }
+
+      setSurfaceModePreference("board");
+      onTabActivate?.(WHITEBOARD_BOARD_TAB_ID);
+      setIsPdfLibraryOpen(true);
+    },
+    [activePdfTab?.id, interactive, onTabActivate],
+  );
+
+  const handleKeyboardSurfaceToggle = useCallback(() => {
+    handleSurfaceModeSelect(activeSurfaceMode === "pdf" ? "board" : "pdf");
+  }, [activeSurfaceMode, handleSurfaceModeSelect]);
 
   const handleTabRemove = useCallback(
     (event, tabId) => {
@@ -9249,6 +9559,7 @@ const WhiteboardTile = ({
 
   const selectTitle = shortcutTitle(t("groupCall.whiteboard.select"), "1");
   const penTitle = shortcutTitle(t("groupCall.whiteboard.pen"), "2");
+  const markerTitle = t("groupCall.whiteboard.marker");
   const textTitle = shortcutTitle(t("groupCall.whiteboard.text"), "3");
   const eraserTitle = shortcutTitle(t("groupCall.whiteboard.eraser"), "4");
   const strokeEraserTitle = shortcutTitle(t("groupCall.whiteboard.strokeEraser"), "5");
@@ -9262,9 +9573,10 @@ const WhiteboardTile = ({
   const zoomOutTitle = shortcutTitle(t("groupCall.whiteboard.zoomOut"), "-");
   const zoomInTitle = shortcutTitle(t("groupCall.whiteboard.zoomIn"), "+");
   const clearTitle = shortcutTitle(t("groupCall.whiteboard.clear"), "Backspace");
-  const recordTitle = isRecording
-    ? t("groupCall.whiteboard.stopRecording")
-    : t("groupCall.whiteboard.record");
+  const recordingComingSoonTitle = t("groupCall.whiteboard.recordingComingSoon");
+  const changePdfTitle = activePdfTab
+    ? t("groupCall.whiteboard.changePdf")
+    : t("groupCall.whiteboard.addPdf");
   const renderPdfLoadingState = useCallback(
     (label) => (
       <PdfStatus>
@@ -9316,9 +9628,12 @@ const WhiteboardTile = ({
   const resolvedTextAlign = normalizeTextAlign(activeTextEditorState?.textAlign || activeTextAlign);
   const textControlsVisible = tool === "text" || Boolean(activeTextEditorState);
   const shapeToolActive = isShapeTool(tool);
+  const activeShapeTool = shapeToolActive ? tool : "rectangle";
+  const activeShapeLabel = t(`groupCall.whiteboard.${activeShapeTool}`);
   const edgeToolActive = ["rectangle", "diamond", "triangle"].includes(tool);
 
-  const shouldShowChrome = !compact;
+  const viewerOnly = !interactive;
+  const shouldShowChrome = false;
   const shouldShowToolbar = showToolbar && (!isFullscreen || interactive);
   const pdfLibraryModal =
     interactive && isPdfLibraryOpen ? (
@@ -9660,9 +9975,17 @@ const WhiteboardTile = ({
     [interactive, isPdfLibraryOpen, requestClearConfirmation],
   );
 
+  useHotkeys(
+    "tab",
+    () => handleKeyboardSurfaceToggle(),
+    { enabled: interactive && !isPdfLibraryOpen, preventDefault: true },
+    [handleKeyboardSurfaceToggle, interactive, isPdfLibraryOpen],
+  );
+
   useEffect(() => {
     if (!interactive) {
       setIsColorPickerOpen(false);
+      setIsShapePickerOpen(false);
       setIsFillPickerOpen(false);
       setIsEdgePickerOpen(false);
       setIsSizePickerOpen(false);
@@ -9682,6 +10005,7 @@ const WhiteboardTile = ({
       const clickedInsidePicker = Array.from(pickerRoots).some((root) => root.contains(target));
       if (!clickedInsidePicker) {
         setIsColorPickerOpen(false);
+        setIsShapePickerOpen(false);
         setIsFillPickerOpen(false);
         setIsEdgePickerOpen(false);
         setIsSizePickerOpen(false);
@@ -9717,6 +10041,15 @@ const WhiteboardTile = ({
         >
           {isFullscreen ? <Minimize2 size={30} /> : <Maximize size={30} />}
         </FullscreenBtn>
+      ) : null}
+
+      {interactive ? (
+        <HiddenInput
+          ref={fileInputRef}
+          type="file"
+          accept="application/pdf"
+          onChange={handlePdfFileChange}
+        />
       ) : null}
 
       <WorkspaceShell>
@@ -9775,11 +10108,12 @@ const WhiteboardTile = ({
           </WorkspaceChrome>
         ) : null}
 
-        {!compact ? <WorkspaceDivider /> : null}
+        {shouldShowChrome ? <WorkspaceDivider /> : null}
 
         <WorkspaceBody
           ref={workspaceBodyRef}
           $compact={compact}
+          $viewerOnly={viewerOnly}
           onPointerMove={handleWorkspacePointerMove}
           onPointerUp={handleWorkspacePointerEnd}
           onPointerCancel={handleWorkspacePointerEnd}
@@ -9802,6 +10136,42 @@ const WhiteboardTile = ({
               <Toolbar>
                 <ToolbarMain>
                   <ToolbarGroup>
+                    <SurfaceSwitch role="tablist" aria-label="Whiteboard material">
+                      <SurfaceSwitchButton
+                        type="button"
+                        role="tab"
+                        $active={activeSurfaceMode !== "pdf"}
+                        aria-selected={activeSurfaceMode !== "pdf"}
+                        onClick={() => handleSurfaceModeSelect("board")}
+                        title="Doska"
+                      >
+                        <Pencil size={14} />
+                        Doska
+                      </SurfaceSwitchButton>
+                      <SurfaceSwitchButton
+                        type="button"
+                        role="tab"
+                        $active={activeSurfaceMode === "pdf"}
+                        aria-selected={activeSurfaceMode === "pdf"}
+                        onClick={() => handleSurfaceModeSelect("pdf")}
+                        title="PDF"
+                      >
+                        <FileText size={14} />
+                        PDF
+                      </SurfaceSwitchButton>
+                    </SurfaceSwitch>
+                    <ToolOptionButton
+                      type="button"
+                      onClick={handlePdfAddClick}
+                      aria-label={changePdfTitle}
+                      title={changePdfTitle}
+                    >
+                      <RefreshCw size={14} />
+                    </ToolOptionButton>
+                  </ToolbarGroup>
+                  <ToolbarDivider aria-hidden="true" />
+
+                  <ToolbarGroup>
                     <ToolOptionButton
                       type="button"
                       $active={tool === "select"}
@@ -9821,6 +10191,15 @@ const WhiteboardTile = ({
                     >
                       <Pencil size={14} />
                       <ToolHotkey>2</ToolHotkey>
+                    </ToolOptionButton>
+                    <ToolOptionButton
+                      type="button"
+                      $active={tool === "marker"}
+                      onClick={() => onToolChange?.("marker")}
+                      aria-label={t("groupCall.whiteboard.marker")}
+                      title={markerTitle}
+                    >
+                      <Highlighter size={14} />
                     </ToolOptionButton>
                     <ToolOptionButton
                       type="button"
@@ -9862,46 +10241,59 @@ const WhiteboardTile = ({
                       <ArrowRight size={14} />
                       <ToolHotkey>6</ToolHotkey>
                     </ToolOptionButton>
-                    <ToolOptionButton
-                      type="button"
-                      $active={tool === "rectangle"}
-                      onClick={() => onToolChange?.("rectangle")}
-                      aria-label={t("groupCall.whiteboard.rectangle")}
-                      title={rectangleTitle}
-                    >
-                      <Square size={14} />
-                      <ToolHotkey>7</ToolHotkey>
-                    </ToolOptionButton>
-                    <ToolOptionButton
-                      type="button"
-                      $active={tool === "diamond"}
-                      onClick={() => onToolChange?.("diamond")}
-                      aria-label={t("groupCall.whiteboard.diamond")}
-                      title={diamondTitle}
-                    >
-                      <Diamond size={14} />
-                      <ToolHotkey>8</ToolHotkey>
-                    </ToolOptionButton>
-                    <ToolOptionButton
-                      type="button"
-                      $active={tool === "triangle"}
-                      onClick={() => onToolChange?.("triangle")}
-                      aria-label={t("groupCall.whiteboard.triangle")}
-                      title={triangleTitle}
-                    >
-                      <Triangle size={14} />
-                      <ToolHotkey>9</ToolHotkey>
-                    </ToolOptionButton>
-                    <ToolOptionButton
-                      type="button"
-                      $active={tool === "circle"}
-                      onClick={() => onToolChange?.("circle")}
-                      aria-label={t("groupCall.whiteboard.circle")}
-                      title={circleTitle}
-                    >
-                      <Circle size={14} />
-                      <ToolHotkey>0</ToolHotkey>
-                    </ToolOptionButton>
+                    <PickerWrap data-whiteboard-picker-root>
+                      <ToolOptionButton
+                        type="button"
+                        $active={shapeToolActive}
+                        onClick={() => {
+                          setIsShapePickerOpen((prev) => !prev);
+                          setIsColorPickerOpen(false);
+                          setIsFillPickerOpen(false);
+                          setIsEdgePickerOpen(false);
+                          setIsSizePickerOpen(false);
+                          setIsTextFontPickerOpen(false);
+                          setIsTextSizePickerOpen(false);
+                          setIsTextAlignPickerOpen(false);
+                        }}
+                        aria-label={t("groupCall.whiteboard.shape")}
+                        title={activeShapeLabel}
+                      >
+                        {renderShapeToolIcon(activeShapeTool, 14)}
+                        <ToolHotkey>7</ToolHotkey>
+                      </ToolOptionButton>
+                      {isShapePickerOpen ? (
+                        <PickerPopover>
+                          <PickerColumn>
+                            {WHITEBOARD_SHAPE_TOOL_OPTIONS.map((shapeOption) => {
+                              const shapeTitle =
+                                shapeOption.id === "rectangle"
+                                  ? rectangleTitle
+                                  : shapeOption.id === "diamond"
+                                    ? diamondTitle
+                                    : shapeOption.id === "triangle"
+                                      ? triangleTitle
+                                      : circleTitle;
+                              return (
+                                <TextPillButton
+                                  key={shapeOption.id}
+                                  type="button"
+                                  $active={tool === shapeOption.id}
+                                  onClick={() => {
+                                    onToolChange?.(shapeOption.id);
+                                    setIsShapePickerOpen(false);
+                                  }}
+                                  aria-label={t(`groupCall.whiteboard.${shapeOption.id}`)}
+                                  title={shapeTitle}
+                                >
+                                  {renderShapeToolIcon(shapeOption.id, 14)}
+                                  <ToolHotkey>{shapeOption.hotkey}</ToolHotkey>
+                                </TextPillButton>
+                              );
+                            })}
+                          </PickerColumn>
+                        </PickerPopover>
+                      ) : null}
+                    </PickerWrap>
                     {textControlsVisible ? (
                       <>
                       <TextControlGroup>
@@ -9914,6 +10306,7 @@ const WhiteboardTile = ({
                               setIsTextSizePickerOpen(false);
                               setIsTextAlignPickerOpen(false);
                               setIsColorPickerOpen(false);
+                              setIsShapePickerOpen(false);
                               setIsFillPickerOpen(false);
                               setIsEdgePickerOpen(false);
                               setIsSizePickerOpen(false);
@@ -9969,6 +10362,7 @@ const WhiteboardTile = ({
                               setIsTextFontPickerOpen(false);
                               setIsTextAlignPickerOpen(false);
                               setIsColorPickerOpen(false);
+                              setIsShapePickerOpen(false);
                               setIsFillPickerOpen(false);
                               setIsEdgePickerOpen(false);
                               setIsSizePickerOpen(false);
@@ -10022,6 +10416,7 @@ const WhiteboardTile = ({
                               setIsTextFontPickerOpen(false);
                               setIsTextSizePickerOpen(false);
                               setIsColorPickerOpen(false);
+                              setIsShapePickerOpen(false);
                               setIsFillPickerOpen(false);
                               setIsEdgePickerOpen(false);
                               setIsSizePickerOpen(false);
@@ -10092,6 +10487,7 @@ const WhiteboardTile = ({
                       type="button"
                       onClick={() => {
                         setIsColorPickerOpen((prev) => !prev);
+                        setIsShapePickerOpen(false);
                         setIsFillPickerOpen(false);
                         setIsEdgePickerOpen(false);
                         setIsSizePickerOpen(false);
@@ -10132,6 +10528,7 @@ const WhiteboardTile = ({
                         onClick={() => {
                           setIsFillPickerOpen((prev) => !prev);
                           setIsColorPickerOpen(false);
+                          setIsShapePickerOpen(false);
                           setIsEdgePickerOpen(false);
                           setIsSizePickerOpen(false);
                           setIsTextFontPickerOpen(false);
@@ -10187,6 +10584,7 @@ const WhiteboardTile = ({
                         onClick={() => {
                           setIsEdgePickerOpen((prev) => !prev);
                           setIsColorPickerOpen(false);
+                          setIsShapePickerOpen(false);
                           setIsFillPickerOpen(false);
                           setIsSizePickerOpen(false);
                           setIsTextFontPickerOpen(false);
@@ -10237,6 +10635,7 @@ const WhiteboardTile = ({
                         onClick={() => {
                           setIsSizePickerOpen((prev) => !prev);
                           setIsColorPickerOpen(false);
+                          setIsShapePickerOpen(false);
                           setIsFillPickerOpen(false);
                           setIsEdgePickerOpen(false);
                           setIsTextFontPickerOpen(false);
@@ -10272,32 +10671,55 @@ const WhiteboardTile = ({
                       </PickerWrap>
                     ) : null}
                   </ToolbarGroup>
+                  <ToolbarDivider aria-hidden="true" />
+                  <ToolbarGroup>
+                    <span title={recordingComingSoonTitle} style={{ display: "inline-flex" }}>
+                      <RecordToolbarButton
+                        type="button"
+                        $recording={isRecording}
+                        disabled
+                        aria-label={recordingComingSoonTitle}
+                        title={recordingComingSoonTitle}
+                      >
+                        {isRecording ? <RecordStopGlyph aria-hidden="true" /> : <RecordDot aria-hidden="true" />}
+                        {isRecording ? (
+                          <RecordToolbarTime>{recordElapsedLabel}</RecordToolbarTime>
+                        ) : (
+                          <RecordToolbarLabel>REC</RecordToolbarLabel>
+                        )}
+                      </RecordToolbarButton>
+                    </span>
+                  </ToolbarGroup>
                 </ToolbarMain>
 
-                <ToolbarSpacer />
-                <ToolbarDivider aria-hidden="true" />
-                <ToolbarRight>
-                  <RecordToolbarButton
-                    type="button"
-                    $recording={isRecording}
-                    onClick={() => onToggleRecording?.()}
-                    disabled={!recordingReady && !isRecording}
-                    aria-label={recordTitle}
-                    title={recordTitle}
-                  >
-                    {isRecording ? <RecordStopGlyph aria-hidden="true" /> : <RecordDot aria-hidden="true" />}
-                    {isRecording ? (
-                      <RecordToolbarTime>{recordElapsedLabel}</RecordToolbarTime>
-                    ) : (
-                      <RecordToolbarLabel>REC</RecordToolbarLabel>
-                    )}
-                  </RecordToolbarButton>
-                </ToolbarRight>
+                {toolbarTrailingContent ? (
+                  <>
+                    <ToolbarSpacer />
+                    <ToolbarDivider aria-hidden="true" />
+                    <ToolbarRight>
+                      <ToolbarHeaderActions>{toolbarTrailingContent}</ToolbarHeaderActions>
+                    </ToolbarRight>
+                  </>
+                ) : null}
               </Toolbar>
             </FloatingTopToolbar>
           ) : null}
 
-          {activeTab?.type === "pdf" && !compact ? (
+          {isPdfPlaceholderActive && !compact ? (
+            <PdfMissingSurface data-record-surface-type="pdf">
+              <PdfMissingPanel>
+                <FileText size={26} />
+                <PdfMissingTitle>Material yuklanmagan</PdfMissingTitle>
+                <PdfMissingHint>
+                  PDF ko'rish uchun material kutubxonasidan fayl tanlang yoki yangi PDF yuklang.
+                </PdfMissingHint>
+                <PdfMissingButton type="button" onClick={handlePdfAddClick}>
+                  <Plus size={16} />
+                  PDF library
+                </PdfMissingButton>
+              </PdfMissingPanel>
+            </PdfMissingSurface>
+          ) : activeTab?.type === "pdf" && !compact ? (
             shouldContainRemotePdfViewport ? (
               <RemoteViewportShell
                 style={{
@@ -10613,12 +11035,12 @@ const WhiteboardTile = ({
                           surfaceMode="board"
                           textPlaceholder={t("groupCall.whiteboard.textPlaceholder")}
                         />
-                        {!hasBoardStrokes ? (
-                          <EmptyState $compact={compact}>{helperText}</EmptyState>
-                        ) : null}
                       </BoardSurface>
                     </BoardCanvasFrame>
                   </BoardViewportContent>
+                  {!hasBoardStrokes ? (
+                    <EmptyState $compact={compact}>{helperText}</EmptyState>
+                  ) : null}
                 </BoardViewport>
               </RemoteViewportScaleLayer>
             </RemoteViewportShell>
@@ -10666,16 +11088,16 @@ const WhiteboardTile = ({
                       surfaceMode="board"
                       textPlaceholder={t("groupCall.whiteboard.textPlaceholder")}
                     />
-                    {!hasBoardStrokes ? (
-                      <EmptyState $compact={compact}>{helperText}</EmptyState>
-                    ) : null}
                   </BoardSurface>
                 </BoardCanvasFrame>
               </BoardViewportContent>
+              {!hasBoardStrokes ? (
+                <EmptyState $compact={compact}>{helperText}</EmptyState>
+              ) : null}
             </BoardViewport>
           )}
 
-          {shouldShowGuestPdfSyncButton || shouldShowGuestBoardSyncButton ? (
+          {(shouldShowGuestPdfSyncButton || shouldShowGuestBoardSyncButton) ? (
             <GuestSyncButton
               type="button"
               onClick={
@@ -10684,13 +11106,13 @@ const WhiteboardTile = ({
                   : handleResetGuestBoardSync
               }
               aria-label="Asl"
-              title="Asl"
+              title="Hostning ko'rinishiga qaytish"
             >
               Asl
             </GuestSyncButton>
           ) : null}
 
-          {activeTab ? (
+          {activeTab && !viewerOnly && !isPdfPlaceholderActive ? (
             <FloatingControls>
               <FloatingGroup>
                 <ToolButton
@@ -10745,7 +11167,7 @@ const WhiteboardTile = ({
         </WorkspaceBody>
       </WorkspaceShell>
 
-      {!isFullscreen ? (
+      {!isFullscreen && !viewerOnly ? (
         <TileLabel $compact={compact}>
           {activeTab?.type === "pdf" && currentPageLabel ? `${label} · ${currentPageLabel}` : label}
         </TileLabel>

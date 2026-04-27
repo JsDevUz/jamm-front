@@ -43,6 +43,14 @@ function getTileKey(participant: TileParticipant) {
   return `${participant.identity}:${participant.source}`;
 }
 
+function hasRenderableVideo(participant: TileParticipant | null | undefined) {
+  if (!participant?.publication?.track || participant.publication.isMuted) {
+    return false;
+  }
+
+  return participant.source === "screen" || participant.hasCamera;
+}
+
 // Cap the number of camera tiles rendered as full video. Off-screen tiles are
 // replaced by lightweight placeholders so LiveKit Dynacast unsubscribes their
 // streams — keeping a 100-viewer room from saturating bandwidth and CPU.
@@ -59,11 +67,10 @@ function clamp(value: number, min: number, max: number) {
 
 function getPipCornerStyle(corner: PipCorner): React.CSSProperties {
   const offset = 24;
-  const rightOffset = 84;
   if (corner === "top-left") return { left: offset, top: offset };
-  if (corner === "top-right") return { right: rightOffset, top: offset };
+  if (corner === "top-right") return { right: offset, top: offset };
   if (corner === "bottom-left") return { left: offset, bottom: offset };
-  return { right: rightOffset, bottom: offset };
+  return { right: offset, bottom: offset };
 }
 
 function getGridColumnCount(count: number, isMobile: boolean, isLandscape: boolean) {
@@ -374,12 +381,24 @@ export default function VideoGrid({
     }
   }, [focusFullscreen, fullscreenTileKey]);
 
+  useEffect(() => {
+    if (fullscreenTileKey || focusFullscreen) {
+      setPipCorner("bottom-right");
+      pipDragPositionRef.current = null;
+      setPipDragPosition(null);
+    }
+  }, [focusFullscreen, fullscreenTileKey]);
+
   const mobileFullscreenPipTiles = useMemo(() => {
     if (!dominantTile) return [];
     const dominantKey = getTileKey(dominantTile);
     const tiles: TileParticipant[] = [];
 
-    if (localCameraTile && getTileKey(localCameraTile) !== dominantKey) {
+    if (
+      localCameraTile &&
+      hasRenderableVideo(localCameraTile) &&
+      getTileKey(localCameraTile) !== dominantKey
+    ) {
       tiles.push(localCameraTile);
     }
 
@@ -403,6 +422,7 @@ export default function VideoGrid({
 
     if (
       lastSpeakingTile &&
+      hasRenderableVideo(lastSpeakingTile) &&
       !tiles.some((participant) => getTileKey(participant) === getTileKey(lastSpeakingTile))
     ) {
       tiles.push(lastSpeakingTile);
@@ -412,14 +432,14 @@ export default function VideoGrid({
   }, [dominantTile, lastSpeakingPipKey, localCameraTile, participants]);
 
   const desktopFullscreenPipTiles = useMemo(() => {
-    if (!dominantTile || !localCameraTile) return [];
+    if (!dominantTile || !localCameraTile || !hasRenderableVideo(localCameraTile)) return [];
     return getTileKey(localCameraTile) === getTileKey(dominantTile) ? [] : [localCameraTile];
   }, [dominantTile, localCameraTile]);
   const focusMobilePipTiles = useMemo(() => {
     if (!focusContent) return [];
     const tiles: TileParticipant[] = [];
 
-    if (localCameraTile) {
+    if (localCameraTile && hasRenderableVideo(localCameraTile)) {
       tiles.push(localCameraTile);
     }
 
@@ -441,6 +461,7 @@ export default function VideoGrid({
 
     if (
       lastSpeakingTile &&
+      hasRenderableVideo(lastSpeakingTile) &&
       !tiles.some((participant) => getTileKey(participant) === getTileKey(lastSpeakingTile))
     ) {
       tiles.push(lastSpeakingTile);
@@ -449,7 +470,7 @@ export default function VideoGrid({
     return tiles.slice(0, 2);
   }, [focusContent, lastSpeakingPipKey, localCameraTile, participants]);
   const focusDesktopPipTiles = useMemo(
-    () => (focusContent && localCameraTile ? [localCameraTile] : []),
+    () => (focusContent && localCameraTile && hasRenderableVideo(localCameraTile) ? [localCameraTile] : []),
     [focusContent, localCameraTile],
   );
   const toggleFocusPin = () => onPin(focusPinned ? null : focusKey);
@@ -464,30 +485,36 @@ export default function VideoGrid({
       )}
     >
       {focusContent}
-      <button
-        type="button"
-        onClick={toggleFocusPin}
-        className={cn(
-          "absolute left-3 top-3 z-20 inline-flex h-9 w-9 items-center justify-center rounded-full bg-[var(--meet-overlay-bg)] text-[var(--meet-text-color)] backdrop-blur-md transition hover:bg-[var(--meet-control-hover-bg)] sm:left-4 sm:top-4",
-          focusPinned ? "opacity-100" : isMobile ? "opacity-100" : "opacity-0 group-hover:opacity-100",
-        )}
-        style={isMobile ? { top: mobileTopOverlayInset || "12px" } : undefined}
-        aria-pressed={focusPinned}
-        aria-label={focusPinned ? "Whiteboard pinini olib tashlash" : "Whiteboard pin qilish"}
-        title={focusPinned ? "Whiteboard pinini olib tashlash" : "Whiteboard pin qilish"}
-      >
-        <Pin className={cn("h-4 w-4 transition-transform", focusPinned && "rotate-45 text-[#8ab4f8]")} />
-      </button>
+      {!fullscreen ? (
+        <button
+          type="button"
+          onClick={toggleFocusPin}
+          className={cn(
+            "absolute left-3 top-3 z-20 inline-flex h-9 w-9 items-center justify-center rounded-full bg-[var(--meet-overlay-bg)] text-[var(--meet-text-color)] backdrop-blur-md transition hover:bg-[var(--meet-control-hover-bg)] sm:left-4 sm:top-4",
+            focusPinned ? "opacity-100" : isMobile ? "opacity-100" : "opacity-0 group-hover:opacity-100",
+          )}
+          style={isMobile ? { top: mobileTopOverlayInset || "12px" } : undefined}
+          aria-pressed={focusPinned}
+          aria-label={focusPinned ? "Whiteboard pinini olib tashlash" : "Whiteboard pin qilish"}
+          title={focusPinned ? "Whiteboard pinini olib tashlash" : "Whiteboard pin qilish"}
+        >
+          <Pin className={cn("h-4 w-4 transition-transform", focusPinned && "rotate-45 text-[#8ab4f8]")} />
+        </button>
+      ) : null}
       {onFullscreenTileChange ? (
         <button
           type="button"
           onClick={toggleFocusFullscreen}
           className={cn(
-            "absolute right-3 z-20 inline-flex h-11 w-11 items-center justify-center rounded-full bg-[var(--meet-overlay-bg)] text-[var(--meet-text-color)] backdrop-blur-md transition hover:bg-[var(--meet-control-hover-bg)] sm:right-4",
-            fullscreen ? "top-3 sm:top-4" : "bottom-3 sm:bottom-4",
+            "absolute right-3 z-50 inline-flex h-11 w-11 items-center justify-center rounded-full bg-[var(--meet-overlay-bg)] text-[var(--meet-text-color)] backdrop-blur-md transition hover:bg-[var(--meet-control-hover-bg)] sm:right-4",
+            "bottom-3 sm:bottom-4",
             focusFullscreen ? "opacity-100" : isMobile ? "opacity-100" : "opacity-0 group-hover:opacity-100",
           )}
-          style={fullscreen ? { top: isMobile ? mobileTopOverlayInset || "12px" : "12px" } : undefined}
+          style={
+            fullscreen && controlsVisible && !isMobile
+              ? { bottom: "calc(env(safe-area-inset-bottom, 0px) + 136px)" }
+              : undefined
+          }
           aria-label={focusFullscreen ? "Whiteboard fullscreen'dan chiqish" : "Whiteboard fullscreen"}
           title={focusFullscreen ? "Whiteboard fullscreen'dan chiqish" : "Whiteboard fullscreen"}
         >
@@ -571,14 +598,6 @@ export default function VideoGrid({
       <div className="pointer-events-auto inline-flex items-center gap-1 rounded-full bg-black/45 p-1 text-white shadow-[0_12px_30px_rgba(0,0,0,0.22)] backdrop-blur-md">
         <button
           type="button"
-          onClick={() => onPin(pinnedIdentity === participant.identity ? null : participant.identity)}
-          className="inline-flex h-9 w-9 items-center justify-center rounded-full transition hover:bg-white/10"
-          aria-label="Ekranga qadash"
-        >
-          <Pin className="h-4 w-4" />
-        </button>
-        <button
-          type="button"
           onClick={() =>
             setFullscreenCompanionMode((current) => (current === "rail" ? "pip" : "rail"))
           }
@@ -598,7 +617,7 @@ export default function VideoGrid({
       key={`${participant.identity}-${participant.source}-${keySuffix}`}
       className="group/pip relative h-[100px] w-[200px] max-w-[calc(100vw-1.5rem)] overflow-visible"
     >
-      <div className="relative h-full overflow-hidden rounded-[1.35rem] shadow-[0_18px_46px_rgba(15,23,42,0.24)]">
+      <div className="relative h-full overflow-visible rounded-[10px] shadow-[0_18px_46px_rgba(15,23,42,0.24)]">
         <VideoTile
           participant={participant}
           pinned={pinnedIdentity === participant.identity}
@@ -611,6 +630,7 @@ export default function VideoGrid({
           }
           compact
           tiny
+          hideLabel
         />
         {renderTileModeActions(participant)}
       </div>

@@ -131,16 +131,25 @@ export default function VideoTile({
       className={cn(
         "group relative h-full w-full overflow-hidden bg-[var(--meet-tile-bg)] transition duration-200 ease-out sm:rounded-[1.35rem]",
         tiny
-          ? "rounded-[1.1rem] shadow-[0_10px_26px_rgba(15,23,42,0.18)]"
+          ? "rounded-[10px] shadow-[0_10px_26px_rgba(15,23,42,0.18)] sm:rounded-[10px]"
           : "rounded-[1.6rem] shadow-[var(--meet-shadow-color)] hover:scale-[1.01] hover:brightness-105",
         "min-h-[136px] sm:min-h-[132px]",
         compact && "min-h-[112px] sm:min-h-[132px]",
         dominant && "rounded-[1.35rem] sm:rounded-[1.5rem]",
-        tiny && "!min-h-0 sm:rounded-[1.1rem]",
+        tiny && "!min-h-0 !rounded-[10px] sm:!rounded-[10px]",
         participant.isSpeaking &&
-          "border-emerald-400/70 ring-2 ring-emerald-400/70 shadow-[0_0_0_1px_rgba(52,168,83,0.5),0_0_40px_rgba(52,168,83,0.18)]",
+          "shadow-[0_0_0_1px_rgba(52,168,83,0.5),0_0_40px_rgba(52,168,83,0.18)]",
       )}
     >
+      {participant.isSpeaking ? (
+        <div
+          className={cn(
+            "pointer-events-none absolute inset-0 z-40 border-2 border-emerald-400/85 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.38)]",
+            tiny ? "rounded-[10px]" : dominant ? "rounded-[1.35rem] sm:rounded-[1.5rem]" : "rounded-[1.6rem]",
+          )}
+        />
+      ) : null}
+
       {showVideo ? (
         <video
           ref={videoRef}
@@ -207,7 +216,7 @@ export default function VideoTile({
           type="button"
           onClick={onFullscreen}
           className={cn(
-            "absolute bottom-3 right-3 inline-flex items-center justify-center rounded-full bg-[var(--meet-overlay-bg)] text-[var(--meet-text-color)] backdrop-blur-md transition hover:bg-[var(--meet-control-hover-bg)] sm:bottom-4 sm:right-4",
+            "absolute bottom-3 right-3 z-50 inline-flex items-center justify-center rounded-full bg-[var(--meet-overlay-bg)] text-[var(--meet-text-color)] backdrop-blur-md transition hover:bg-[var(--meet-control-hover-bg)] sm:bottom-4 sm:right-4",
             tiny ? "h-7 w-7" : compact ? "h-9 w-9" : "h-11 w-11",
             fullscreen ? "opacity-100" : floatingButtonVisibility,
           )}

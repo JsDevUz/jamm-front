@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useConnectionState, useParticipants } from "@livekit/components-react";
 import { RoomEvent } from "livekit-client";
 import type { Participant, Room, TrackPublication } from "livekit-client";
+import { ClipboardList, Copy, MessageSquare, Minimize2, MonitorUp, Users } from "lucide-react";
 import Header from "./Header";
 import BottomMenu, { type DeviceOption } from "./BottomMenu";
 import VideoGrid from "./VideoGrid";
@@ -22,6 +23,7 @@ type MeetingUIProps = {
   onLeave: () => void;
   onCopyLink?: () => void;
   onToggleWhiteboard?: () => void;
+  onToggleLessonControls?: () => void;
   onMinimize?: () => void;
   focusContent?: React.ReactNode;
   focusKey?: string;
@@ -179,6 +181,7 @@ export default function MeetingUI({
   onLeave,
   onCopyLink,
   onToggleWhiteboard,
+  onToggleLessonControls,
   onMinimize,
   focusContent,
   focusKey,
@@ -232,6 +235,7 @@ export default function MeetingUI({
   const [raisedHands, setRaisedHands] = useState<Record<string, RaisedHandState>>({});
   const reactionTimeoutsRef = useRef<number[]>([]);
   const autoFullscreenWhiteboardKeyRef = useRef<string | null>(null);
+  const whiteboardBrowserFullscreenRef = useRef(false);
 
   const enqueueReaction = (reaction: ActiveReaction) => {
     setActiveReactions((current) => [...current.slice(-5), reaction]);
@@ -343,6 +347,69 @@ export default function MeetingUI({
       ? "calc(env(safe-area-inset-top, 0px) + 96px)"
       : "12px"
     : undefined;
+
+  const requestWhiteboardBrowserFullscreen = () => {
+    const fullscreenDocument = document as Document & {
+      webkitFullscreenElement?: Element | null;
+    };
+    const fullscreenElement = document.documentElement as HTMLElement & {
+      webkitRequestFullscreen?: () => Promise<void> | void;
+    };
+    const activeFullscreenElement =
+      document.fullscreenElement || fullscreenDocument.webkitFullscreenElement || null;
+
+    if (activeFullscreenElement) return;
+
+    const requestTask = fullscreenElement.requestFullscreen
+      ? fullscreenElement.requestFullscreen({ navigationUI: "hide" })
+      : fullscreenElement.webkitRequestFullscreen?.();
+    whiteboardBrowserFullscreenRef.current = true;
+    void Promise.resolve(requestTask).catch(() => {
+      whiteboardBrowserFullscreenRef.current = false;
+    });
+  };
+
+  const handleHeaderWhiteboardToggle = () => {
+    if (!whiteboardActive) {
+      requestWhiteboardBrowserFullscreen();
+    }
+    onToggleWhiteboard?.();
+  };
+
+  useEffect(() => {
+    const fullscreenDocument = document as Document & {
+      webkitFullscreenElement?: Element | null;
+      webkitExitFullscreen?: () => Promise<void> | void;
+    };
+    const fullscreenElement = document.documentElement as HTMLElement & {
+      webkitRequestFullscreen?: () => Promise<void> | void;
+    };
+    const getFullscreenElement = () =>
+      document.fullscreenElement || fullscreenDocument.webkitFullscreenElement || null;
+    const exitFullscreen = () => {
+      if (!whiteboardBrowserFullscreenRef.current) return;
+      if (!getFullscreenElement()) {
+        whiteboardBrowserFullscreenRef.current = false;
+        return;
+      }
+      whiteboardBrowserFullscreenRef.current = false;
+      const exitTask = document.exitFullscreen
+        ? document.exitFullscreen()
+        : fullscreenDocument.webkitExitFullscreen?.();
+      void Promise.resolve(exitTask).catch(() => {});
+    };
+
+    if (!whiteboardFullscreen) {
+      exitFullscreen();
+      return undefined;
+    }
+
+    if (!getFullscreenElement()) {
+      requestWhiteboardBrowserFullscreen();
+    }
+
+    return exitFullscreen;
+  }, [whiteboardFullscreen]);
 
   const hasConnectionProblem = useMemo(() => {
     const normalized = String(connectionState || "").toLowerCase();
@@ -538,6 +605,126 @@ export default function MeetingUI({
       : isMobile
         ? "calc(env(safe-area-inset-bottom, 0px) + 28px)"
         : "128px";
+  const whiteboardToolbarActions = useMemo(() => {
+    if (!whiteboardFullscreen || isMobile) {
+      return null;
+    }
+
+    const actionButtonClass =
+      "relative inline-flex h-10 min-w-10 items-center justify-center gap-1.5 rounded-full border border-[var(--meet-border-color)] bg-[var(--meet-control-bg)] px-3 text-[var(--meet-text-color)] transition hover:bg-[var(--meet-control-hover-bg)]";
+    const activeActionButtonClass =
+      "relative inline-flex h-10 min-w-10 items-center justify-center gap-1.5 rounded-full bg-[var(--meet-control-active-bg)] px-3 text-[var(--meet-text-color)] ring-1 ring-[#8ab4f8] transition";
+    const badgeClass =
+      "absolute -right-1 -top-1 inline-flex min-w-[18px] items-center justify-center rounded-full px-1 text-[10px] font-semibold leading-[18px] text-white";
+    const pendingKnockCount = isCreator ? knockRequests.length : 0;
+
+    return (
+      <>
+        {onCopyLink && !isLandscape ? (
+          <button type="button" onClick={onCopyLink} className={actionButtonClass} title="Havolani nusxalash">
+            <Copy className="h-4 w-4" />
+          </button>
+        ) : null}
+        {onToggleWhiteboard ? (
+          <button type="button" onClick={handleHeaderWhiteboardToggle} className={activeActionButtonClass} title="Whiteboard">
+            <MonitorUp className="h-4 w-4" />
+          </button>
+        ) : null}
+        <button
+          type="button"
+          onClick={() => setParticipantsOpen(true)}
+          className={
+            pendingKnockCount > 0
+              ? `${actionButtonClass} border-amber-300 bg-amber-100 text-amber-950 shadow-[0_0_0_3px_rgba(245,158,11,0.18)] hover:bg-amber-200`
+              : actionButtonClass
+          }
+          title={pendingKnockCount > 0 ? `${pendingKnockCount} kishi kutyapti` : "People"}
+        >
+          <Users className="h-4 w-4" />
+          <span className="text-[13px] font-semibold leading-none">
+            {pendingKnockCount > 0
+              ? pendingKnockCount > 99
+                ? "99+"
+                : pendingKnockCount
+              : participantCount > 99
+                ? "99+"
+                : participantCount}
+          </span>
+          {pendingKnockCount > 0 ? (
+            <span className={`${badgeClass} bg-amber-500 shadow-[0_4px_14px_rgba(245,158,11,0.42)]`}>
+              {pendingKnockCount > 99 ? "99+" : pendingKnockCount}
+            </span>
+          ) : null}
+        </button>
+        <button type="button" onClick={() => setChatOpen(true)} className={actionButtonClass} title="Chat">
+          <MessageSquare className="h-4 w-4" />
+          <span className="text-[13px] font-semibold leading-none">{chatCount > 99 ? "99+" : chatCount}</span>
+          {chatCount > 0 ? (
+            <span className={`${badgeClass} bg-[#111827] shadow-[0_4px_12px_rgba(15,23,42,0.28)]`}>
+              {chatCount > 99 ? "99+" : chatCount}
+            </span>
+          ) : null}
+        </button>
+        {onToggleLessonControls ? (
+          <button
+            type="button"
+            onClick={onToggleLessonControls}
+            className={actionButtonClass}
+            title="Dars boshqaruvi"
+            aria-label="Dars boshqaruvini ochish"
+          >
+            <ClipboardList className="h-4 w-4" />
+          </button>
+        ) : null}
+        {onMinimize ? (
+          <button type="button" onClick={onMinimize} className={actionButtonClass} title="Minimize">
+            <Minimize2 className="h-4 w-4" />
+          </button>
+        ) : null}
+      </>
+    );
+  }, [
+    chatCount,
+    handleHeaderWhiteboardToggle,
+    isCreator,
+    isLandscape,
+    isMobile,
+    knockRequests.length,
+    onCopyLink,
+    onMinimize,
+    onToggleLessonControls,
+    onToggleWhiteboard,
+    participantCount,
+    whiteboardFullscreen,
+  ]);
+  const focusContentWithToolbarActions = useMemo(() => {
+    if (!whiteboardToolbarActions) {
+      return focusContent;
+    }
+
+    const injectToolbarActions = (node: React.ReactNode): React.ReactNode => {
+      if (!React.isValidElement(node)) {
+        return node;
+      }
+
+      const nodeProps = node.props as Record<string, unknown>;
+      const nextProps: Record<string, unknown> = {};
+
+      if (nodeProps.workspace && Object.prototype.hasOwnProperty.call(nodeProps, "showToolbar")) {
+        nextProps.toolbarTrailingContent = whiteboardToolbarActions;
+      }
+
+      if (nodeProps.children) {
+        nextProps.children = React.Children.map(nodeProps.children as React.ReactNode, injectToolbarActions);
+      }
+
+      return Object.keys(nextProps).length
+        ? React.cloneElement(node as React.ReactElement<Record<string, unknown>>, nextProps)
+        : node;
+    };
+
+    return injectToolbarActions(focusContent);
+  }, [focusContent, whiteboardToolbarActions]);
 
   return (
     <div className="relative h-full min-h-0 w-full overflow-hidden bg-[var(--meet-shell-bg)] text-[var(--meet-text-color)] [padding-bottom:env(safe-area-inset-bottom)]">
@@ -551,13 +738,15 @@ export default function MeetingUI({
           isVisible={controlsVisible}
           isMobile={isMobile}
           isMobileLandscape={isMobile && isLandscape}
+          compactOverlay={whiteboardFullscreen && !isMobile}
           isRecording={isRecording}
           whiteboardActive={whiteboardActive}
           speakerMode={mobileSpeakerMode}
           onCopyLink={onCopyLink}
-          onToggleWhiteboard={onToggleWhiteboard}
+          onToggleWhiteboard={onToggleWhiteboard ? handleHeaderWhiteboardToggle : undefined}
           onToggleParticipants={() => setParticipantsOpen(true)}
           onToggleChat={() => setChatOpen(true)}
+          onToggleLessonControls={onToggleLessonControls}
           onToggleSpeakerMode={handleToggleMobileSpeaker}
           onMinimize={onMinimize}
         />
@@ -591,7 +780,7 @@ export default function MeetingUI({
             onPin={setPinnedIdentity}
             fullscreenTileKey={fullscreenTileKey}
             onFullscreenTileChange={setFullscreenTileKey}
-            focusContent={focusContent}
+            focusContent={focusContentWithToolbarActions}
             focusKey={focusKey}
             isMobile={isMobile}
             isLandscape={isLandscape}

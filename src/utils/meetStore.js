@@ -21,13 +21,20 @@ export async function getMeets() {
   }
 }
 
-export async function saveMeet({ roomId, title, isPrivate, isCreator }) {
+export async function saveMeet({
+  roomId,
+  title,
+  isPrivate,
+  isCreator,
+  courseId,
+  lessonId,
+}) {
   if (!isCreator) return null;
   try {
-    const { data } = await axiosInstance.post(
-      `${API_BASE_URL}/meets`,
-      { roomId, title, isPrivate },
-    );
+    const body = { roomId, title, isPrivate };
+    if (courseId) body.courseId = courseId;
+    if (lessonId) body.lessonId = lessonId;
+    const { data } = await axiosInstance.post(`${API_BASE_URL}/meets`, body);
     return data;
   } catch (error) {
     console.error("Failed to save meet", error);
