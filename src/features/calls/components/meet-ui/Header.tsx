@@ -16,6 +16,7 @@ type HeaderProps = {
   participantCount: number;
   chatCount?: number;
   handRaisedCount?: number;
+  pendingKnockCount?: number;
   isVisible: boolean;
   isMobile?: boolean;
   isMobileLandscape?: boolean;
@@ -35,6 +36,7 @@ export default function Header({
   participantCount,
   chatCount = 0,
   handRaisedCount = 0,
+  pendingKnockCount = 0,
   isVisible,
   isMobile = false,
   isMobileLandscape = false,
@@ -49,6 +51,7 @@ export default function Header({
   onMinimize,
 }: HeaderProps) {
   const meetId = meetingName;
+  const hasPendingKnocks = pendingKnockCount > 0;
   const [currentTime, setCurrentTime] = useState(() =>
     new Intl.DateTimeFormat([], {
       hour: "2-digit",
@@ -169,16 +172,44 @@ export default function Header({
             <button
               type="button"
               onClick={openParticipants}
-              className="relative inline-flex h-9 w-9 items-center justify-center gap-2 rounded-full border border-[var(--meet-border-color)] bg-[var(--meet-control-bg)] text-[var(--meet-text-color)] transition hover:bg-[var(--meet-control-hover-bg)] sm:h-11 sm:w-auto sm:px-4 lg:h-9 lg:gap-1.5 lg:px-3"
-              title="People"
+              className={cn(
+                "relative inline-flex h-9 w-9 items-center justify-center gap-2 rounded-full border text-[var(--meet-text-color)] transition sm:h-11 sm:w-auto sm:px-4 lg:h-9 lg:gap-1.5 lg:px-3",
+                hasPendingKnocks
+                  ? "border-amber-300 bg-amber-100 text-amber-950 shadow-[0_0_0_3px_rgba(245,158,11,0.18)] hover:bg-amber-200 dark:bg-amber-400/18 dark:text-amber-100 dark:hover:bg-amber-400/24"
+                  : "border-[var(--meet-border-color)] bg-[var(--meet-control-bg)] hover:bg-[var(--meet-control-hover-bg)]",
+              )}
+              title={
+                hasPendingKnocks
+                  ? `${pendingKnockCount > 99 ? "99+" : pendingKnockCount} kishi kutyapti`
+                  : "People"
+              }
             >
               <Users className="h-4 w-4 lg:h-3.5 lg:w-3.5" />
-              {isMobile ? (
-                <span className="absolute -right-1 -top-1 inline-flex min-w-[18px] items-center justify-center rounded-full bg-[#2b7fff] px-1 text-[10px] font-semibold leading-[18px] text-white shadow-[0_4px_12px_rgba(43,127,255,0.35)]">
-                  {participantCount > 99 ? "99+" : participantCount}
+              {isMobile || hasPendingKnocks ? (
+                <span
+                  className={cn(
+                    "absolute -right-1 -top-1 inline-flex min-w-[18px] items-center justify-center rounded-full px-1 text-[10px] font-semibold leading-[18px] text-white",
+                    hasPendingKnocks
+                      ? "bg-amber-500 shadow-[0_4px_14px_rgba(245,158,11,0.42)]"
+                      : "bg-[#2b7fff] shadow-[0_4px_12px_rgba(43,127,255,0.35)]",
+                  )}
+                >
+                  {hasPendingKnocks
+                    ? pendingKnockCount > 99
+                      ? "99+"
+                      : pendingKnockCount
+                    : participantCount > 99
+                      ? "99+"
+                      : participantCount}
                 </span>
               ) : null}
-              <span className="hidden text-sm lg:inline lg:text-xs">{participantCount}</span>
+              <span className="hidden text-sm lg:inline lg:text-xs">
+                {hasPendingKnocks
+                  ? pendingKnockCount > 99
+                    ? "99+"
+                    : pendingKnockCount
+                  : participantCount}
+              </span>
             </button>
           ) : null}
           {onToggleChat ? (

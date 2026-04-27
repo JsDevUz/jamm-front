@@ -1872,7 +1872,7 @@ const PrivateVideoCall = ({
         setLiveKitError(
           tokenError?.response?.data?.message ||
             tokenError?.message ||
-            "LiveKit token olinmadi",
+            "Room token olinmadi",
         );
       });
 

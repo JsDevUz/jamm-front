@@ -43,6 +43,16 @@ function getTileKey(participant: TileParticipant) {
   return `${participant.identity}:${participant.source}`;
 }
 
+// Cap the number of camera tiles rendered as full video. Off-screen tiles are
+// replaced by lightweight placeholders so LiveKit Dynacast unsubscribes their
+// streams — keeping a 100-viewer room from saturating bandwidth and CPU.
+const MAX_VISIBLE_CAMERA_TILES_DESKTOP = 12;
+const MAX_VISIBLE_CAMERA_TILES_MOBILE = 6;
+
+function getMaxVisibleCameraTiles(isMobile: boolean) {
+  return isMobile ? MAX_VISIBLE_CAMERA_TILES_MOBILE : MAX_VISIBLE_CAMERA_TILES_DESKTOP;
+}
+
 function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
 }
@@ -235,7 +245,7 @@ export default function VideoGrid({
   const [fullscreenCompanionMode, setFullscreenCompanionMode] =
     useState<FullscreenCompanionMode>("pip");
 
-  const { dominantTile, stripTiles, gridTiles } = useMemo(() => {
+  const { dominantTile, stripTiles, gridTiles, overflowCount } = useMemo(() => {
     const screenShareTile = participants.find((participant) => participant.source === "screen") || null;
     const cameraTiles = participants.filter((participant) => participant.source === "camera");
     const fullscreenTile =
@@ -253,38 +263,50 @@ export default function VideoGrid({
       return left.name.localeCompare(right.name);
     });
 
+    const maxStripVisible = getMaxVisibleCameraTiles(isMobile);
+
     if (fullscreenTile) {
+      const orderedStrip = participants
+        .filter((participant) => getTileKey(participant) !== getTileKey(fullscreenTile))
+        .sort((left, right) => {
+          if (pinnedIdentity && left.identity === pinnedIdentity) return -1;
+          if (pinnedIdentity && right.identity === pinnedIdentity) return 1;
+          if (left.source === "screen" && right.source !== "screen") return -1;
+          if (left.source !== "screen" && right.source === "screen") return 1;
+          if (left.isSpeaking && !right.isSpeaking) return -1;
+          if (!left.isSpeaking && right.isSpeaking) return 1;
+          return left.name.localeCompare(right.name);
+        });
+      const visibleStrip = orderedStrip.slice(0, maxStripVisible);
       return {
         dominantTile: fullscreenTile,
-        stripTiles: participants
-          .filter((participant) => getTileKey(participant) !== getTileKey(fullscreenTile))
-          .sort((left, right) => {
-            if (pinnedIdentity && left.identity === pinnedIdentity) return -1;
-            if (pinnedIdentity && right.identity === pinnedIdentity) return 1;
-            if (left.source === "screen" && right.source !== "screen") return -1;
-            if (left.source !== "screen" && right.source === "screen") return 1;
-            if (left.isSpeaking && !right.isSpeaking) return -1;
-            if (!left.isSpeaking && right.isSpeaking) return 1;
-            return left.name.localeCompare(right.name);
-          }),
+        stripTiles: visibleStrip,
         gridTiles: [] as TileParticipant[],
+        overflowCount: Math.max(0, orderedStrip.length - visibleStrip.length),
       };
     }
 
     if (screenShareTile) {
+      const visibleStrip = orderedCameraTiles.slice(0, maxStripVisible);
       return {
         dominantTile: screenShareTile,
-        stripTiles: orderedCameraTiles,
+        stripTiles: visibleStrip,
         gridTiles: [] as TileParticipant[],
+        overflowCount: Math.max(0, orderedCameraTiles.length - visibleStrip.length),
       };
     }
+
+    const maxVisible = getMaxVisibleCameraTiles(isMobile);
+    const visibleCameraTiles = orderedCameraTiles.slice(0, maxVisible);
+    const overflowCount = Math.max(0, orderedCameraTiles.length - visibleCameraTiles.length);
 
     return {
       dominantTile: null,
       stripTiles: [] as TileParticipant[],
-      gridTiles: orderedCameraTiles,
+      gridTiles: visibleCameraTiles,
+      overflowCount,
     };
-  }, [fullscreenTileKey, participants, pinnedIdentity]);
+  }, [fullscreenTileKey, isMobile, participants, pinnedIdentity]);
 
   useEffect(() => {
     if (
@@ -1147,6 +1169,18 @@ export default function VideoGrid({
           />
         </div>
       ))}
+      {overflowCount > 0 ? (
+        <div
+          className={cn(
+            "flex h-full min-h-0 w-full items-center justify-center rounded-[1.35rem] bg-[var(--meet-tile-bg)] text-sm font-medium text-[var(--meet-text-color)]",
+            gridLayout.tileClassName,
+          )}
+          aria-label={`${overflowCount} qatnashchi yashirilgan`}
+          title={`+${overflowCount} qatnashchi (faol so'zlovchilar ustun olinadi)`}
+        >
+          +{overflowCount}
+        </div>
+      ) : null}
     </div>
   );
 }

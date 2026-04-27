@@ -1082,6 +1082,29 @@ export function useLiveKitMeetSignaling({
     setWhiteboardState((previousState) => {
       const nextState =
         typeof updater === "function" ? updater(previousState) : updater;
+      // Reference-equal? Skip re-render entirely.
+      if (nextState === previousState) {
+        return previousState;
+      }
+      // Shallow check: if every top-level slot is identical and tabs array is
+      // structurally unchanged (same length + same tab references), preserve
+      // the old object so React bails out of the re-render. Reducers above
+      // intentionally reuse references when no real change happens.
+      if (
+        nextState &&
+        previousState &&
+        nextState.activeTabId === previousState.activeTabId &&
+        nextState.isActive === previousState.isActive &&
+        nextState.ownerPeerId === previousState.ownerPeerId &&
+        nextState.pdfLibrary === previousState.pdfLibrary &&
+        Array.isArray(nextState.tabs) &&
+        Array.isArray(previousState.tabs) &&
+        nextState.tabs.length === previousState.tabs.length &&
+        nextState.tabs.every((tab, index) => tab === previousState.tabs[index])
+      ) {
+        whiteboardStateRef.current = previousState;
+        return previousState;
+      }
       whiteboardStateRef.current = nextState;
       return nextState;
     });

@@ -231,6 +231,7 @@ export default function MeetingUI({
   const [activeReactions, setActiveReactions] = useState<ActiveReaction[]>([]);
   const [raisedHands, setRaisedHands] = useState<Record<string, RaisedHandState>>({});
   const reactionTimeoutsRef = useRef<number[]>([]);
+  const autoFullscreenWhiteboardKeyRef = useRef<string | null>(null);
 
   const enqueueReaction = (reaction: ActiveReaction) => {
     setActiveReactions((current) => [...current.slice(-5), reaction]);
@@ -249,13 +250,21 @@ export default function MeetingUI({
   }, []);
 
   useEffect(() => {
-    if (whiteboardActive && focusContent && focusKey && fullscreenTileKey !== focusKey) {
-      setFullscreenTileKey(focusKey);
+    if (!whiteboardActive) {
+      autoFullscreenWhiteboardKeyRef.current = null;
+      if (fullscreenTileKey === focusKey) {
+        setFullscreenTileKey(null);
+      }
       return;
     }
 
-    if (!whiteboardActive && fullscreenTileKey === focusKey) {
-      setFullscreenTileKey(null);
+    if (
+      focusContent &&
+      focusKey &&
+      autoFullscreenWhiteboardKeyRef.current !== focusKey
+    ) {
+      autoFullscreenWhiteboardKeyRef.current = focusKey;
+      setFullscreenTileKey(focusKey);
     }
   }, [focusContent, focusKey, fullscreenTileKey, whiteboardActive]);
 
@@ -538,6 +547,7 @@ export default function MeetingUI({
           participantCount={participantCount}
           chatCount={chatCount}
           handRaisedCount={handRaisedCount}
+          pendingKnockCount={isCreator ? knockRequests.length : 0}
           isVisible={controlsVisible}
           isMobile={isMobile}
           isMobileLandscape={isMobile && isLandscape}

@@ -41,7 +41,7 @@ import {
   useTracks,
   UnfocusToggleIcon,
 } from "@livekit/components-react";
-import { Track } from "livekit-client";
+import { Track, VideoPresets, ScreenSharePresets } from "livekit-client";
 import { createLivekitToken } from "../../../api/livekitApi";
 import useAuthStore from "../../../store/authStore";
 import { RESOLVED_APP_BASE_URL } from "../../../config/env";
@@ -2131,6 +2131,15 @@ function MeetContent({
           ? {
               selfBrowserSurface: "include",
               surfaceSwitching: "include",
+              resolution: ScreenSharePresets.h1080fps15.resolution,
+            }
+          : undefined,
+        nextEnabled
+          ? {
+              videoCodec: "vp8",
+              videoEncoding: ScreenSharePresets.h1080fps15.encoding,
+              simulcast: false,
+              degradationPreference: "maintain-resolution",
             }
           : undefined,
       );
@@ -2659,7 +2668,7 @@ const LiveKitGroupMeet = ({
   const liveKitTitle = signaling.roomTitle || chatTitle || "Jamm Meet";
   const waitingDescription = isCreator
     ? "Meet xonasi tayyorlanmoqda."
-    : "Host tasdig'ini kutyapmiz. Tasdiqlangach LiveKit roomga ulanamiz.";
+    : "Host tasdig'ini kutyapmiz. Tasdiqlangach roomga ulanamiz.";
 
   if (!isOpen) return null;
 
@@ -2725,9 +2734,16 @@ const LiveKitGroupMeet = ({
       options={{
         adaptiveStream: true,
         dynacast: true,
+        videoCaptureDefaults: {
+          resolution: VideoPresets.h720.resolution,
+        },
         publishDefaults: {
           simulcast: true,
           videoCodec: "vp8",
+          videoSimulcastLayers: [VideoPresets.h180, VideoPresets.h360],
+          screenShareEncoding: ScreenSharePresets.h1080fps15.encoding,
+          stopMicTrackOnMute: true,
+          backupCodec: { codec: "vp8", encoding: VideoPresets.h540.encoding },
         },
       }}
       connectOptions={{

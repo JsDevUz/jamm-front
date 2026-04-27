@@ -70,7 +70,7 @@ const WHITEBOARD_MIN_BOARD_BASE_WIDTH = 120;
 const WHITEBOARD_MIN_BOARD_BASE_HEIGHT = 120;
 const WHITEBOARD_MIN_VIEWPORT_BASE_HEIGHT = 120;
 const WHITEBOARD_PDF_RENDER_VERSION = "v3";
-const WHITEBOARD_PDF_BUFFER_CACHE_MAX_ITEMS = 48;
+const WHITEBOARD_PDF_BUFFER_CACHE_MAX_ITEMS = 12;
 const WHITEBOARD_MAX_TEXT_CHARS = 240;
 const WHITEBOARD_VIEWPORT_TOP_SAFE_SPACE = 92;
 const WHITEBOARD_VIEWPORT_BOTTOM_SAFE_SPACE = 176;
@@ -4383,10 +4383,29 @@ const StrokeCanvas = ({
     };
   }, [interactive, redrawCanvasImmediate, renderActiveLayer]);
 
-  // Trigger redraw when strokes/zoom/mode change — RAF-batched so rapid updates don't pile up
+  // Trigger redraw when strokes/zoom/mode change — RAF-batched so rapid updates don't pile up.
+  // Skip when strokes reference changed but contents (id+points length) match — prevents
+  // pointless full-canvas redraws from upstream {...state} object spreads.
+  const lastRedrawSignatureRef = useRef("");
   useEffect(() => {
+    const list = Array.isArray(strokes) ? strokes : [];
+    const signature = `${zoomScale}|${surfaceMode}|${shapePreviewStroke?.id || ""}:${shapePreviewStroke?.points?.length || 0}|${list.length}|${list.map((s) => `${s.id}:${(s.points && s.points.length) || 0}`).join(",")}`;
+    if (signature === lastRedrawSignatureRef.current) return;
+    lastRedrawSignatureRef.current = signature;
     redrawCanvas();
   }, [redrawCanvas, strokes, zoomScale, surfaceMode, shapePreviewStroke]);
+
+  // Clear lingering draft once the committed stroke appears in props.strokes.
+  // This is what prevents the mouseup flicker: the draft stays visible on the active layer
+  // until the persisted layer has the real stroke, then we drop the draft on the same frame.
+  useEffect(() => {
+    const draft = draftStrokeRef.current;
+    if (!draft || pointerStateRef.current) return;
+    const list = Array.isArray(strokes) ? strokes : [];
+    if (list.some((s) => s && s.id === draft.id)) {
+      draftStrokeRef.current = null;
+    }
+  }, [strokes]);
 
   useEffect(() => {
     redrawCanvas();
@@ -4937,8 +4956,9 @@ const StrokeCanvas = ({
           }
         }
 
-        draftStrokeRef.current = null;
-        redrawCanvas();
+        // Keep draft visible until the committed stroke arrives via props.
+        // The strokes effect will clear it once it sees the matching id, preventing flicker.
+        // (No redraw + no immediate null assignment.)
       } else {
         const draftPoints = Array.isArray(activePointer?.draftPoints)
           ? activePointer.draftPoints
@@ -4956,10 +4976,7 @@ const StrokeCanvas = ({
           });
         }
         pendingPointsRef.current = [];
-        window.requestAnimationFrame(() => {
-          draftStrokeRef.current = null;
-          redrawCanvas();
-        });
+        // Keep draft alive until committed stroke shows up in props.strokes; the effect below clears it.
       }
 
       const activeCanvas = activeCanvasRef.current;
