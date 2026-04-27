@@ -1,6 +1,6 @@
-import React, { useEffect, useMemo, useRef } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Hand, Maximize2, MicOff, Minimize2, MonitorUp } from "lucide-react";
-import type { TrackPublication } from "livekit-client";
+import { TrackEvent, type TrackPublication } from "livekit-client";
 import { cn } from "../../../../lib/utils";
 
 export type TileParticipant = {
@@ -55,28 +55,67 @@ export default function VideoTile({
   overlayTopInset,
 }: VideoTileProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const [, setPublicationVersion] = useState(0);
+  const refreshPublicationState = useCallback(() => {
+    setPublicationVersion((current) => current + 1);
+  }, []);
+
+  const mediaTrack = participant.publication?.track;
+  const publicationMuted = Boolean(participant.publication?.isMuted);
+  const showVideo = Boolean(
+    mediaTrack &&
+      !publicationMuted &&
+      (participant.source === "screen" || participant.hasCamera),
+  );
 
   useEffect(() => {
-    const track = participant.publication?.track;
-    const element = videoRef.current;
-    if (!track || !element) return undefined;
+    const publication = participant.publication;
+    if (!publication) return undefined;
 
-    track.attach(element);
+    publication.on(TrackEvent.Subscribed, refreshPublicationState);
+    publication.on(TrackEvent.Unsubscribed, refreshPublicationState);
+    publication.on(TrackEvent.Muted, refreshPublicationState);
+    publication.on(TrackEvent.Unmuted, refreshPublicationState);
+    publication.on(TrackEvent.SubscriptionStatusChanged, refreshPublicationState);
+
     return () => {
-      track.detach(element);
+      publication.off(TrackEvent.Subscribed, refreshPublicationState);
+      publication.off(TrackEvent.Unsubscribed, refreshPublicationState);
+      publication.off(TrackEvent.Muted, refreshPublicationState);
+      publication.off(TrackEvent.Unmuted, refreshPublicationState);
+      publication.off(TrackEvent.SubscriptionStatusChanged, refreshPublicationState);
     };
-  }, [participant.publication]);
+  }, [participant.publication, refreshPublicationState]);
+
+  useEffect(() => {
+    if (!mediaTrack) return undefined;
+
+    mediaTrack.on(TrackEvent.Restarted, refreshPublicationState);
+    mediaTrack.on(TrackEvent.Ended, refreshPublicationState);
+    mediaTrack.on(TrackEvent.VideoDimensionsChanged, refreshPublicationState);
+
+    return () => {
+      mediaTrack.off(TrackEvent.Restarted, refreshPublicationState);
+      mediaTrack.off(TrackEvent.Ended, refreshPublicationState);
+      mediaTrack.off(TrackEvent.VideoDimensionsChanged, refreshPublicationState);
+    };
+  }, [mediaTrack, refreshPublicationState]);
+
+  useEffect(() => {
+    const element = videoRef.current;
+    if (!mediaTrack || !element || !showVideo) return undefined;
+
+    mediaTrack.attach(element);
+    return () => {
+      mediaTrack.detach(element);
+    };
+  }, [mediaTrack, participant.identity, participant.source, showVideo]);
 
   const avatarTone = useMemo(
     () => getAvatarTone(participant.identity),
     [participant.identity],
   );
 
-  const showVideo = Boolean(
-    participant.publication?.track &&
-      !participant.publication.isMuted &&
-      (participant.source === "screen" || participant.hasCamera),
-  );
   const bottomLabelClass = tiny
     ? "text-[10px]"
     : compact
@@ -190,6 +229,7 @@ export default function VideoTile({
             <div
               className={cn(
                 "inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-full bg-[var(--meet-overlay-bg)] px-2.5 py-1.5 font-medium text-[var(--meet-text-color)] backdrop-blur-md",
+                "meet-participant-name-badge",
                 tiny ? "px-2 py-1" : compact ? "px-2.5 py-1.5" : "px-3 py-1.5",
                 bottomLabelClass,
               )}

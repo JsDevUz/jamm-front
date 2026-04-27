@@ -231,6 +231,7 @@ export default function MeetingUI({
   const [activeReactions, setActiveReactions] = useState<ActiveReaction[]>([]);
   const [raisedHands, setRaisedHands] = useState<Record<string, RaisedHandState>>({});
   const reactionTimeoutsRef = useRef<number[]>([]);
+  const wasWhiteboardActiveRef = useRef(false);
 
   const enqueueReaction = (reaction: ActiveReaction) => {
     setActiveReactions((current) => [...current.slice(-5), reaction]);
@@ -247,6 +248,20 @@ export default function MeetingUI({
       reactionTimeoutsRef.current = [];
     };
   }, []);
+
+  useEffect(() => {
+    const justOpenedWhiteboard = whiteboardActive && !wasWhiteboardActiveRef.current;
+    wasWhiteboardActiveRef.current = whiteboardActive;
+
+    if (justOpenedWhiteboard && focusContent && focusKey) {
+      setFullscreenTileKey(focusKey);
+      return;
+    }
+
+    if (!whiteboardActive && fullscreenTileKey === focusKey) {
+      setFullscreenTileKey(null);
+    }
+  }, [focusContent, focusKey, fullscreenTileKey, whiteboardActive]);
 
   const allParticipants = useMemo(() => {
     const everyone = [
@@ -296,22 +311,30 @@ export default function MeetingUI({
     return ordered;
   }, [allParticipants, pinnedIdentity]);
 
-  const stagePaddingClass = isMobile
-    ? isLandscape
-      ? controlsVisible
-        ? "px-2 pb-[74px] pt-[62px]"
+  const whiteboardFullscreen = Boolean(whiteboardActive && focusContent && fullscreenTileKey === focusKey);
+  const bottomMenuVisible = whiteboardFullscreen ? true : controlsVisible;
+  const stagePaddingClass = whiteboardFullscreen
+    ? "p-0"
+    : isMobile
+        ? isLandscape
+          ? controlsVisible
+          ? "px-2 pb-[58px] pt-[62px]"
+          : "px-1 pb-1 pt-1"
+        : controlsVisible
+          ? "px-2 pb-[64px] pt-[74px]"
         : "px-1 pb-1 pt-1"
-      : controlsVisible
-        ? "px-2 pb-[84px] pt-[74px]"
-      : "px-1 pb-1 pt-1"
-    : "px-4 pb-[86px] pt-[72px] sm:px-6";
+      : "px-4 pb-[86px] pt-[72px] sm:px-6";
   const mobileTopOverlayInset = isMobile
-    ? controlsVisible
+    ? whiteboardFullscreen
+      ? "calc(env(safe-area-inset-top, 0px) + 12px)"
+      : controlsVisible
       ? "calc(env(safe-area-inset-top, 0px) + 84px)"
       : "12px"
     : undefined;
   const mobilePipTopInset = isMobile
-    ? controlsVisible
+    ? whiteboardFullscreen
+      ? "calc(env(safe-area-inset-top, 0px) + 12px)"
+      : controlsVisible
       ? "calc(env(safe-area-inset-top, 0px) + 96px)"
       : "12px"
     : undefined;
@@ -503,7 +526,7 @@ export default function MeetingUI({
   };
 
   const reactionsBottomOffset =
-    isMobile && controlsVisible
+    isMobile && bottomMenuVisible
       ? isLandscape
         ? "calc(env(safe-area-inset-bottom, 0px) + 112px)"
         : "calc(env(safe-area-inset-bottom, 0px) + 132px)"
@@ -512,41 +535,47 @@ export default function MeetingUI({
         : "128px";
 
   return (
-    <div className="relative h-full min-h-screen w-full overflow-hidden bg-[var(--meet-shell-bg)] text-[var(--meet-text-color)] [padding-bottom:env(safe-area-inset-bottom)]">
-      <Header
-        meetingName={meetingName}
-        participantCount={participantCount}
-        chatCount={chatCount}
-        handRaisedCount={handRaisedCount}
-        isVisible={controlsVisible}
-        isMobile={isMobile}
-        isMobileLandscape={isMobile && isLandscape}
-        isRecording={isRecording}
-        whiteboardActive={whiteboardActive}
-        speakerMode={mobileSpeakerMode}
-        onCopyLink={onCopyLink}
-        onToggleWhiteboard={onToggleWhiteboard}
-        onToggleParticipants={() => setParticipantsOpen(true)}
-        onToggleChat={() => setChatOpen(true)}
-        onToggleSpeakerMode={handleToggleMobileSpeaker}
-        onMinimize={onMinimize}
-      />
+    <div className="relative h-full min-h-0 w-full overflow-hidden bg-[var(--meet-shell-bg)] text-[var(--meet-text-color)] [padding-bottom:env(safe-area-inset-bottom)]">
+      {!whiteboardFullscreen ? (
+        <Header
+          meetingName={meetingName}
+          participantCount={participantCount}
+          chatCount={chatCount}
+          handRaisedCount={handRaisedCount}
+          isVisible={controlsVisible}
+          isMobile={isMobile}
+          isMobileLandscape={isMobile && isLandscape}
+          isRecording={isRecording}
+          whiteboardActive={whiteboardActive}
+          speakerMode={mobileSpeakerMode}
+          onCopyLink={onCopyLink}
+          onToggleWhiteboard={onToggleWhiteboard}
+          onToggleParticipants={() => setParticipantsOpen(true)}
+          onToggleChat={() => setChatOpen(true)}
+          onToggleSpeakerMode={handleToggleMobileSpeaker}
+          onMinimize={onMinimize}
+        />
+      ) : null}
 
       <main
         className={`absolute inset-0 transition-[padding] duration-300 ${stagePaddingClass}`}
         style={{
-          paddingTop: isMobile
-            ? controlsVisible
-              ? "calc(env(safe-area-inset-top, 0px) + 12px)"
-              : "max(env(safe-area-inset-top, 0px), 4px)"
-            : undefined,
-          paddingBottom: isMobile
-            ? controlsVisible
-              ? isLandscape
-                ? "calc(max(env(safe-area-inset-bottom, 0px), 12px) + 100px)"
-                : "calc(max(env(safe-area-inset-bottom, 0px), 12px) + 124px)"
-              : "calc(max(env(safe-area-inset-bottom, 0px), 12px) + 4px)"
-            : undefined,
+          paddingTop: whiteboardFullscreen
+            ? "0px"
+            : isMobile
+              ? controlsVisible
+                ? "calc(env(safe-area-inset-top, 0px) + 12px)"
+                : "max(env(safe-area-inset-top, 0px), 4px)"
+              : undefined,
+          paddingBottom: whiteboardFullscreen
+            ? "0px"
+            : isMobile
+              ? controlsVisible
+                ? isLandscape
+                  ? "calc(max(env(safe-area-inset-bottom, 0px), 12px) + 78px)"
+                  : "calc(max(env(safe-area-inset-bottom, 0px), 12px) + 92px)"
+                : "calc(max(env(safe-area-inset-bottom, 0px), 12px) + 4px)"
+              : undefined,
         }}
       >
         <div className="h-full min-h-0 transition-all duration-300">
@@ -580,7 +609,7 @@ export default function MeetingUI({
       </main>
 
       <BottomMenu
-        isVisible={controlsVisible}
+        isVisible={bottomMenuVisible}
         isMobile={isMobile}
         isLandscape={isLandscape}
         isMicrophoneEnabled={isMicrophoneEnabled}

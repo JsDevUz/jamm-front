@@ -38,8 +38,14 @@ export default function MeetCallHost() {
   const handleMinimize = () => {
     minimizeCall();
 
-    if (currentUser && location.pathname !== "/chats") {
-      navigate("/chats");
+    const fallbackPath = currentUser ? "/chats" : "/";
+    const returnPath =
+      activeCall.returnPath && !activeCall.returnPath.startsWith("/join")
+        ? activeCall.returnPath
+        : fallbackPath;
+
+    if (location.pathname !== returnPath) {
+      navigate(returnPath, { replace: true });
     }
   };
 

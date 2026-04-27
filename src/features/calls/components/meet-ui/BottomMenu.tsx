@@ -197,7 +197,7 @@ function DeviceControl({
           event.stopPropagation();
           onMenuToggle(openMenu === menuKey ? null : menuKey);
         }}
-        className="inline-flex min-h-[44px] min-w-[38px] items-center justify-center border-l border-[var(--meet-border-color)] px-2.5 text-[var(--meet-text-color)] hover:bg-[var(--meet-control-hover-bg)] sm:min-h-[48px] sm:min-w-[42px] sm:px-3 lg:min-h-[40px] lg:min-w-[34px] lg:px-2"
+        className="inline-flex min-h-[44px] min-w-[38px] items-center justify-center rounded-r-[18px] border-l border-[var(--meet-border-color)] px-2.5 text-[var(--meet-text-color)] transition-colors hover:bg-transparent sm:min-h-[48px] sm:min-w-[42px] sm:rounded-r-2xl sm:px-3 lg:min-h-[40px] lg:min-w-[34px] lg:rounded-r-[14px] lg:px-2"
         aria-label={`${label} devices`}
         aria-expanded={openMenu === menuKey}
       >

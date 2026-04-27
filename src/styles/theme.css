@@ -110,6 +110,11 @@
   --meet-text-shadow: 0 1px 6px rgba(0, 0, 0, 0.5);
 }
 
+[data-theme="dark"] .meet-participant-name-badge {
+  background: rgba(18, 19, 20, 0.72);
+  color: #f5f7fa;
+}
+
 /* Base styles that use CSS variables */
 body {
   background-color: var(--background-color);

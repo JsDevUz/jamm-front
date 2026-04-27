@@ -438,7 +438,7 @@ export default function VideoGrid({
     <div
       className={cn(
         "group relative h-full min-h-0 overflow-hidden bg-[var(--meet-tile-bg)] shadow-[var(--meet-shadow-color)]",
-        fullscreen ? "rounded-[1.35rem] sm:rounded-[1.5rem]" : "rounded-[1.5rem]",
+        fullscreen ? "rounded-none" : "rounded-[1.5rem]",
       )}
     >
       {focusContent}
@@ -461,9 +461,11 @@ export default function VideoGrid({
           type="button"
           onClick={toggleFocusFullscreen}
           className={cn(
-            "absolute bottom-3 right-3 z-20 inline-flex h-11 w-11 items-center justify-center rounded-full bg-[var(--meet-overlay-bg)] text-[var(--meet-text-color)] backdrop-blur-md transition hover:bg-[var(--meet-control-hover-bg)] sm:bottom-4 sm:right-4",
+            "absolute right-3 z-20 inline-flex h-11 w-11 items-center justify-center rounded-full bg-[var(--meet-overlay-bg)] text-[var(--meet-text-color)] backdrop-blur-md transition hover:bg-[var(--meet-control-hover-bg)] sm:right-4",
+            fullscreen ? "top-3 sm:top-4" : "bottom-3 sm:bottom-4",
             focusFullscreen ? "opacity-100" : isMobile ? "opacity-100" : "opacity-0 group-hover:opacity-100",
           )}
+          style={fullscreen && isMobile ? { top: mobileTopOverlayInset || "12px" } : undefined}
           aria-label={focusFullscreen ? "Whiteboard fullscreen'dan chiqish" : "Whiteboard fullscreen"}
           title={focusFullscreen ? "Whiteboard fullscreen'dan chiqish" : "Whiteboard fullscreen"}
         >
@@ -638,7 +640,7 @@ export default function VideoGrid({
             {focusMobilePipTiles.map((participant) => (
               <div
                 key={`${participant.identity}-${participant.source}-focus-mobile-pip`}
-                className="h-10 w-10"
+                className="h-[4.5rem] w-[4.5rem]"
                 onClick={() => setVisibleMobilePipLabelKey(getTileKey(participant))}
               >
                 <VideoTile
@@ -794,7 +796,7 @@ export default function VideoGrid({
             {mobileFullscreenPipTiles.map((participant) => (
               <div
                 key={`${participant.identity}-${participant.source}-mobile-pip`}
-                className="h-10 w-10"
+                className="h-[4.5rem] w-[4.5rem]"
                 onClick={() => setVisibleMobilePipLabelKey(getTileKey(participant))}
               >
                 <VideoTile

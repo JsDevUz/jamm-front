@@ -95,10 +95,14 @@ const Overlay = styled.div`
   inset: ${(props) =>
     props.$minimized
       ? "calc(env(safe-area-inset-top, 0px) + 18px) calc(env(safe-area-inset-right, 0px) + 18px) auto auto"
-      : "0"};
+      : "var(--visual-viewport-offset-top, 0px) 0 auto 0"};
   width: ${(props) => (props.$minimized ? "340px" : "100vw")};
-  height: ${(props) => (props.$minimized ? "190px" : "100dvh")};
-  min-height: ${(props) => (props.$minimized ? "190px" : "100dvh")};
+  height: ${(props) =>
+    props.$minimized ? "190px" : "var(--visual-viewport-height, var(--app-height, 100dvh))"};
+  min-height: ${(props) =>
+    props.$minimized ? "190px" : "var(--visual-viewport-height, var(--app-height, 100dvh))"};
+  max-height: ${(props) =>
+    props.$minimized ? "190px" : "var(--visual-viewport-height, var(--app-height, 100dvh))"};
   z-index: 9999;
   color: var(--meet-text);
   background: var(--meet-bg);
@@ -477,9 +481,9 @@ const Overlay = styled.div`
 
   @media (max-width: 980px) {
     width: 100vw;
-    height: 100dvh;
-    min-height: 100dvh;
-    max-height: 100dvh;
+    height: var(--visual-viewport-height, var(--app-height, 100dvh));
+    min-height: var(--visual-viewport-height, var(--app-height, 100dvh));
+    max-height: var(--visual-viewport-height, var(--app-height, 100dvh));
     overflow: hidden;
 
     .lk-grid-layout,
