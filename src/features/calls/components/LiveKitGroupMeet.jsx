@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import styled, { keyframes, StyleSheetManager } from "styled-components";
 import { toast } from "react-hot-toast";
@@ -45,7 +45,10 @@ import { Track, VideoPresets, ScreenSharePresets } from "livekit-client";
 import { createLivekitToken } from "../../../api/livekitApi";
 import useAuthStore from "../../../store/authStore";
 import { RESOLVED_APP_BASE_URL } from "../../../config/env";
-import WhiteboardTile from "./WhiteboardTile";
+// WhiteboardTile is lazy — it pulls in pdfjs (~1.5 MB parsed JS) which can OOM
+// mobile Safari on /join. Only load it when the host actually opens the
+// whiteboard (`hasWhiteboard === true`).
+const WhiteboardTile = lazy(() => import("./WhiteboardTile"));
 import MeetingUI from "./meet-ui/MeetingUI";
 import { useLiveKitMeetSignaling } from "../hooks/useLiveKitMeetSignaling";
 import { useMeetRecorder } from "../hooks/useMeetRecorder";
@@ -2331,6 +2334,7 @@ function MeetContent({
   }, [closePiPWindow, isMinimized, onMaximize]);
 
   const whiteboardTile = hasWhiteboard ? (
+    <Suspense fallback={<div style={{ width: "100%", height: "100%", background: "rgba(0,0,0,0.04)" }} />}>
     <WhiteboardTile
       label="Whiteboard"
       workspace={signaling.whiteboardState}
@@ -2381,6 +2385,7 @@ function MeetContent({
       recordingElapsedMs={recorder.elapsedMs}
       recordingReady={recorder.recordingReady && !recorder.isBusy}
     />
+    </Suspense>
   ) : null;
 
   useEffect(() => {
