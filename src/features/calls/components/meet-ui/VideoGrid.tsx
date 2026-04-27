@@ -465,7 +465,7 @@ export default function VideoGrid({
             fullscreen ? "top-3 sm:top-4" : "bottom-3 sm:bottom-4",
             focusFullscreen ? "opacity-100" : isMobile ? "opacity-100" : "opacity-0 group-hover:opacity-100",
           )}
-          style={fullscreen && isMobile ? { top: mobileTopOverlayInset || "12px" } : undefined}
+          style={fullscreen ? { top: isMobile ? mobileTopOverlayInset || "12px" : "12px" } : undefined}
           aria-label={focusFullscreen ? "Whiteboard fullscreen'dan chiqish" : "Whiteboard fullscreen"}
           title={focusFullscreen ? "Whiteboard fullscreen'dan chiqish" : "Whiteboard fullscreen"}
         >
@@ -632,7 +632,7 @@ export default function VideoGrid({
       <div className="relative h-full min-h-0 w-full">
         {renderFocusContentFrame(true)}
 
-        {focusMobilePipTiles.length ? (
+        {controlsVisible && focusMobilePipTiles.length ? (
           <div
             className="absolute right-3 z-10 flex gap-2 sm:right-4"
             style={{ top: mobilePipTopInset || "12px" }}

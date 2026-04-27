@@ -4940,9 +4940,26 @@ const StrokeCanvas = ({
         draftStrokeRef.current = null;
         redrawCanvas();
       } else {
-        flushPendingPoints();
-        draftStrokeRef.current = null;
-        redrawCanvas();
+        const draftPoints = Array.isArray(activePointer?.draftPoints)
+          ? activePointer.draftPoints
+          : [];
+        if (activePointer?.strokeId && draftPoints.length > 0) {
+          onStrokeStart?.({
+            tabId,
+            pageNumber,
+            strokeId: activePointer.strokeId,
+            tool,
+            color,
+            size: brushSize,
+            point: draftPoints[0],
+            points: draftPoints,
+          });
+        }
+        pendingPointsRef.current = [];
+        window.requestAnimationFrame(() => {
+          draftStrokeRef.current = null;
+          redrawCanvas();
+        });
       }
 
       const activeCanvas = activeCanvasRef.current;
@@ -4961,7 +4978,6 @@ const StrokeCanvas = ({
       color,
       fillColor,
       shapeEdge,
-      flushPendingPoints,
       onStrokeStart,
       onToolChange,
       pageNumber,
@@ -5136,15 +5152,6 @@ const StrokeCanvas = ({
       };
 
       activeCanvasRef.current?.setPointerCapture?.(event.pointerId);
-      onStrokeStart?.({
-        tabId,
-        pageNumber,
-        strokeId,
-        tool,
-        color,
-        size: brushSize,
-        point,
-      });
       redrawCanvas();
     },
     [
@@ -5157,7 +5164,6 @@ const StrokeCanvas = ({
       findTouchedSelectableStroke,
       findTouchedTextStroke,
       interactive,
-      onStrokeStart,
       onToolChange,
       pageNumber,
       redrawCanvas,
@@ -5226,14 +5232,12 @@ const StrokeCanvas = ({
         return;
       }
 
-      const nextPendingPoints = pendingPointsRef.current;
       const nextDraftPoints = Array.isArray(activePointer.draftPoints)
         ? activePointer.draftPoints
         : [];
       let hasNewPoint = false;
       resolvedPoints.forEach((point) => {
-        hasNewPoint = appendDistinctPoint(nextPendingPoints, point) || hasNewPoint;
-        appendDistinctPoint(nextDraftPoints, point);
+        hasNewPoint = appendDistinctPoint(nextDraftPoints, point) || hasNewPoint;
       });
 
       if (!hasNewPoint) {
@@ -5251,22 +5255,14 @@ const StrokeCanvas = ({
         : draftStrokeRef.current;
       redrawCanvas();
 
-      if (pendingPointsRef.current.length >= WHITEBOARD_APPEND_BATCH_LIMIT) {
-        flushPendingPoints();
-        return;
-      }
-
-      scheduleFlush();
     },
     [
       eraseWholeStrokeAtPoint,
-      flushPendingPoints,
       fillColor,
       shapeEdge,
       interactive,
       redrawCanvas,
       resolvePoint,
-      scheduleFlush,
       stopDrawing,
       tool,
       brushSize,
@@ -6954,19 +6950,20 @@ const WhiteboardTile = ({
   }, [onSelect]);
 
   const emitCursorPosition = useCallback(
-    (x, y) => {
+    (x, y, options = {}) => {
       if (!interactive || !isActive) {
         return;
       }
 
       const clampedX = Math.min(1, Math.max(0, Number(x) || 0));
       const clampedY = Math.min(1, Math.max(0, Number(y) || 0));
+      const force = Boolean(options.force);
 
-      // Dead-zone: skip if position hasn't moved enough (normalized coords)
+      // Dead-zone: skip if position hasn't moved enough (normalized coords).
       const last = cursorBroadcastLastEmitRef.current;
       const dx = clampedX - last.x;
       const dy = clampedY - last.y;
-      if (dx * dx + dy * dy < CURSOR_DEAD_ZONE_SQ) {
+      if (!force && dx * dx + dy * dy < CURSOR_DEAD_ZONE_SQ) {
         return;
       }
       cursorBroadcastLastEmitRef.current = { x: clampedX, y: clampedY };
@@ -7038,6 +7035,50 @@ const WhiteboardTile = ({
 
       cursorBroadcastLastTimeRef.current = now;
       emitCursorPosition(cursorBroadcastPointRef.current.x, cursorBroadcastPointRef.current.y);
+    },
+    [emitCursorPosition, interactive, isActive, resolveCursorSurfaceBounds],
+  );
+
+  const handleWorkspacePointerEnd = useCallback(
+    (event) => {
+      if (!interactive || !isActive) {
+        return;
+      }
+
+      if (cursorBroadcastRafRef.current) {
+        window.clearTimeout(cursorBroadcastRafRef.current);
+        cursorBroadcastRafRef.current = 0;
+      }
+
+      const workspaceNode = workspaceBodyRef.current;
+      if (!workspaceNode) {
+        return;
+      }
+
+      const workspaceRect = workspaceNode.getBoundingClientRect();
+      const surfaceBounds = resolveCursorSurfaceBounds();
+      if (!surfaceBounds || surfaceBounds.width <= 0 || surfaceBounds.height <= 0) {
+        return;
+      }
+
+      const x =
+        (event.clientX - workspaceRect.left - surfaceBounds.left) /
+        surfaceBounds.width;
+      const y =
+        (event.clientY - workspaceRect.top - surfaceBounds.top) /
+        surfaceBounds.height;
+
+      if (!Number.isFinite(x) || !Number.isFinite(y)) {
+        return;
+      }
+
+      if (x < 0 || x > 1 || y < 0 || y > 1) {
+        return;
+      }
+
+      cursorBroadcastPointRef.current = { x, y };
+      cursorBroadcastLastTimeRef.current = performance.now();
+      emitCursorPosition(x, y, { force: true });
     },
     [emitCursorPosition, interactive, isActive, resolveCursorSurfaceBounds],
   );
@@ -9723,6 +9764,8 @@ const WhiteboardTile = ({
           ref={workspaceBodyRef}
           $compact={compact}
           onPointerMove={handleWorkspacePointerMove}
+          onPointerUp={handleWorkspacePointerEnd}
+          onPointerCancel={handleWorkspacePointerEnd}
           onPointerLeave={handleWorkspacePointerLeave}
         >
           {smoothCursor?.peerId && !interactive ? (

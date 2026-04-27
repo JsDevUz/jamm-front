@@ -231,7 +231,6 @@ export default function MeetingUI({
   const [activeReactions, setActiveReactions] = useState<ActiveReaction[]>([]);
   const [raisedHands, setRaisedHands] = useState<Record<string, RaisedHandState>>({});
   const reactionTimeoutsRef = useRef<number[]>([]);
-  const wasWhiteboardActiveRef = useRef(false);
 
   const enqueueReaction = (reaction: ActiveReaction) => {
     setActiveReactions((current) => [...current.slice(-5), reaction]);
@@ -250,10 +249,7 @@ export default function MeetingUI({
   }, []);
 
   useEffect(() => {
-    const justOpenedWhiteboard = whiteboardActive && !wasWhiteboardActiveRef.current;
-    wasWhiteboardActiveRef.current = whiteboardActive;
-
-    if (justOpenedWhiteboard && focusContent && focusKey) {
+    if (whiteboardActive && focusContent && focusKey && fullscreenTileKey !== focusKey) {
       setFullscreenTileKey(focusKey);
       return;
     }
@@ -312,7 +308,7 @@ export default function MeetingUI({
   }, [allParticipants, pinnedIdentity]);
 
   const whiteboardFullscreen = Boolean(whiteboardActive && focusContent && fullscreenTileKey === focusKey);
-  const bottomMenuVisible = whiteboardFullscreen ? true : controlsVisible;
+  const bottomMenuVisible = whiteboardFullscreen && !isMobile ? true : controlsVisible;
   const stagePaddingClass = whiteboardFullscreen
     ? "p-0"
     : isMobile
