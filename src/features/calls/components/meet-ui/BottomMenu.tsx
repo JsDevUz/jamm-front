@@ -9,7 +9,7 @@ import {
   MicOff,
   MonitorUp,
   PhoneOff,
-  Sparkles,
+  Smile,
 } from "lucide-react";
 import { cn } from "../../../../lib/utils";
 import { MEETING_REACTION_OPTIONS } from "./meeting-events";
@@ -115,6 +115,72 @@ function FloatingMenu({
       ref={surfaceRef}
       style={style}
       className="rounded-2xl border border-[var(--meet-border-color)] bg-[var(--meet-panel-muted-bg)] p-2 text-[var(--meet-text-color)] shadow-[var(--meet-shadow-color)] backdrop-blur-2xl"
+    >
+      {children}
+    </div>,
+    document.body,
+  );
+}
+
+function ReactionFloatingMenu({
+  open,
+  anchorRef,
+  surfaceRef,
+  children,
+}: {
+  open: boolean;
+  anchorRef: React.RefObject<HTMLElement | null>;
+  surfaceRef: React.RefObject<HTMLDivElement | null>;
+  children: React.ReactNode;
+}) {
+  const [style, setStyle] = useState<CSSProperties | null>(null);
+
+  useEffect(() => {
+    if (!open || typeof window === "undefined" || !anchorRef.current) {
+      setStyle(null);
+      return undefined;
+    }
+
+    const updatePosition = () => {
+      const anchor = anchorRef.current;
+      if (!anchor) return;
+
+      const rect = anchor.getBoundingClientRect();
+      const viewportPadding = 10;
+      const menuWidth = surfaceRef.current?.offsetWidth || 520;
+      const centeredLeft = rect.left + rect.width / 2 - menuWidth / 2;
+      const left = Math.min(
+        Math.max(viewportPadding, centeredLeft),
+        window.innerWidth - menuWidth - viewportPadding,
+      );
+
+      setStyle({
+        position: "fixed",
+        left,
+        top: Math.max(viewportPadding, rect.top - 14),
+        zIndex: 10060,
+        transform: "translateY(-100%)",
+      });
+    };
+
+    updatePosition();
+    const frameId = window.requestAnimationFrame(updatePosition);
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+    return () => {
+      window.cancelAnimationFrame(frameId);
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+    };
+  }, [anchorRef, open, surfaceRef]);
+
+  if (!open || !style || typeof document === "undefined") return null;
+
+  return createPortal(
+    <div
+      ref={surfaceRef}
+      style={style}
+      className="flex max-w-[calc(100vw-20px)] items-center gap-1 overflow-x-auto rounded-full border border-[var(--meet-border-color)] bg-[var(--meet-panel-muted-bg)] px-2.5 py-1.5 text-[var(--meet-text-color)] shadow-[var(--meet-shadow-color)] backdrop-blur-2xl"
     >
       {children}
     </div>,
@@ -324,11 +390,16 @@ export default function BottomMenu({
                 event.stopPropagation();
                 setOpenMenu(openMenu === "reaction" ? null : "reaction");
               }}
-              className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[18px] border border-[var(--meet-border-color)] bg-[var(--meet-control-bg)] text-[var(--meet-text-color)] transition hover:bg-[var(--meet-control-hover-bg)] sm:h-12 sm:w-12 sm:rounded-2xl lg:h-10 lg:w-10 lg:rounded-[14px]"
+              className={cn(
+                "inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[18px] border transition sm:h-12 sm:w-12 sm:rounded-2xl lg:h-10 lg:w-10 lg:rounded-[14px]",
+                openMenu === "reaction"
+                  ? "border-[#8ab4f8] bg-[#a8c7fa] text-[#123d73] hover:bg-[#b8d2fb]"
+                  : "border-[var(--meet-border-color)] bg-[var(--meet-control-bg)] text-[var(--meet-text-color)] hover:bg-[var(--meet-control-hover-bg)]",
+              )}
               aria-label="React"
               aria-expanded={openMenu === "reaction"}
             >
-              <Sparkles className="h-5 w-5 lg:h-4 lg:w-4" />
+              <Smile className="h-5 w-5 lg:h-4 lg:w-4" />
             </button>
           </div>
 
@@ -393,34 +464,30 @@ export default function BottomMenu({
         ))}
       </FloatingMenu>
 
-      <FloatingMenu
+      <ReactionFloatingMenu
         open={openMenu === "reaction"}
         anchorRef={reactionAnchorRef}
         surfaceRef={menuSurfaceRef}
-        align="right"
       >
-        <div className="px-3 pb-2 pt-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--meet-text-muted-color)]">
-          Quick reactions
-        </div>
-        <div className="grid grid-cols-3 gap-2">
-          {MEETING_REACTION_OPTIONS.map((option) => (
-            <button
-              key={option.label}
-              type="button"
-              className="flex flex-col items-center justify-center rounded-2xl border border-[var(--meet-border-color)] bg-[var(--meet-control-bg)] px-3 py-3 text-center text-[var(--meet-text-color)] transition hover:bg-[var(--meet-control-hover-bg)]"
-              onClick={() => {
-                onSendReaction?.(option.emoji, option.label);
-                setOpenMenu(null);
-              }}
-            >
-              <span className="text-2xl leading-none">{option.emoji}</span>
-              <span className="mt-1 text-[11px] font-medium text-[var(--meet-text-muted-color)]">
-                {option.label}
-              </span>
-            </button>
-          ))}
-        </div>
-      </FloatingMenu>
+        {MEETING_REACTION_OPTIONS.map((option, index) => (
+          <button
+            key={option.label}
+            type="button"
+            className={cn(
+              "flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[24px] leading-none transition hover:scale-110 hover:bg-[var(--meet-control-hover-bg)] sm:h-10 sm:w-10 sm:text-[26px]",
+              index === 3 ? "bg-[var(--meet-control-hover-bg)]" : "",
+            )}
+            onClick={() => {
+              onSendReaction?.(option.emoji, option.label);
+              setOpenMenu(null);
+            }}
+            aria-label={option.label}
+            title={option.label}
+          >
+            {option.emoji}
+          </button>
+        ))}
+      </ReactionFloatingMenu>
     </div>
   );
 }

@@ -21,6 +21,7 @@ import {
   Minus,
   MousePointer2,
   Pencil,
+  Presentation,
   Plus,
   Redo2,
   RefreshCw,
@@ -54,6 +55,31 @@ const WHITEBOARD_SWATCHES = [
   "#059669",
   "#d97706",
   "#7c3aed",
+];
+const WHITEBOARD_COLOR_PALETTE = [
+  "#fef3c7",
+  "#fcd34d",
+  "#b7791f",
+  "#ffffff",
+  "#fed7aa",
+  "#fb923c",
+  "#9a3412",
+  "#e5e7eb",
+  "#fecaca",
+  "#fb7185",
+  "#b91c1c",
+  "#a3a3a3",
+  "#bbf7d0",
+  "#22c55e",
+  "#166534",
+  "#525252",
+  "#bfdbfe",
+  "#60a5fa",
+  "#1d4ed8",
+  "#111111",
+  "#ddd6fe",
+  "#8b5cf6",
+  "#6d28d9",
 ];
 const WHITEBOARD_FILL_SWATCHES = ["", "#ffffff", ...WHITEBOARD_SWATCHES];
 const WHITEBOARD_BRUSH_PRESETS = [3, 6, 10];
@@ -123,6 +149,7 @@ const WHITEBOARD_TEXT_SIZE_OPTIONS = [
 ];
 const WHITEBOARD_TEXT_ALIGN_OPTIONS = ["left", "center", "right"];
 const WHITEBOARD_SHAPE_TOOLS = ["rectangle", "diamond", "triangle", "circle"];
+const WHITEBOARD_INK_TOOLS = ["pen", "marker", "eraser", "stroke-eraser"];
 const WHITEBOARD_SHAPE_TOOL_OPTIONS = [
   { id: "rectangle", hotkey: "7" },
   { id: "diamond", hotkey: "8" },
@@ -2609,45 +2636,54 @@ const AddTabButton = styled.button`
 
 const Toolbar = styled.div`
   display: inline-flex;
+  flex-direction: row;
   align-items: center;
   justify-content: flex-start;
-  gap: 12px;
-  padding: 10px 12px;
-  border-radius: 16px;
+  gap: 8px;
+  padding: 6px;
+  border-radius: 15px;
   border: 1px solid rgba(15, 23, 42, 0.08);
-  background: rgba(255, 255, 255, 0.88);
-  backdrop-filter: blur(12px);
-  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.1);
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(18px);
+  box-shadow:
+    0 18px 42px rgba(15, 23, 42, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
   width: fit-content;
-  max-width: calc(100% - 24px);
+  max-width: calc(100vw - 32px);
+  max-height: calc(100vh - 48px);
   overflow: visible;
-  -webkit-overflow-scrolling: touch;
   pointer-events: auto;
 
   @media (max-width: 768px) {
-    width: calc(100% - 16px);
-    max-width: calc(100% - 16px);
-    justify-content: flex-start;
+    max-height: calc(100vh - 28px);
+    padding: 6px;
+    border-radius: 14px;
   }
 `;
 
 const ToolbarMain = styled.div`
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 12px;
+  gap: 6px;
   flex-wrap: nowrap;
-  flex: 1 1 auto;
+  flex: 0 0 auto;
   min-width: 0;
-  max-width: 100%;
-  overflow-x: auto;
-  overflow-y: visible;
-  padding: 2px 0;
+  max-height: calc(100vh - 68px);
+  overflow-x: visible;
+  overflow-y: auto;
+  padding: 0;
   scrollbar-width: none;
   -webkit-overflow-scrolling: touch;
-  touch-action: pan-x;
+  touch-action: pan-y;
 
   &::-webkit-scrollbar {
     display: none;
+  }
+
+  @media (max-width: 768px) {
+    gap: 6px;
+    max-height: calc(100vh - 44px);
   }
 `;
 
@@ -2677,40 +2713,239 @@ const ToolbarHeaderActions = styled.div`
 
 const FloatingTopToolbar = styled.div`
   position: absolute;
-  top: 10px;
-  left: 50%;
-  transform: translateX(-50%);
+  top: 50%;
+  left: 16px;
+  transform: translateY(-50%);
   z-index: 8;
   display: flex;
-  justify-content: center;
-  width: 100%;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 12px;
+  width: auto;
+  max-width: calc(100% - 32px);
   overflow: visible;
   pointer-events: none;
 
   @media (max-width: 768px) {
-    top: 8px;
+    left: 10px;
+    gap: 8px;
+    max-width: calc(100% - 20px);
   }
+`;
+
+const SurfaceDock = styled.div`
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  z-index: 8;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px;
+  border-radius: 14px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(18px);
+  box-shadow:
+    0 18px 42px rgba(15, 23, 42, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  pointer-events: auto;
+
+  @media (max-width: 768px) {
+    top: 10px;
+    left: 10px;
+  }
+`;
+
+const ToolbarOptions = styled.div`
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 6px;
+  border-radius: 15px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(18px);
+  box-shadow:
+    0 18px 42px rgba(15, 23, 42, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  pointer-events: auto;
+
+  @media (max-width: 768px) {
+    padding: 6px;
+    border-radius: 14px;
+  }
+`;
+
+const InkColorGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(1, 32px);
+  gap: 8px;
+  padding: 2px 0;
+`;
+
+const InkColorButton = styled.button`
+  box-sizing: border-box;
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  border: ${(p) => (p.$active ? "3px" : "2px")} solid
+    ${(p) => (p.$active ? "#3655ff" : "rgba(203, 213, 225, 0.95)")};
+  background: rgba(255, 255, 255, 0.96);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: none;
+
+  &::before {
+    content: "";
+    width: ${(p) => (p.$active ? "6px" : "16px")};
+    height: ${(p) => (p.$active ? "6px" : "16px")};
+    border-radius: 999px;
+    background: ${(p) => p.$swatch};
+    border: ${(p) => (p.$swatch === "#ffffff" ? "1px solid rgba(15,23,42,0.22)" : "none")};
+  }
+`;
+
+const StrokeSliderWrap = styled.div`
+  width: 48px;
+  padding: 6px 0;
+  border-radius: 11px;
+  border: none;
+  background: transparent;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+`;
+
+const StrokeSliderMeta = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: rgba(15, 23, 42, 0.62);
+  font-size: 11px;
+  font-weight: 800;
+`;
+
+const StrokePreviewLine = styled.span`
+  width: 34px;
+  height: ${(p) => `${Math.max(2, Math.min(12, Number(p.$size) || 2))}px`};
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.88);
+`;
+
+const StrokeSlider = styled.input`
+  width: 100%;
+  accent-color: var(--call-primary);
+`;
+
+const ColorPalettePanel = styled.div`
+  width: 174px;
+  padding: 14px;
+  border-radius: 15px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow:
+    0 24px 48px rgba(15, 23, 42, 0.14),
+    inset 0 1px 0 rgba(255, 255, 255, 0.92);
+  pointer-events: auto;
+`;
+
+const ColorPaletteSlider = styled(StrokeSlider)`
+  display: block;
+  width: 100%;
+  margin-bottom: 14px;
+`;
+
+const ColorPanelTitle = styled.div`
+  margin: 0 0 8px;
+  color: #667085;
+  font-size: 18px;
+  font-weight: 500;
+`;
+
+const ColorPanelAction = styled.button`
+  margin: 0 0 26px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: #3655ff;
+  font-size: 18px;
+  font-weight: 700;
+  cursor: pointer;
+`;
+
+const ColorPaletteGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(4, 28px);
+  gap: 10px;
+`;
+
+const ColorPaletteButton = styled.button`
+  position: relative;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  border: 2px solid ${(p) =>
+    p.$active
+      ? "#111111"
+      : p.$swatch === "#ffffff"
+        ? "#9ca3af"
+        : `color-mix(in srgb, ${p.$swatch} 82%, #111 18%)`};
+  background: ${(p) => p.$swatch};
+  cursor: pointer;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
+
+  &::after {
+    content: ${(p) => (p.$active ? '"✓"' : '""')};
+    position: absolute;
+    inset: -2px;
+    border-radius: inherit;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: ${(p) => (p.$active ? "#18181b" : "transparent")};
+    color: #ffffff;
+    font-size: 16px;
+    font-weight: 800;
+  }
+`;
+
+const ColorPaletteAdd = styled.button`
+  width: 42px;
+  height: 42px;
+  border: none;
+  background: transparent;
+  color: #6b7280;
+  font-size: 34px;
+  line-height: 1;
+  cursor: pointer;
 `;
 
 const ToolbarGroup = styled.div`
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 8px;
+  gap: 7px;
   flex-wrap: nowrap;
   flex: 0 0 auto;
 `;
 
 const ToolbarDivider = styled.div`
-  width: 1px;
-  align-self: stretch;
+  width: 34px;
+  height: 1px;
+  align-self: center;
   background: rgba(15, 23, 42, 0.12);
-  margin: 0 2px;
+  margin: 2px 0;
 `;
 
 const ToolButton = styled.button`
-  width: 38px;
-  height: 38px;
-  border-radius: 12px;
+  width: 42px;
+  height: 42px;
+  border-radius: 13px;
   border: 1px solid
     ${(p) =>
       p.$active
@@ -2729,54 +2964,77 @@ const ToolButton = styled.button`
 
 const ToolOptionButton = styled.button`
   position: relative;
-  width: 36px;
-  height: 36px;
-  border-radius: 12px;
+  width: 40px;
+  height: 40px;
+  border-radius: 11px;
   border: 1px solid
     ${(p) =>
       p.$active
         ? "color-mix(in srgb, var(--call-primary) 48%, transparent)"
-        : "rgba(15, 23, 42, 0.08)"};
+        : "transparent"};
   background: ${(p) =>
     p.$active
-      ? "color-mix(in srgb, var(--call-primary) 12%, white 88%)"
-      : "rgba(255, 255, 255, 0.9)"};
-  color: #111111;
+      ? "rgba(54, 85, 255, 0.12)"
+      : "transparent"};
+  color: ${(p) => (p.$active ? "#3655ff" : "#111111")};
   display: inline-flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  box-shadow: ${(p) => (p.$active ? "0 8px 18px rgba(84, 91, 255, 0.12)" : "none")};
-  transition: border-color 0.16s ease, background 0.16s ease, color 0.16s ease, box-shadow 0.16s ease;
+  box-shadow: ${(p) => (p.$active ? "0 10px 20px rgba(84, 91, 255, 0.1)" : "none")};
+  transition: border-color 0.16s ease, background 0.16s ease, color 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease;
+
+  svg {
+    width: 22px;
+    height: 22px;
+    color: currentColor;
+    stroke: currentColor;
+    stroke-width: 2.35;
+  }
+
+  svg * {
+    stroke: currentColor;
+  }
+
+  &:hover {
+    background: ${(p) =>
+      p.$active
+        ? "rgba(54, 85, 255, 0.14)"
+        : "rgba(15, 23, 42, 0.04)"};
+    transform: translateY(-1px);
+  }
 `;
 
 const SurfaceSwitch = styled.div`
   display: inline-flex;
+  flex-direction: row;
   align-items: center;
-  gap: 4px;
-  padding: 3px;
-  border-radius: 14px;
-  border: 1px solid rgba(15, 23, 42, 0.08);
-  background: rgba(241, 244, 249, 0.94);
+  gap: 7px;
+  padding: 0;
+  border-radius: 0;
+  border: none;
+  background: transparent;
 `;
 
 const SurfaceSwitchButton = styled.button`
-  height: 32px;
-  min-width: 76px;
-  padding: 0 10px;
+  width: 40px;
+  height: 40px;
+  min-width: 0;
+  padding: 0;
   border-radius: 11px;
   border: 1px solid
     ${(p) =>
       p.$active
         ? "color-mix(in srgb, var(--call-primary) 44%, transparent)"
         : "transparent"};
-  background: ${(p) => (p.$active ? "rgba(255, 255, 255, 0.96)" : "transparent")};
-  color: ${(p) => (p.$active ? "#111111" : "rgba(15, 23, 42, 0.62)")};
+  background: ${(p) =>
+    p.$active ? "color-mix(in srgb, var(--call-primary) 13%, white 87%)" : "transparent"};
+  color: ${(p) => (p.$active ? "var(--call-primary)" : "rgba(15, 23, 42, 0.62)")};
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 7px;
-  font-size: 12px;
+  gap: 0;
+  font-size: 0;
   font-weight: 800;
   cursor: pointer;
   box-shadow: ${(p) => (p.$active ? "0 8px 16px rgba(15, 23, 42, 0.08)" : "none")};
@@ -2785,23 +3043,31 @@ const SurfaceSwitchButton = styled.button`
     background 0.16s ease,
     color 0.16s ease,
     box-shadow 0.16s ease;
+
+  &:hover {
+    background: ${(p) =>
+      p.$active
+        ? "color-mix(in srgb, var(--call-primary) 15%, white 85%)"
+        : "rgba(15, 23, 42, 0.04)"};
+  }
+
+  svg {
+    width: 22px;
+    height: 22px;
+    stroke-width: 2.35;
+  }
 `;
 
 const ToolHotkey = styled.span`
-  position: absolute;
-  right: 5px;
-  bottom: 4px;
-  font-size: 9px;
-  line-height: 1;
-  font-weight: 600;
-  color: rgba(15, 23, 42, 0.66);
+  display: none;
 `;
 
 const RecordToolbarButton = styled.button`
-  height: 36px;
-  min-width: ${(p) => (p.$recording ? "118px" : "82px")};
-  padding: 0 12px;
-  border-radius: 12px;
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+  padding: 0;
+  border-radius: 11px;
   border: 1px solid
     ${(p) =>
       p.$recording
@@ -2856,21 +3122,16 @@ const RecordStopGlyph = styled.span`
 `;
 
 const RecordToolbarLabel = styled.span`
-  font-size: 12px;
-  font-weight: 800;
-  letter-spacing: 0.08em;
+  display: none;
 `;
 
 const RecordToolbarTime = styled.span`
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  font-variant-numeric: tabular-nums;
+  display: none;
 `;
 
 const SwatchButton = styled.button`
-  width: 24px;
-  height: 24px;
+  width: 28px;
+  height: 28px;
   border-radius: 999px;
   border: 2px solid ${(p) => (p.$active ? "#0f172a" : "rgba(255,255,255,0.86)")};
   background: ${(p) => p.$swatch};
@@ -2955,10 +3216,10 @@ const PickerWrap = styled.div`
 `;
 
 const CurrentValueButton = styled.button`
-  width: 36px;
-  height: 36px;
+  width: 40px;
+  height: 40px;
   padding: 0;
-  border-radius: 12px;
+  border-radius: 11px;
   border: 1px solid
     ${(p) =>
       p.$active
@@ -2973,6 +3234,12 @@ const CurrentValueButton = styled.button`
   align-items: center;
   justify-content: center;
   cursor: pointer;
+
+  svg {
+    width: 22px;
+    height: 22px;
+    stroke-width: 2.35;
+  }
 `;
 
 const CurrentColorDot = styled.span`
@@ -3000,11 +3267,13 @@ const CurrentFillSwatch = styled.span`
 const PickerPopoverPanel = styled.div`
   position: fixed;
   z-index: 10000;
-  padding: 10px;
-  border-radius: 16px;
+  padding: 8px;
+  border-radius: 15px;
   border: 1px solid rgba(15, 23, 42, 0.08);
   background: rgba(255, 255, 255, 0.96);
-  box-shadow: 0 18px 34px rgba(15, 23, 42, 0.14);
+  box-shadow:
+    0 18px 38px rgba(15, 23, 42, 0.15),
+    inset 0 1px 0 rgba(255, 255, 255, 0.88);
   backdrop-filter: blur(12px);
 `;
 
@@ -3043,16 +3312,17 @@ const PickerPopover = ({ children }) => {
       const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0;
       const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
       const gap = 10;
-      const nextLeft = Math.min(
-        Math.max(8, rect.left),
-        Math.max(8, viewportWidth - panelWidth - 8),
+      const rightLeft = rect.right + gap;
+      const leftLeft = rect.left - panelWidth - gap;
+      const nextLeft =
+        rightLeft + panelWidth <= viewportWidth - 8
+          ? rightLeft
+          : Math.max(8, leftLeft);
+      const centeredTop = rect.top + rect.height / 2 - panelHeight / 2;
+      const nextTop = Math.min(
+        Math.max(8, centeredTop),
+        Math.max(8, viewportHeight - panelHeight - 8),
       );
-      const belowTop = rect.bottom + gap;
-      const aboveTop = rect.top - panelHeight - gap;
-      const nextTop =
-        belowTop + panelHeight <= viewportHeight - 8
-          ? belowTop
-          : Math.max(8, aboveTop);
 
       setPosition({ left: nextLeft, top: nextTop });
     };
@@ -4763,10 +5033,12 @@ const StrokeCanvas = ({
       return;
     }
 
+    // 16ms ≈ one animation frame — guests see strokes within a single frame
+    // of the creator drawing them instead of the previous ~40ms lag.
     flushTimeoutRef.current = window.setTimeout(() => {
       flushTimeoutRef.current = null;
       flushPendingPoints();
-    }, 40);
+    }, 16);
   }, [flushPendingPoints]);
 
   useEffect(
@@ -6360,6 +6632,20 @@ const WhiteboardTile = ({
   const [pdfPageImages, setPdfPageImages] = useState({});
   const [boardZoom, setBoardZoom] = useState(1);
   const [isColorPickerOpen, setIsColorPickerOpen] = useState(false);
+  const [inkPanelOpen, setInkPanelOpen] = useState(false);
+  const [activeInkSlotIndex, setActiveInkSlotIndex] = useState(0);
+  const [inkQuickSlots, setInkQuickSlots] = useState(() => {
+    const initialWidth = clampValue(
+      Number(brushSize) || WHITEBOARD_DEFAULT_BRUSH_SIZE,
+      2,
+      24,
+    );
+    return [
+      { color: String(color || WHITEBOARD_DEFAULT_COLOR).toLowerCase(), width: initialWidth },
+      { color: "#dc2626", width: initialWidth },
+      { color: "#22c55e", width: initialWidth },
+    ];
+  });
   const [isShapePickerOpen, setIsShapePickerOpen] = useState(false);
   const [isFillPickerOpen, setIsFillPickerOpen] = useState(false);
   const [isEdgePickerOpen, setIsEdgePickerOpen] = useState(false);
@@ -8777,7 +9063,10 @@ const WhiteboardTile = ({
       pinchStateRef.current = {
         active: true,
         distance: getTouchDistance(event.touches),
+        startDistance: getTouchDistance(event.touches),
+        startZoom: liveZoom,
         zoom: liveZoom,
+        pendingZoom: liveZoom,
         anchorX,
         anchorY,
         contentX: (viewport.scrollLeft + anchorX) / Math.max(WHITEBOARD_MIN_ZOOM, liveZoom),
@@ -8785,35 +9074,50 @@ const WhiteboardTile = ({
       };
     };
 
+    // On mobile pinch we used to call scheduleZoom (= a full PDF re-render)
+    // every touchmove tick. iOS Safari runs out of memory after a few seconds
+    // and kills the tab ("A problem repeatedly occurred"). Now we just buffer
+    // the latest pinch ratio and apply it once on touchend.
     const handleTouchMove = (event) => {
       if (!pinchStateRef.current.active || event.touches.length < 2) {
         return;
       }
 
       const nextDistance = getTouchDistance(event.touches);
-      if (!nextDistance || !pinchStateRef.current.distance) {
+      if (!nextDistance || !pinchStateRef.current.startDistance) {
         return;
       }
 
       event.preventDefault();
-      const zoomRatio = amplifyZoomRatio(nextDistance / pinchStateRef.current.distance);
+      const zoomRatio = amplifyZoomRatio(
+        nextDistance / pinchStateRef.current.startDistance,
+      );
       const nextZoom = Math.min(
         WHITEBOARD_MAX_ZOOM,
-        Math.max(WHITEBOARD_MIN_ZOOM, pinchStateRef.current.zoom * zoomRatio),
+        Math.max(
+          WHITEBOARD_MIN_ZOOM,
+          pinchStateRef.current.startZoom * zoomRatio,
+        ),
       );
-      if (Math.abs(nextZoom - livePdfZoomRef.current) < 0.002) {
-        return;
-      }
-      pdfZoomAnchorRef.current = {
-        anchorX: pinchStateRef.current.anchorX,
-        anchorY: pinchStateRef.current.anchorY,
-        contentX: pinchStateRef.current.contentX,
-        contentY: pinchStateRef.current.contentY,
-      };
-      scheduleZoom(nextZoom);
+      pinchStateRef.current.pendingZoom = nextZoom;
     };
 
     const handleTouchEnd = () => {
+      // Apply the buffered pinch zoom once, on release. Avoids per-frame
+      // PDF re-renders that crash mobile Safari.
+      const state = pinchStateRef.current;
+      if (state.active && typeof state.pendingZoom === "number") {
+        const target = state.pendingZoom;
+        if (Math.abs(target - livePdfZoomRef.current) > 0.002) {
+          pdfZoomAnchorRef.current = {
+            anchorX: state.anchorX,
+            anchorY: state.anchorY,
+            contentX: state.contentX,
+            contentY: state.contentY,
+          };
+          scheduleZoom(target);
+        }
+      }
       pinchStateRef.current.active = false;
       window.setTimeout(() => {
         pdfUserGestureRef.current = false;
@@ -9631,6 +9935,85 @@ const WhiteboardTile = ({
   const activeShapeTool = shapeToolActive ? tool : "rectangle";
   const activeShapeLabel = t(`groupCall.whiteboard.${activeShapeTool}`);
   const edgeToolActive = ["rectangle", "diamond", "triangle"].includes(tool);
+  const inkToolActive = WHITEBOARD_INK_TOOLS.includes(tool);
+  const activeInkSlot = inkQuickSlots[activeInkSlotIndex] || inkQuickSlots[0] || {
+    color: String(color || WHITEBOARD_DEFAULT_COLOR).toLowerCase(),
+    width: clampValue(Number(brushSize) || WHITEBOARD_DEFAULT_BRUSH_SIZE, 2, 24),
+  };
+  const strokeSliderValue = clampValue(
+    Number(activeInkSlot.width) || Number(brushSize) || WHITEBOARD_DEFAULT_BRUSH_SIZE,
+    2,
+    24,
+  );
+  const secondaryToolbarVisible =
+    (inkToolActive && inkPanelOpen) ||
+    textControlsVisible ||
+    shapeToolActive ||
+    edgeToolActive;
+
+  const closeInkPanels = useCallback(() => {
+    setInkPanelOpen(false);
+    setIsColorPickerOpen(false);
+  }, []);
+
+  const applyInkSlot = useCallback(
+    (slotIndex, { openPalette = false, closePanels = false } = {}) => {
+      const slot = inkQuickSlots[slotIndex];
+      if (!slot) {
+        return;
+      }
+
+      setActiveInkSlotIndex(slotIndex);
+      onColorChange?.(slot.color);
+      onBrushSizeChange?.(clampValue(Number(slot.width) || WHITEBOARD_DEFAULT_BRUSH_SIZE, 2, 24));
+
+      if (closePanels) {
+        closeInkPanels();
+        return;
+      }
+
+      setInkPanelOpen(false);
+      setIsColorPickerOpen(openPalette);
+    },
+    [closeInkPanels, inkQuickSlots, onBrushSizeChange, onColorChange],
+  );
+
+  const updateActiveInkSlot = useCallback(
+    (patch, { closePanels = false } = {}) => {
+      const nextPatch = { ...patch };
+      if (nextPatch.color) {
+        nextPatch.color = String(nextPatch.color).toLowerCase();
+        onColorChange?.(nextPatch.color);
+      }
+      if (nextPatch.width) {
+        nextPatch.width = clampValue(
+          Number(nextPatch.width) || WHITEBOARD_DEFAULT_BRUSH_SIZE,
+          2,
+          24,
+        );
+        onBrushSizeChange?.(nextPatch.width);
+      }
+
+      setInkQuickSlots((current) =>
+        current.map((slot, slotIndex) =>
+          slotIndex === activeInkSlotIndex ? { ...slot, ...nextPatch } : slot,
+        ),
+      );
+
+      if (closePanels) {
+        closeInkPanels();
+      }
+    },
+    [activeInkSlotIndex, closeInkPanels, onBrushSizeChange, onColorChange],
+  );
+
+  const handleStrokeStartWithToolbarClose = useCallback(
+    (...args) => {
+      closeInkPanels();
+      onStrokeStart?.(...args);
+    },
+    [closeInkPanels, onStrokeStart],
+  );
 
   const viewerOnly = !interactive;
   const shouldShowChrome = false;
@@ -9841,7 +10224,11 @@ const WhiteboardTile = ({
 
   useHotkeys(
     "2",
-    () => onToolChange?.("pen"),
+    () => {
+      onToolChange?.("pen");
+      setInkPanelOpen(true);
+      setIsColorPickerOpen(false);
+    },
     { enabled: interactive && !isPdfLibraryOpen, preventDefault: true },
     [interactive, isPdfLibraryOpen, onToolChange],
   );
@@ -9942,7 +10329,7 @@ const WhiteboardTile = ({
 
   useHotkeys(
     "[",
-    () => onBrushSizeChange?.(Math.max(2, brushSize - 1)),
+    () => updateActiveInkSlot({ width: strokeSliderValue - 1 }),
     {
       enabled:
         interactive &&
@@ -9951,12 +10338,12 @@ const WhiteboardTile = ({
         tool !== "text",
       preventDefault: true,
     },
-    [brushSize, interactive, isPdfLibraryOpen, onBrushSizeChange, tool],
+    [interactive, isPdfLibraryOpen, strokeSliderValue, tool, updateActiveInkSlot],
   );
 
   useHotkeys(
     "]",
-    () => onBrushSizeChange?.(Math.min(24, brushSize + 1)),
+    () => updateActiveInkSlot({ width: strokeSliderValue + 1 }),
     {
       enabled:
         interactive &&
@@ -9965,7 +10352,7 @@ const WhiteboardTile = ({
         tool !== "text",
       preventDefault: true,
     },
-    [brushSize, interactive, isPdfLibraryOpen, onBrushSizeChange, tool],
+    [interactive, isPdfLibraryOpen, strokeSliderValue, tool, updateActiveInkSlot],
   );
 
   useHotkeys(
@@ -9985,6 +10372,7 @@ const WhiteboardTile = ({
   useEffect(() => {
     if (!interactive) {
       setIsColorPickerOpen(false);
+      setInkPanelOpen(false);
       setIsShapePickerOpen(false);
       setIsFillPickerOpen(false);
       setIsEdgePickerOpen(false);
@@ -10005,6 +10393,7 @@ const WhiteboardTile = ({
       const clickedInsidePicker = Array.from(pickerRoots).some((root) => root.contains(target));
       if (!clickedInsidePicker) {
         setIsColorPickerOpen(false);
+        setInkPanelOpen(false);
         setIsShapePickerOpen(false);
         setIsFillPickerOpen(false);
         setIsEdgePickerOpen(false);
@@ -10119,8 +10508,8 @@ const WhiteboardTile = ({
           onPointerCancel={handleWorkspacePointerEnd}
           onPointerLeave={handleWorkspacePointerLeave}
         >
-          {smoothCursor?.peerId && !interactive ? (
-            <RemoteCursorLayer style={remoteCursorLayerStyle}>
+	          {smoothCursor?.peerId && !interactive ? (
+	            <RemoteCursorLayer style={remoteCursorLayerStyle}>
               <RemoteCursorWrap $x={smoothCursor.x} $y={smoothCursor.y}>
                 <RemoteCursorGlyph>
                   <MousePointer2 size={18} strokeWidth={2.25} />
@@ -10128,582 +10517,317 @@ const WhiteboardTile = ({
                 <RemoteCursorLabel>
                   {smoothCursor.displayName || t("groupCall.guest")}
                 </RemoteCursorLabel>
-              </RemoteCursorWrap>
-            </RemoteCursorLayer>
-          ) : null}
-          {shouldShowToolbar ? (
-            <FloatingTopToolbar onClick={(event) => event.stopPropagation()}>
-              <Toolbar>
-                <ToolbarMain>
-                  <ToolbarGroup>
-                    <SurfaceSwitch role="tablist" aria-label="Whiteboard material">
-                      <SurfaceSwitchButton
-                        type="button"
-                        role="tab"
-                        $active={activeSurfaceMode !== "pdf"}
-                        aria-selected={activeSurfaceMode !== "pdf"}
-                        onClick={() => handleSurfaceModeSelect("board")}
-                        title="Doska"
-                      >
-                        <Pencil size={14} />
-                        Doska
-                      </SurfaceSwitchButton>
-                      <SurfaceSwitchButton
-                        type="button"
-                        role="tab"
-                        $active={activeSurfaceMode === "pdf"}
-                        aria-selected={activeSurfaceMode === "pdf"}
-                        onClick={() => handleSurfaceModeSelect("pdf")}
-                        title="PDF"
-                      >
-                        <FileText size={14} />
-                        PDF
-                      </SurfaceSwitchButton>
-                    </SurfaceSwitch>
-                    <ToolOptionButton
-                      type="button"
-                      onClick={handlePdfAddClick}
-                      aria-label={changePdfTitle}
-                      title={changePdfTitle}
-                    >
-                      <RefreshCw size={14} />
-                    </ToolOptionButton>
-                  </ToolbarGroup>
-                  <ToolbarDivider aria-hidden="true" />
+	              </RemoteCursorWrap>
+	            </RemoteCursorLayer>
+	          ) : null}
+	          {shouldShowToolbar ? (
+	            <SurfaceDock onClick={(event) => event.stopPropagation()}>
+	              <SurfaceSwitch role="tablist" aria-label="Whiteboard material">
+	                <SurfaceSwitchButton
+	                  type="button"
+	                  role="tab"
+	                  $active={activeSurfaceMode !== "pdf"}
+	                  aria-selected={activeSurfaceMode !== "pdf"}
+	                  onClick={() => handleSurfaceModeSelect("board")}
+	                  title="Doska"
+	                >
+	                  <Presentation size={14} />
+	                  Doska
+	                </SurfaceSwitchButton>
+	                <SurfaceSwitchButton
+	                  type="button"
+	                  role="tab"
+	                  $active={activeSurfaceMode === "pdf"}
+	                  aria-selected={activeSurfaceMode === "pdf"}
+	                  onClick={() => handleSurfaceModeSelect("pdf")}
+	                  title="PDF"
+	                >
+	                  <FileText size={14} />
+	                  PDF
+	                </SurfaceSwitchButton>
+	              </SurfaceSwitch>
+	              <ToolOptionButton
+	                type="button"
+	                onClick={handlePdfAddClick}
+	                aria-label={changePdfTitle}
+	                title={changePdfTitle}
+	              >
+	                <RefreshCw size={14} />
+	              </ToolOptionButton>
+	            </SurfaceDock>
+	          ) : null}
+		          {shouldShowToolbar ? (
+		            <FloatingTopToolbar onClick={(event) => event.stopPropagation()}>
+		              <Toolbar>
+		                <ToolbarMain>
+		                  <ToolbarGroup>
+	                    <ToolOptionButton type="button" $active={tool === "select"} onClick={() => onToolChange?.("select")} aria-label={t("groupCall.whiteboard.select")} title={selectTitle}>
+	                      <MousePointer2 size={14} />
+	                    </ToolOptionButton>
+	                    <ToolOptionButton
+	                      type="button"
+	                      $active={inkToolActive}
+	                      onClick={() => {
+	                        onToolChange?.(inkToolActive ? tool : "pen");
+	                        setInkPanelOpen(true);
+	                        setIsColorPickerOpen(false);
+	                      }}
+	                      aria-label={t("groupCall.whiteboard.pen")}
+	                      title={penTitle}
+	                    >
+	                      <Pencil size={14} />
+	                    </ToolOptionButton>
+	                    <ToolOptionButton type="button" $active={tool === "text"} onClick={() => onToolChange?.("text")} aria-label={t("groupCall.whiteboard.text")} title={textTitle}>
+	                      <Type size={14} />
+	                    </ToolOptionButton>
+	                    <ToolOptionButton type="button" $active={tool === "arrow"} onClick={() => onToolChange?.("arrow")} aria-label={t("groupCall.whiteboard.arrow")} title={arrowTitle}>
+	                      <ArrowRight size={14} />
+	                    </ToolOptionButton>
+	                    <ToolOptionButton type="button" $active={shapeToolActive} onClick={() => onToolChange?.(activeShapeTool)} aria-label={t("groupCall.whiteboard.shape")} title={activeShapeLabel}>
+	                      {renderShapeToolIcon(activeShapeTool, 14)}
+	                    </ToolOptionButton>
+	                  </ToolbarGroup>
+	                  <ToolbarDivider aria-hidden="true" />
+	                  <ToolbarGroup data-whiteboard-picker-root>
+	                    <InkColorGrid>
+	                      {inkQuickSlots.map((slot, index) => (
+	                        <InkColorButton
+	                          key={`main-ink-slot-${index}`}
+	                          type="button"
+	                          $swatch={slot.color}
+	                          $active={activeInkSlotIndex === index}
+	                          onClick={() => {
+	                            if (activeInkSlotIndex === index) {
+	                              applyInkSlot(index, { openPalette: !isColorPickerOpen });
+	                              return;
+	                            }
+	                            applyInkSlot(index, { closePanels: true });
+	                          }}
+	                          aria-label={t("groupCall.whiteboard.colorSwatch", { color: slot.color })}
+	                        />
+	                      ))}
+	                    </InkColorGrid>
+	                  </ToolbarGroup>
+	                  <ToolbarDivider aria-hidden="true" />
+	                  <ToolbarGroup>
+	                    <span title={recordingComingSoonTitle} style={{ display: "inline-flex" }}>
+	                      <RecordToolbarButton type="button" $recording={isRecording} disabled aria-label={recordingComingSoonTitle} title={recordingComingSoonTitle}>
+	                        {isRecording ? <RecordStopGlyph aria-hidden="true" /> : <RecordDot aria-hidden="true" />}
+	                        {isRecording ? <RecordToolbarTime>{recordElapsedLabel}</RecordToolbarTime> : <RecordToolbarLabel>REC</RecordToolbarLabel>}
+	                      </RecordToolbarButton>
+	                    </span>
+	                  </ToolbarGroup>
+	                </ToolbarMain>
+	              </Toolbar>
 
-                  <ToolbarGroup>
-                    <ToolOptionButton
-                      type="button"
-                      $active={tool === "select"}
-                      onClick={() => onToolChange?.("select")}
-                      aria-label={t("groupCall.whiteboard.select")}
-                      title={selectTitle}
-                    >
-                      <MousePointer2 size={14} />
-                      <ToolHotkey>1</ToolHotkey>
-                    </ToolOptionButton>
-                    <ToolOptionButton
-                      type="button"
-                      $active={tool === "pen"}
-                      onClick={() => onToolChange?.("pen")}
-                      aria-label={t("groupCall.whiteboard.pen")}
-                      title={penTitle}
-                    >
-                      <Pencil size={14} />
-                      <ToolHotkey>2</ToolHotkey>
-                    </ToolOptionButton>
-                    <ToolOptionButton
-                      type="button"
-                      $active={tool === "marker"}
-                      onClick={() => onToolChange?.("marker")}
-                      aria-label={t("groupCall.whiteboard.marker")}
-                      title={markerTitle}
-                    >
-                      <Highlighter size={14} />
-                    </ToolOptionButton>
-                    <ToolOptionButton
-                      type="button"
-                      $active={tool === "text"}
-                      onClick={() => onToolChange?.("text")}
-                      aria-label={t("groupCall.whiteboard.text")}
-                      title={textTitle}
-                    >
-                      <Type size={14} />
-                      <ToolHotkey>3</ToolHotkey>
-                    </ToolOptionButton>
-                    <ToolOptionButton
-                      type="button"
-                      $active={tool === "eraser"}
-                      onClick={() => onToolChange?.("eraser")}
-                      aria-label={t("groupCall.whiteboard.eraser")}
-                      title={eraserTitle}
-                    >
-                      <Eraser size={14} />
-                      <ToolHotkey>4</ToolHotkey>
-                    </ToolOptionButton>
-                    <ToolOptionButton
-                      type="button"
-                      $active={tool === "stroke-eraser"}
-                      onClick={() => onToolChange?.("stroke-eraser")}
-                      aria-label={t("groupCall.whiteboard.strokeEraser")}
-                      title={strokeEraserTitle}
-                    >
-                      <TbVacuumCleaner size={15} />
-                      <ToolHotkey>5</ToolHotkey>
-                    </ToolOptionButton>
-                    <ToolOptionButton
-                      type="button"
-                      $active={tool === "arrow"}
-                      onClick={() => onToolChange?.("arrow")}
-                      aria-label={t("groupCall.whiteboard.arrow")}
-                      title={arrowTitle}
-                    >
-                      <ArrowRight size={14} />
-                      <ToolHotkey>6</ToolHotkey>
-                    </ToolOptionButton>
-                    <PickerWrap data-whiteboard-picker-root>
-                      <ToolOptionButton
-                        type="button"
-                        $active={shapeToolActive}
-                        onClick={() => {
-                          setIsShapePickerOpen((prev) => !prev);
-                          setIsColorPickerOpen(false);
-                          setIsFillPickerOpen(false);
-                          setIsEdgePickerOpen(false);
-                          setIsSizePickerOpen(false);
-                          setIsTextFontPickerOpen(false);
-                          setIsTextSizePickerOpen(false);
-                          setIsTextAlignPickerOpen(false);
-                        }}
-                        aria-label={t("groupCall.whiteboard.shape")}
-                        title={activeShapeLabel}
-                      >
-                        {renderShapeToolIcon(activeShapeTool, 14)}
-                        <ToolHotkey>7</ToolHotkey>
-                      </ToolOptionButton>
-                      {isShapePickerOpen ? (
-                        <PickerPopover>
-                          <PickerColumn>
-                            {WHITEBOARD_SHAPE_TOOL_OPTIONS.map((shapeOption) => {
-                              const shapeTitle =
-                                shapeOption.id === "rectangle"
-                                  ? rectangleTitle
-                                  : shapeOption.id === "diamond"
-                                    ? diamondTitle
-                                    : shapeOption.id === "triangle"
-                                      ? triangleTitle
-                                      : circleTitle;
-                              return (
-                                <TextPillButton
-                                  key={shapeOption.id}
-                                  type="button"
-                                  $active={tool === shapeOption.id}
-                                  onClick={() => {
-                                    onToolChange?.(shapeOption.id);
-                                    setIsShapePickerOpen(false);
-                                  }}
-                                  aria-label={t(`groupCall.whiteboard.${shapeOption.id}`)}
-                                  title={shapeTitle}
-                                >
-                                  {renderShapeToolIcon(shapeOption.id, 14)}
-                                  <ToolHotkey>{shapeOption.hotkey}</ToolHotkey>
-                                </TextPillButton>
-                              );
-                            })}
-                          </PickerColumn>
-                        </PickerPopover>
-                      ) : null}
-                    </PickerWrap>
-                    {textControlsVisible ? (
-                      <>
-                      <TextControlGroup>
-                        <PickerWrap data-whiteboard-picker-root>
-                          <CurrentValueButton
-                            type="button"
-                            $active
-                            onClick={() => {
-                              setIsTextFontPickerOpen((prev) => !prev);
-                              setIsTextSizePickerOpen(false);
-                              setIsTextAlignPickerOpen(false);
-                              setIsColorPickerOpen(false);
-                              setIsShapePickerOpen(false);
-                              setIsFillPickerOpen(false);
-                              setIsEdgePickerOpen(false);
-                              setIsSizePickerOpen(false);
-                            }}
-                            aria-label="Font family"
-                            title="Font family"
-                          >
-                            <span
-                              style={{
-                                fontFamily: getTextFontFamily(resolvedTextFontFamily),
-                                fontSize: 12,
-                                fontWeight: 700,
-                                color: "#111111",
-                              }}
-                            >
-                              {WHITEBOARD_TEXT_FONT_OPTIONS.find(
-                                (option) => option.id === resolvedTextFontFamily,
-                              )?.label?.slice(0, 1) || "S"}
-                            </span>
-                          </CurrentValueButton>
-                          {isTextFontPickerOpen ? (
-                            <PickerPopover>
-                              <PickerColumn>
-                                {WHITEBOARD_TEXT_FONT_OPTIONS.map((option) => (
-                                  <TextPillButton
-                                    key={option.id}
-                                    type="button"
-                                    $active={resolvedTextFontFamily === option.id}
-                                    style={{ fontFamily: option.family }}
-                                    onClick={() => {
-                                      onTextFontFamilyChange?.(option.id);
-                                      setIsTextFontPickerOpen(false);
-                                    }}
-                                    aria-label={option.label}
-                                    title={option.label}
-                                  >
-                                    {option.label}
-                                  </TextPillButton>
-                                ))}
-                              </PickerColumn>
-                            </PickerPopover>
-                          ) : null}
-                        </PickerWrap>
-                      </TextControlGroup>
+	              {secondaryToolbarVisible ? (
+		                <ToolbarOptions data-whiteboard-picker-root>
+		                  {inkToolActive ? (
+		                    <>
+		                      <ToolOptionButton type="button" $active={tool === "pen"} onClick={() => { onToolChange?.("pen"); setInkPanelOpen(true); }} aria-label={t("groupCall.whiteboard.pen")} title={penTitle}>
+		                        <Pencil size={14} />
+		                      </ToolOptionButton>
+		                      <ToolOptionButton type="button" $active={tool === "marker"} onClick={() => { onToolChange?.("marker"); setInkPanelOpen(true); }} aria-label={t("groupCall.whiteboard.marker")} title={markerTitle}>
+		                        <Highlighter size={14} />
+		                      </ToolOptionButton>
+		                      <ToolOptionButton type="button" $active={tool === "eraser"} onClick={() => { onToolChange?.("eraser"); setInkPanelOpen(true); setIsColorPickerOpen(false); }} aria-label={t("groupCall.whiteboard.eraser")} title={eraserTitle}>
+		                        <Eraser size={14} />
+		                      </ToolOptionButton>
+		                      <ToolOptionButton type="button" $active={tool === "stroke-eraser"} onClick={() => { onToolChange?.("stroke-eraser"); setInkPanelOpen(true); setIsColorPickerOpen(false); }} aria-label={t("groupCall.whiteboard.strokeEraser")} title={strokeEraserTitle}>
+		                        <TbVacuumCleaner size={15} />
+		                      </ToolOptionButton>
+			                    </>
+			                  ) : null}
 
-                      <TextControlGroup>
-                        <PickerWrap data-whiteboard-picker-root>
-                          <CurrentValueButton
-                            type="button"
-                            $active
-                            onClick={() => {
-                              setIsTextSizePickerOpen((prev) => !prev);
-                              setIsTextFontPickerOpen(false);
-                              setIsTextAlignPickerOpen(false);
-                              setIsColorPickerOpen(false);
-                              setIsShapePickerOpen(false);
-                              setIsFillPickerOpen(false);
-                              setIsEdgePickerOpen(false);
-                              setIsSizePickerOpen(false);
-                            }}
-                            aria-label="Text size"
-                            title="Text size"
-                          >
-                            <span
-                              style={{
-                                fontSize: 12,
-                                fontWeight: 700,
-                                color: "#111111",
-                              }}
-                            >
-                              {WHITEBOARD_TEXT_SIZE_OPTIONS.find(
-                                (option) => option.id === resolvedTextSize,
-                              )?.label || "M"}
-                            </span>
-                          </CurrentValueButton>
-                          {isTextSizePickerOpen ? (
-                            <PickerPopover>
-                              <PickerColumn>
-                                {WHITEBOARD_TEXT_SIZE_OPTIONS.map((option) => (
-                                  <TextPillButton
-                                    key={option.id}
-                                    type="button"
-                                    $active={resolvedTextSize === option.id}
-                                    onClick={() => {
-                                      onTextSizeChange?.(option.id);
-                                      setIsTextSizePickerOpen(false);
-                                    }}
-                                    aria-label={`Text size ${option.label}`}
-                                    title={`Text size ${option.label}`}
-                                  >
-                                    {option.label}
-                                  </TextPillButton>
-                                ))}
-                              </PickerColumn>
-                            </PickerPopover>
-                          ) : null}
-                        </PickerWrap>
-                      </TextControlGroup>
+		                  {shapeToolActive ? (
+		                    <>
+		                      {WHITEBOARD_SHAPE_TOOL_OPTIONS.map((shapeOption) => {
+	                        const shapeTitle =
+	                          shapeOption.id === "rectangle"
+	                            ? rectangleTitle
+	                            : shapeOption.id === "diamond"
+	                              ? diamondTitle
+	                              : shapeOption.id === "triangle"
+	                                ? triangleTitle
+	                                : circleTitle;
+	                        return (
+	                          <ToolOptionButton
+	                            key={shapeOption.id}
+	                            type="button"
+	                            $active={tool === shapeOption.id}
+	                            onClick={() => onToolChange?.(shapeOption.id)}
+	                            aria-label={t(`groupCall.whiteboard.${shapeOption.id}`)}
+	                            title={shapeTitle}
+	                          >
+	                            {renderShapeToolIcon(shapeOption.id, 14)}
+	                          </ToolOptionButton>
+	                        );
+	                      })}
+	                      <ToolbarDivider aria-hidden="true" />
+	                    </>
+	                  ) : null}
 
-                      <TextControlGroup>
-                        <PickerWrap data-whiteboard-picker-root>
-                          <CurrentValueButton
-                            type="button"
-                            $active
-                            onClick={() => {
-                              setIsTextAlignPickerOpen((prev) => !prev);
-                              setIsTextFontPickerOpen(false);
-                              setIsTextSizePickerOpen(false);
-                              setIsColorPickerOpen(false);
-                              setIsShapePickerOpen(false);
-                              setIsFillPickerOpen(false);
-                              setIsEdgePickerOpen(false);
-                              setIsSizePickerOpen(false);
-                            }}
-                            aria-label="Text align"
-                            title="Text align"
-                          >
-                            {resolvedTextAlign === "center" ? (
-                              <AlignCenter size={14} />
-                            ) : resolvedTextAlign === "right" ? (
-                              <AlignRight size={14} />
-                            ) : (
-                              <AlignLeft size={14} />
-                            )}
-                          </CurrentValueButton>
-                          {isTextAlignPickerOpen ? (
-                            <PickerPopover>
-                              <PickerColumn>
-                                <TextPillButton
-                                  type="button"
-                                  $active={resolvedTextAlign === "left"}
-                                  onClick={() => {
-                                    onTextAlignChange?.("left");
-                                    setIsTextAlignPickerOpen(false);
-                                  }}
-                                  aria-label="Align left"
-                                  title="Align left"
-                                >
-                                  <AlignLeft size={14} />
-                                </TextPillButton>
-                                <TextPillButton
-                                  type="button"
-                                  $active={resolvedTextAlign === "center"}
-                                  onClick={() => {
-                                    onTextAlignChange?.("center");
-                                    setIsTextAlignPickerOpen(false);
-                                  }}
-                                  aria-label="Align center"
-                                  title="Align center"
-                                >
-                                  <AlignCenter size={14} />
-                                </TextPillButton>
-                                <TextPillButton
-                                  type="button"
-                                  $active={resolvedTextAlign === "right"}
-                                  onClick={() => {
-                                    onTextAlignChange?.("right");
-                                    setIsTextAlignPickerOpen(false);
-                                  }}
-                                  aria-label="Align right"
-                                  title="Align right"
-                                >
-                                  <AlignRight size={14} />
-                                </TextPillButton>
-                              </PickerColumn>
-                            </PickerPopover>
-                          ) : null}
-                        </PickerWrap>
-                      </TextControlGroup>
-                      </>
-                    ) : null}
-                  </ToolbarGroup>
-                  <ToolbarDivider aria-hidden="true" />
+	                  {textControlsVisible ? (
+	                    <>
+	                      <PickerWrap data-whiteboard-picker-root>
+	                        <CurrentValueButton type="button" $active onClick={() => {
+	                          setIsTextFontPickerOpen((prev) => !prev);
+	                          setIsTextSizePickerOpen(false);
+	                          setIsTextAlignPickerOpen(false);
+	                          setIsColorPickerOpen(false);
+	                          setIsFillPickerOpen(false);
+	                          setIsEdgePickerOpen(false);
+	                          setIsSizePickerOpen(false);
+	                        }} aria-label="Font family" title="Font family">
+	                          <span style={{ fontFamily: getTextFontFamily(resolvedTextFontFamily), fontSize: 12, fontWeight: 700, color: "#111111" }}>
+	                            {WHITEBOARD_TEXT_FONT_OPTIONS.find((option) => option.id === resolvedTextFontFamily)?.label?.slice(0, 1) || "S"}
+	                          </span>
+	                        </CurrentValueButton>
+	                        {isTextFontPickerOpen ? (
+	                          <PickerPopover>
+	                            <PickerColumn>
+	                              {WHITEBOARD_TEXT_FONT_OPTIONS.map((option) => (
+	                                <TextPillButton key={option.id} type="button" $active={resolvedTextFontFamily === option.id} style={{ fontFamily: option.family }} onClick={() => {
+	                                  onTextFontFamilyChange?.(option.id);
+	                                  setIsTextFontPickerOpen(false);
+	                                }} aria-label={option.label} title={option.label}>
+	                                  {option.label}
+	                                </TextPillButton>
+	                              ))}
+	                            </PickerColumn>
+	                          </PickerPopover>
+	                        ) : null}
+	                      </PickerWrap>
+	                      <PickerWrap data-whiteboard-picker-root>
+	                        <CurrentValueButton type="button" $active onClick={() => {
+	                          setIsTextSizePickerOpen((prev) => !prev);
+	                          setIsTextFontPickerOpen(false);
+	                          setIsTextAlignPickerOpen(false);
+	                          setIsColorPickerOpen(false);
+	                          setIsFillPickerOpen(false);
+	                          setIsEdgePickerOpen(false);
+	                          setIsSizePickerOpen(false);
+	                        }} aria-label="Text size" title="Text size">
+	                          <span style={{ fontSize: 12, fontWeight: 700, color: "#111111" }}>
+	                            {WHITEBOARD_TEXT_SIZE_OPTIONS.find((option) => option.id === resolvedTextSize)?.label || "M"}
+	                          </span>
+	                        </CurrentValueButton>
+	                        {isTextSizePickerOpen ? (
+	                          <PickerPopover>
+	                            <PickerColumn>
+	                              {WHITEBOARD_TEXT_SIZE_OPTIONS.map((option) => (
+	                                <TextPillButton key={option.id} type="button" $active={resolvedTextSize === option.id} onClick={() => {
+	                                  onTextSizeChange?.(option.id);
+	                                  setIsTextSizePickerOpen(false);
+	                                }} aria-label={`Text size ${option.label}`} title={`Text size ${option.label}`}>
+	                                  {option.label}
+	                                </TextPillButton>
+	                              ))}
+	                            </PickerColumn>
+	                          </PickerPopover>
+	                        ) : null}
+	                      </PickerWrap>
+	                      <PickerWrap data-whiteboard-picker-root>
+	                        <CurrentValueButton type="button" $active onClick={() => {
+	                          setIsTextAlignPickerOpen((prev) => !prev);
+	                          setIsTextFontPickerOpen(false);
+	                          setIsTextSizePickerOpen(false);
+	                          setIsColorPickerOpen(false);
+	                          setIsFillPickerOpen(false);
+	                          setIsEdgePickerOpen(false);
+	                          setIsSizePickerOpen(false);
+	                        }} aria-label="Text align" title="Text align">
+	                          {resolvedTextAlign === "center" ? <AlignCenter size={14} /> : resolvedTextAlign === "right" ? <AlignRight size={14} /> : <AlignLeft size={14} />}
+	                        </CurrentValueButton>
+	                        {isTextAlignPickerOpen ? (
+	                          <PickerPopover>
+	                            <PickerColumn>
+	                              <TextPillButton type="button" $active={resolvedTextAlign === "left"} onClick={() => { onTextAlignChange?.("left"); setIsTextAlignPickerOpen(false); }} aria-label="Align left" title="Align left"><AlignLeft size={14} /></TextPillButton>
+	                              <TextPillButton type="button" $active={resolvedTextAlign === "center"} onClick={() => { onTextAlignChange?.("center"); setIsTextAlignPickerOpen(false); }} aria-label="Align center" title="Align center"><AlignCenter size={14} /></TextPillButton>
+	                              <TextPillButton type="button" $active={resolvedTextAlign === "right"} onClick={() => { onTextAlignChange?.("right"); setIsTextAlignPickerOpen(false); }} aria-label="Align right" title="Align right"><AlignRight size={14} /></TextPillButton>
+	                            </PickerColumn>
+	                          </PickerPopover>
+	                        ) : null}
+	                      </PickerWrap>
+	                      <ToolbarDivider aria-hidden="true" />
+	                    </>
+	                  ) : null}
 
-                  <ToolbarGroup>
-                    <PickerWrap data-whiteboard-picker-root>
-                    <CurrentValueButton
-                      type="button"
-                      onClick={() => {
-                        setIsColorPickerOpen((prev) => !prev);
-                        setIsShapePickerOpen(false);
-                        setIsFillPickerOpen(false);
-                        setIsEdgePickerOpen(false);
-                        setIsSizePickerOpen(false);
-                        setIsTextFontPickerOpen(false);
-                        setIsTextSizePickerOpen(false);
-                        setIsTextAlignPickerOpen(false);
-                      }}
-                      aria-label={t("groupCall.whiteboard.pen")}
-                    >
-                      <CurrentColorDot $swatch={color.toLowerCase()} />
-                    </CurrentValueButton>
-                    {isColorPickerOpen ? (
-                      <PickerPopover>
-                        <PickerColumn>
-                          {WHITEBOARD_SWATCHES.map((swatch) => (
-                            <SwatchButton
-                              key={swatch}
-                              type="button"
-                              $swatch={swatch}
-                              $active={color.toLowerCase() === swatch}
-                              onClick={() => {
-                                onColorChange?.(swatch);
-                                setIsColorPickerOpen(false);
-                              }}
-                              aria-label={t("groupCall.whiteboard.colorSwatch", {
-                                color: swatch,
-                              })}
-                            />
-                          ))}
-                        </PickerColumn>
-                      </PickerPopover>
-                    ) : null}
-                  </PickerWrap>
-                    {shapeToolActive ? (
-                      <PickerWrap data-whiteboard-picker-root>
-                      <CurrentValueButton
-                        type="button"
-                        onClick={() => {
-                          setIsFillPickerOpen((prev) => !prev);
-                          setIsColorPickerOpen(false);
-                          setIsShapePickerOpen(false);
-                          setIsEdgePickerOpen(false);
-                          setIsSizePickerOpen(false);
-                          setIsTextFontPickerOpen(false);
-                          setIsTextSizePickerOpen(false);
-                          setIsTextAlignPickerOpen(false);
-                        }}
-                        aria-label={t("groupCall.whiteboard.background")}
-                      >
-                        <CurrentFillSwatch
-                          $swatch={activeFillColor}
-                          $transparent={!activeFillColor}
-                        />
-                      </CurrentValueButton>
-                      {isFillPickerOpen ? (
-                        <PickerPopover>
-                          <PickerColumn>
-                            {WHITEBOARD_FILL_SWATCHES.map((swatch) => (
-                              <FillSwatchButton
-                                key={swatch || "__transparent__"}
-                                type="button"
-                                $swatch={swatch}
-                                $transparent={!swatch}
-                                $active={activeFillColor === swatch}
-                                onClick={() => {
-                                  onFillColorChange?.(swatch);
-                                  setIsFillPickerOpen(false);
-                                }}
-                                aria-label={
-                                  swatch
-                                    ? t("groupCall.whiteboard.backgroundSwatch", {
-                                        color: swatch,
-                                      })
-                                    : t("groupCall.whiteboard.transparentFill")
-                                }
-                                title={
-                                  swatch
-                                    ? t("groupCall.whiteboard.backgroundSwatch", {
-                                        color: swatch,
-                                      })
-                                    : t("groupCall.whiteboard.transparentFill")
-                                }
-                              />
-                            ))}
-                          </PickerColumn>
-                        </PickerPopover>
-                      ) : null}
-                      </PickerWrap>
-                    ) : null}
-                    {edgeToolActive ? (
-                      <PickerWrap data-whiteboard-picker-root>
-                      <CurrentValueButton
-                        type="button"
-                        onClick={() => {
-                          setIsEdgePickerOpen((prev) => !prev);
-                          setIsColorPickerOpen(false);
-                          setIsShapePickerOpen(false);
-                          setIsFillPickerOpen(false);
-                          setIsSizePickerOpen(false);
-                          setIsTextFontPickerOpen(false);
-                          setIsTextSizePickerOpen(false);
-                          setIsTextAlignPickerOpen(false);
-                        }}
-                        aria-label={t("groupCall.whiteboard.edge")}
-                        title={t("groupCall.whiteboard.edge")}
-                      >
-                        <EdgePreviewShape $rounded={activeShapeEdge === "rounded"} />
-                      </CurrentValueButton>
-                      {isEdgePickerOpen ? (
-                        <PickerPopover>
-                          <PickerColumn>
-                            <TextPillButton
-                              type="button"
-                              $active={activeShapeEdge === "sharp"}
-                              onClick={() => {
-                                onShapeEdgeChange?.("sharp");
-                                setIsEdgePickerOpen(false);
-                              }}
-                              aria-label={t("groupCall.whiteboard.edgeSharp")}
-                              title={t("groupCall.whiteboard.edgeSharp")}
-                            >
-                              <EdgePreviewShape />
-                            </TextPillButton>
-                            <TextPillButton
-                              type="button"
-                              $active={activeShapeEdge === "rounded"}
-                              onClick={() => {
-                                onShapeEdgeChange?.("rounded");
-                                setIsEdgePickerOpen(false);
-                              }}
-                              aria-label={t("groupCall.whiteboard.edgeRounded")}
-                              title={t("groupCall.whiteboard.edgeRounded")}
-                            >
-                              <EdgePreviewShape $rounded />
-                            </TextPillButton>
-                          </PickerColumn>
-                        </PickerPopover>
-                      ) : null}
-                      </PickerWrap>
-                    ) : null}
-                    {tool !== "text" ? (
-                      <PickerWrap data-whiteboard-picker-root>
-                      <CurrentValueButton
-                        type="button"
-                        onClick={() => {
-                          setIsSizePickerOpen((prev) => !prev);
-                          setIsColorPickerOpen(false);
-                          setIsShapePickerOpen(false);
-                          setIsFillPickerOpen(false);
-                          setIsEdgePickerOpen(false);
-                          setIsTextFontPickerOpen(false);
-                          setIsTextSizePickerOpen(false);
-                          setIsTextAlignPickerOpen(false);
-                        }}
-                        aria-label={t("groupCall.whiteboard.size")}
-                      >
-                        <BrushPresetStroke $size={activeBrushPreset} />
-                      </CurrentValueButton>
-                      {isSizePickerOpen ? (
-                        <PickerPopover>
-                          <PickerColumn>
-                            {WHITEBOARD_BRUSH_PRESETS.map((preset) => (
-                              <BrushPresetButton
-                                key={preset}
-                                type="button"
-                                $active={activeBrushPreset === preset}
-                                onClick={() => {
-                                  onBrushSizeChange?.(preset);
-                                  setIsSizePickerOpen(false);
-                                }}
-                                disabled={tool === "stroke-eraser"}
-                                aria-label={`${t("groupCall.whiteboard.size")} ${preset}`}
-                                title={`${t("groupCall.whiteboard.size")} ${preset}`}
-                              >
-                                <BrushPresetStroke $size={preset} />
-                              </BrushPresetButton>
-                            ))}
-                          </PickerColumn>
-                        </PickerPopover>
-                      ) : null}
-                      </PickerWrap>
-                    ) : null}
-                  </ToolbarGroup>
-                  <ToolbarDivider aria-hidden="true" />
-                  <ToolbarGroup>
-                    <span title={recordingComingSoonTitle} style={{ display: "inline-flex" }}>
-                      <RecordToolbarButton
-                        type="button"
-                        $recording={isRecording}
-                        disabled
-                        aria-label={recordingComingSoonTitle}
-                        title={recordingComingSoonTitle}
-                      >
-                        {isRecording ? <RecordStopGlyph aria-hidden="true" /> : <RecordDot aria-hidden="true" />}
-                        {isRecording ? (
-                          <RecordToolbarTime>{recordElapsedLabel}</RecordToolbarTime>
-                        ) : (
-                          <RecordToolbarLabel>REC</RecordToolbarLabel>
-                        )}
-                      </RecordToolbarButton>
-                    </span>
-                  </ToolbarGroup>
-                </ToolbarMain>
+		                  {shapeToolActive ? (
+	                    <PickerWrap data-whiteboard-picker-root>
+	                      <CurrentValueButton type="button" onClick={() => {
+	                        setIsFillPickerOpen((prev) => !prev);
+	                        setIsColorPickerOpen(false);
+	                        setIsEdgePickerOpen(false);
+	                        setIsSizePickerOpen(false);
+	                      }} aria-label={t("groupCall.whiteboard.background")}>
+	                        <CurrentFillSwatch $swatch={activeFillColor} $transparent={!activeFillColor} />
+	                      </CurrentValueButton>
+	                      {isFillPickerOpen ? (
+	                        <PickerPopover>
+	                          <PickerColumn>
+	                            {WHITEBOARD_FILL_SWATCHES.map((swatch) => (
+	                              <FillSwatchButton key={swatch || "__transparent__"} type="button" $swatch={swatch} $transparent={!swatch} $active={activeFillColor === swatch} onClick={() => {
+	                                onFillColorChange?.(swatch);
+	                                setIsFillPickerOpen(false);
+	                              }} aria-label={swatch ? t("groupCall.whiteboard.backgroundSwatch", { color: swatch }) : t("groupCall.whiteboard.transparentFill")} title={swatch ? t("groupCall.whiteboard.backgroundSwatch", { color: swatch }) : t("groupCall.whiteboard.transparentFill")} />
+	                            ))}
+	                          </PickerColumn>
+	                        </PickerPopover>
+	                      ) : null}
+	                    </PickerWrap>
+	                  ) : null}
 
-                {toolbarTrailingContent ? (
-                  <>
-                    <ToolbarSpacer />
-                    <ToolbarDivider aria-hidden="true" />
-                    <ToolbarRight>
-                      <ToolbarHeaderActions>{toolbarTrailingContent}</ToolbarHeaderActions>
-                    </ToolbarRight>
-                  </>
-                ) : null}
-              </Toolbar>
-            </FloatingTopToolbar>
-          ) : null}
+	                  {edgeToolActive ? (
+	                    <PickerWrap data-whiteboard-picker-root>
+	                      <CurrentValueButton type="button" onClick={() => {
+	                        setIsEdgePickerOpen((prev) => !prev);
+	                        setIsColorPickerOpen(false);
+	                        setIsFillPickerOpen(false);
+	                        setIsSizePickerOpen(false);
+	                      }} aria-label={t("groupCall.whiteboard.edge")} title={t("groupCall.whiteboard.edge")}>
+	                        <EdgePreviewShape $rounded={activeShapeEdge === "rounded"} />
+	                      </CurrentValueButton>
+	                      {isEdgePickerOpen ? (
+	                        <PickerPopover>
+	                          <PickerColumn>
+	                            <TextPillButton type="button" $active={activeShapeEdge === "sharp"} onClick={() => { onShapeEdgeChange?.("sharp"); setIsEdgePickerOpen(false); }} aria-label={t("groupCall.whiteboard.edgeSharp")} title={t("groupCall.whiteboard.edgeSharp")}><EdgePreviewShape /></TextPillButton>
+	                            <TextPillButton type="button" $active={activeShapeEdge === "rounded"} onClick={() => { onShapeEdgeChange?.("rounded"); setIsEdgePickerOpen(false); }} aria-label={t("groupCall.whiteboard.edgeRounded")} title={t("groupCall.whiteboard.edgeRounded")}><EdgePreviewShape $rounded /></TextPillButton>
+	                          </PickerColumn>
+	                        </PickerPopover>
+	                      ) : null}
+	                    </PickerWrap>
+	                  ) : null}
+
+		                </ToolbarOptions>
+		              ) : null}
+		              {isColorPickerOpen && tool !== "eraser" && tool !== "stroke-eraser" ? (
+		                <ColorPalettePanel data-whiteboard-picker-root>
+		                  <ColorPaletteSlider
+		                    type="range"
+		                    min="2"
+		                    max="24"
+		                    step="1"
+		                    value={strokeSliderValue}
+		                    onChange={(event) => updateActiveInkSlot({ width: Number(event.target.value) })}
+		                    aria-label={t("groupCall.whiteboard.size")}
+		                  />
+		                  <ColorPaletteGrid>
+		                    {WHITEBOARD_COLOR_PALETTE.map((swatch) => (
+		                      <ColorPaletteButton
+		                        key={swatch}
+		                        type="button"
+		                        $swatch={swatch}
+		                        $active={activeInkSlot.color === swatch.toLowerCase()}
+		                        onClick={() => updateActiveInkSlot({ color: swatch }, { closePanels: true })}
+		                        aria-label={t("groupCall.whiteboard.colorSwatch", { color: swatch })}
+		                      />
+		                    ))}
+		                  </ColorPaletteGrid>
+		                </ColorPalettePanel>
+		              ) : null}
+		            </FloatingTopToolbar>
+	          ) : null}
 
           {isPdfPlaceholderActive && !compact ? (
             <PdfMissingSurface data-record-surface-type="pdf">
@@ -10833,7 +10957,7 @@ const WhiteboardTile = ({
                                 textAlign={textAlign}
                                 tabId={activeTab.id}
                                 pageNumber={pageMeta.pageNumber}
-                                onStrokeStart={onStrokeStart}
+                                onStrokeStart={handleStrokeStartWithToolbarClose}
                                 onStrokeAppend={onStrokeAppend}
                                 onStrokeRemove={onStrokeRemove}
                                 onStrokeUpdate={onStrokeUpdate}
@@ -10952,7 +11076,7 @@ const WhiteboardTile = ({
                             textAlign={textAlign}
                             tabId={activeTab.id}
                             pageNumber={pageMeta.pageNumber}
-                            onStrokeStart={onStrokeStart}
+                            onStrokeStart={handleStrokeStartWithToolbarClose}
                             onStrokeAppend={onStrokeAppend}
                             onStrokeRemove={onStrokeRemove}
                             onStrokeUpdate={onStrokeUpdate}
@@ -11026,7 +11150,7 @@ const WhiteboardTile = ({
                           textSize={textSize}
                           textAlign={textAlign}
                           tabId={WHITEBOARD_BOARD_TAB_ID}
-                          onStrokeStart={onStrokeStart}
+                          onStrokeStart={handleStrokeStartWithToolbarClose}
                           onStrokeAppend={onStrokeAppend}
                           onStrokeRemove={onStrokeRemove}
                           onStrokeUpdate={onStrokeUpdate}
@@ -11079,7 +11203,7 @@ const WhiteboardTile = ({
                       textSize={textSize}
                       textAlign={textAlign}
                       tabId={WHITEBOARD_BOARD_TAB_ID}
-                      onStrokeStart={onStrokeStart}
+                      onStrokeStart={handleStrokeStartWithToolbarClose}
                       onStrokeAppend={onStrokeAppend}
                       onStrokeRemove={onStrokeRemove}
                       onStrokeUpdate={onStrokeUpdate}

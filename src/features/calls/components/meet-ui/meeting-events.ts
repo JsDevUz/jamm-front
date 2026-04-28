@@ -37,11 +37,15 @@ export type ReactionOption = {
 };
 
 export const MEETING_REACTION_OPTIONS: ReactionOption[] = [
+  { emoji: "\u{1F496}", label: "Love" },
   { emoji: "\u{1F44D}", label: "Like" },
-  { emoji: "\u{1F44F}", label: "Clap" },
-  { emoji: "\u{2764}\u{FE0F}", label: "Heart" },
-  { emoji: "\u{1F602}", label: "Laugh" },
   { emoji: "\u{1F389}", label: "Celebrate" },
+  { emoji: "\u{1F44F}", label: "Clap" },
+  { emoji: "\u{1F602}", label: "Laugh" },
+  { emoji: "\u{1F62E}", label: "Wow" },
+  { emoji: "\u{1F622}", label: "Sad" },
+  { emoji: "\u{1F914}", label: "Thinking" },
+  { emoji: "\u{1F44E}", label: "Dislike" },
 ];
 
 export function parseMeetingDataPayload(raw: string): MeetingDataPayload | null {

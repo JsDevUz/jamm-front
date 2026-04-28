@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useConnectionState, useParticipants } from "@livekit/components-react";
 import { RoomEvent } from "livekit-client";
 import type { Participant, Room, TrackPublication } from "livekit-client";
-import { ClipboardList, Copy, MessageSquare, Minimize2, MonitorUp, Users } from "lucide-react";
 import Header from "./Header";
 import BottomMenu, { type DeviceOption } from "./BottomMenu";
 import VideoGrid from "./VideoGrid";
@@ -61,6 +60,7 @@ type ActiveReaction = {
   id: string;
   emoji: string;
   label: string;
+  senderIdentity: string;
   senderName: string;
 };
 
@@ -79,47 +79,41 @@ function FloatingReactionToast({
   index: number;
   bottomOffset: string;
 }) {
-  const [animated, setAnimated] = useState(false);
   const motion = useMemo(() => {
     const seed = Array.from(reaction.id).reduce((sum, char) => sum + char.charCodeAt(0), 0);
-    const horizontalStart = ((seed % 7) - 3) * 10;
-    const horizontalTravel = ((seed % 9) - 4) * 28 + (index % 2 === 0 ? 22 : -22);
-    const lift = 320 + (seed % 6) * 48 + index * 26;
-    const rotate = ((seed % 11) - 5) * 3;
-    const scale = 1 + (seed % 3) * 0.08;
+    const leftPercent = 4 + ((seed + index * 11) % 16);
+    const startBottom = 12 + ((seed + index * 17) % 84);
+    const scale = 0.96 + (seed % 4) * 0.03;
 
     return {
-      horizontalStart,
-      horizontalTravel,
-      lift,
-      rotate,
+      leftPercent,
+      startBottom,
       scale,
     };
   }, [index, reaction.id]);
 
-  useEffect(() => {
-    const frameId = window.requestAnimationFrame(() => setAnimated(true));
-    return () => window.cancelAnimationFrame(frameId);
-  }, []);
-
   return (
     <div
-      className="absolute left-1/2 flex flex-col items-center text-center text-white"
+      className="absolute flex flex-col items-center text-center"
       style={{
-        bottom: bottomOffset,
-        opacity: animated ? 0 : 1,
-        transform: animated
-          ? `translate(calc(-50% + ${motion.horizontalTravel}px), -${motion.lift}px) rotate(${motion.rotate}deg) scale(${motion.scale})`
-          : `translate(calc(-50% + ${motion.horizontalStart}px), 22px) rotate(0deg) scale(0.92)`,
-        transition:
-          "transform 4200ms cubic-bezier(0.16, 0.78, 0.22, 1), opacity 4200ms ease-out",
-        textShadow:
-          "0 2px 12px rgba(15,23,42,0.52), 0 10px 28px rgba(15,23,42,0.34), 0 0 2px rgba(15,23,42,0.45)",
-        WebkitTextStroke: "0.35px rgba(15,23,42,0.3)",
-      }}
+        left: `clamp(18px, ${motion.leftPercent}%, calc(100% - 92px))`,
+        bottom: `calc(${bottomOffset} + ${motion.startBottom}px)`,
+        opacity: 1,
+        transform: `translateY(0) scale(${motion.scale})`,
+        ["--reaction-scale" as string]: motion.scale,
+        animation: "meeting-reaction-rise 5000ms linear forwards",
+      } as CSSProperties}
     >
-      <span className="text-[36px] leading-none sm:text-[42px]">{reaction.emoji}</span>
-      <span className="mt-1 text-[11px] font-semibold tracking-[0.01em] text-white/95 sm:text-[13px]">
+      <span
+        className="text-[34px] leading-none sm:text-[38px]"
+        style={{
+          filter:
+            "drop-shadow(0 2px 4px rgba(15,23,42,0.36)) drop-shadow(0 8px 18px rgba(15,23,42,0.28))",
+        }}
+      >
+        {reaction.emoji}
+      </span>
+      <span className="mt-1 rounded-full bg-[#8ab4f8] px-3 py-0.5 text-[13px] font-bold leading-5 text-[#21314f] shadow-[0_2px_7px_rgba(15,23,42,0.28)] sm:text-[14px]">
         {reaction.senderName}
       </span>
     </div>
@@ -242,7 +236,7 @@ export default function MeetingUI({
     const timeoutId = window.setTimeout(() => {
       setActiveReactions((current) => current.filter((item) => item.id !== reaction.id));
       reactionTimeoutsRef.current = reactionTimeoutsRef.current.filter((id) => id !== timeoutId);
-    }, 4200);
+    }, 5200);
     reactionTimeoutsRef.current.push(timeoutId);
   };
 
@@ -447,7 +441,11 @@ export default function MeetingUI({
           id: nextReaction.id,
           emoji: nextReaction.emoji,
           label: nextReaction.label,
-          senderName: nextReaction.senderName,
+          senderIdentity: nextReaction.senderIdentity,
+          senderName:
+            nextReaction.senderIdentity === room.localParticipant.identity
+              ? "Siz"
+              : nextReaction.senderName,
         });
         return;
       }
@@ -561,7 +559,8 @@ export default function MeetingUI({
       id: payload.id,
       emoji: payload.emoji,
       label: payload.label,
-      senderName: payload.senderName,
+      senderIdentity: payload.senderIdentity,
+      senderName: "Siz",
     });
 
     await room.localParticipant.publishData(
@@ -605,130 +604,11 @@ export default function MeetingUI({
       : isMobile
         ? "calc(env(safe-area-inset-bottom, 0px) + 28px)"
         : "128px";
-  const whiteboardToolbarActions = useMemo(() => {
-    if (!whiteboardFullscreen || isMobile) {
-      return null;
-    }
-
-    const actionButtonClass =
-      "relative inline-flex h-10 min-w-10 items-center justify-center gap-1.5 rounded-full border border-[var(--meet-border-color)] bg-[var(--meet-control-bg)] px-3 text-[var(--meet-text-color)] transition hover:bg-[var(--meet-control-hover-bg)]";
-    const activeActionButtonClass =
-      "relative inline-flex h-10 min-w-10 items-center justify-center gap-1.5 rounded-full bg-[var(--meet-control-active-bg)] px-3 text-[var(--meet-text-color)] ring-1 ring-[#8ab4f8] transition";
-    const badgeClass =
-      "absolute -right-1 -top-1 inline-flex min-w-[18px] items-center justify-center rounded-full px-1 text-[10px] font-semibold leading-[18px] text-white";
-    const pendingKnockCount = isCreator ? knockRequests.length : 0;
-
-    return (
-      <>
-        {onCopyLink && !isLandscape ? (
-          <button type="button" onClick={onCopyLink} className={actionButtonClass} title="Havolani nusxalash">
-            <Copy className="h-4 w-4" />
-          </button>
-        ) : null}
-        {onToggleWhiteboard ? (
-          <button type="button" onClick={handleHeaderWhiteboardToggle} className={activeActionButtonClass} title="Whiteboard">
-            <MonitorUp className="h-4 w-4" />
-          </button>
-        ) : null}
-        <button
-          type="button"
-          onClick={() => setParticipantsOpen(true)}
-          className={
-            pendingKnockCount > 0
-              ? `${actionButtonClass} border-amber-300 bg-amber-100 text-amber-950 shadow-[0_0_0_3px_rgba(245,158,11,0.18)] hover:bg-amber-200`
-              : actionButtonClass
-          }
-          title={pendingKnockCount > 0 ? `${pendingKnockCount} kishi kutyapti` : "People"}
-        >
-          <Users className="h-4 w-4" />
-          <span className="text-[13px] font-semibold leading-none">
-            {pendingKnockCount > 0
-              ? pendingKnockCount > 99
-                ? "99+"
-                : pendingKnockCount
-              : participantCount > 99
-                ? "99+"
-                : participantCount}
-          </span>
-          {pendingKnockCount > 0 ? (
-            <span className={`${badgeClass} bg-amber-500 shadow-[0_4px_14px_rgba(245,158,11,0.42)]`}>
-              {pendingKnockCount > 99 ? "99+" : pendingKnockCount}
-            </span>
-          ) : null}
-        </button>
-        <button type="button" onClick={() => setChatOpen(true)} className={actionButtonClass} title="Chat">
-          <MessageSquare className="h-4 w-4" />
-          <span className="text-[13px] font-semibold leading-none">{chatCount > 99 ? "99+" : chatCount}</span>
-          {chatCount > 0 ? (
-            <span className={`${badgeClass} bg-[#111827] shadow-[0_4px_12px_rgba(15,23,42,0.28)]`}>
-              {chatCount > 99 ? "99+" : chatCount}
-            </span>
-          ) : null}
-        </button>
-        {onToggleLessonControls ? (
-          <button
-            type="button"
-            onClick={onToggleLessonControls}
-            className={actionButtonClass}
-            title="Dars boshqaruvi"
-            aria-label="Dars boshqaruvini ochish"
-          >
-            <ClipboardList className="h-4 w-4" />
-          </button>
-        ) : null}
-        {onMinimize ? (
-          <button type="button" onClick={onMinimize} className={actionButtonClass} title="Minimize">
-            <Minimize2 className="h-4 w-4" />
-          </button>
-        ) : null}
-      </>
-    );
-  }, [
-    chatCount,
-    handleHeaderWhiteboardToggle,
-    isCreator,
-    isLandscape,
-    isMobile,
-    knockRequests.length,
-    onCopyLink,
-    onMinimize,
-    onToggleLessonControls,
-    onToggleWhiteboard,
-    participantCount,
-    whiteboardFullscreen,
-  ]);
-  const focusContentWithToolbarActions = useMemo(() => {
-    if (!whiteboardToolbarActions) {
-      return focusContent;
-    }
-
-    const injectToolbarActions = (node: React.ReactNode): React.ReactNode => {
-      if (!React.isValidElement(node)) {
-        return node;
-      }
-
-      const nodeProps = node.props as Record<string, unknown>;
-      const nextProps: Record<string, unknown> = {};
-
-      if (nodeProps.workspace && Object.prototype.hasOwnProperty.call(nodeProps, "showToolbar")) {
-        nextProps.toolbarTrailingContent = whiteboardToolbarActions;
-      }
-
-      if (nodeProps.children) {
-        nextProps.children = React.Children.map(nodeProps.children as React.ReactNode, injectToolbarActions);
-      }
-
-      return Object.keys(nextProps).length
-        ? React.cloneElement(node as React.ReactElement<Record<string, unknown>>, nextProps)
-        : node;
-    };
-
-    return injectToolbarActions(focusContent);
-  }, [focusContent, whiteboardToolbarActions]);
+  const focusContentWithToolbarActions = focusContent;
 
   return (
     <div className="relative h-full min-h-0 w-full overflow-hidden bg-[var(--meet-shell-bg)] text-[var(--meet-text-color)] [padding-bottom:env(safe-area-inset-bottom)]">
-      {!whiteboardFullscreen ? (
+      {!whiteboardFullscreen || !isMobile ? (
         <Header
           meetingName={meetingName}
           participantCount={participantCount}

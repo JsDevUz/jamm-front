@@ -655,11 +655,14 @@ export default function TeacherLessonContentWorkspace({
         displayName: currentUser?.nickname || currentUser?.username || "Teacher",
         isCreator: true,
         isPrivate: false,
-        initialMicOn: true,
-        initialCamOn: true,
+        initialMicOn: false,
+        initialCamOn: false,
         roomCreatorId: String(currentUser?._id || ""),
         returnPath:
           typeof window !== "undefined" ? window.location.pathname : "/teacher",
+        lessonTitle: lesson?.title || "",
+        lessonId: String(lessonId),
+        courseId: String(courseId),
       });
     } catch (err) {
       console.error("Failed to start lesson meet", err);
@@ -2082,19 +2085,21 @@ const renderContent = () => (
                   })}
             </HeroButton>
           ) : null}
-          <HeroButton
-            type="button"
-            $primary
-            disabled={isStartingLessonMeet || !lessonId}
-            onClick={handleStartLessonMeet}
-          >
-            <Video size={14} />
-            {isStartingLessonMeet
-              ? t("common.loading", { defaultValue: "Yuklanmoqda..." })
-              : t("teacher.lessonWorkspace.startLessonMeet", {
-                  defaultValue: "Dars meetini boshlash",
-                })}
-          </HeroButton>
+          {effectiveLessonStatus === "draft" ? (
+            <HeroButton
+              type="button"
+              $primary
+              disabled={isStartingLessonMeet || !lessonId}
+              onClick={handleStartLessonMeet}
+            >
+              <Video size={14} />
+              {isStartingLessonMeet
+                ? t("common.loading", { defaultValue: "Yuklanmoqda..." })
+                : t("teacher.lessonWorkspace.startLiveLesson", {
+                    defaultValue: "Jonli darsni boshlash",
+                  })}
+            </HeroButton>
+          ) : null}
         </HeroActions>
       </Hero>
 

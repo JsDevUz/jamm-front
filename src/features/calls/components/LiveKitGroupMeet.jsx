@@ -2561,11 +2561,15 @@ function MeetContent({
       <Overlay data-lk-theme="default">
         <MeetingUI
           room={room}
-          meetingName={roomId}
+          meetingName={
+            signaling.lessonMeet
+              ? `${primaryTitle || "Jonli dars"}`
+              : primaryTitle || roomId
+          }
           isCreator={isCreator}
           onLeave={handleLeave}
           onCopyLink={handleCopy}
-          onToggleWhiteboard={handleWhiteboardToggle}
+          onToggleWhiteboard={isCreator ? handleWhiteboardToggle : undefined}
           onToggleLessonControls={
             canShowLessonControls ? () => setLessonControlsOpen(true) : undefined
           }
@@ -2608,6 +2612,8 @@ function MeetContent({
             lessonMeet={signaling.lessonMeet}
             onSetAttendance={signaling.setLessonAttendance}
             onSetGrade={signaling.setLessonGrade}
+            onSelectLesson={signaling.selectLessonInMeet}
+            onFetchTestDetail={signaling.fetchTestDetail}
           />
         ) : null}
         <RoomAudioRenderer />

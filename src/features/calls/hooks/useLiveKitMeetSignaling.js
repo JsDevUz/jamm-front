@@ -1380,13 +1380,25 @@ export function useLiveKitMeetSignaling({
       setLessonMeet((current) => ({
         courseId,
         lessonId,
+        // selectedLessonId starts at the bound lesson; teacher can switch tabs.
+        selectedLessonId: current?.selectedLessonId || lessonId,
+        courseLessons: current?.courseLessons || null,
         attendance: current?.attendance || null,
         grading: current?.grading || null,
+        homework: current?.homework || null,
+        tests: current?.tests || null,
       }));
-      // Teacher: pull initial roster + grading once binding is known.
+      // Teacher: pull initial roster + lesson list once binding is known.
       if (isCreator) {
-        socket.emit("meet-request-roster", { roomId });
+        socket.emit("meet-request-roster", { roomId, lessonId });
+        socket.emit("meet-list-course-lessons", { roomId });
       }
+    });
+
+    socket.on("meet-course-lessons", (payload) => {
+      setLessonMeet((current) =>
+        current ? { ...current, courseLessons: payload } : current,
+      );
     });
 
     socket.on("meet-attendance-roster", (payload) => {
@@ -1399,6 +1411,35 @@ export function useLiveKitMeetSignaling({
       setLessonMeet((current) =>
         current ? { ...current, grading: payload } : current,
       );
+    });
+
+    socket.on("meet-homework-roster", (payload) => {
+      setLessonMeet((current) =>
+        current ? { ...current, homework: payload } : current,
+      );
+    });
+
+    socket.on("meet-tests-roster", (payload) => {
+      setLessonMeet((current) =>
+        current ? { ...current, tests: payload } : current,
+      );
+    });
+
+    socket.on("meet-test-detail", (payload = {}) => {
+      const testId = typeof payload?.testId === "string" ? payload.testId : "";
+      const userId = typeof payload?.userId === "string" ? payload.userId : "";
+      if (!testId || !userId) return;
+      setLessonMeet((current) => {
+        if (!current) return current;
+        const existing = current.testDetails || {};
+        return {
+          ...current,
+          testDetails: {
+            ...existing,
+            [`${testId}:${userId}`]: payload.detail || null,
+          },
+        };
+      });
     });
 
     socket.on("meet-attendance-updated", (payload = {}) => {
@@ -2159,31 +2200,65 @@ export function useLiveKitMeetSignaling({
   }, [roomId]);
 
   const setLessonAttendance = useCallback(
-    (targetUserId, status) => {
+    (targetUserId, status, lessonId) => {
       const socket = socketRef.current;
       if (!socket || !targetUserId || !status) return;
-      socket.emit("meet-set-attendance", { roomId, targetUserId, status });
+      const payload = { roomId, targetUserId, status };
+      if (lessonId) payload.lessonId = lessonId;
+      socket.emit("meet-set-attendance", payload);
     },
     [roomId],
   );
 
   const setLessonGrade = useCallback(
-    (targetUserId, { score, note } = {}) => {
+    (targetUserId, { score, note, lessonId } = {}) => {
       const socket = socketRef.current;
       if (!socket || !targetUserId) return;
       const payload = { roomId, targetUserId };
       if (score !== undefined) payload.score = score;
       if (note !== undefined) payload.note = note;
+      if (lessonId) payload.lessonId = lessonId;
       socket.emit("meet-set-grade", payload);
     },
     [roomId],
   );
 
-  const refreshLessonRoster = useCallback(() => {
-    const socket = socketRef.current;
-    if (!socket) return;
-    socket.emit("meet-request-roster", { roomId });
-  }, [roomId]);
+  const refreshLessonRoster = useCallback(
+    (lessonId) => {
+      const socket = socketRef.current;
+      if (!socket) return;
+      const payload = { roomId };
+      if (lessonId) payload.lessonId = lessonId;
+      socket.emit("meet-request-roster", payload);
+    },
+    [roomId],
+  );
+
+  const fetchTestDetail = useCallback(
+    (testId, targetUserId) => {
+      const socket = socketRef.current;
+      if (!socket || !testId || !targetUserId) return;
+      socket.emit("meet-fetch-test-detail", { roomId, testId, targetUserId });
+    },
+    [roomId],
+  );
+
+  // Teacher switches the panel to a different lesson of the same course.
+  // Refetches roster/grading/homework/tests for the new lesson without leaving
+  // the meet — the bound lesson (auto-attendance target) is unchanged.
+  const selectLessonInMeet = useCallback(
+    (lessonId) => {
+      if (!lessonId) return;
+      setLessonMeet((current) =>
+        current ? { ...current, selectedLessonId: lessonId } : current,
+      );
+      const socket = socketRef.current;
+      if (socket) {
+        socket.emit("meet-request-roster", { roomId, lessonId });
+      }
+    },
+    [roomId],
+  );
 
   return {
     joinStatus,
@@ -2228,5 +2303,7 @@ export function useLiveKitMeetSignaling({
     setLessonAttendance,
     setLessonGrade,
     refreshLessonRoster,
+    selectLessonInMeet,
+    fetchTestDetail,
   };
 }
