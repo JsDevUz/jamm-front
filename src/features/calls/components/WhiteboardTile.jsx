@@ -8494,11 +8494,23 @@ const WhiteboardTile = ({
       if (pendingPages.size === 0) return;
       const nextPages = Array.from(pendingPages);
       pendingPages = new Set();
-      setVisiblePdfPages((prev) =>
-        Array.from(new Set([...prev, ...nextPages])).sort(
+      setVisiblePdfPages((prev) => {
+        const merged = Array.from(new Set([...prev, ...nextPages])).sort(
           (left, right) => left - right,
-        ),
-      );
+        );
+        // Mobile: cap the visible-set to ~5 pages around the current one so we
+        // don't hold every page that has ever been on screen in DOM canvases.
+        if (isMobileClient && merged.length > 5) {
+          // Keep only the pages closest to the most recently seen page so the
+          // active and immediate-neighbour frames stay rendered.
+          const anchor = nextPages[nextPages.length - 1];
+          merged.sort(
+            (a, b) => Math.abs(a - anchor) - Math.abs(b - anchor),
+          );
+          return merged.slice(0, 5).sort((a, b) => a - b);
+        }
+        return merged;
+      });
     };
     const scheduleFlush = () => {
       if (flushTimer) return;
@@ -10984,12 +10996,22 @@ const WhiteboardTile = ({
                               )
                             : 720);
                         const displayedPageHeight = Math.max(1, Math.round(pageHeight * activePdfZoom));
-                        const shouldRenderPage =
-                          !interactive ||
-                          visiblePdfPages.includes(pageMeta.pageNumber) ||
-                          initialVisiblePdfPages.includes(pageMeta.pageNumber) ||
-                          pageMeta.pageNumber === currentPdfPage ||
-                          pageMeta.pageNumber === Number(activeTab.viewportPageNumber);
+                        // Mobile devices can't afford to keep every selected
+                        // page rasterised in DOM (one A4 page on retina is
+                        // ~16 MB of canvas memory, 5 pages = 81 MB → OOM).
+                        // Even guests must be windowed — only the currently
+                        // visible page (and its immediate neighbours) get a
+                        // canvas; the rest become lightweight placeholders.
+                        const isMobileClient = isMobilePdfBrowser();
+                        const shouldRenderPage = isMobileClient
+                          ? visiblePdfPages.includes(pageMeta.pageNumber) ||
+                            pageMeta.pageNumber === currentPdfPage ||
+                            pageMeta.pageNumber === Number(activeTab.viewportPageNumber)
+                          : !interactive ||
+                            visiblePdfPages.includes(pageMeta.pageNumber) ||
+                            initialVisiblePdfPages.includes(pageMeta.pageNumber) ||
+                            pageMeta.pageNumber === currentPdfPage ||
+                            pageMeta.pageNumber === Number(activeTab.viewportPageNumber);
                         const pageStrokes = getPdfTabPageStrokes(activeTab, pageMeta.pageNumber);
                         const pdfImage =
                           !interactive && pdfPageImages[pageMeta.pageNumber]
@@ -11103,12 +11125,19 @@ const WhiteboardTile = ({
                           )
                         : 720);
                     const displayedPageHeight = Math.max(1, Math.round(pageHeight * activePdfZoom));
-                    const shouldRenderPage =
-                      !interactive ||
-                      visiblePdfPages.includes(pageMeta.pageNumber) ||
-                      initialVisiblePdfPages.includes(pageMeta.pageNumber) ||
-                      pageMeta.pageNumber === currentPdfPage ||
-                      pageMeta.pageNumber === Number(activeTab.viewportPageNumber);
+                    // Mobile virtual scrolling — see note on the other render
+                    // branch above. Keeping every selected page in DOM blows
+                    // past Safari's 250 MB tab budget.
+                    const isMobileClient = isMobilePdfBrowser();
+                    const shouldRenderPage = isMobileClient
+                      ? visiblePdfPages.includes(pageMeta.pageNumber) ||
+                        pageMeta.pageNumber === currentPdfPage ||
+                        pageMeta.pageNumber === Number(activeTab.viewportPageNumber)
+                      : !interactive ||
+                        visiblePdfPages.includes(pageMeta.pageNumber) ||
+                        initialVisiblePdfPages.includes(pageMeta.pageNumber) ||
+                        pageMeta.pageNumber === currentPdfPage ||
+                        pageMeta.pageNumber === Number(activeTab.viewportPageNumber);
                     const pageStrokes = getPdfTabPageStrokes(activeTab, pageMeta.pageNumber);
                     const pdfImage =
                       !interactive && pdfPageImages[pageMeta.pageNumber]

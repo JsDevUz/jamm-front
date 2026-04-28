@@ -2922,10 +2922,18 @@ const getEnrollmentCurrentLesson = (course, userId) => {
   return currentLesson?.title || "";
 };
 
-const getHomeworkAssignments = (lesson) =>
-  (Array.isArray(lesson?.homework) ? lesson.homework : []).filter(
-    (assignment) => assignment?.enabled !== false,
-  );
+const getHomeworkAssignments = (lesson) => {
+  // Server returns either a flat array (mirror collections) or
+  // `{ assignments: [...] }` (course detail endpoint). Accept both.
+  const raw = Array.isArray(lesson?.homework)
+    ? lesson.homework
+    : Array.isArray(lesson?.homework?.assignments)
+      ? lesson.homework.assignments
+      : Array.isArray(lesson?.homeworkAssignments)
+        ? lesson.homeworkAssignments
+        : [];
+  return raw.filter((assignment) => assignment?.enabled !== false);
+};
 
 const getHomeworkSubmissionForUser = (assignment, userId) =>
   (assignment?.submissions || []).find(

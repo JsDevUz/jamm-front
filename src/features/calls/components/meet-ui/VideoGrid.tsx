@@ -253,11 +253,23 @@ export default function VideoGrid({
     useState<FullscreenCompanionMode>("pip");
 
   const { dominantTile, stripTiles, gridTiles, overflowCount } = useMemo(() => {
-    const screenShareTile = participants.find((participant) => participant.source === "screen") || null;
-    const cameraTiles = participants.filter((participant) => participant.source === "camera");
+    // Multiple participants can share their screen at once. Pick the speaking
+    // share (or the first one) as the dominant; the rest are surfaced in the
+    // strip alongside camera tiles so they aren't dropped on the floor (the
+    // previous logic only surfaced the first screen, which left the second
+    // share's track mounted somewhere off-layout — visible as the "two screen
+    // shares overlapping" bug).
+    const screenShareTiles = participants.filter(
+      (participant) => participant.source === "screen",
+    );
+    const cameraTiles = participants.filter(
+      (participant) => participant.source === "camera",
+    );
     const fullscreenTile =
       (fullscreenTileKey &&
-        participants.find((participant) => getTileKey(participant) === fullscreenTileKey)) ||
+        participants.find(
+          (participant) => getTileKey(participant) === fullscreenTileKey,
+        )) ||
       null;
 
     const orderedCameraTiles = [...cameraTiles].sort((left, right) => {
@@ -270,11 +282,24 @@ export default function VideoGrid({
       return left.name.localeCompare(right.name);
     });
 
+    // Pick the dominant screen: pinned > speaking > first.
+    const sortedScreens = [...screenShareTiles].sort((left, right) => {
+      if (pinnedIdentity && left.identity === pinnedIdentity) return -1;
+      if (pinnedIdentity && right.identity === pinnedIdentity) return 1;
+      if (left.isSpeaking && !right.isSpeaking) return -1;
+      if (!left.isSpeaking && right.isSpeaking) return 1;
+      return left.name.localeCompare(right.name);
+    });
+    const primaryScreen = sortedScreens[0] || null;
+    const secondaryScreens = sortedScreens.slice(1);
+
     const maxStripVisible = getMaxVisibleCameraTiles(isMobile);
 
     if (fullscreenTile) {
       const orderedStrip = participants
-        .filter((participant) => getTileKey(participant) !== getTileKey(fullscreenTile))
+        .filter(
+          (participant) => getTileKey(participant) !== getTileKey(fullscreenTile),
+        )
         .sort((left, right) => {
           if (pinnedIdentity && left.identity === pinnedIdentity) return -1;
           if (pinnedIdentity && right.identity === pinnedIdentity) return 1;
@@ -293,19 +318,24 @@ export default function VideoGrid({
       };
     }
 
-    if (screenShareTile) {
-      const visibleStrip = orderedCameraTiles.slice(0, maxStripVisible);
+    if (primaryScreen) {
+      // Strip = secondary screens (always shown) + cameras, capped to maxStripVisible.
+      const allStripCandidates = [...secondaryScreens, ...orderedCameraTiles];
+      const visibleStrip = allStripCandidates.slice(0, maxStripVisible);
       return {
-        dominantTile: screenShareTile,
+        dominantTile: primaryScreen,
         stripTiles: visibleStrip,
         gridTiles: [] as TileParticipant[],
-        overflowCount: Math.max(0, orderedCameraTiles.length - visibleStrip.length),
+        overflowCount: Math.max(0, allStripCandidates.length - visibleStrip.length),
       };
     }
 
     const maxVisible = getMaxVisibleCameraTiles(isMobile);
     const visibleCameraTiles = orderedCameraTiles.slice(0, maxVisible);
-    const overflowCount = Math.max(0, orderedCameraTiles.length - visibleCameraTiles.length);
+    const overflowCount = Math.max(
+      0,
+      orderedCameraTiles.length - visibleCameraTiles.length,
+    );
 
     return {
       dominantTile: null,
