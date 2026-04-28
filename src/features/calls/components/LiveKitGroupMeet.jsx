@@ -2614,6 +2614,7 @@ function MeetContent({
             onSetGrade={signaling.setLessonGrade}
             onSelectLesson={signaling.selectLessonInMeet}
             onFetchTestDetail={signaling.fetchTestDetail}
+            onReviewHomework={signaling.reviewLessonHomework}
           />
         ) : null}
         <RoomAudioRenderer />

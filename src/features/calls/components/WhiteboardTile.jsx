@@ -100,6 +100,11 @@ const WHITEBOARD_MIN_BOARD_BASE_HEIGHT = 120;
 const WHITEBOARD_MIN_VIEWPORT_BASE_HEIGHT = 120;
 const WHITEBOARD_PDF_RENDER_VERSION = "v3";
 const WHITEBOARD_PDF_BUFFER_CACHE_MAX_ITEMS = 12;
+// Mobile Safari kills the tab when total canvas memory tops ~250 MB. Each
+// rasterised PDF page (retina, A4) is 8–12 MB, so we keep just a tiny window
+// of recently visible pages on mobile and rely on re-render for the rest.
+const WHITEBOARD_PDF_BITMAP_CACHE_MAX_ITEMS_MOBILE = 4;
+const WHITEBOARD_PDF_BITMAP_CACHE_MAX_ITEMS_DESKTOP = 16;
 const WHITEBOARD_MAX_TEXT_CHARS = 240;
 const WHITEBOARD_VIEWPORT_TOP_SAFE_SPACE = 92;
 const WHITEBOARD_VIEWPORT_BOTTOM_SAFE_SPACE = 176;
@@ -2645,6 +2650,9 @@ const Toolbar = styled.div`
   border: 1px solid rgba(15, 23, 42, 0.08);
   background: rgba(255, 255, 255, 0.94);
   backdrop-filter: blur(18px);
+  @media (max-width: 900px) {
+    backdrop-filter: none;
+  }
   box-shadow:
     0 18px 42px rgba(15, 23, 42, 0.12),
     inset 0 1px 0 rgba(255, 255, 255, 0.9);
@@ -2746,6 +2754,9 @@ const SurfaceDock = styled.div`
   border: 1px solid rgba(15, 23, 42, 0.08);
   background: rgba(255, 255, 255, 0.94);
   backdrop-filter: blur(18px);
+  @media (max-width: 900px) {
+    backdrop-filter: none;
+  }
   box-shadow:
     0 18px 42px rgba(15, 23, 42, 0.12),
     inset 0 1px 0 rgba(255, 255, 255, 0.9);
@@ -2767,6 +2778,9 @@ const ToolbarOptions = styled.div`
   border: 1px solid rgba(15, 23, 42, 0.08);
   background: rgba(255, 255, 255, 0.94);
   backdrop-filter: blur(18px);
+  @media (max-width: 900px) {
+    backdrop-filter: none;
+  }
   box-shadow:
     0 18px 42px rgba(15, 23, 42, 0.12),
     inset 0 1px 0 rgba(255, 255, 255, 0.9);
@@ -3275,6 +3289,9 @@ const PickerPopoverPanel = styled.div`
     0 18px 38px rgba(15, 23, 42, 0.15),
     inset 0 1px 0 rgba(255, 255, 255, 0.88);
   backdrop-filter: blur(12px);
+  @media (max-width: 900px) {
+    backdrop-filter: none;
+  }
 `;
 
 const PickerPopover = ({ children }) => {
@@ -3467,6 +3484,9 @@ const GuestSyncButton = styled.button`
   font-weight: 800;
   box-shadow: 0 10px 24px rgba(15, 23, 42, 0.14);
   backdrop-filter: blur(12px);
+  @media (max-width: 900px) {
+    backdrop-filter: none;
+  }
   pointer-events: auto;
 
   @media (max-width: 768px) {
@@ -3929,6 +3949,9 @@ const TileLabel = styled.div`
   left: 10px;
   background: rgba(0, 0, 0, 0.55);
   backdrop-filter: blur(6px);
+  @media (max-width: 900px) {
+    backdrop-filter: none;
+  }
   color: white;
   font-size: ${(p) => (p.$compact ? "11px" : "12px")};
   font-weight: 600;
@@ -4240,6 +4263,9 @@ const PageBadge = styled.div`
   font-size: 11px;
   font-weight: 700;
   backdrop-filter: blur(6px);
+  @media (max-width: 900px) {
+    backdrop-filter: none;
+  }
 `;
 
 const HiddenInput = styled.input`
@@ -4780,17 +4806,21 @@ const StrokeCanvas = ({
     }
   }, []);
 
-  // ─── Active layer (Layer 2): draft stroke + shape preview, runs at 60fps ──────
+  // ─── Active layer (Layer 2): draft stroke + shape preview ─────────────────
+  // Used to spin a 60fps RAF unconditionally even when no draft existed —
+  // ~35% CPU on idle iOS Safari, contributing to OOM crashes. Now the loop
+  // only runs while there's actual work, and pointerdown wakes it up.
+  const activeLayerNeedsClearRef = useRef(false);
+
   const renderActiveLayer = useCallback(() => {
+    activeLayerRafRef.current = 0;
     const canvas = activeCanvasRef.current;
     const { width, height } = canvasSizeRef.current;
     if (!canvas || width <= 0 || height <= 0) {
-      activeLayerRafRef.current = window.requestAnimationFrame(renderActiveLayer);
       return;
     }
     const ctx = canvas.getContext("2d");
     if (!ctx) {
-      activeLayerRafRef.current = window.requestAnimationFrame(renderActiveLayer);
       return;
     }
     const currentZoom = zoomScaleRef.current;
@@ -4800,18 +4830,30 @@ const StrokeCanvas = ({
 
     if (hasDraft || hasPreview) {
       ctx.clearRect(0, 0, width, height);
+      activeLayerNeedsClearRef.current = true;
       if (shapePreviewStrokeRef.current) {
         drawStroke(ctx, shapePreviewStrokeRef.current, width, height, currentZoom, currentSurfaceMode);
       }
       if (draftStrokeRef.current) {
         drawStroke(ctx, draftStrokeRef.current, width, height, currentZoom, currentSurfaceMode);
       }
-    } else {
-      // Nothing active — clear once then stop clearing every frame
-      ctx.clearRect(0, 0, width, height);
+      // Keep ticking while draft/preview are alive.
+      activeLayerRafRef.current = window.requestAnimationFrame(renderActiveLayer);
+      return;
     }
-    activeLayerRafRef.current = window.requestAnimationFrame(renderActiveLayer);
+
+    // No work — clear once on the trailing frame, then go idle. Next pointer
+    // event will revive the loop via scheduleActiveLayerRender().
+    if (activeLayerNeedsClearRef.current) {
+      ctx.clearRect(0, 0, width, height);
+      activeLayerNeedsClearRef.current = false;
+    }
   }, []);
+
+  const scheduleActiveLayerRender = useCallback(() => {
+    if (activeLayerRafRef.current) return;
+    activeLayerRafRef.current = window.requestAnimationFrame(renderActiveLayer);
+  }, [renderActiveLayer]);
 
   const redrawCanvas = useCallback(() => {
     // Skip if RAF already scheduled — batches multiple sync calls into one frame
@@ -4879,10 +4921,9 @@ const StrokeCanvas = ({
     });
     resizeObserver.observe(surface);
 
-    // Guests only need the persisted layer; a second full-size canvas is expensive on iOS Safari.
-    if (interactive) {
-      activeLayerRafRef.current = window.requestAnimationFrame(renderActiveLayer);
-    }
+    // Don't kick off the active-layer RAF here — it's now lazy. The loop is
+    // started by pointerdown / shape preview changes only when there's a
+    // draft to render. Guests never get an active canvas anyway (sized 1×1).
 
     return () => {
       resizeObserver.disconnect();
@@ -4908,6 +4949,13 @@ const StrokeCanvas = ({
     lastRedrawSignatureRef.current = signature;
     redrawCanvas();
   }, [redrawCanvas, strokes, zoomScale, surfaceMode, shapePreviewStroke]);
+
+  // Active layer wakes up whenever a shape preview appears or is cleared
+  // (the trailing frame after disappearance still needs a clearRect).
+  useEffect(() => {
+    if (!interactive) return;
+    scheduleActiveLayerRender();
+  }, [interactive, scheduleActiveLayerRender, shapePreviewStroke]);
 
   // Clear lingering draft once the committed stroke appears in props.strokes.
   // This is what prevents the mouseup flicker: the draft stays visible on the active layer
@@ -5664,6 +5712,7 @@ const StrokeCanvas = ({
           points: [point, point],
         };
         activeCanvasRef.current?.setPointerCapture?.(event.pointerId);
+        scheduleActiveLayerRender();
         redrawCanvas();
         return;
       }
@@ -5685,6 +5734,7 @@ const StrokeCanvas = ({
       };
 
       activeCanvasRef.current?.setPointerCapture?.(event.pointerId);
+      scheduleActiveLayerRender();
       redrawCanvas();
     },
     [
@@ -5701,6 +5751,7 @@ const StrokeCanvas = ({
       pageNumber,
       redrawCanvas,
       resolvePoint,
+      scheduleActiveLayerRender,
       tabId,
       tool,
       zoomScale,
@@ -5756,6 +5807,7 @@ const StrokeCanvas = ({
               size: brushSize,
             }
           : draftStrokeRef.current;
+        scheduleActiveLayerRender();
         redrawCanvas();
         return;
       }
@@ -5786,6 +5838,7 @@ const StrokeCanvas = ({
             points: [...nextDraftPoints],
           }
         : draftStrokeRef.current;
+      scheduleActiveLayerRender();
       redrawCanvas();
 
     },
@@ -5796,6 +5849,7 @@ const StrokeCanvas = ({
       interactive,
       redrawCanvas,
       resolvePoint,
+      scheduleActiveLayerRender,
       stopDrawing,
       tool,
       brushSize,
@@ -8339,12 +8393,23 @@ const WhiteboardTile = ({
             viewportWidth: viewport.width,
             viewportHeight: viewport.height,
           });
+          const bitmapCacheLimit = isMobilePdfBrowser()
+            ? WHITEBOARD_PDF_BITMAP_CACHE_MAX_ITEMS_MOBILE
+            : WHITEBOARD_PDF_BITMAP_CACHE_MAX_ITEMS_DESKTOP;
           while (
-            pdfPageBitmapCacheRef.current.size >
-            WHITEBOARD_PDF_BUFFER_CACHE_MAX_ITEMS
+            pdfPageBitmapCacheRef.current.size > bitmapCacheLimit
           ) {
             const oldestKey = pdfPageBitmapCacheRef.current.keys().next().value;
             if (!oldestKey) break;
+            const evicted = pdfPageBitmapCacheRef.current.get(oldestKey);
+            // Free the GPU/canvas backing memory eagerly. Setting width=0
+            // is the only reliable way to release a 2D canvas in iOS Safari.
+            if (evicted?.canvas) {
+              try {
+                evicted.canvas.width = 0;
+                evicted.canvas.height = 0;
+              } catch {}
+            }
             pdfPageBitmapCacheRef.current.delete(oldestKey);
           }
           canvas.dataset.renderKey = renderSignature;
@@ -8414,24 +8479,48 @@ const WhiteboardTile = ({
     }
 
     pdfObserverRef.current?.disconnect?.();
+    // On mobile, halve the look-ahead so we don't pre-rasterise pages that
+    // never enter the viewport during fast scrolls (each off-screen page is
+    // 8–12 MB on retina iPad). Also debounce updates so rapid scroll bursts
+    // don't trigger a render storm.
+    const isMobileClient = isMobilePdfBrowser();
+    const rootMargin = isMobileClient
+      ? "60% 0px 60% 0px"
+      : "180% 0px 180% 0px";
+    let pendingPages = new Set();
+    let flushTimer = 0;
+    const flushVisible = () => {
+      flushTimer = 0;
+      if (pendingPages.size === 0) return;
+      const nextPages = Array.from(pendingPages);
+      pendingPages = new Set();
+      setVisiblePdfPages((prev) =>
+        Array.from(new Set([...prev, ...nextPages])).sort(
+          (left, right) => left - right,
+        ),
+      );
+    };
+    const scheduleFlush = () => {
+      if (flushTimer) return;
+      flushTimer = window.setTimeout(flushVisible, isMobileClient ? 140 : 40);
+    };
     const observer = new IntersectionObserver(
       (entries) => {
-        const nextPages = entries
-          .filter((entry) => entry.isIntersecting)
-          .map((entry) => Number(entry.target.getAttribute("data-page-number")))
-          .filter((pageNumber) => Number.isFinite(pageNumber) && pageNumber > 0);
-
-        if (nextPages.length === 0) {
-          return;
+        let added = false;
+        for (const entry of entries) {
+          if (!entry.isIntersecting) continue;
+          const pageNumber = Number(
+            entry.target.getAttribute("data-page-number"),
+          );
+          if (!Number.isFinite(pageNumber) || pageNumber <= 0) continue;
+          pendingPages.add(pageNumber);
+          added = true;
         }
-
-        setVisiblePdfPages((prev) =>
-          Array.from(new Set([...prev, ...nextPages])).sort((left, right) => left - right),
-        );
+        if (added) scheduleFlush();
       },
       {
         root: viewport,
-        rootMargin: "180% 0px 180% 0px",
+        rootMargin,
         threshold: 0.01,
       },
     );

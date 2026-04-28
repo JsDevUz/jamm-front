@@ -2243,6 +2243,23 @@ export function useLiveKitMeetSignaling({
     [roomId],
   );
 
+  const reviewLessonHomework = useCallback(
+    (
+      assignmentId,
+      targetUserId,
+      { status = "reviewed", score, feedback, lessonId } = {},
+    ) => {
+      const socket = socketRef.current;
+      if (!socket || !assignmentId || !targetUserId) return;
+      const payload = { roomId, assignmentId, targetUserId, status };
+      if (score !== undefined) payload.score = score;
+      if (typeof feedback === "string") payload.feedback = feedback;
+      if (lessonId) payload.lessonId = lessonId;
+      socket.emit("meet-review-homework", payload);
+    },
+    [roomId],
+  );
+
   // Teacher switches the panel to a different lesson of the same course.
   // Refetches roster/grading/homework/tests for the new lesson without leaving
   // the meet — the bound lesson (auto-attendance target) is unchanged.
@@ -2305,5 +2322,6 @@ export function useLiveKitMeetSignaling({
     refreshLessonRoster,
     selectLessonInMeet,
     fetchTestDetail,
+    reviewLessonHomework,
   };
 }

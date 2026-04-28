@@ -9,6 +9,7 @@ import {
   XCircle,
   ExternalLink,
 } from "lucide-react";
+import HomeworkSubmissionPlayer from "./HomeworkSubmissionPlayer";
 
 const attendanceThemeTokens = `
   --lesson-bg: color-mix(in srgb, var(--meet-panel-bg, var(--background-color, #ffffff)) 96%, transparent);
@@ -581,28 +582,39 @@ function detectMediaType(submission, assignmentType) {
   return "other";
 }
 
-function HomeworkSubmissionPreview({ submission, assignmentType }) {
+function HomeworkSubmissionPreview({
+  submission,
+  assignmentId,
+  assignmentType,
+  courseId,
+  lessonId,
+  studentUserId,
+}) {
   if (!submission) return null;
   const mediaType = detectMediaType(submission, assignmentType);
   const fileUrl = submission.fileUrl || submission.link || "";
-  if (!fileUrl) return null;
   const previewStyle = {
     width: "100%",
-    maxHeight: 320,
+    maxHeight: 360,
     borderRadius: 10,
     background: "#0a0a0a",
     marginTop: 6,
   };
-  if (mediaType === "video") {
+  // Video uses HLS-segmented streaming (same as the course player). Falls
+  // back to a direct <video src> when streamType is "direct".
+  if (mediaType === "video" || submission.streamType === "hls") {
     return (
-      <video
-        controls
-        preload="metadata"
-        style={previewStyle}
-        src={fileUrl}
+      <HomeworkSubmissionPlayer
+        courseId={courseId}
+        lessonId={lessonId}
+        assignmentId={assignmentId}
+        submissionUserId={studentUserId}
+        streamType={submission.streamType || "direct"}
+        fallbackUrl={fileUrl}
       />
     );
   }
+  if (!fileUrl) return null;
   if (mediaType === "audio") {
     return (
       <audio
@@ -728,7 +740,10 @@ function StudentDetailModal({
   tests,
   attendance,
   testDetails,
+  courseId,
+  lessonId,
   onFetchTestDetail,
+  onReviewHomework,
   onClose,
 }) {
   const userId = String(student?.userId || student?._id || "");
@@ -874,7 +889,11 @@ function StudentDetailModal({
                         ) : null}
                         <HomeworkSubmissionPreview
                           submission={submission}
+                          assignmentId={assignment.assignmentId}
                           assignmentType={assignment.type}
+                          courseId={courseId}
+                          lessonId={lessonId}
+                          studentUserId={userId}
                         />
                         {submission.fileUrl ? (
                           <CardRow>
@@ -911,15 +930,58 @@ function StudentDetailModal({
                             </a>
                           </CardRow>
                         ) : null}
-                        {submission.score !== undefined &&
-                        submission.score !== null ? (
-                          <CardRow>
-                            <span>Baho</span>
-                            <Muted>
-                              {submission.score} / {assignment.maxScore || 100}
-                            </Muted>
-                          </CardRow>
-                        ) : null}
+                        <CardRow>
+                          <span>Baho</span>
+                          <input
+                            type="number"
+                            min={0}
+                            max={assignment.maxScore || 100}
+                            defaultValue={
+                              submission.score === null ||
+                              submission.score === undefined
+                                ? ""
+                                : submission.score
+                            }
+                            placeholder={`/ ${assignment.maxScore || 100}`}
+                            onBlur={(e) => {
+                              if (!onReviewHomework) return;
+                              const raw = e.target.value.trim();
+                              const max = assignment.maxScore || 100;
+                              const next =
+                                raw === ""
+                                  ? null
+                                  : Math.max(0, Math.min(max, Number(raw)));
+                              const prev =
+                                submission.score === null ||
+                                submission.score === undefined
+                                  ? null
+                                  : Number(submission.score);
+                              if (next === prev) return;
+                              onReviewHomework(
+                                assignment.assignmentId,
+                                userId,
+                                {
+                                  status:
+                                    next === null
+                                      ? "needs_revision"
+                                      : "reviewed",
+                                  score: next,
+                                  lessonId,
+                                },
+                              );
+                            }}
+                            style={{
+                              width: 80,
+                              padding: "4px 6px",
+                              borderRadius: 6,
+                              border: "1px solid var(--lesson-border)",
+                              background: "var(--lesson-input)",
+                              color: "var(--lesson-text)",
+                              fontSize: 13,
+                              textAlign: "center",
+                            }}
+                          />
+                        </CardRow>
                         {submission.status ? (
                           <CardRow>
                             <span>Holat</span>
@@ -1034,6 +1096,7 @@ export default function MeetAttendancePanel({
   onSetGrade,
   onSelectLesson,
   onFetchTestDetail,
+  onReviewHomework,
   onOpenChange,
   onClose,
 }) {
@@ -1361,7 +1424,10 @@ export default function MeetAttendancePanel({
           tests={lessonMeet?.tests}
           attendance={lessonMeet?.attendance}
           testDetails={lessonMeet?.testDetails}
+          courseId={lessonMeet?.courseId}
+          lessonId={selectedLessonId}
           onFetchTestDetail={onFetchTestDetail}
+          onReviewHomework={onReviewHomework}
           onClose={() => setDetailUserId(null)}
         />
       ) : null}
