@@ -95,6 +95,9 @@ const WHITEBOARD_MOBILE_CANVAS_MAX_EDGE = 4096;
 const WHITEBOARD_MOBILE_CANVAS_MAX_PIXELS = 8000000;
 const WHITEBOARD_MOBILE_SAFARI_CANVAS_MAX_EDGE = 2048;
 const WHITEBOARD_MOBILE_SAFARI_CANVAS_MAX_PIXELS = 2200000;
+const WHITEBOARD_MOBILE_GUEST_BOARD_CANVAS_MAX_EDGE = 1600;
+const WHITEBOARD_MOBILE_GUEST_BOARD_CANVAS_MAX_PIXELS = 900000;
+const WHITEBOARD_MOBILE_GUEST_PAGE_CANVAS_MAX_PIXELS = 2200000;
 const WHITEBOARD_MIN_BOARD_BASE_WIDTH = 120;
 const WHITEBOARD_MIN_BOARD_BASE_HEIGHT = 120;
 const WHITEBOARD_MIN_VIEWPORT_BASE_HEIGHT = 120;
@@ -218,24 +221,32 @@ const getMobileViewportWidthCap = (fallbackWidth) => {
   return Math.max(WHITEBOARD_MIN_PDF_RENDER_WIDTH, Math.floor(cap - 8));
 };
 
-const getSafeWhiteboardCanvasPixelRatio = (width, height) => {
+const getSafeWhiteboardCanvasPixelRatio = (width, height, options = {}) => {
   const safeWidth = Math.max(1, Number(width) || 1);
   const safeHeight = Math.max(1, Number(height) || 1);
   const mobileSafari = isMobileSafariBrowser();
   const mobileBrowser = mobileSafari || isMobilePdfBrowser();
-  const maxEdge = mobileSafari
+  const maxEdge = Number.isFinite(Number(options.maxEdge))
+    ? Math.max(1, Number(options.maxEdge))
+    : mobileSafari
     ? WHITEBOARD_MOBILE_SAFARI_CANVAS_MAX_EDGE
     : mobileBrowser
       ? WHITEBOARD_MOBILE_CANVAS_MAX_EDGE
       : WHITEBOARD_CANVAS_MAX_EDGE;
-  const maxPixels = mobileSafari
+  const maxPixels = Number.isFinite(Number(options.maxPixels))
+    ? Math.max(1, Number(options.maxPixels))
+    : mobileSafari
     ? WHITEBOARD_MOBILE_SAFARI_CANVAS_MAX_PIXELS
     : mobileBrowser
       ? WHITEBOARD_MOBILE_CANVAS_MAX_PIXELS
       : WHITEBOARD_CANVAS_MAX_PIXELS;
   const deviceRatio =
     typeof window === "undefined" ? 1 : Number(window.devicePixelRatio) || 1;
-  const preferredRatio = mobileBrowser ? 1 : Math.min(2, deviceRatio);
+  const preferredRatio = Number.isFinite(Number(options.preferredRatio))
+    ? Math.max(0.01, Number(options.preferredRatio))
+    : mobileBrowser
+      ? 1
+      : Math.min(2, deviceRatio);
   const edgeRatio = Math.min(maxEdge / safeWidth, maxEdge / safeHeight);
   const pixelRatio = Math.sqrt(maxPixels / Math.max(1, safeWidth * safeHeight));
 
@@ -791,7 +802,7 @@ const getVectorEndpoints = (stroke, width, height, zoomScale = 1, surfaceMode = 
   };
 };
 
-const buildVectorPath = (tool, start, end, rotation = 0, edgeStyle = "sharp") => {
+const buildVectorPath = (tool, start, end, rotation = 0, edgeStyle = "sharp", scale = 1) => {
   if (typeof Path2D === "undefined") {
     return null;
   }
@@ -917,7 +928,7 @@ const buildVectorPath = (tool, start, end, rotation = 0, edgeStyle = "sharp") =>
       return path;
     case "arrow": {
       const angle = Math.atan2(end.y - start.y, end.x - start.x);
-      const headLength = 18;
+      const headLength = 18 * Math.max(0.05, Number(scale) || 1);
       path.moveTo(start.x, start.y);
       path.lineTo(end.x, end.y);
       path.moveTo(end.x, end.y);
@@ -1211,6 +1222,7 @@ const drawStroke = (ctx, stroke, width, height, zoomScale = 1, surfaceMode = "pa
       endpoints.end,
       getVectorRotation(stroke),
       getShapeEdge(stroke),
+      scale,
     );
     if (!path) {
       return;
@@ -4849,6 +4861,9 @@ const StrokeCanvas = ({
   onStrokeUpdate,
   onToolChange,
   onTextEditorStateChange,
+  canvasMaxEdge,
+  canvasMaxPixels,
+  canvasPreferredRatio,
 }) => {
   // Layer 1: persisted strokes (redraws only when committed strokes change)
   const canvasRef = useRef(null);
@@ -5043,7 +5058,11 @@ const StrokeCanvas = ({
           surface.clientHeight || surface.offsetHeight || surface.getBoundingClientRect().height,
         ),
       );
-      const ratio = getSafeWhiteboardCanvasPixelRatio(width, height);
+      const ratio = getSafeWhiteboardCanvasPixelRatio(width, height, {
+        maxEdge: canvasMaxEdge,
+        maxPixels: canvasMaxPixels,
+        preferredRatio: canvasPreferredRatio,
+      });
 
       // Resize persisted layer
       canvas.width = Math.max(1, Math.round(width * ratio));
@@ -5103,7 +5122,14 @@ const StrokeCanvas = ({
         activeLayerRafRef.current = 0;
       }
     };
-  }, [interactive, redrawCanvasImmediate, renderActiveLayer]);
+  }, [
+    canvasMaxEdge,
+    canvasMaxPixels,
+    canvasPreferredRatio,
+    interactive,
+    redrawCanvasImmediate,
+    renderActiveLayer,
+  ]);
 
   // Trigger redraw when strokes/zoom/mode change — RAF-batched so rapid updates don't pile up.
   // Skip when strokes reference changed but contents (id+points length) match — prevents
@@ -11392,6 +11418,12 @@ const WhiteboardTile = ({
                                   onStrokeUpdate={onStrokeUpdate}
                                   onToolChange={onToolChange}
                                   onTextEditorStateChange={setActiveTextEditorState}
+                                  canvasMaxPixels={
+                                    !interactive && isMobileClient
+                                      ? WHITEBOARD_MOBILE_GUEST_PAGE_CANVAS_MAX_PIXELS
+                                      : undefined
+                                  }
+                                  canvasPreferredRatio={!interactive && isMobileClient ? 2 : undefined}
                                   surfaceMode="page"
                                   textPlaceholder={t("groupCall.whiteboard.textPlaceholder")}
                                 />
@@ -11521,6 +11553,12 @@ const WhiteboardTile = ({
                               onStrokeUpdate={onStrokeUpdate}
                               onToolChange={onToolChange}
                               onTextEditorStateChange={setActiveTextEditorState}
+                              canvasMaxPixels={
+                                !interactive && isMobileClient
+                                  ? WHITEBOARD_MOBILE_GUEST_PAGE_CANVAS_MAX_PIXELS
+                                  : undefined
+                              }
+                              canvasPreferredRatio={!interactive && isMobileClient ? 2 : undefined}
                               surfaceMode="page"
                               textPlaceholder={t("groupCall.whiteboard.textPlaceholder")}
                             />
@@ -11596,6 +11634,16 @@ const WhiteboardTile = ({
                           onStrokeUpdate={onStrokeUpdate}
                           onToolChange={onToolChange}
                           onTextEditorStateChange={setActiveTextEditorState}
+                          canvasMaxEdge={
+                            !interactive && effectiveIsMobile
+                              ? WHITEBOARD_MOBILE_GUEST_BOARD_CANVAS_MAX_EDGE
+                              : undefined
+                          }
+                          canvasMaxPixels={
+                            !interactive && effectiveIsMobile
+                              ? WHITEBOARD_MOBILE_GUEST_BOARD_CANVAS_MAX_PIXELS
+                              : undefined
+                          }
                           surfaceMode="board"
                           textPlaceholder={t("groupCall.whiteboard.textPlaceholder")}
                         />
@@ -11649,6 +11697,16 @@ const WhiteboardTile = ({
                       onStrokeUpdate={onStrokeUpdate}
                       onToolChange={onToolChange}
                       onTextEditorStateChange={setActiveTextEditorState}
+                      canvasMaxEdge={
+                        !interactive && effectiveIsMobile
+                          ? WHITEBOARD_MOBILE_GUEST_BOARD_CANVAS_MAX_EDGE
+                          : undefined
+                      }
+                      canvasMaxPixels={
+                        !interactive && effectiveIsMobile
+                          ? WHITEBOARD_MOBILE_GUEST_BOARD_CANVAS_MAX_PIXELS
+                          : undefined
+                      }
                       surfaceMode="board"
                       textPlaceholder={t("groupCall.whiteboard.textPlaceholder")}
                     />
