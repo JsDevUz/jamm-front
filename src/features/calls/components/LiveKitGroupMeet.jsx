@@ -1918,7 +1918,14 @@ function MeetContent({
     [participants],
   );
   const stageTracks = tracks.length > 0 ? tracks : fallbackParticipantTracks;
-  const hasWhiteboard = signaling.whiteboardState.isActive;
+  // TEMP: Whiteboard is gated to a single test user while we shake out mobile
+  // Safari memory issues. Everyone else gets a screenshare-only meet, which
+  // is the primary lesson surface. Remove this gate once whiteboard is stable.
+  const meetCurrentUser = useAuthStore((state) => state.user);
+  const isWhiteboardTester =
+    String(meetCurrentUser?.username || "").toLowerCase() === "ceo";
+  const hasWhiteboard =
+    isWhiteboardTester && signaling.whiteboardState.isActive;
   const canShowLessonControls = Boolean(isCreator && signaling.lessonMeet);
   const primaryTitle = title || roomInfo.name || "Jamm Meet";
   const previewTracks = useMemo(
@@ -2131,24 +2138,49 @@ function MeetContent({
   const handleToggleScreenShare = useCallback(async () => {
     try {
       const nextEnabled = !room.localParticipant.isScreenShareEnabled;
+      // Lessons are taught over screenshare — make it the highest quality
+      // surface in the meet:
+      //   • 1080p @ 30fps (was 15fps; cursor and code now look smooth)
+      //   • H.264 codec — hardware decode on iOS Safari, lower CPU than VP8
+      //   • contentHint "detail" — tells the encoder to preserve text/edges
+      //     instead of smoothing them like motion video
+      //   • maintain-resolution — under bandwidth pressure the framerate drops
+      //     before the resolution does, so the picture stays crisp
+      //   • simulcast off — single high-quality layer, no decode duplication
       await room.localParticipant.setScreenShareEnabled(
         nextEnabled,
         nextEnabled
           ? {
               selfBrowserSurface: "include",
               surfaceSwitching: "include",
-              resolution: ScreenSharePresets.h1080fps15.resolution,
+              resolution: ScreenSharePresets.h1080fps30.resolution,
+              contentHint: "detail",
+              suppressLocalAudioPlayback: true,
             }
           : undefined,
         nextEnabled
           ? {
-              videoCodec: "vp8",
-              videoEncoding: ScreenSharePresets.h1080fps15.encoding,
+              videoCodec: "h264",
+              videoEncoding: ScreenSharePresets.h1080fps30.encoding,
               simulcast: false,
               degradationPreference: "maintain-resolution",
+              backupCodec: false,
             }
           : undefined,
       );
+      // Apply the contentHint to the live track too — some browsers only honour
+      // it when set on the MediaStreamTrack directly.
+      if (nextEnabled) {
+        const screenPub = Array.from(
+          room.localParticipant.videoTrackPublications.values(),
+        ).find((p) => p.source === Track.Source.ScreenShare);
+        const mst = screenPub?.track?.mediaStreamTrack;
+        if (mst && "contentHint" in mst) {
+          try {
+            mst.contentHint = "detail";
+          } catch {}
+        }
+      }
     } catch {
       toast.error("Screen share boshqarib bo'lmadi");
     }
@@ -2569,7 +2601,9 @@ function MeetContent({
           isCreator={isCreator}
           onLeave={handleLeave}
           onCopyLink={handleCopy}
-          onToggleWhiteboard={isCreator ? handleWhiteboardToggle : undefined}
+          onToggleWhiteboard={
+            isCreator && isWhiteboardTester ? handleWhiteboardToggle : undefined
+          }
           onToggleLessonControls={
             canShowLessonControls ? () => setLessonControlsOpen(true) : undefined
           }
@@ -2613,6 +2647,7 @@ function MeetContent({
             onSetAttendance={signaling.setLessonAttendance}
             onSetGrade={signaling.setLessonGrade}
             onSelectLesson={signaling.selectLessonInMeet}
+            onRefresh={signaling.refreshLessonRoster}
             onFetchTestDetail={signaling.fetchTestDetail}
             onReviewHomework={signaling.reviewLessonHomework}
           />
@@ -2770,11 +2805,19 @@ const LiveKitGroupMeet = ({
         videoCaptureDefaults: {
           resolution: VideoPresets.h720.resolution,
         },
+        screenShareCaptureDefaults: {
+          resolution: ScreenSharePresets.h1080fps30.resolution,
+          contentHint: "detail",
+        },
         publishDefaults: {
           simulcast: true,
           videoCodec: "vp8",
           videoSimulcastLayers: [VideoPresets.h180, VideoPresets.h360],
-          screenShareEncoding: ScreenSharePresets.h1080fps15.encoding,
+          // Screenshare is the lesson surface — full 1080p @ 30fps, H.264 so
+          // iOS hardware decoder kicks in. h1080fps30 ≈ 5 Mbps, plenty of
+          // headroom on broadband and Safari handles it without thermals.
+          screenShareEncoding: ScreenSharePresets.h1080fps30.encoding,
+          screenShareSimulcast: false,
           stopMicTrackOnMute: true,
           backupCodec: { codec: "vp8", encoding: VideoPresets.h540.encoding },
         },

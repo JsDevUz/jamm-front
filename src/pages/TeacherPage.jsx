@@ -28,6 +28,8 @@ import {
   Plus,
   RefreshCw,
   Search,
+  XCircle,
+   CheckCircle2,
   Shield,
   Trash2,
   Type,
@@ -41,6 +43,7 @@ import { useChats } from "../contexts/ChatsContext";
 import useAuthStore from "../store/authStore";
 import ConfirmDialog from "../shared/ui/dialogs/ConfirmDialog";
 import TeacherSidebarExpanded from "../features/navigation/TeacherSidebarExpanded";
+import HomeworkSubmissionPlayer from "../features/calls/components/HomeworkSubmissionPlayer";
 import {
   createSentenceBuilderShareLink,
   createTestShareLink,
@@ -52,6 +55,8 @@ import {
   fetchSentenceBuilderResults,
   fetchSentenceBuilderShareLinks,
   fetchSentenceBuilders,
+  fetchTestById,
+  fetchTestResults,
   fetchTestShareLinks,
 } from "../api/arenaApi";
 import { RESOLVED_APP_BASE_URL } from "../config/env";
@@ -1276,7 +1281,7 @@ const StudentTableScroll = styled.div`
 `;
 
 const StudentTableGrid = styled.div`
-  min-width: 1020px;
+  min-width: ${({ $scoreboard }) => ($scoreboard ? "1700px" : "1020px")};
   display: grid;
 
   @media (max-width: 960px) {
@@ -1286,8 +1291,10 @@ const StudentTableGrid = styled.div`
 
 const StudentTableHeadRow = styled.div`
   display: grid;
-  grid-template-columns: ${({ $withActions }) =>
-    $withActions
+  grid-template-columns: ${({ $scoreboard, $withActions }) =>
+    $scoreboard
+      ? "minmax(240px, 1.3fr) minmax(190px, 1.05fr) repeat(5, minmax(112px, 0.6fr)) 120px 145px 120px 120px 84px"
+      : $withActions
       ? "minmax(280px, 1.6fr) minmax(240px, 1.45fr) 150px 180px 140px 140px 94px"
       : "minmax(280px, 1.6fr) minmax(240px, 1.45fr) 150px 180px 140px 140px"};
   gap: 18px;
@@ -1488,8 +1495,10 @@ const ArenaTeacherBody = styled.div`
 const StudentTableRow = styled.button`
   width: 100%;
   display: grid;
-  grid-template-columns: ${({ $withActions }) =>
-    $withActions
+  grid-template-columns: ${({ $scoreboard, $withActions }) =>
+    $scoreboard
+      ? "minmax(240px, 1.3fr) minmax(190px, 1.05fr) repeat(5, minmax(112px, 0.6fr)) 120px 145px 120px 120px 84px"
+      : $withActions
       ? "minmax(280px, 1.6fr) minmax(240px, 1.45fr) 150px 180px 140px 140px 94px"
       : "minmax(280px, 1.6fr) minmax(240px, 1.45fr) 150px 180px 140px 140px"};
   gap: 18px;
@@ -1685,6 +1694,24 @@ const ProgressValue = styled.div`
   font-size: 14px;
   font-weight: 800;
   color: var(--text-color);
+`;
+
+const ScoreCellValue = styled.div`
+  display: grid;
+  gap: 3px;
+`;
+
+const ScoreCellMain = styled.span`
+  color: var(--text-color);
+  font-size: 13px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+`;
+
+const ScoreCellHint = styled.span`
+  color: var(--text-muted-color);
+  font-size: 11px;
+  font-weight: 700;
 `;
 
 const TariffPill = styled.span`
@@ -1989,6 +2016,7 @@ const StudentModalIdentity = styled.div`
   align-items: center;
   gap: 18px;
   min-width: 0;
+  width: 100%;
 `;
 
 const StudentModalAvatar = styled(StudentAvatar)`
@@ -2001,6 +2029,7 @@ const StudentModalMeta = styled.div`
   min-width: 0;
   display: grid;
   gap: 8px;
+  width: 100%;
 `;
 
 const StudentModalMetaRow = styled.div`
@@ -2037,6 +2066,19 @@ const StudentModalName = styled.h3`
   }
 `;
 
+const StudentModalNameRow = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  min-width: 0;
+
+  @media (max-width: 760px) {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+`;
+
 const StudentModalSubline = styled.div`
   font-size: 15px;
   color: var(--text-muted-color);
@@ -2061,25 +2103,23 @@ const StudentModalClose = styled.button`
 `;
 
 const StudentModalActions = styled.div`
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  display: flex;
+  justify-content: flex-start;
   gap: 12px;
-
-  @media (max-width: 760px) {
-    grid-template-columns: 1fr;
-  }
 `;
 
 const StudentModalPrimaryAction = styled.button`
-  height: 56px;
-  border-radius: 18px;
+  min-height: 40px;
+  width: fit-content;
+  border-radius: 14px;
   background: var(--primary-color);
   color: white;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
-  font-size: 15px;
+  gap: 8px;
+  padding: 0 16px;
+  font-size: 13px;
   font-weight: 800;
   cursor: pointer;
 
@@ -2193,13 +2233,13 @@ const LessonMasteryText = styled.div`
 `;
 
 const LessonMasteryTable = styled.div`
-  min-width: 860px;
+  min-width: 1010px;
   display: grid;
 `;
 
 const LessonMasteryHead = styled.div`
   display: grid;
-  grid-template-columns: minmax(240px, 1.6fr) 130px 130px 130px 140px 120px;
+  grid-template-columns: minmax(230px, 1.45fr) 120px 150px 140px 130px 130px 120px;
   gap: 16px;
   padding: 14px 16px;
   border-bottom: 1px solid var(--border-color);
@@ -2208,7 +2248,7 @@ const LessonMasteryHead = styled.div`
 
 const LessonMasteryRow = styled.div`
   display: grid;
-  grid-template-columns: minmax(240px, 1.6fr) 130px 130px 130px 140px 120px;
+  grid-template-columns: minmax(230px, 1.45fr) 120px 150px 140px 130px 130px 120px;
   gap: 16px;
   padding: 14px 16px;
   border-bottom: 1px solid var(--border-color);
@@ -2506,6 +2546,7 @@ const StudentLessonBadge = styled.span`
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 6px;
   padding: 6px 10px;
   border-radius: 999px;
   font-size: 12px;
@@ -2523,6 +2564,11 @@ const StudentLessonBadge = styled.span`
         ? "var(--success-color, #43b581)"
         : "var(--text-secondary-color)"};
   border: 1px solid var(--border-color);
+`;
+
+const StudentLessonBadgeLabel = styled.span`
+  color: var(--text-muted-color);
+  font-weight: 700;
 `;
 
 const StudentLessonTimestamp = styled.div`
@@ -2545,14 +2591,23 @@ const StudentLessonFacts = styled.div`
 const StudentLessonFact = styled.span`
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 7px 10px;
-  border-radius: 999px;
+  gap: 8px;
+  min-height: 34px;
+  padding: 6px 10px;
+  border-radius: 12px;
   border: 1px solid var(--border-color);
   background: var(--secondary-color);
-  color: var(--text-secondary-color);
   font-size: 12px;
+`;
+
+const StudentLessonFactLabel = styled.span`
+  color: var(--text-muted-color);
   font-weight: 700;
+`;
+
+const StudentLessonFactValue = styled.strong`
+  color: var(--text-color);
+  font-weight: 800;
 `;
 
 const ApprovalCard = styled.div`
@@ -2714,15 +2769,410 @@ const MasteryMetricHint = styled.div`
   color: var(--text-secondary-color);
 `;
 
-const MasteryEditorGrid = styled.div`
+const HomeworkReviewList = styled.div`
   display: grid;
-  grid-template-columns: minmax(0, 140px) minmax(0, 1fr) auto;
+  gap: 12px;
+`;
+
+const HomeworkReviewCard = styled.div`
+  border: 1px solid var(--border-color);
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--secondary-color) 86%, var(--background-color) 14%);
+  padding: 16px;
+  display: grid;
+  gap: 14px;
+`;
+
+const HomeworkCompactList = styled.div`
+  display: grid;
+  gap: 10px;
+`;
+
+const HomeworkCompactCard = styled.div`
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  background: var(--background-color);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
+`;
+
+const HomeworkCompactHeader = styled.div`
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+
+  @media (max-width: 640px) {
+    flex-direction: column;
+  }
+`;
+
+const HomeworkInlineReviewGrid = styled.div`
+  display: grid;
+  grid-template-columns: minmax(120px, 160px) minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+
+  @media (max-width: 760px) {
+    grid-template-columns: 1fr;
+  }
+`;
+
+const HomeworkReviewSummaryGrid = styled.div`
+  display: grid;
+  grid-template-columns: minmax(120px, 160px) minmax(0, 1fr);
+  gap: 10px;
+
+  @media (max-width: 760px) {
+    grid-template-columns: 1fr;
+  }
+`;
+
+const HomeworkReviewSummaryBox = styled.div`
+  border: 1px solid var(--border-color);
+  border-radius: 14px;
+  background: var(--secondary-color);
+  padding: 10px 12px;
+  min-width: 0;
+`;
+
+const HomeworkReviewSummaryLabel = styled.div`
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--text-muted-color);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+`;
+
+const HomeworkReviewSummaryValue = styled.div`
+  margin-top: 4px;
+  color: var(--text-color);
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1.35;
+  word-break: break-word;
+`;
+
+const HomeworkReviewHeader = styled.div`
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+
+  @media (max-width: 760px) {
+    flex-direction: column;
+  }
+`;
+
+const HomeworkReviewTitle = styled.div`
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--text-color);
+`;
+
+const HomeworkReviewMeta = styled.div`
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--text-muted-color);
+`;
+
+const HomeworkSubmissionBody = styled.div`
+  border-radius: 14px;
+  border: 1px solid var(--border-color);
+  background: var(--background-color);
+  padding: 12px;
+  color: var(--text-secondary-color);
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+`;
+
+const HomeworkPreviewFrame = styled.div`
+  overflow: hidden;
+  border-radius: 16px;
+  border: 1px solid var(--border-color);
+  background: #0a0a0a;
+`;
+
+const HomeworkPreviewImage = styled.img`
+  display: block;
+  width: 100%;
+  max-height: 360px;
+  object-fit: contain;
+  background: #0a0a0a;
+`;
+
+const HomeworkPreviewVideo = styled.video`
+  display: block;
+  width: 100%;
+  max-height: 360px;
+  background: #0a0a0a;
+`;
+
+const HomeworkPreviewIframe = styled.iframe`
+  display: block;
+  width: 100%;
+  height: 420px;
+  border: 0;
+  background: #0a0a0a;
+`;
+
+const HomeworkReviewActions = styled.div`
+  display: grid;
+  grid-template-columns: minmax(0, 150px) minmax(260px, 1fr) auto auto;
   gap: 12px;
   align-items: end;
+  padding-top: 2px;
 
   @media (max-width: 900px) {
     grid-template-columns: 1fr;
   }
+`;
+
+const HomeworkModalPanel = styled(StudentModalPanel)`
+  width: min(100%, 1040px);
+`;
+
+const ExerciseResultList = styled.div`
+  display: grid;
+  gap: 12px;
+`;
+
+const ExerciseResultGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+
+  @media (max-width: 900px) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  @media (max-width: 560px) {
+    grid-template-columns: 1fr;
+  }
+`;
+
+const ExerciseResultCard = styled.div`
+  border: 1px solid var(--border-color);
+  border-radius: 18px;
+  background: var(--background-color);
+  padding: 14px;
+  display: grid;
+  gap: 12px;
+`;
+
+const ExerciseResultHeader = styled.div`
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+`;
+
+const ExerciseResultTitle = styled.div`
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--text-color);
+`;
+
+const ExerciseResultStat = styled.div`
+  min-width: 0;
+  border: 1px solid var(--border-color);
+  border-radius: 14px;
+  background: var(--secondary-color);
+  padding: 10px 12px;
+`;
+
+const ExerciseResultStatTop = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+`;
+
+const ExerciseResultLabel = styled.div`
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-muted-color);
+`;
+
+const ExerciseResultValue = styled.div`
+  margin-top: 4px;
+  color: var(--text-color);
+  font-size: 17px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+`;
+
+const ExerciseAnswerToggle = styled.button`
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  border: 1px solid
+    ${({ $active }) => ($active ? "var(--primary-color)" : "var(--border-color)")};
+  background: ${({ $active }) =>
+    $active
+      ? "color-mix(in srgb, var(--primary-color) 14%, transparent)"
+      : "var(--background-color)"};
+  color: ${({ $active }) => ($active ? "var(--primary-color)" : "var(--text-muted-color)")};
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+
+  &:disabled {
+    cursor: wait;
+    opacity: 0.6;
+  }
+`;
+
+const ExerciseAnswerList = styled.div`
+  display: grid;
+  gap: 10px;
+`;
+
+const ExerciseAnswerCard = styled.div`
+  border: 1px solid
+    ${({ $correct }) =>
+      $correct
+        ? "color-mix(in srgb, var(--success-color, #22c55e) 38%, var(--border-color))"
+        : "color-mix(in srgb, var(--danger-color, #ef4444) 38%, var(--border-color))"};
+  border-radius: 14px;
+  background: ${({ $correct }) =>
+    $correct
+      ? "color-mix(in srgb, var(--success-color, #22c55e) 7%, var(--background-color))"
+      : "color-mix(in srgb, var(--danger-color, #ef4444) 7%, var(--background-color))"};
+  padding: 12px;
+`;
+
+const ExerciseQuestionTitle = styled.div`
+  color: var(--text-color);
+  font-size: 13px;
+  font-weight: 800;
+  margin-bottom: 8px;
+`;
+
+const ExerciseOptionRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: 10px;
+  padding: 7px 9px;
+  color: ${({ $correct, $selected }) =>
+    $correct
+      ? "var(--success-color, #22c55e)"
+      : $selected
+        ? "var(--danger-color, #ef4444)"
+        : "var(--text-secondary-color)"};
+  background: ${({ $correct, $selected }) =>
+    $correct
+      ? "color-mix(in srgb, var(--success-color, #22c55e) 13%, transparent)"
+      : $selected
+        ? "color-mix(in srgb, var(--danger-color, #ef4444) 13%, transparent)"
+        : "transparent"};
+  font-size: 13px;
+`;
+
+const HomeworkReviewField = styled.label`
+  display: grid;
+  gap: 8px;
+`;
+
+const HomeworkReviewLabel = styled.span`
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--text-muted-color);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+`;
+
+const HomeworkReviewInput = styled.input`
+  width: 100%;
+  min-height: 54px;
+  border-radius: 16px;
+  border: 1px solid var(--border-color);
+  background: var(--background-color);
+  color: var(--text-color);
+  padding: 0 16px;
+  font-size: 16px;
+  font-weight: 700;
+  box-shadow: inset 0 1px 0 color-mix(in srgb, #ffffff 45%, transparent);
+
+  &::placeholder {
+    color: var(--text-muted-color);
+    font-weight: 700;
+  }
+
+  &:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary-color) 14%, transparent);
+  }
+`;
+
+const HomeworkReviewTextarea = styled.textarea`
+  width: 100%;
+  min-height: 72px;
+  border-radius: 16px;
+  border: 1px solid var(--border-color);
+  background: var(--background-color);
+  color: var(--text-color);
+  padding: 14px 16px;
+  font-size: 16px;
+  line-height: 1.45;
+  resize: vertical;
+  box-shadow: inset 0 1px 0 color-mix(in srgb, #ffffff 45%, transparent);
+
+  &::placeholder {
+    color: var(--text-muted-color);
+    font-weight: 600;
+  }
+
+  &:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary-color) 14%, transparent);
+  }
+`;
+
+const LessonControlSection = styled.div`
+  border: 1px solid var(--border-color);
+  border-radius: 18px;
+  background: var(--background-color);
+  padding: 16px;
+  display: grid;
+  gap: 14px;
+`;
+
+const LessonControlTitle = styled.div`
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--text-muted-color);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+`;
+
+const MasteryEditorGrid = styled.div`
+  display: grid;
+  grid-template-columns: minmax(0, 160px) minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+
+  @media (max-width: 900px) {
+    grid-template-columns: 1fr;
+  }
+`;
+
+const MasterySaveRow = styled.div`
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
 `;
 
 const FieldGroup = styled.label`
@@ -2740,34 +3190,50 @@ const FieldLabel = styled.span`
 
 const FieldInput = styled.input`
   width: 100%;
-  min-height: 46px;
-  border-radius: 14px;
+  min-height: 54px;
+  border-radius: 16px;
   border: 1px solid var(--border-color);
   background: var(--background-color);
   color: var(--text-color);
-  padding: 0 14px;
-  font-size: 14px;
+  padding: 0 16px;
+  font-size: 16px;
+  font-weight: 700;
+  box-shadow: inset 0 1px 0 color-mix(in srgb, #ffffff 45%, transparent);
+
+  &::placeholder {
+    color: var(--text-muted-color);
+    font-weight: 700;
+  }
 
   &:focus {
     outline: none;
     border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary-color) 14%, transparent);
   }
 `;
 
 const FieldTextarea = styled.textarea`
   width: 100%;
-  min-height: 56px;
-  border-radius: 14px;
+  min-height: 72px;
+  border-radius: 16px;
   border: 1px solid var(--border-color);
   background: var(--background-color);
   color: var(--text-color);
-  padding: 10px 14px;
-  font-size: 14px;
+  padding: 14px 16px;
+  font-size: 16px;
+  line-height: 1.45;
   resize: vertical;
+  box-shadow: inset 0 1px 0 color-mix(in srgb, #ffffff 45%, transparent);
+
+  &::placeholder {
+    color: var(--text-muted-color);
+    font-weight: 600;
+  }
 
   &:focus {
     outline: none;
     border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary-color) 14%, transparent);
   }
 `;
 
@@ -2817,16 +3283,6 @@ const EmptyDetailState = styled.div`
   color: var(--text-muted-color);
   font-size: 14px;
 `;
-
-const NAV_ITEMS = [
-  { id: "dashboard", icon: LayoutDashboard },
-  { id: "courses", icon: BookOpen },
-  { id: "students", icon: Users },
-  { id: "attendance", icon: ClipboardCheck },
-  { id: "mastery", icon: GraduationCap },
-  { id: "tests", icon: FileText },
-  { id: "sentenceBuilder", icon: Type },
-];
 
 const getEntityId = (value) => {
   if (!value) return "";
@@ -2925,7 +3381,11 @@ const getEnrollmentCurrentLesson = (course, userId) => {
 const getHomeworkAssignments = (lesson) => {
   // Server returns either a flat array (mirror collections) or
   // `{ assignments: [...] }` (course detail endpoint). Accept both.
-  const raw = Array.isArray(lesson?.homework)
+  const raw = Array.isArray(lesson)
+    ? lesson
+    : Array.isArray(lesson?.assignments)
+      ? lesson.assignments
+      : Array.isArray(lesson?.homework)
     ? lesson.homework
     : Array.isArray(lesson?.homework?.assignments)
       ? lesson.homework.assignments
@@ -2937,8 +3397,55 @@ const getHomeworkAssignments = (lesson) => {
 
 const getHomeworkSubmissionForUser = (assignment, userId) =>
   (assignment?.submissions || []).find(
-    (item) => String(getEntityId(item?.userId || item)) === String(userId || ""),
+    (item) =>
+      [
+        item?.userId,
+        item?.studentId,
+        item?.memberId,
+        item?.user,
+        item?.student,
+        item?.createdBy,
+        item,
+      ].some(
+        (value) => String(getEntityId(value)) === String(userId || ""),
+      ),
   );
+
+const formatHomeworkFileSize = (bytes) => {
+  const size = Number(bytes || 0);
+  if (!size) return "";
+  const units = ["B", "KB", "MB", "GB"];
+  let value = size;
+  let unitIndex = 0;
+  while (value >= 1024 && unitIndex < units.length - 1) {
+    value /= 1024;
+    unitIndex += 1;
+  }
+  return `${value.toFixed(value >= 10 || unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
+};
+
+const getHomeworkFileExtension = (url, name) => {
+  const candidate = String(name || url || "").split("?")[0].split("#")[0];
+  const dot = candidate.lastIndexOf(".");
+  return dot >= 0 ? candidate.slice(dot + 1).toLowerCase() : "";
+};
+
+const detectHomeworkSubmissionType = (submission, assignmentType) => {
+  const explicit = String(assignmentType || "").toLowerCase();
+  const ext = getHomeworkFileExtension(
+    submission?.fileUrl || submission?.link,
+    submission?.fileName,
+  );
+  if (explicit === "video" || ["mp4", "mov", "webm", "m4v"].includes(ext)) return "video";
+  if (explicit === "audio" || ["mp3", "wav", "ogg", "m4a", "aac", "weba"].includes(ext)) {
+    return "audio";
+  }
+  if (explicit === "pdf" || ext === "pdf") return "pdf";
+  if (explicit === "photo" || ["png", "jpg", "jpeg", "gif", "webp", "avif", "heic"].includes(ext)) {
+    return "image";
+  }
+  return "other";
+};
 
 const getHomeworkLessonSummary = (lesson, userId) => {
   const assignments = getHomeworkAssignments(lesson);
@@ -3039,6 +3546,191 @@ const getExerciseLessonSummary = (lesson, userId) => {
         ? `${attempts.length}/${linkedTests.length}`
         : `${averagePercent}%`,
   };
+};
+
+const createScoreBucket = () => ({ earned: 0, total: 0 });
+
+const addScore = (bucket, earned, total) => {
+  const normalizedTotal = Math.max(0, Number(total || 0));
+  if (!normalizedTotal) return;
+  const normalizedEarned = Math.max(0, Math.min(normalizedTotal, Number(earned || 0)));
+  bucket.earned += normalizedEarned;
+  bucket.total += normalizedTotal;
+};
+
+const formatScoreBucket = (bucket) => {
+  const earned = Math.round(Number(bucket?.earned || 0));
+  const total = Math.round(Number(bucket?.total || 0));
+  return total ? `${earned}/${total}` : "—";
+};
+
+const sumScoreBuckets = (...buckets) =>
+  buckets.reduce(
+    (acc, bucket) => ({
+      earned: acc.earned + Number(bucket?.earned || 0),
+      total: acc.total + Number(bucket?.total || 0),
+    }),
+    createScoreBucket(),
+  );
+
+const formatScoreBucketWithPercent = (bucket) => {
+  const earned = Math.round(Number(bucket?.earned || 0));
+  const total = Math.round(Number(bucket?.total || 0));
+  if (!total) return "—";
+  const percent = Math.round((earned / total) * 100);
+  return `${earned}/${total} • ${percent}%`;
+};
+
+const formatCompletionWithPercent = (completed, total, percent) => {
+  const normalizedTotal = Math.max(0, Number(total || 0));
+  if (!normalizedTotal) return "—";
+  const normalizedCompleted = Math.max(
+    0,
+    Math.min(normalizedTotal, Number(completed || 0)),
+  );
+  const normalizedPercent =
+    percent === null || percent === undefined
+      ? 0
+      : Math.max(0, Math.min(100, Math.round(Number(percent || 0))));
+  return `${normalizedCompleted}/${normalizedTotal} • ${normalizedPercent}%`;
+};
+
+const getBucketPercent = (bucket) => {
+  const total = Number(bucket?.total || 0);
+  if (!total) return null;
+  return Math.round((Number(bucket?.earned || 0) / total) * 100);
+};
+
+const averageKnownPercents = (...values) => {
+  const percents = values
+    .filter((value) => value !== null && value !== undefined)
+    .map((value) => Math.max(0, Math.min(100, Number(value || 0))));
+  if (!percents.length) return 0;
+  return Math.round(
+    percents.reduce((sum, value) => sum + value, 0) / percents.length,
+  );
+};
+
+const getLessonAttendanceScoreBucket = (lesson, userId) => {
+  const bucket = createScoreBucket();
+  addScore(bucket, getMemberAttendanceRecord(lesson, userId) ? 1 : 0, 1);
+  return bucket;
+};
+
+const getLessonHomeworkScoreBucket = (lesson, userId) => {
+  const bucket = createScoreBucket();
+  getHomeworkAssignments(lesson).forEach((assignment) => {
+    const maxScore = Math.max(1, Number(assignment?.maxScore || 100));
+    const submission = getHomeworkSubmissionForUser(assignment, userId);
+    const hasScore =
+      submission?.score !== null &&
+      submission?.score !== undefined &&
+      submission?.score !== "";
+    addScore(bucket, hasScore ? Number(submission.score || 0) : 0, maxScore);
+  });
+  return bucket;
+};
+
+const getLessonExerciseScoreBucket = (lesson, userId) => {
+  const bucket = createScoreBucket();
+  (Array.isArray(lesson?.linkedTests) ? lesson.linkedTests : []).forEach((linkedTest) => {
+    const progress = getExerciseProgressForUser(linkedTest, userId);
+    const correct = progress?.correctCount ?? progress?.correct ?? progress?.score;
+    const total = progress?.totalQuestions ?? progress?.total ?? progress?.questionsCount;
+
+    if (progress && total !== null && total !== undefined && Number(total) > 0) {
+      addScore(bucket, Number(correct || 0), Number(total));
+      return;
+    }
+
+    const percent = progress
+      ? Number(progress?.bestPercent ?? progress?.percent ?? progress?.score ?? 0)
+      : 0;
+    addScore(bucket, percent, 100);
+  });
+  return bucket;
+};
+
+const getCourseScoreSummary = (course, userId) => {
+  const lessons = getDisplayLessons(course);
+  const attendance = createScoreBucket();
+  const homework = createScoreBucket();
+  const exercise = createScoreBucket();
+  const teacher = createScoreBucket();
+
+  lessons.forEach((lesson) => {
+    addScore(
+      attendance,
+      getMemberAttendanceRecord(lesson, userId) ? 1 : 0,
+      1,
+    );
+
+    getHomeworkAssignments(lesson).forEach((assignment) => {
+      const maxScore = Math.max(1, Number(assignment?.maxScore || 100));
+      const submission = getHomeworkSubmissionForUser(assignment, userId);
+      addScore(
+        homework,
+        submission?.status === "reviewed" ? Number(submission?.score || 0) : 0,
+        maxScore,
+      );
+    });
+
+    (Array.isArray(lesson?.linkedTests) ? lesson.linkedTests : []).forEach((linkedTest) => {
+      const progress = getExerciseProgressForUser(linkedTest, userId);
+      const percent = progress
+        ? Number(progress?.bestPercent ?? progress?.percent ?? progress?.score ?? 0)
+        : 0;
+      addScore(exercise, percent, 100);
+    });
+
+    const oral = getLessonOralAssessmentForUser(lesson, userId);
+    addScore(
+      teacher,
+      hasSavedOralAssessment(oral) ? Number(oral?.score || 0) : 0,
+      100,
+    );
+  });
+
+  return {
+    attendance,
+    homework,
+    exercise,
+    teacher,
+    total: sumScoreBuckets(attendance, homework, exercise, teacher),
+  };
+};
+
+const getExerciseProgressForUser = (linkedTest, userId) => {
+  const userCandidates = [
+    userId,
+    getEntityId(userId),
+  ].filter(Boolean).map(String);
+
+  const matchesUser = (value) => {
+    const id = String(getEntityId(value) || value || "");
+    return userCandidates.includes(id);
+  };
+
+  if (Array.isArray(linkedTest?.progress) && linkedTest.progress.length) {
+    return (
+      linkedTest.progress.find((item) =>
+        [
+          item?.userId,
+          item?.studentId,
+          item?.memberId,
+          item?.user,
+          item?.student,
+          item,
+        ].some(matchesUser),
+      ) || null
+    );
+  }
+
+  if (linkedTest?.selfProgress && matchesUser(linkedTest.selfProgress.userId)) {
+    return linkedTest.selfProgress;
+  }
+
+  return null;
 };
 
 const getLessonOralAssessmentForUser = (lesson, userId) =>
@@ -3303,6 +3995,8 @@ export default function TeacherPage() {
     removeLesson,
     setLessonAttendanceStatus,
     setLessonOralAssessment,
+    getLessonHomework,
+    reviewLessonHomework,
     patchCourseLesson,
     joinCourseRoom,
     leaveCourseRoom,
@@ -3316,11 +4010,9 @@ export default function TeacherPage() {
   const [selectedCourseId, setSelectedCourseId] = useState(null);
   const [selectedLessonId, setSelectedLessonId] = useState(null);
   const [selectedStudentRow, setSelectedStudentRow] = useState(null);
-  const [selectedAttendanceRow, setSelectedAttendanceRow] = useState(null);
   const [selectedMasteryRow, setSelectedMasteryRow] = useState(null);
   const [selectedMasteryLessonFocusId, setSelectedMasteryLessonFocusId] = useState(null);
   const [studentModalTab, setStudentModalTab] = useState("overview");
-  const [savingAttendanceKey, setSavingAttendanceKey] = useState("");
   const [savingMasteryKey, setSavingMasteryKey] = useState("");
   const [approvingMemberKey, setApprovingMemberKey] = useState("");
   const [removingStudentKey, setRemovingStudentKey] = useState("");
@@ -3367,7 +4059,17 @@ export default function TeacherPage() {
   const [selectedTestForResults, setSelectedTestForResults] = useState(null);
   const [masteryDrafts, setMasteryDrafts] = useState({});
   const [studentMasteryDrafts, setStudentMasteryDrafts] = useState({});
+  const [masteryHomeworkCache, setMasteryHomeworkCache] = useState({});
+  const [masteryHomeworkLoading, setMasteryHomeworkLoading] = useState({});
+  const [homeworkReviewDrafts, setHomeworkReviewDrafts] = useState({});
+  const [savingHomeworkReviewKey, setSavingHomeworkReviewKey] = useState("");
+  const [selectedHomeworkReview, setSelectedHomeworkReview] = useState(null);
+  const [selectedExerciseAnswer, setSelectedExerciseAnswer] = useState(null);
+  const [exerciseAnswerDetails, setExerciseAnswerDetails] = useState({});
+  const [exerciseAnswerLoading, setExerciseAnswerLoading] = useState({});
   const [collapsedMasteryLessons, setCollapsedMasteryLessons] = useState({});
+  const [collapsedStudentMasteryLessons, setCollapsedStudentMasteryLessons] =
+    useState({});
   const [isStartingChat, setIsStartingChat] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [courseLessonDialogOpen, setCourseLessonDialogOpen] = useState(false);
@@ -3472,17 +4174,6 @@ export default function TeacherPage() {
       setLessonContentModalTab("content");
     }
   }, [lessonContentLessonId]);
-
-  useEffect(() => {
-    if (
-      selectedAttendanceRow &&
-      !teacherCourses.some(
-        (course) => getCourseId(course) === getCourseId(selectedAttendanceRow.course),
-      )
-    ) {
-      setSelectedAttendanceRow(null);
-    }
-  }, [selectedAttendanceRow, teacherCourses]);
 
   useEffect(() => {
     if (
@@ -3617,10 +4308,12 @@ export default function TeacherPage() {
   useEffect(() => {
     if (!selectedStudentRow?.course) {
       setStudentMasteryDrafts({});
+      setCollapsedStudentMasteryLessons({});
       return;
     }
 
     const nextDrafts = {};
+    const nextCollapsed = {};
     getDisplayLessons(selectedStudentRow.course).forEach((lesson, index) => {
       const lessonId =
         getLessonId(lesson) || `${selectedStudentRow.id}-student-mastery-${index}`;
@@ -3635,8 +4328,12 @@ export default function TeacherPage() {
         note: oral?.note || "",
         attendanceStatus: attendanceRecord?.status || "",
       };
+      if (hasSavedOralAssessment(oral)) {
+        nextCollapsed[lessonId] = true;
+      }
     });
     setStudentMasteryDrafts(nextDrafts);
+    setCollapsedStudentMasteryLessons(nextCollapsed);
   }, [selectedStudentRow]);
 
   useEffect(() => {
@@ -3786,6 +4483,7 @@ export default function TeacherPage() {
             progressPercent: getEnrollmentProgress(course, memberId),
             currentLessonTitle: getEnrollmentCurrentLesson(course, memberId),
             tariffLabel: formatEnrollmentPlan(course, t),
+            scoreSummary: getCourseScoreSummary(course, memberId),
           };
         }),
       ),
@@ -3793,14 +4491,26 @@ export default function TeacherPage() {
   );
 
   const courseFilteredStudentRows = useMemo(() => {
-    if (selectedStudentCourseFilter === "all") {
-      return filteredStudentRows;
-    }
+    const rows =
+      selectedStudentCourseFilter === "all"
+        ? filteredStudentRows
+        : filteredStudentRows.filter(
+        (row) =>
+          getCourseId(row.course) === String(selectedStudentCourseFilter || ""),
+      );
 
-    return filteredStudentRows.filter(
-      (row) =>
-        getCourseId(row.course) === String(selectedStudentCourseFilter || ""),
-    );
+    return [...rows].sort((a, b) => {
+      const aTotal = a.scoreSummary?.total || {};
+      const bTotal = b.scoreSummary?.total || {};
+      const earnedDiff = Number(bTotal.earned || 0) - Number(aTotal.earned || 0);
+      if (earnedDiff) return earnedDiff;
+
+      const aPercent = getBucketPercent(aTotal) ?? -1;
+      const bPercent = getBucketPercent(bTotal) ?? -1;
+      if (bPercent !== aPercent) return bPercent - aPercent;
+
+      return Number(bTotal.total || 0) - Number(aTotal.total || 0);
+    });
   }, [filteredStudentRows, selectedStudentCourseFilter]);
 
   const filteredStudentCount = useMemo(
@@ -3808,14 +4518,14 @@ export default function TeacherPage() {
     [courseFilteredStudentRows],
   );
 
-  const attendanceRows = useMemo(
-    () =>
-      courseFilteredStudentRows.map((row) => ({
-        ...row,
-        ...getAttendanceSummary(row.course, row.memberId),
-      })),
-    [courseFilteredStudentRows],
-  );
+  const renderScoreCell = (bucket) => {
+    const total = Math.round(Number(bucket?.total || 0));
+    return (
+      <ScoreCellValue>
+        <ScoreCellMain>{formatScoreBucket(bucket)}</ScoreCellMain>
+      </ScoreCellValue>
+    );
+  };
 
   const masteryRows = useMemo(
     () =>
@@ -3870,89 +4580,137 @@ export default function TeacherPage() {
     });
   }, [selectedStudentRow]);
 
-  const selectedAttendanceLessonRows = useMemo(() => {
-    if (!selectedAttendanceRow?.course) return [];
+  useEffect(() => {
+    if (!selectedMasteryRow?.course || !getLessonHomework) return undefined;
 
-    return getDisplayLessons(selectedAttendanceRow.course).map((lesson, index) => {
-      const lessonId = getLessonId(lesson) || `${selectedAttendanceRow.id}-attendance-${index}`;
-      const attendanceRecord = getMemberAttendanceRecord(
-        lesson,
-        selectedAttendanceRow.memberId,
-      );
-      const progressPercent = Math.max(
-        0,
-        Math.min(100, Number(attendanceRecord?.progressPercent || 0)),
-      );
+    let cancelled = false;
+    const courseId = getCourseId(selectedMasteryRow.course);
+    const lessons = getDisplayLessons(selectedMasteryRow.course);
 
-      return {
-        id: lessonId,
-        index,
-        title: lesson.title || `${index + 1}-dars`,
-        description: (lesson.description || "").trim(),
-        status: attendanceRecord?.status || "unmarked",
-        progressPercent,
-        watchedLabel:
-          progressPercent > 0
-            ? `${progressPercent}% progress`
-            : t("teacher.workspace.noActivityYet", {
-                defaultValue: "Faollik hali yo'q",
-              }),
-        markedAt: attendanceRecord?.markedAt || attendanceRecord?.lastWatchedAt || null,
-      };
+    lessons.forEach((lesson, index) => {
+      const lessonId = getLessonId(lesson) || `${selectedMasteryRow.id}-mastery-${index}`;
+      if (!courseId || !lessonId) return;
+      const cacheKey = `${courseId}:${lessonId}`;
+      if (masteryHomeworkCache[cacheKey] || masteryHomeworkLoading[cacheKey]) return;
+
+      setMasteryHomeworkLoading((prev) => ({ ...prev, [cacheKey]: true }));
+      getLessonHomework(courseId, lessonId)
+        .then((data) => {
+          if (cancelled) return;
+          setMasteryHomeworkCache((prev) => ({
+            ...prev,
+            [cacheKey]: data || { assignments: [] },
+          }));
+        })
+        .catch(() => {
+          if (cancelled) return;
+          setMasteryHomeworkCache((prev) => ({
+            ...prev,
+            [cacheKey]: { assignments: getHomeworkAssignments(lesson) },
+          }));
+        })
+        .finally(() => {
+          if (cancelled) return;
+          setMasteryHomeworkLoading((prev) => ({ ...prev, [cacheKey]: false }));
+        });
     });
-  }, [selectedAttendanceRow, t]);
 
-  const selectedStudentAttendanceLessonRows = useMemo(() => {
-    if (!selectedStudentRow?.course) return [];
+    return () => {
+      cancelled = true;
+    };
+  }, [getLessonHomework, selectedMasteryRow]);
 
-    return getDisplayLessons(selectedStudentRow.course).map((lesson, index) => {
-      const lessonId = getLessonId(lesson) || `${selectedStudentRow.id}-student-attendance-${index}`;
-      const attendanceRecord = getMemberAttendanceRecord(
-        lesson,
-        selectedStudentRow.memberId,
-      );
-      const progressPercent = Math.max(
-        0,
-        Math.min(100, Number(attendanceRecord?.progressPercent || 0)),
-      );
+  useEffect(() => {
+    if (!selectedStudentRow?.course || !getLessonHomework) return undefined;
 
-      return {
-        id: lessonId,
-        index,
-        title: lesson.title || `${index + 1}-dars`,
-        description: (lesson.description || "").trim(),
-        status: attendanceRecord?.status || "unmarked",
-        progressPercent,
-        watchedLabel:
-          progressPercent > 0
-            ? `${progressPercent}% progress`
-            : t("teacher.workspace.noActivityYet", {
-                defaultValue: "Faollik hali yo'q",
-              }),
-        markedAt: attendanceRecord?.markedAt || attendanceRecord?.lastWatchedAt || null,
-      };
+    let cancelled = false;
+    const courseId = getCourseId(selectedStudentRow.course);
+    const lessons = getDisplayLessons(selectedStudentRow.course);
+
+    lessons.forEach((lesson, index) => {
+      const lessonId =
+        getLessonId(lesson) || `${selectedStudentRow.id}-student-mastery-${index}`;
+      if (!courseId || !lessonId) return;
+      const cacheKey = `${courseId}:${lessonId}`;
+      if (masteryHomeworkCache[cacheKey] || masteryHomeworkLoading[cacheKey]) return;
+
+      setMasteryHomeworkLoading((prev) => ({ ...prev, [cacheKey]: true }));
+      getLessonHomework(courseId, lessonId)
+        .then((data) => {
+          if (cancelled) return;
+          setMasteryHomeworkCache((prev) => ({
+            ...prev,
+            [cacheKey]: data || { assignments: [] },
+          }));
+        })
+        .catch(() => {
+          if (cancelled) return;
+          setMasteryHomeworkCache((prev) => ({
+            ...prev,
+            [cacheKey]: { assignments: getHomeworkAssignments(lesson) },
+          }));
+        })
+        .finally(() => {
+          if (cancelled) return;
+          setMasteryHomeworkLoading((prev) => ({ ...prev, [cacheKey]: false }));
+        });
     });
-  }, [selectedStudentRow, t]);
 
-  const selectedStudentAttendanceSummary = useMemo(
-    () =>
-      selectedStudentRow?.course
-        ? getAttendanceSummary(selectedStudentRow.course, selectedStudentRow.memberId)
-        : {
-            attendancePercent: 0,
-            completedLessons: 0,
-            totalLessons: 0,
-            activeLessons: 0,
-          },
-    [selectedStudentRow],
-  );
+    return () => {
+      cancelled = true;
+    };
+  }, [getLessonHomework, selectedStudentRow]);
+
+  useEffect(() => {
+    if (!selectedCourse || !selectedLessonContent || !getLessonHomework) {
+      return undefined;
+    }
+
+    let cancelled = false;
+    const courseId = getCourseId(selectedCourse);
+    const lessonId = getLessonId(selectedLessonContent);
+    if (!courseId || !lessonId) return undefined;
+
+    const cacheKey = `${courseId}:${lessonId}`;
+    if (masteryHomeworkCache[cacheKey] || masteryHomeworkLoading[cacheKey]) {
+      return undefined;
+    }
+
+    setMasteryHomeworkLoading((prev) => ({ ...prev, [cacheKey]: true }));
+    getLessonHomework(courseId, lessonId)
+      .then((data) => {
+        if (cancelled) return;
+        setMasteryHomeworkCache((prev) => ({
+          ...prev,
+          [cacheKey]: data || { assignments: [] },
+        }));
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setMasteryHomeworkCache((prev) => ({
+          ...prev,
+          [cacheKey]: { assignments: getHomeworkAssignments(selectedLessonContent) },
+        }));
+      })
+      .finally(() => {
+        if (cancelled) return;
+        setMasteryHomeworkLoading((prev) => ({ ...prev, [cacheKey]: false }));
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [getLessonHomework, selectedCourse, selectedLessonContent]);
 
   const selectedMasteryLessonRows = useMemo(() => {
     if (!selectedMasteryRow?.course) return [];
 
+    const courseId = getCourseId(selectedMasteryRow.course);
     const rows = getDisplayLessons(selectedMasteryRow.course).map((lesson, index) => {
       const lessonId = getLessonId(lesson) || `${selectedMasteryRow.id}-mastery-${index}`;
-      const homework = getHomeworkLessonSummary(lesson, selectedMasteryRow.memberId);
+      const homeworkData = masteryHomeworkCache[`${courseId}:${lessonId}`];
+      const homeworkSource = homeworkData ? { ...lesson, homework: homeworkData } : lesson;
+      const homework = getHomeworkLessonSummary(homeworkSource, selectedMasteryRow.memberId);
       const exercise = getExerciseLessonSummary(lesson, selectedMasteryRow.memberId);
       const oral = getLessonOralAssessmentForUser(lesson, selectedMasteryRow.memberId);
       const attendanceRecord = getMemberAttendanceRecord(lesson, selectedMasteryRow.memberId);
@@ -3965,7 +4723,12 @@ export default function TeacherPage() {
         title: lesson.title || `${index + 1}-dars`,
         description: (lesson.description || "").trim(),
         homework,
+        homeworkAssignments: getHomeworkAssignments(homeworkSource),
+        homeworkLoading:
+          Boolean(masteryHomeworkLoading[`${courseId}:${lessonId}`]) &&
+          !homeworkData,
         exercise,
+        exerciseTests: Array.isArray(lesson.linkedTests) ? lesson.linkedTests : [],
         oralScore:
           draft.score !== undefined
             ? draft.score
@@ -3988,14 +4751,23 @@ export default function TeacherPage() {
     }
 
     return rows.filter((lesson) => lesson.id === String(selectedMasteryLessonFocusId));
-  }, [masteryDrafts, selectedMasteryLessonFocusId, selectedMasteryRow]);
+  }, [
+    masteryDrafts,
+    masteryHomeworkCache,
+    masteryHomeworkLoading,
+    selectedMasteryLessonFocusId,
+    selectedMasteryRow,
+  ]);
 
   const selectedStudentMasteryLessonRows = useMemo(() => {
     if (!selectedStudentRow?.course) return [];
 
+    const courseId = getCourseId(selectedStudentRow.course);
     return getDisplayLessons(selectedStudentRow.course).map((lesson, index) => {
       const lessonId = getLessonId(lesson) || `${selectedStudentRow.id}-student-mastery-${index}`;
-      const homework = getHomeworkLessonSummary(lesson, selectedStudentRow.memberId);
+      const homeworkData = masteryHomeworkCache[`${courseId}:${lessonId}`];
+      const homeworkSource = homeworkData ? { ...lesson, homework: homeworkData } : lesson;
+      const homework = getHomeworkLessonSummary(homeworkSource, selectedStudentRow.memberId);
       const exercise = getExerciseLessonSummary(lesson, selectedStudentRow.memberId);
       const oral = getLessonOralAssessmentForUser(lesson, selectedStudentRow.memberId);
       const attendanceRecord = getMemberAttendanceRecord(
@@ -4010,7 +4782,12 @@ export default function TeacherPage() {
         title: lesson.title || `${index + 1}-dars`,
         description: (lesson.description || "").trim(),
         homework,
+        homeworkAssignments: getHomeworkAssignments(homeworkSource),
+        homeworkLoading:
+          Boolean(masteryHomeworkLoading[`${courseId}:${lessonId}`]) &&
+          !homeworkData,
         exercise,
+        exerciseTests: Array.isArray(lesson.linkedTests) ? lesson.linkedTests : [],
         oralScore:
           draft.score !== undefined
             ? draft.score
@@ -4030,7 +4807,12 @@ export default function TeacherPage() {
         isGraded: hasSavedOralAssessment(oral),
       };
     });
-  }, [selectedStudentRow, studentMasteryDrafts]);
+  }, [
+    masteryHomeworkCache,
+    masteryHomeworkLoading,
+    selectedStudentRow,
+    studentMasteryDrafts,
+  ]);
 
   const selectedStudentMasterySummary = useMemo(
     () =>
@@ -4048,11 +4830,18 @@ export default function TeacherPage() {
   const selectedLessonMasteryRows = useMemo(() => {
     if (!selectedCourse || !selectedLessonContent) return [];
 
+    const courseId = getCourseId(selectedCourse);
+    const lessonId = getLessonId(selectedLessonContent);
+    const homeworkData = masteryHomeworkCache[`${courseId}:${lessonId}`];
+    const homeworkSource = homeworkData
+      ? { ...selectedLessonContent, homework: homeworkData }
+      : selectedLessonContent;
+
     return masteryRows
       .filter((row) => getCourseId(row.course) === getCourseId(selectedCourse))
       .map((row) => {
         const homework = getHomeworkLessonSummary(
-          selectedLessonContent,
+          homeworkSource,
           row.memberId,
         );
         const exercise = getExerciseLessonSummary(
@@ -4063,19 +4852,55 @@ export default function TeacherPage() {
           selectedLessonContent,
           row.memberId,
         );
+        const attendanceScore = getLessonAttendanceScoreBucket(
+          selectedLessonContent,
+          row.memberId,
+        );
+        const attendancePercent = getBucketPercent(attendanceScore);
+        const homeworkCompletedCount =
+          homework.percent === null || homework.percent === undefined
+            ? homework.submittedCount
+            : homework.reviewedCount;
+        const homeworkTotalCount = getHomeworkAssignments(homeworkSource).length;
+        const exercisePercent =
+          exercise.averagePercent === null || exercise.averagePercent === undefined
+            ? null
+            : exercise.averagePercent;
+        const teacherPercent =
+          oral?.score === null || oral?.score === undefined
+            ? null
+            : Number(oral.score || 0);
+        const lessonMasteryPercent = averageKnownPercents(
+          attendancePercent,
+          homework.percent,
+          exercisePercent,
+          teacherPercent,
+        );
 
         return {
           ...row,
           homework,
           exercise,
+          attendanceScoreLabel: formatScoreBucketWithPercent(attendanceScore),
+          homeworkScoreLabel: formatCompletionWithPercent(
+            homeworkCompletedCount,
+            homeworkTotalCount,
+            homework.percent,
+          ),
+          exerciseScoreLabel: formatCompletionWithPercent(
+            exercise.completedCount,
+            exercise.totalCount,
+            exercise.averagePercent,
+          ),
           oralScore:
             oral?.score === null || oral?.score === undefined
               ? "—"
               : `${oral.score}/100`,
           oralSaved: hasSavedOralAssessment(oral),
+          lessonMasteryPercent,
         };
       });
-  }, [masteryRows, selectedCourse, selectedLessonContent]);
+  }, [masteryHomeworkCache, masteryRows, selectedCourse, selectedLessonContent]);
 
   const getMemberActionKey = useCallback(
     (courseId, userId) => `${String(courseId || "")}:${String(userId || "")}`,
@@ -4474,69 +5299,6 @@ export default function TeacherPage() {
     }
   }, [createChat, navigate, selectedStudentRow, t]);
 
-  const handleAttendanceStatusSave = useCallback(
-    async (row, lessonId, status) => {
-      if (!row?.course || !row.memberId || !lessonId) return;
-
-      const courseId = getCourseId(row.course);
-      const saveKey = `${row.memberId}-${lessonId}`;
-      setSavingAttendanceKey(saveKey);
-
-      try {
-        await setLessonAttendanceStatus(courseId, lessonId, row.memberId, status);
-        setSelectedAttendanceRow((prev) => {
-          if (!prev || prev.id !== row.id) return prev;
-
-          const nextCourse = patchLessonAttendanceStatus(
-            prev.course,
-            lessonId,
-            row.memberId,
-            status,
-          );
-
-          return {
-            ...prev,
-            course: nextCourse,
-            ...getAttendanceSummary(nextCourse, row.memberId),
-          };
-        });
-        setSelectedStudentRow((prev) => {
-          if (!prev || prev.id !== row.id) return prev;
-
-          const nextCourse = patchLessonAttendanceStatus(
-            prev.course,
-            lessonId,
-            row.memberId,
-            status,
-          );
-
-          return {
-            ...prev,
-            course: nextCourse,
-            ...getAttendanceSummary(nextCourse, row.memberId),
-            ...getMasterySummary(nextCourse, row.memberId),
-          };
-        });
-        await fetchCourses();
-        toast.success(
-          t("teacher.workspace.attendanceSaved", {
-            defaultValue: "Davomat saqlandi",
-          }),
-        );
-      } catch (error) {
-        toast.error(
-          error?.response?.data?.message ||
-            t("teacher.workspace.attendanceSaveError", {
-              defaultValue: "Davomatni saqlab bo'lmadi",
-            }),
-        );
-      } finally {
-        setSavingAttendanceKey("");
-      }
-    },
-    [fetchCourses, setLessonAttendanceStatus, t],
-  );
-
   const handleMasteryDraftChange = useCallback((lessonId, field, value) => {
     setMasteryDrafts((prev) => ({
       ...prev,
@@ -4558,7 +5320,10 @@ export default function TeacherPage() {
   }, []);
 
   const handleMasterySave = useCallback(
-    async (row, lessonId) => {
+    async (row, lessonInput) => {
+      const lessonId =
+        typeof lessonInput === "string" ? lessonInput : lessonInput?.id || "";
+      const lessonRow = typeof lessonInput === "string" ? null : lessonInput;
       if (!row?.course || !row.memberId || !lessonId) return;
 
       const courseId = getCourseId(row.course);
@@ -4578,6 +5343,67 @@ export default function TeacherPage() {
         return;
       }
 
+      const homeworkReviewUpdates = [];
+      for (const assignment of lessonRow?.homeworkAssignments || []) {
+        const assignmentId = assignment?.assignmentId;
+        const submission = getHomeworkSubmissionForUser(assignment, row.memberId);
+        if (!assignmentId || !submission) continue;
+
+        const userId = String(row.memberId || "");
+        const draftKey = `${lessonId}:${assignmentId}:${userId}`;
+        const homeworkDraft = homeworkReviewDrafts[draftKey];
+        if (!homeworkDraft) continue;
+
+        const rawHomeworkScore =
+          homeworkDraft.score !== undefined
+            ? homeworkDraft.score
+            : submission.score ?? "";
+        const maxScore = Math.max(1, Number(assignment.maxScore || 100));
+        const homeworkScore =
+          rawHomeworkScore === "" ||
+          rawHomeworkScore === null ||
+          rawHomeworkScore === undefined
+            ? null
+            : Number(rawHomeworkScore);
+
+        if (
+          homeworkScore !== null &&
+          (!Number.isFinite(homeworkScore) ||
+            homeworkScore < 0 ||
+            homeworkScore > maxScore)
+        ) {
+          toast.error(
+            t("teacher.workspace.scoreRangeError", {
+              defaultValue: "Baho 0 dan 100 gacha bo'lishi kerak",
+            }),
+          );
+          return;
+        }
+
+        const feedback =
+          homeworkDraft.feedback !== undefined
+            ? homeworkDraft.feedback
+            : submission.feedback || "";
+        const currentScore =
+          submission.score === null || submission.score === undefined
+            ? null
+            : Number(submission.score);
+        const normalizedCurrentScore = Number.isFinite(currentScore)
+          ? currentScore
+          : null;
+        const scoreChanged = homeworkScore !== normalizedCurrentScore;
+        const feedbackChanged = feedback !== (submission.feedback || "");
+
+        if (!scoreChanged && !feedbackChanged) continue;
+
+        homeworkReviewUpdates.push({
+          assignmentId,
+          draftKey,
+          feedback,
+          score: homeworkScore,
+        });
+      }
+
       const saveKey = `${row.memberId}-${lessonId}`;
       setSavingMasteryKey(saveKey);
 
@@ -4594,6 +5420,38 @@ export default function TeacherPage() {
           row.memberId,
           attendanceStatus,
         );
+        for (const update of homeworkReviewUpdates) {
+          await reviewLessonHomework(
+            courseId,
+            lessonId,
+            update.assignmentId,
+            row.memberId,
+            {
+              status: "reviewed",
+              score: update.score,
+              feedback: update.feedback,
+            },
+          );
+        }
+
+        if (homeworkReviewUpdates.length && getLessonHomework) {
+          const nextHomework = await getLessonHomework(courseId, lessonId);
+          setMasteryHomeworkCache((prev) => ({
+            ...prev,
+            [`${courseId}:${lessonId}`]: nextHomework || { assignments: [] },
+          }));
+          setHomeworkReviewDrafts((prev) => {
+            const next = { ...prev };
+            homeworkReviewUpdates.forEach((update) => {
+              next[update.draftKey] = {
+                score: update.score === null ? "" : String(update.score),
+                feedback: update.feedback,
+              };
+            });
+            return next;
+          });
+        }
+
         setSelectedMasteryRow((prev) => {
           if (!prev || prev.id !== row.id) return prev;
 
@@ -4615,22 +5473,6 @@ export default function TeacherPage() {
             ...prev,
             course: nextCourse,
             ...getMasterySummary(nextCourse, row.memberId),
-          };
-        });
-        setSelectedAttendanceRow((prev) => {
-          if (!prev || prev.id !== row.id) return prev;
-
-          const nextCourse = patchLessonAttendanceStatus(
-            prev.course,
-            lessonId,
-            row.memberId,
-            attendanceStatus,
-          );
-
-          return {
-            ...prev,
-            course: nextCourse,
-            ...getAttendanceSummary(nextCourse, row.memberId),
           };
         });
         setMasteryDrafts((prev) => ({
@@ -4689,16 +5531,262 @@ export default function TeacherPage() {
     },
     [
       fetchCourses,
+      getLessonHomework,
+      homeworkReviewDrafts,
       masteryDrafts,
       patchCourseLesson,
+      reviewLessonHomework,
       setLessonAttendanceStatus,
       setLessonOralAssessment,
       t,
     ],
   );
 
+  const handleHomeworkReviewDraftChange = useCallback((key, field, value) => {
+    setHomeworkReviewDrafts((prev) => ({
+      ...prev,
+      [key]: {
+        ...(prev[key] || {}),
+        [field]: value,
+      },
+    }));
+  }, []);
+
+  const renderHomeworkSubmissionPreview = useCallback(
+    (submission, assignment, lessonId, userId) => {
+      if (!submission) return null;
+      const fileUrl = submission.fileUrl || submission.link || "";
+      const mediaType = detectHomeworkSubmissionType(
+        submission,
+        assignment?.type || "text",
+      );
+
+      if (mediaType === "video" || submission.streamType === "hls") {
+        return (
+          <HomeworkPreviewFrame>
+            <HomeworkSubmissionPlayer
+              courseId={getCourseId(
+                selectedHomeworkReview?.row?.course || selectedMasteryRow?.course,
+              )}
+              lessonId={lessonId}
+              assignmentId={assignment?.assignmentId}
+              submissionUserId={userId}
+              streamType={submission.streamType || "direct"}
+              fallbackUrl={fileUrl}
+            />
+          </HomeworkPreviewFrame>
+        );
+      }
+
+      if (!fileUrl) return null;
+      if (mediaType === "image") {
+        return (
+          <HomeworkPreviewFrame>
+            <a href={fileUrl} target="_blank" rel="noreferrer">
+              <HomeworkPreviewImage
+                src={fileUrl}
+                alt={submission.fileName || assignment?.title || "Uyga vazifa"}
+              />
+            </a>
+          </HomeworkPreviewFrame>
+        );
+      }
+      if (mediaType === "audio") {
+        return (
+          <audio controls preload="metadata" style={{ width: "100%" }} src={fileUrl} />
+        );
+      }
+      if (mediaType === "pdf") {
+        return (
+          <HomeworkPreviewFrame>
+            <HomeworkPreviewIframe
+              title={submission.fileName || assignment?.title || "PDF"}
+              src={fileUrl}
+            />
+          </HomeworkPreviewFrame>
+        );
+      }
+      return null;
+    },
+    [selectedHomeworkReview?.row?.course, selectedMasteryRow?.course],
+  );
+
+  const handleMasteryHomeworkReview = useCallback(
+    async ({ row, lessonId, assignment, submission, status }) => {
+      if (!row?.course || !lessonId || !assignment?.assignmentId || !submission) return;
+
+      const courseId = getCourseId(row.course);
+      const userId = String(row.memberId || "");
+      const draftKey = `${lessonId}:${assignment.assignmentId}:${userId}`;
+      const draft = homeworkReviewDrafts[draftKey] || {};
+      const rawScore =
+        draft.score !== undefined ? draft.score : submission.score ?? "";
+      const maxScore = Math.max(1, Number(assignment.maxScore || 100));
+      const score =
+        rawScore === "" || rawScore === null || rawScore === undefined
+          ? null
+          : Math.max(0, Math.min(maxScore, Number(rawScore)));
+
+      if (score !== null && !Number.isFinite(score)) {
+        toast.error(
+          t("teacher.workspace.scoreRangeError", {
+            defaultValue: "Baho 0 dan 100 gacha bo'lishi kerak",
+          }),
+        );
+        return;
+      }
+
+      setSavingHomeworkReviewKey(draftKey);
+      try {
+        const nextPayload = {
+          status,
+          score,
+          feedback:
+            draft.feedback !== undefined ? draft.feedback : submission.feedback || "",
+        };
+        await reviewLessonHomework(
+          courseId,
+          lessonId,
+          assignment.assignmentId,
+          userId,
+          nextPayload,
+        );
+        const nextHomework = await getLessonHomework(courseId, lessonId);
+        setMasteryHomeworkCache((prev) => ({
+          ...prev,
+          [`${courseId}:${lessonId}`]: nextHomework || { assignments: [] },
+        }));
+        setHomeworkReviewDrafts((prev) => ({
+          ...prev,
+          [draftKey]: {
+            score: score === null ? "" : String(score),
+            feedback: nextPayload.feedback,
+          },
+        }));
+        await fetchCourses();
+        toast.success(
+          t("coursePlayer.homework.reviewed", {
+            defaultValue: "Tekshirildi",
+          }),
+        );
+      } catch (error) {
+        toast.error(
+          error?.response?.data?.message ||
+            t("coursePlayer.homework.errors.reviewFailed", {
+              defaultValue: "Uyga vazifani tekshirib bo'lmadi",
+            }),
+        );
+      } finally {
+        setSavingHomeworkReviewKey("");
+      }
+    },
+    [
+      fetchCourses,
+      getLessonHomework,
+      homeworkReviewDrafts,
+      reviewLessonHomework,
+      t,
+    ],
+  );
+
+  const handleExerciseAnswerOpen = useCallback(
+    async ({ test, testId, userId }) => {
+      if (!testId || !userId) return;
+      const detailKey = `${testId}:${userId}`;
+
+      setSelectedExerciseAnswer({
+        test,
+        detailKey,
+        title: test?.title || test?.name || "Mashq",
+      });
+
+      if (exerciseAnswerDetails[detailKey] || exerciseAnswerLoading[detailKey]) {
+        return;
+      }
+
+      setExerciseAnswerLoading((prev) => ({ ...prev, [detailKey]: true }));
+      try {
+        const [testDetail, resultsResponse] = await Promise.all([
+          fetchTestById(testId),
+          fetchTestResults(testId, { page: 1, limit: 500 }),
+        ]);
+        const histories = Array.isArray(resultsResponse)
+          ? resultsResponse
+          : resultsResponse?.data || [];
+        const matchingAttempt = histories
+          .flatMap((history) =>
+            (history.participants || []).map((participant) => ({
+              history,
+              participant,
+            })),
+          )
+          .find(({ participant }) =>
+            [
+              participant?.userId,
+              participant?.studentId,
+              participant?.memberId,
+              participant,
+            ].some(
+              (value) => String(getEntityId(value)) === String(userId || ""),
+            ),
+          );
+        const participant = matchingAttempt?.participant || null;
+        const questions = (testDetail?.questions || []).map((question, index) => {
+          const result = (participant?.results || []).find(
+            (item) => Number(item.questionIndex) === index,
+          );
+          const userAnswerIndex = Array.isArray(participant?.answers)
+            ? Number(participant.answers[index])
+            : null;
+          const correctOptionIndex = Number(
+            result?.correctOptionIndex ?? question.correctOptionIndex,
+          );
+          const normalizedUserIndex = Number.isFinite(userAnswerIndex)
+            ? userAnswerIndex
+            : null;
+
+          return {
+            questionIndex: index,
+            questionText: question.questionText || "",
+            options: Array.isArray(question.options) ? question.options : [],
+            userAnswerIndex: normalizedUserIndex,
+            correctOptionIndex,
+            correct: result
+              ? Boolean(result.correct)
+              : normalizedUserIndex !== null &&
+                normalizedUserIndex === correctOptionIndex,
+          };
+        });
+        const detail = {
+          score: participant?.score || 0,
+          total: participant?.total || questions.length,
+          attemptedAt: matchingAttempt?.history?.createdAt || null,
+          questions,
+        };
+        setExerciseAnswerDetails((prev) => ({
+          ...prev,
+          [detailKey]: detail || null,
+        }));
+      } catch (error) {
+        toast.error(
+          error?.response?.data?.message ||
+            t("teacher.workspace.testDetailLoadError", {
+              defaultValue: "Javob kalitlarini yuklab bo'lmadi",
+            }),
+        );
+        setSelectedExerciseAnswer(null);
+      } finally {
+        setExerciseAnswerLoading((prev) => ({ ...prev, [detailKey]: false }));
+      }
+    },
+    [exerciseAnswerDetails, exerciseAnswerLoading, t],
+  );
+
   const handleStudentMasterySave = useCallback(
-    async (row, lessonId) => {
+    async (row, lessonInput) => {
+      const lessonId =
+        typeof lessonInput === "string" ? lessonInput : lessonInput?.id || "";
+      const lessonRow = typeof lessonInput === "string" ? null : lessonInput;
       if (!row?.course || !row.memberId || !lessonId) return;
 
       const courseId = getCourseId(row.course);
@@ -4716,6 +5804,66 @@ export default function TeacherPage() {
           }),
         );
         return;
+      }
+
+      const homeworkReviewUpdates = [];
+      for (const assignment of lessonRow?.homeworkAssignments || []) {
+        const assignmentId = assignment?.assignmentId;
+        const submission = getHomeworkSubmissionForUser(assignment, row.memberId);
+        if (!assignmentId || !submission) continue;
+
+        const userId = String(row.memberId || "");
+        const draftKey = `${lessonId}:${assignmentId}:${userId}`;
+        const homeworkDraft = homeworkReviewDrafts[draftKey];
+        if (!homeworkDraft) continue;
+
+        const rawHomeworkScore =
+          homeworkDraft.score !== undefined
+            ? homeworkDraft.score
+            : submission.score ?? "";
+        const maxScore = Math.max(1, Number(assignment.maxScore || 100));
+        const homeworkScore =
+          rawHomeworkScore === "" ||
+          rawHomeworkScore === null ||
+          rawHomeworkScore === undefined
+            ? null
+            : Number(rawHomeworkScore);
+
+        if (
+          homeworkScore !== null &&
+          (!Number.isFinite(homeworkScore) ||
+            homeworkScore < 0 ||
+            homeworkScore > maxScore)
+        ) {
+          toast.error(
+            t("teacher.workspace.scoreRangeError", {
+              defaultValue: "Baho 0 dan 100 gacha bo'lishi kerak",
+            }),
+          );
+          return;
+        }
+
+        const feedback =
+          homeworkDraft.feedback !== undefined
+            ? homeworkDraft.feedback
+            : submission.feedback || "";
+        const currentScore =
+          submission.score === null || submission.score === undefined
+            ? null
+            : Number(submission.score);
+        const normalizedCurrentScore = Number.isFinite(currentScore)
+          ? currentScore
+          : null;
+        if (homeworkScore === normalizedCurrentScore && feedback === (submission.feedback || "")) {
+          continue;
+        }
+
+        homeworkReviewUpdates.push({
+          assignmentId,
+          draftKey,
+          feedback,
+          score: homeworkScore,
+        });
       }
 
       const saveKey = `${row.memberId}-${lessonId}`;
@@ -4739,6 +5887,37 @@ export default function TeacherPage() {
           row.memberId,
           attendanceStatus,
         );
+        for (const update of homeworkReviewUpdates) {
+          await reviewLessonHomework(
+            courseId,
+            lessonId,
+            update.assignmentId,
+            row.memberId,
+            {
+              status: "reviewed",
+              score: update.score,
+              feedback: update.feedback,
+            },
+          );
+        }
+
+        if (homeworkReviewUpdates.length && getLessonHomework) {
+          const nextHomework = await getLessonHomework(courseId, lessonId);
+          setMasteryHomeworkCache((prev) => ({
+            ...prev,
+            [`${courseId}:${lessonId}`]: nextHomework || { assignments: [] },
+          }));
+          setHomeworkReviewDrafts((prev) => {
+            const next = { ...prev };
+            homeworkReviewUpdates.forEach((update) => {
+              next[update.draftKey] = {
+                score: update.score === null ? "" : String(update.score),
+                feedback: update.feedback,
+              };
+            });
+            return next;
+          });
+        }
 
         setSelectedStudentRow((prev) => {
           if (!prev || prev.id !== row.id) return prev;
@@ -4766,6 +5945,10 @@ export default function TeacherPage() {
         });
 
         await fetchCourses();
+        setCollapsedStudentMasteryLessons((prev) => ({
+          ...prev,
+          [lessonId]: true,
+        }));
         toast.success(
           t("teacher.workspace.masterySaved", {
             defaultValue: "Baholash saqlandi",
@@ -4784,6 +5967,9 @@ export default function TeacherPage() {
     },
     [
       fetchCourses,
+      getLessonHomework,
+      homeworkReviewDrafts,
+      reviewLessonHomework,
       setLessonAttendanceStatus,
       setLessonOralAssessment,
       studentMasteryDrafts,
@@ -4857,10 +6043,6 @@ export default function TeacherPage() {
     renderValue: lessonContentModalData,
     isVisible: isLessonContentModalVisible,
   } = useAnimatedModalState(lessonContentModalSource);
-  const {
-    renderValue: animatedAttendanceRow,
-    isVisible: isAttendanceModalVisible,
-  } = useAnimatedModalState(selectedAttendanceRow);
   const {
     renderValue: animatedMasteryRow,
     isVisible: isMasteryModalVisible,
@@ -5252,7 +6434,7 @@ export default function TeacherPage() {
                 <StudentTableSubtitle>
                   {t("teacher.workspace.lessonsPageSubtitle", {
                     defaultValue:
-                      "Kursni tanlang va shu sahifaning o‘zida uning barcha darslarini boshqaring. Endi alohida modal ishlatilmaydi.",
+                      "Tanlangan kurs darslarini shu yerda ko‘ring, tahrirlang va yangi dars qo‘shing.",
                   })}
                 </StudentTableSubtitle>
               </StudentTableInfo>
@@ -5292,7 +6474,9 @@ export default function TeacherPage() {
                 <StudentSearchInput
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
-                  placeholder={t("teacher.courses.search")}
+                  placeholder={t("teacher.workspace.lessonSearchPlaceholder", {
+                    defaultValue: "Dars qidirish...",
+                  })}
                 />
               </StudentSearchWrap>
             </StudentTableControls>
@@ -5500,8 +6684,8 @@ export default function TeacherPage() {
         </StudentTableHeader>
 
         <StudentTableScroll>
-          <StudentTableGrid>
-            <StudentTableHeadRow $withActions>
+          <StudentTableGrid $scoreboard>
+            <StudentTableHeadRow $withActions $scoreboard>
               <StudentTableHeadCell>
                 {t("teacher.nav.students")}{" "}
                 <StudentCountBadge>{filteredStudentCount}</StudentCountBadge>
@@ -5509,6 +6693,31 @@ export default function TeacherPage() {
               <StudentTableHeadCell>
                 {t("teacher.table.course", {
                   defaultValue: "Mahsulot",
+                })}
+              </StudentTableHeadCell>
+              <StudentTableHeadCell>
+                {t("teacher.workspace.attendanceRate", {
+                  defaultValue: "Davomat",
+                })}
+              </StudentTableHeadCell>
+              <StudentTableHeadCell>
+                {t("coursePlayer.homework.title", {
+                  defaultValue: "Uy vazifa",
+                })}
+              </StudentTableHeadCell>
+              <StudentTableHeadCell>
+                {t("teacher.workspace.exercise", {
+                  defaultValue: "Mashq",
+                })}
+              </StudentTableHeadCell>
+              <StudentTableHeadCell>
+                {t("teacher.workspace.teacherScoreLabel", {
+                  defaultValue: "Ustoz bahosi",
+                })}
+              </StudentTableHeadCell>
+              <StudentTableHeadCell>
+                {t("teacher.workspace.totalScore", {
+                  defaultValue: "Umumiy ball",
                 })}
               </StudentTableHeadCell>
               <StudentTableHeadCell>
@@ -5569,6 +6778,7 @@ export default function TeacherPage() {
                     key={row.id}
                     type="button"
                     $withActions
+                    $scoreboard
                     onClick={() => {
                       setSelectedStudentRow(row);
                       setStudentModalTab("overview");
@@ -5607,6 +6817,26 @@ export default function TeacherPage() {
                           </CourseCellSub>
                         </CourseCellMeta>
                       </CourseCellWrap>
+                    </StudentCell>
+
+                    <StudentCell data-label="Davomat">
+                      {renderScoreCell(row.scoreSummary?.attendance)}
+                    </StudentCell>
+
+                    <StudentCell data-label="Uy vazifa">
+                      {renderScoreCell(row.scoreSummary?.homework)}
+                    </StudentCell>
+
+                    <StudentCell data-label="Mashq">
+                      {renderScoreCell(row.scoreSummary?.exercise)}
+                    </StudentCell>
+
+                    <StudentCell data-label="Ustoz bahosi">
+                      {renderScoreCell(row.scoreSummary?.teacher)}
+                    </StudentCell>
+
+                    <StudentCell data-label="Umumiy ball">
+                      {renderScoreCell(row.scoreSummary?.total)}
                     </StudentCell>
 
                     <StudentCell data-label="Progress">
@@ -5686,349 +6916,6 @@ export default function TeacherPage() {
                   {t("teacher.workspace.emptyStudents", {
                     defaultValue:
                       "O‘quvchi topilmadi. Qidiruv so‘rovini o‘zgartirib ko‘ring.",
-                  })}
-                </TableEmptyState>
-              ) : null}
-            </StudentTableBody>
-          </StudentTableGrid>
-        </StudentTableScroll>
-      </StudentTableCard>
-    </FillPane>
-  );
-
-  const renderAttendance = () => (
-    <FillPane>
-      <StudentTableCard>
-        <StudentTableHeader>
-          <StudentTableToolbar>
-            <StudentTableInfo>
-              <StudentTableTitle>{t("teacher.nav.attendance")}</StudentTableTitle>
-              <StudentTableSubtitle>
-                {t("teacher.workspace.attendanceSubtitle", {
-                  defaultValue:
-                    "Har bir o'quvchining kurslar bo'yicha davomat holati, faol darslari va oxirgi faolligi shu yerda ko'rinadi.",
-                })}
-              </StudentTableSubtitle>
-            </StudentTableInfo>
-
-            <StudentTableControls>
-              <StudentSearchWrap>
-                <StudentSearchIcon>
-                  <Search size={16} />
-                </StudentSearchIcon>
-                <StudentSearchInput
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  placeholder={t("teacher.students.search")}
-                />
-              </StudentSearchWrap>
-
-              <StudentFilterSelect
-                value={selectedStudentCourseFilter}
-                onChange={(event) =>
-                  setSelectedStudentCourseFilter(event.target.value)
-                }
-              >
-                <option value="all">
-                  {t("teacher.workspace.allCourses", {
-                    defaultValue: "Barcha kurslar",
-                  })}
-                </option>
-                {teacherCourses.map((course) => (
-                  <option key={getCourseId(course)} value={getCourseId(course)}>
-                    {course.title || course.name}
-                  </option>
-                ))}
-              </StudentFilterSelect>
-            </StudentTableControls>
-          </StudentTableToolbar>
-        </StudentTableHeader>
-
-        <StudentTableScroll>
-          <StudentTableGrid>
-            <StudentTableHeadRow>
-              <StudentTableHeadCell>
-                {t("teacher.nav.attendance")}
-                <StudentCountBadge>{attendanceRows.length}</StudentCountBadge>
-              </StudentTableHeadCell>
-              <StudentTableHeadCell>
-                {t("teacher.table.course", {
-                  defaultValue: "Kurs",
-                })}
-              </StudentTableHeadCell>
-              <StudentTableHeadCell>
-                {t("teacher.workspace.attendanceRate", {
-                  defaultValue: "Davomat",
-                })}
-              </StudentTableHeadCell>
-              <StudentTableHeadCell>
-                {t("teacher.workspace.attendedLessons", {
-                  defaultValue: "Qatnashgan darslar",
-                })}
-              </StudentTableHeadCell>
-              <StudentTableHeadCell>
-                {t("teacher.workspace.lastActivity", {
-                  defaultValue: "Oxirgi faollik",
-                })}
-              </StudentTableHeadCell>
-              <StudentTableHeadCell>
-                {t("createCourse.accessType", {
-                  defaultValue: "Tarif",
-                })}
-              </StudentTableHeadCell>
-            </StudentTableHeadRow>
-
-            <StudentTableBody>
-              {attendanceRows.map((row) => {
-                const studentInitial = getInitials(row.name);
-                const courseLabel = row.course.title || row.course.name;
-                const courseInitial = (courseLabel || "?").charAt(0).toUpperCase();
-
-                return (
-                  <StudentTableRow
-                    key={`attendance-${row.id}`}
-                    type="button"
-                    onClick={() => {
-                      setSelectedAttendanceRow(row);
-                    }}
-                  >
-                    <StudentCell>
-                      <StudentIdentity>
-                        <StudentAvatar $seed={row.studentId?.length || 0}>
-                          <AvatarImageWithFallback src={row.avatar} alt={row.name}>
-                            {studentInitial}
-                          </AvatarImageWithFallback>
-                        </StudentAvatar>
-                        <StudentMeta>
-                          <StudentName>{row.name}</StudentName>
-                          <StudentSubline>
-                            {row.status === "pending"
-                              ? t("teacher.students.pending")
-                              : t("teacher.students.approved")}
-                          </StudentSubline>
-                        </StudentMeta>
-                      </StudentIdentity>
-                    </StudentCell>
-
-                    <StudentCell data-label="Kurs">
-                      <CourseCellWrap>
-                        <CourseMiniThumb>
-                          {row.course.image ? (
-                            <CourseMiniImage src={row.course.image} alt={courseLabel} />
-                          ) : (
-                            courseInitial
-                          )}
-                        </CourseMiniThumb>
-                        <CourseCellMeta>
-                          <CourseCellTitle>{courseLabel}</CourseCellTitle>
-                          <CourseCellSub>
-                            {row.course.category ||
-                              t("teacher.workspace.courseCategory", {
-                                defaultValue: "Kategoriya ko‘rsatilmagan",
-                              })}
-                          </CourseCellSub>
-                        </CourseCellMeta>
-                      </CourseCellWrap>
-                    </StudentCell>
-
-                    <StudentCell data-label="Davomat">
-                      <ProgressCell>
-                        <ProgressValue>{row.attendancePercent}%</ProgressValue>
-                      </ProgressCell>
-                    </StudentCell>
-
-                    <StudentCell data-label="Darslar">
-                      <DateCellText>
-                        {row.activeLessons}/{row.totalLessons}
-                      </DateCellText>
-                    </StudentCell>
-
-                    <StudentCell data-label="Oxirgi faollik">
-                      <DateCellText>{formatShortDate(row.lastActivityAt)}</DateCellText>
-                    </StudentCell>
-
-                    <StudentCell data-label="Tarif">
-                      <TariffPill>{row.tariffLabel}</TariffPill>
-                    </StudentCell>
-                  </StudentTableRow>
-                );
-              })}
-
-              {!attendanceRows.length ? (
-                <TableEmptyState>
-                  {t("teacher.workspace.emptyAttendance", {
-                    defaultValue:
-                      "Davomat ma'lumotlari topilmadi. Kurs yoki qidiruv filtrini o'zgartirib ko'ring.",
-                  })}
-                </TableEmptyState>
-              ) : null}
-            </StudentTableBody>
-          </StudentTableGrid>
-        </StudentTableScroll>
-      </StudentTableCard>
-    </FillPane>
-  );
-
-  const renderMastery = () => (
-    <FillPane>
-      <StudentTableCard>
-        <StudentTableHeader>
-          <StudentTableToolbar>
-            <StudentTableInfo>
-              <StudentTableTitle>{t("teacher.nav.mastery")}</StudentTableTitle>
-              <StudentTableSubtitle>
-                {t("teacher.workspace.masterySubtitle", {
-                  defaultValue:
-                    "O'quvchining kurs bo'yicha o'zlashtirish darajasi, tugallangan darslari va o'rtacha progress ko'rsatkichlari shu yerda turadi.",
-                })}
-              </StudentTableSubtitle>
-            </StudentTableInfo>
-
-            <StudentTableControls>
-              <StudentSearchWrap>
-                <StudentSearchIcon>
-                  <Search size={16} />
-                </StudentSearchIcon>
-                <StudentSearchInput
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  placeholder={t("teacher.students.search")}
-                />
-              </StudentSearchWrap>
-
-              <StudentFilterSelect
-                value={selectedStudentCourseFilter}
-                onChange={(event) =>
-                  setSelectedStudentCourseFilter(event.target.value)
-                }
-              >
-                <option value="all">
-                  {t("teacher.workspace.allCourses", {
-                    defaultValue: "Barcha kurslar",
-                  })}
-                </option>
-                {teacherCourses.map((course) => (
-                  <option key={getCourseId(course)} value={getCourseId(course)}>
-                    {course.title || course.name}
-                  </option>
-                ))}
-              </StudentFilterSelect>
-            </StudentTableControls>
-          </StudentTableToolbar>
-        </StudentTableHeader>
-
-        <StudentTableScroll>
-          <StudentTableGrid>
-            <StudentTableHeadRow>
-              <StudentTableHeadCell>
-                {t("teacher.nav.mastery")}
-                <StudentCountBadge>{masteryRows.length}</StudentCountBadge>
-              </StudentTableHeadCell>
-              <StudentTableHeadCell>
-                {t("teacher.table.course", {
-                  defaultValue: "Kurs",
-                })}
-              </StudentTableHeadCell>
-              <StudentTableHeadCell>
-                {t("teacher.workspace.masteryRate", {
-                  defaultValue: "O'zlashtirish",
-                })}
-              </StudentTableHeadCell>
-              <StudentTableHeadCell>
-                {t("teacher.workspace.completedLessons", {
-                  defaultValue: "Tugallangan darslar",
-                })}
-              </StudentTableHeadCell>
-              <StudentTableHeadCell>
-                {t("teacher.workspace.averageProgress", {
-                  defaultValue: "O'rtacha progress",
-                })}
-              </StudentTableHeadCell>
-              <StudentTableHeadCell>
-                {t("coursePlayer.adminPane.currentLesson", {
-                  defaultValue: "Joriy dars",
-                })}
-              </StudentTableHeadCell>
-            </StudentTableHeadRow>
-
-            <StudentTableBody>
-              {masteryRows.map((row) => {
-                const studentInitial = getInitials(row.name);
-                const courseLabel = row.course.title || row.course.name;
-                const courseInitial = (courseLabel || "?").charAt(0).toUpperCase();
-
-                return (
-                  <StudentTableRow
-                    key={`mastery-${row.id}`}
-                    type="button"
-                    onClick={() => {
-                      setSelectedMasteryLessonFocusId(null);
-                      setSelectedMasteryRow(row);
-                    }}
-                  >
-                    <StudentCell>
-                      <StudentIdentity>
-                        <StudentAvatar $seed={row.studentId?.length || 0}>
-                          <AvatarImageWithFallback src={row.avatar} alt={row.name}>
-                            {studentInitial}
-                          </AvatarImageWithFallback>
-                        </StudentAvatar>
-                        <StudentMeta>
-                          <StudentName>{row.name}</StudentName>
-                          <StudentSubline>{row.tariffLabel}</StudentSubline>
-                        </StudentMeta>
-                      </StudentIdentity>
-                    </StudentCell>
-
-                    <StudentCell data-label="Kurs">
-                      <CourseCellWrap>
-                        <CourseMiniThumb>
-                          {row.course.image ? (
-                            <CourseMiniImage src={row.course.image} alt={courseLabel} />
-                          ) : (
-                            courseInitial
-                          )}
-                        </CourseMiniThumb>
-                        <CourseCellMeta>
-                          <CourseCellTitle>{courseLabel}</CourseCellTitle>
-                          <CourseCellSub>
-                            {row.course.category ||
-                              t("teacher.workspace.courseCategory", {
-                                defaultValue: "Kategoriya ko‘rsatilmagan",
-                              })}
-                          </CourseCellSub>
-                        </CourseCellMeta>
-                      </CourseCellWrap>
-                    </StudentCell>
-
-                    <StudentCell data-label="O'zlashtirish">
-                      <ProgressCell>
-                        <ProgressValue>{row.masteryPercent}%</ProgressValue>
-                      </ProgressCell>
-                    </StudentCell>
-
-                    <StudentCell data-label="Tugallangan">
-                      <DateCellText>
-                        {row.completedLessons}/{row.totalLessons}
-                      </DateCellText>
-                    </StudentCell>
-
-                    <StudentCell data-label="O'rtacha progress">
-                      <DateCellText>{row.averageProgressPercent}%</DateCellText>
-                    </StudentCell>
-
-                    <StudentCell data-label="Joriy dars">
-                      <DateCellText>{row.currentLessonTitle || "—"}</DateCellText>
-                    </StudentCell>
-                  </StudentTableRow>
-                );
-              })}
-
-              {!masteryRows.length ? (
-                <TableEmptyState>
-                  {t("teacher.workspace.emptyMastery", {
-                    defaultValue:
-                      "O'zlashtirish ma'lumotlari topilmadi. Kurs yoki qidiruv filtrini o'zgartirib ko'ring.",
                   })}
                 </TableEmptyState>
               ) : null}
@@ -6430,8 +7317,6 @@ export default function TeacherPage() {
             {activeSection === "dashboard" ? renderDashboard() : null}
             {activeSection === "courses" ? renderCourses() : null}
             {activeSection === "students" ? renderStudents() : null}
-            {activeSection === "attendance" ? renderAttendance() : null}
-            {activeSection === "mastery" ? renderMastery() : null}
             {activeSection === "tests" ? renderTests() : null}
             {activeSection === "sentenceBuilder" ? renderSentenceBuilder() : null}
           </MainScroll>
@@ -6744,7 +7629,7 @@ export default function TeacherPage() {
                         <LessonMasteryText>
                           {t("teacher.workspace.lessonMasteryText", {
                             defaultValue:
-                              "Shu dars uchun uyga vazifa, mashq va og'zaki baholarni o'quvchilar kesimida ko'ring.",
+                              "Shu dars uchun davomat, uyga vazifa, mashq va og'zaki baholarni o'quvchilar kesimida ko'ring.",
                           })}
                         </LessonMasteryText>
                       </LessonMasteryIntro>
@@ -6755,6 +7640,11 @@ export default function TeacherPage() {
                             <StudentTableHeadCell>
                               {t("teacher.nav.students", {
                                 defaultValue: "O'quvchilar",
+                              })}
+                            </StudentTableHeadCell>
+                            <StudentTableHeadCell>
+                              {t("teacher.workspace.attendanceRate", {
+                                defaultValue: "Davomat",
                               })}
                             </StudentTableHeadCell>
                             <StudentTableHeadCell>
@@ -6801,11 +7691,15 @@ export default function TeacherPage() {
                               </LessonMasteryCell>
 
                               <LessonMasteryCell>
-                                <DateCellText>{row.homework.scoreLabel}</DateCellText>
+                                <DateCellText>{row.attendanceScoreLabel}</DateCellText>
                               </LessonMasteryCell>
 
                               <LessonMasteryCell>
-                                <DateCellText>{row.exercise.scoreLabel}</DateCellText>
+                                <DateCellText>{row.homeworkScoreLabel}</DateCellText>
+                              </LessonMasteryCell>
+
+                              <LessonMasteryCell>
+                                <DateCellText>{row.exerciseScoreLabel}</DateCellText>
                               </LessonMasteryCell>
 
                               <LessonMasteryCell>
@@ -6813,7 +7707,9 @@ export default function TeacherPage() {
                               </LessonMasteryCell>
 
                               <LessonMasteryCell>
-                                <CourseAccessPill>{row.masteryPercent}%</CourseAccessPill>
+                                <CourseAccessPill>
+                                  {row.lessonMasteryPercent}%
+                                </CourseAccessPill>
                               </LessonMasteryCell>
 
                               <LessonMasteryCell>
@@ -6856,185 +7752,6 @@ export default function TeacherPage() {
           </StudentModalOverlay>
         ) : null}
       </Suspense>
-
-      {animatedAttendanceRow ? (
-        <StudentModalOverlay
-          $visible={isAttendanceModalVisible}
-          onClick={() => setSelectedAttendanceRow(null)}
-        >
-          <StudentModalPanel
-            $visible={isAttendanceModalVisible}
-            onClick={(event) => event.stopPropagation()}
-          >
-            <StudentModalHeader>
-              <StudentModalTop>
-                <StudentModalIdentity>
-                  <StudentModalAvatar $seed={animatedAttendanceRow.studentId?.length || 0}>
-                    <AvatarImageWithFallback
-                      src={animatedAttendanceRow.avatar}
-                      alt={animatedAttendanceRow.name}
-                    >
-                      {getInitials(animatedAttendanceRow.name)}
-                    </AvatarImageWithFallback>
-                  </StudentModalAvatar>
-
-                  <StudentModalMeta>
-                    <StudentModalMetaRow>
-                      <span>
-                        {animatedAttendanceRow.course.title ||
-                          animatedAttendanceRow.course.name}
-                      </span>
-                      <span>•</span>
-                      <StudentModalStatusBadge>
-                        <ClipboardCheck size={12} />
-                        {animatedAttendanceRow.attendancePercent}%{" "}
-                        {t("teacher.workspace.attendanceRate", {
-                          defaultValue: "davomat",
-                        })}
-                      </StudentModalStatusBadge>
-                    </StudentModalMetaRow>
-                    <StudentModalName>{animatedAttendanceRow.name}</StudentModalName>
-                    <StudentModalSubline>
-                      {t("teacher.workspace.attendanceModalSubtitle", {
-                        defaultValue:
-                          "Har bir dars uchun qatnashgan, kechikkan yoki kelmagan statusini shu joydan belgilang.",
-                      })}
-                    </StudentModalSubline>
-                  </StudentModalMeta>
-                </StudentModalIdentity>
-
-                <StudentModalClose
-                  type="button"
-                  onClick={() => setSelectedAttendanceRow(null)}
-                >
-                  <X size={18} />
-                </StudentModalClose>
-              </StudentModalTop>
-            </StudentModalHeader>
-
-            <StudentModalBody>
-              <StudentInfoGrid>
-                <StudentInfoCard>
-                  <StudentInfoLabel>
-                    {t("teacher.workspace.attendedLessons", {
-                      defaultValue: "Qatnashgan darslar",
-                    })}
-                  </StudentInfoLabel>
-                  <StudentInfoValue>
-                    {animatedAttendanceRow.activeLessons}/{animatedAttendanceRow.totalLessons}
-                  </StudentInfoValue>
-                </StudentInfoCard>
-                <StudentInfoCard>
-                  <StudentInfoLabel>
-                    {t("teacher.workspace.lastActivity", {
-                      defaultValue: "Oxirgi faollik",
-                    })}
-                  </StudentInfoLabel>
-                  <StudentInfoValue>
-                    {formatShortDate(animatedAttendanceRow.lastActivityAt)}
-                  </StudentInfoValue>
-                </StudentInfoCard>
-              </StudentInfoGrid>
-
-              <StudentModalSection>
-                <StudentModalSectionTitle>
-                  {t("teacher.workspace.lessonAttendance", {
-                    defaultValue: "Darslar bo'yicha davomat",
-                  })}
-                </StudentModalSectionTitle>
-
-                {selectedAttendanceLessonRows.length ? (
-                  <DetailLessonList>
-                    {selectedAttendanceLessonRows.map((lesson) => {
-                      const saveKey = `${animatedAttendanceRow.memberId}-${lesson.id}`;
-                      const saving = savingAttendanceKey === saveKey;
-                      return (
-                        <DetailLessonCard key={lesson.id}>
-                          <DetailLessonHeader>
-                            <DetailLessonMeta>
-                              <DetailLessonEyebrow>
-                                {t("coursePlayer.adminPane.lessonNumber", {
-                                  index: lesson.index + 1,
-                                  defaultValue: `Dars ${lesson.index + 1}`,
-                                })}
-                              </DetailLessonEyebrow>
-                              <DetailLessonTitle>{lesson.title}</DetailLessonTitle>
-                              <DetailLessonSubline>
-                                {lesson.description ||
-                                  t("teacher.workspace.lessonDescriptionFallback", {
-                                    defaultValue: "Bu dars uchun tavsif kiritilmagan.",
-                                  })}
-                              </DetailLessonSubline>
-                            </DetailLessonMeta>
-
-                            <DetailMetricRow>
-                              <DetailMetricPill>{lesson.watchedLabel}</DetailMetricPill>
-                              <DetailMetricPill>
-                                {lesson.markedAt
-                                  ? formatShortDate(lesson.markedAt)
-                                  : t("teacher.workspace.notMarkedYet", {
-                                      defaultValue: "Hali belgilanmagan",
-                                    })}
-                              </DetailMetricPill>
-                            </DetailMetricRow>
-                          </DetailLessonHeader>
-
-                          <AttendanceStatusGroup>
-                            {[
-                              {
-                                id: "present",
-                                label: t("teacher.workspace.present", {
-                                  defaultValue: "Kirdi",
-                                }),
-                              },
-                              {
-                                id: "late",
-                                label: t("teacher.workspace.late", {
-                                  defaultValue: "Kechikdi",
-                                }),
-                              },
-                              {
-                                id: "absent",
-                                label: t("teacher.workspace.absent", {
-                                  defaultValue: "Kirmadi",
-                                }),
-                              },
-                            ].map((option) => (
-                              <AttendanceStatusButton
-                                key={option.id}
-                                type="button"
-                                $active={lesson.status === option.id}
-                                disabled={saving}
-                                onClick={() =>
-                                  handleAttendanceStatusSave(
-                                    animatedAttendanceRow,
-                                    lesson.id,
-                                    option.id,
-                                  )
-                                }
-                              >
-                                {saving && lesson.status !== option.id
-                                  ? t("common.saving")
-                                  : option.label}
-                              </AttendanceStatusButton>
-                            ))}
-                          </AttendanceStatusGroup>
-                        </DetailLessonCard>
-                      );
-                    })}
-                  </DetailLessonList>
-                ) : (
-                  <EmptyDetailState>
-                    {t("teacher.workspace.noLessonsYet", {
-                      defaultValue: "Darslar hali yo'q",
-                    })}
-                  </EmptyDetailState>
-                )}
-              </StudentModalSection>
-            </StudentModalBody>
-          </StudentModalPanel>
-        </StudentModalOverlay>
-      ) : null}
 
       {animatedMasteryRow ? (
         <StudentModalOverlay
@@ -7098,28 +7815,30 @@ export default function TeacherPage() {
             </StudentModalHeader>
 
             <StudentModalBody>
-              <StudentInfoGrid>
-                <StudentInfoCard>
-                  <StudentInfoLabel>
-                    {t("teacher.workspace.completedLessons", {
-                      defaultValue: "Tugallangan darslar",
-                    })}
-                  </StudentInfoLabel>
-                  <StudentInfoValue>
-                    {animatedMasteryRow.completedLessons}/{animatedMasteryRow.totalLessons}
-                  </StudentInfoValue>
-                </StudentInfoCard>
-                <StudentInfoCard>
-                  <StudentInfoLabel>
-                    {t("teacher.workspace.averageProgress", {
-                      defaultValue: "O'rtacha progress",
-                    })}
-                  </StudentInfoLabel>
-                  <StudentInfoValue>
-                    {animatedMasteryRow.averageProgress}%
-                  </StudentInfoValue>
-                </StudentInfoCard>
-              </StudentInfoGrid>
+              {!selectedMasteryLessonFocusId ? (
+                <StudentInfoGrid>
+                  <StudentInfoCard>
+                    <StudentInfoLabel>
+                      {t("teacher.workspace.completedLessons", {
+                        defaultValue: "Tugallangan darslar",
+                      })}
+                    </StudentInfoLabel>
+                    <StudentInfoValue>
+                      {animatedMasteryRow.completedLessons}/{animatedMasteryRow.totalLessons}
+                    </StudentInfoValue>
+                  </StudentInfoCard>
+                  <StudentInfoCard>
+                    <StudentInfoLabel>
+                      {t("teacher.workspace.averageProgress", {
+                        defaultValue: "O'rtacha progress",
+                      })}
+                    </StudentInfoLabel>
+                    <StudentInfoValue>
+                      {animatedMasteryRow.averageProgress}%
+                    </StudentInfoValue>
+                  </StudentInfoCard>
+                </StudentInfoGrid>
+              ) : null}
 
               <StudentModalSection>
                 <StudentModalSectionTitle>
@@ -7136,6 +7855,33 @@ export default function TeacherPage() {
                       const collapsed = collapsedMasteryLessons[lesson.id];
                       const scoreDisplay =
                         lesson.oralScore === "" ? "—" : `${lesson.oralScore}/100`;
+                      const attendanceOptions = [
+                        {
+                          id: "present",
+                          label: t("teacher.workspace.present", {
+                            defaultValue: "Kirdi",
+                          }),
+                        },
+                        {
+                          id: "late",
+                          label: t("teacher.workspace.late", {
+                            defaultValue: "Kechikdi",
+                          }),
+                        },
+                        {
+                          id: "absent",
+                          label: t("teacher.workspace.absent", {
+                            defaultValue: "Kirmadi",
+                          }),
+                        },
+                      ];
+                      const attendanceDisplay =
+                        attendanceOptions.find(
+                          (option) => option.id === lesson.attendanceStatus,
+                        )?.label ||
+                        t("teacher.workspace.notMarked", {
+                          defaultValue: "Belgilanmagan",
+                        });
                       return (
                         <DetailLessonCard key={lesson.id}>
                           <DetailLessonHeader>
@@ -7172,6 +7918,26 @@ export default function TeacherPage() {
                                       defaultValue: "Hali baholanmagan",
                                     })}
                               </DetailMetricPill>
+                              {collapsed ? (
+                                <ExerciseAnswerToggle
+                                  type="button"
+                                  $active={false}
+                                  onClick={() =>
+                                    setCollapsedMasteryLessons((prev) => ({
+                                      ...prev,
+                                      [lesson.id]: false,
+                                    }))
+                                  }
+                                  aria-label={t("common.edit", {
+                                    defaultValue: "Tahrirlash",
+                                  })}
+                                  title={t("common.edit", {
+                                    defaultValue: "Tahrirlash",
+                                  })}
+                                >
+                                  <Pencil size={15} />
+                                </ExerciseAnswerToggle>
+                              ) : null}
                             </DetailMetricRow>
                           </DetailLessonHeader>
 
@@ -7238,57 +8004,28 @@ export default function TeacherPage() {
                             </MasteryMetricCard>
                           </MasteryGrid>
 
-                          {collapsed ? (
-                            <DetailMetricRow>
-                              <DetailMetricPill>
-                                {t("teacher.workspace.gradedSummary", {
-                                  defaultValue: "Baholangan",
-                                })}
-                              </DetailMetricPill>
-                              <DetailMetricPill>
-                                {t("teacher.workspace.teacherScoreValue", {
-                                  defaultValue: "Baho: {{score}}",
-                                  score: scoreDisplay,
-                                })}
-                              </DetailMetricPill>
-                              <InlineSecondaryButton
-                                type="button"
-                                onClick={() =>
-                                  setCollapsedMasteryLessons((prev) => ({
-                                    ...prev,
-                                    [lesson.id]: false,
-                                  }))
-                                }
-                              >
-                                <Pencil size={15} />
-                                {t("common.edit", {
-                                  defaultValue: "Tahrirlash",
-                                })}
-                              </InlineSecondaryButton>
-                            </DetailMetricRow>
-                          ) : (
-                            <>
+                          <LessonControlSection>
+                            <LessonControlTitle>
+                              {t("teacher.workspace.lessonAttendance", {
+                                defaultValue: "Davomat",
+                              })}
+                            </LessonControlTitle>
+                            {collapsed ? (
+                              <HomeworkReviewSummaryGrid>
+                                <HomeworkReviewSummaryBox>
+                                  <HomeworkReviewSummaryLabel>
+                                    {t("teacher.workspace.lessonAttendance", {
+                                      defaultValue: "Davomat",
+                                    })}
+                                  </HomeworkReviewSummaryLabel>
+                                  <HomeworkReviewSummaryValue>
+                                    {attendanceDisplay}
+                                  </HomeworkReviewSummaryValue>
+                                </HomeworkReviewSummaryBox>
+                              </HomeworkReviewSummaryGrid>
+                            ) : (
                               <AttendanceStatusGroup>
-                                {[
-                                  {
-                                    id: "present",
-                                    label: t("teacher.workspace.present", {
-                                      defaultValue: "Kirdi",
-                                    }),
-                                  },
-                                  {
-                                    id: "late",
-                                    label: t("teacher.workspace.late", {
-                                      defaultValue: "Kechikdi",
-                                    }),
-                                  },
-                                  {
-                                    id: "absent",
-                                    label: t("teacher.workspace.absent", {
-                                      defaultValue: "Kirmadi",
-                                    }),
-                                  },
-                                ].map((option) => (
+                                {attendanceOptions.map((option) => (
                                   <AttendanceStatusButton
                                     key={option.id}
                                     type="button"
@@ -7306,7 +8043,42 @@ export default function TeacherPage() {
                                   </AttendanceStatusButton>
                                 ))}
                               </AttendanceStatusGroup>
+                            )}
+                          </LessonControlSection>
 
+                          <LessonControlSection>
+                            <LessonControlTitle>
+                              {t("teacher.workspace.teacherScore", {
+                                defaultValue: "Mening bahom",
+                              })}
+                            </LessonControlTitle>
+                            {collapsed ? (
+                              <HomeworkReviewSummaryGrid>
+                                <HomeworkReviewSummaryBox>
+                                  <HomeworkReviewSummaryLabel>
+                                    {t("teacher.workspace.teacherScore", {
+                                      defaultValue: "Mening bahom",
+                                    })}
+                                  </HomeworkReviewSummaryLabel>
+                                  <HomeworkReviewSummaryValue>
+                                    {scoreDisplay}
+                                  </HomeworkReviewSummaryValue>
+                                </HomeworkReviewSummaryBox>
+                                <HomeworkReviewSummaryBox>
+                                  <HomeworkReviewSummaryLabel>
+                                    {t("teacher.workspace.note", {
+                                      defaultValue: "Izoh",
+                                    })}
+                                  </HomeworkReviewSummaryLabel>
+                                  <HomeworkReviewSummaryValue>
+                                    {lesson.oralNote ||
+                                      t("teacher.workspace.noTeacherNote", {
+                                        defaultValue: "Izoh kiritilmagan",
+                                      })}
+                                  </HomeworkReviewSummaryValue>
+                                </HomeworkReviewSummaryBox>
+                              </HomeworkReviewSummaryGrid>
+                            ) : (
                               <MasteryEditorGrid>
                                 <FieldGroup>
                                   <FieldLabel>
@@ -7355,23 +8127,371 @@ export default function TeacherPage() {
                                     )}
                                   />
                                 </FieldGroup>
-
-                                <InlinePrimaryButton
-                                  type="button"
-                                  disabled={saving}
-                                  onClick={() =>
-                                    handleMasterySave(animatedMasteryRow, lesson.id)
-                                  }
-                                >
-                                  {saving
-                                    ? t("common.saving")
-                                    : t("common.save", {
-                                        defaultValue: "Saqlash",
-                                      })}
-                                </InlinePrimaryButton>
                               </MasteryEditorGrid>
-                            </>
-                          )}
+                            )}
+                          </LessonControlSection>
+
+                          {lesson.homeworkAssignments?.length ? (
+                            <LessonControlSection>
+                              <LessonControlTitle>
+                                {t("coursePlayer.homework.title", {
+                                  defaultValue: "Uyga vazifa",
+                                })}
+                              </LessonControlTitle>
+                            <HomeworkCompactList>
+                              {lesson.homeworkAssignments.map((assignment, assignmentIndex) => {
+                                const submission = getHomeworkSubmissionForUser(
+                                  assignment,
+                                  animatedMasteryRow.memberId,
+                                );
+                                const draftKey = `${lesson.id}:${assignment.assignmentId}:${animatedMasteryRow.memberId}`;
+                                const draft = homeworkReviewDrafts[draftKey] || {};
+                                const nextScore =
+                                  draft.score !== undefined
+                                    ? draft.score
+                                    : submission?.score ?? "";
+                                const nextFeedback =
+                                  draft.feedback !== undefined
+                                    ? draft.feedback
+                                    : submission?.feedback || "";
+
+                                return (
+                                  <HomeworkCompactCard
+                                    key={assignment.assignmentId || assignmentIndex}
+                                  >
+                                    <HomeworkCompactHeader>
+                                      <div>
+                                        <HomeworkReviewTitle>
+                                          {assignment.title ||
+                                            t("coursePlayer.homework.assignmentLabel", {
+                                              index: assignmentIndex + 1,
+                                              defaultValue: `Vazifa ${assignmentIndex + 1}`,
+                                            })}
+                                        </HomeworkReviewTitle>
+                                        <HomeworkReviewMeta>
+                                          {assignment.description ||
+                                            t("teacher.workspace.noTeacherNote", {
+                                              defaultValue: "Izoh kiritilmagan",
+                                            })}
+                                        </HomeworkReviewMeta>
+                                      </div>
+                                      <DetailMetricRow>
+                                        <DetailMetricPill>
+                                        {submission
+                                          ? t(
+                                              `coursePlayer.homework.status.${submission.status}`,
+                                              {
+                                                defaultValue:
+                                                  submission.status === "reviewed"
+                                                    ? "Tekshirilgan"
+                                                    : submission.status === "needs_revision"
+                                                      ? "Qayta ishlash kerak"
+                                                      : "Yuborilgan",
+                                              },
+                                            )
+                                          : t("coursePlayer.homework.notSubmitted", {
+                                              defaultValue: "Yuborilmagan",
+                                            })}
+                                        </DetailMetricPill>
+                                        <ExerciseAnswerToggle
+                                          type="button"
+                                          $active={false}
+                                          onClick={() =>
+                                            setSelectedHomeworkReview({
+                                              row: animatedMasteryRow,
+                                              lessonId: lesson.id,
+                                              assignment,
+                                              assignmentIndex,
+                                              submission,
+                                            })
+                                          }
+                                          aria-label="Uyga vazifani ko'rish"
+                                          title="Uyga vazifani ko'rish"
+                                        >
+                                          <Eye size={15} />
+                                        </ExerciseAnswerToggle>
+                                      </DetailMetricRow>
+                                    </HomeworkCompactHeader>
+
+                                    {submission && !collapsed ? (
+                                      <HomeworkInlineReviewGrid>
+                                        <HomeworkReviewField>
+                                          <HomeworkReviewLabel>
+                                            {t("coursePlayer.homework.fields.score", {
+                                              defaultValue: "Ball",
+                                            })}
+                                          </HomeworkReviewLabel>
+                                          <HomeworkReviewInput
+                                            type="number"
+                                            min="0"
+                                            max={assignment.maxScore || 100}
+                                            value={nextScore}
+                                            onChange={(event) =>
+                                              handleHomeworkReviewDraftChange(
+                                                draftKey,
+                                                "score",
+                                                event.target.value,
+                                              )
+                                            }
+                                            placeholder={`0-${assignment.maxScore || 100}`}
+                                          />
+                                        </HomeworkReviewField>
+                                        <HomeworkReviewField>
+                                          <HomeworkReviewLabel>
+                                            {t("coursePlayer.homework.fields.feedback", {
+                                              defaultValue: "Izoh / Feedback",
+                                            })}
+                                          </HomeworkReviewLabel>
+                                          <HomeworkReviewTextarea
+                                            rows={2}
+                                            value={nextFeedback}
+                                            onChange={(event) =>
+                                              handleHomeworkReviewDraftChange(
+                                                draftKey,
+                                                "feedback",
+                                                event.target.value,
+                                              )
+                                            }
+                                            placeholder={t(
+                                              "coursePlayer.homework.fields.feedback",
+                                              {
+                                                defaultValue: "Qisqa izoh yozing",
+                                              },
+                                            )}
+                                          />
+                                        </HomeworkReviewField>
+                                      </HomeworkInlineReviewGrid>
+                                    ) : null}
+
+                                    {submission && collapsed ? (
+                                      <HomeworkReviewSummaryGrid>
+                                        <HomeworkReviewSummaryBox>
+                                          <HomeworkReviewSummaryLabel>
+                                            {t("coursePlayer.homework.fields.score", {
+                                              defaultValue: "Ball",
+                                            })}
+                                          </HomeworkReviewSummaryLabel>
+                                          <HomeworkReviewSummaryValue>
+                                            {submission.score === null ||
+                                            submission.score === undefined
+                                              ? "—"
+                                              : `${submission.score}/${assignment.maxScore || 100}`}
+                                          </HomeworkReviewSummaryValue>
+                                        </HomeworkReviewSummaryBox>
+                                        <HomeworkReviewSummaryBox>
+                                          <HomeworkReviewSummaryLabel>
+                                            {t("coursePlayer.homework.fields.feedback", {
+                                              defaultValue: "Izoh / Feedback",
+                                            })}
+                                          </HomeworkReviewSummaryLabel>
+                                          <HomeworkReviewSummaryValue>
+                                            {submission.feedback ||
+                                              t("teacher.workspace.noTeacherNote", {
+                                                defaultValue: "Izoh kiritilmagan",
+                                              })}
+                                          </HomeworkReviewSummaryValue>
+                                        </HomeworkReviewSummaryBox>
+                                      </HomeworkReviewSummaryGrid>
+                                    ) : null}
+                                  </HomeworkCompactCard>
+                                );
+                              })}
+                            </HomeworkCompactList>
+                            </LessonControlSection>
+                          ) : lesson.homeworkLoading ? (
+                            <EmptyDetailState>
+                              {t("common.loading", {
+                                defaultValue: "Yuklanmoqda...",
+                              })}
+                            </EmptyDetailState>
+                          ) : null}
+
+                          {lesson.exerciseTests?.length ? (
+                            <LessonControlSection>
+                              <LessonControlTitle>
+                                {t("teacher.workspace.exercise", {
+                                  defaultValue: "Mashqlar",
+                                })}
+                              </LessonControlTitle>
+                              <ExerciseResultList>
+                                {lesson.exerciseTests.map((test, testIndex) => {
+                                  const progress = getExerciseProgressForUser(
+                                    test,
+                                    animatedMasteryRow.memberId,
+                                  );
+                                  const percent =
+                                    progress?.bestPercent ??
+                                    progress?.percent ??
+                                    progress?.score ??
+                                    null;
+                                  const correct =
+                                    progress?.correctCount ??
+                                    progress?.correct ??
+                                    progress?.score ??
+                                    null;
+                                  const total =
+                                    progress?.totalQuestions ??
+                                    progress?.total ??
+                                    progress?.questionsCount ??
+                                    null;
+                                  const attempts =
+                                    progress?.attemptsCount ??
+                                    progress?.attempts ??
+                                    progress?.attemptCount ??
+                                    null;
+                                  const completedAt =
+                                    progress?.completedAt ||
+                                    progress?.lastAttemptAt ||
+                                    progress?.submittedAt ||
+                                    progress?.updatedAt ||
+                                    null;
+                                  const testId =
+                                    test.testId ||
+                                    test.resourceId ||
+                                    test._id ||
+                                    test.id ||
+                                    "";
+                                  const detailKey = `${testId}:${animatedMasteryRow.memberId}`;
+                                  const answersLoading = Boolean(exerciseAnswerLoading[detailKey]);
+
+                                  return (
+                                    <ExerciseResultCard
+                                      key={
+                                        test.testId ||
+                                        test.resourceId ||
+                                        test._id ||
+                                        test.id ||
+                                        testIndex
+                                      }
+                                    >
+                                      <ExerciseResultHeader>
+                                        <ExerciseResultTitle>
+                                          {test.title ||
+                                            test.name ||
+                                            t("teacher.workspace.exercise", {
+                                              defaultValue: "Mashq",
+                                            })}
+                                        </ExerciseResultTitle>
+                                        <DetailMetricPill>
+                                          {progress
+                                            ? t("teacher.workspace.completed", {
+                                                defaultValue: "Ishlangan",
+                                              })
+                                            : t("teacher.workspace.notCompleted", {
+                                                defaultValue: "Ishlamagan",
+                                              })}
+                                        </DetailMetricPill>
+                                      </ExerciseResultHeader>
+
+                                      {progress ? (
+                                        <>
+                                          <ExerciseResultGrid>
+                                            <ExerciseResultStat>
+                                              <ExerciseResultLabel>
+                                                {t("teacher.workspace.result", {
+                                                  defaultValue: "Natija",
+                                                })}
+                                              </ExerciseResultLabel>
+                                              <ExerciseResultValue>
+                                                {percent === null || percent === undefined
+                                                  ? "—"
+                                                  : `${Math.round(Number(percent) || 0)}%`}
+                                              </ExerciseResultValue>
+                                            </ExerciseResultStat>
+                                            <ExerciseResultStat>
+                                              <ExerciseResultStatTop>
+                                                <ExerciseResultLabel>
+                                                  {t("teacher.workspace.correctAnswers", {
+                                                    defaultValue: "To'g'ri",
+                                                  })}
+                                                </ExerciseResultLabel>
+                                                {testId ? (
+                                                  <ExerciseAnswerToggle
+                                                    type="button"
+                                                    $active={
+                                                      selectedExerciseAnswer?.detailKey === detailKey
+                                                    }
+                                                    disabled={answersLoading}
+                                                    onClick={() =>
+                                                      handleExerciseAnswerOpen({
+                                                        test,
+                                                        testId,
+                                                        userId: animatedMasteryRow.memberId,
+                                                      })
+                                                    }
+                                                    aria-label="Javob kalitlarini ko'rish"
+                                                    title="Javob kalitlarini ko'rish"
+                                                  >
+                                                    <Eye size={15} />
+                                                  </ExerciseAnswerToggle>
+                                                ) : null}
+                                              </ExerciseResultStatTop>
+                                              <ExerciseResultValue>
+                                                {correct === null || correct === undefined
+                                                  ? "—"
+                                                  : total === null || total === undefined
+                                                    ? correct
+                                                    : `${correct}/${total}`}
+                                              </ExerciseResultValue>
+                                            </ExerciseResultStat>
+                                            <ExerciseResultStat>
+                                              <ExerciseResultLabel>
+                                                {t("teacher.workspace.attempts", {
+                                                  defaultValue: "Urinishlar",
+                                                })}
+                                              </ExerciseResultLabel>
+                                              <ExerciseResultValue>
+                                                {attempts === null || attempts === undefined
+                                                  ? "—"
+                                                  : attempts}
+                                              </ExerciseResultValue>
+                                            </ExerciseResultStat>
+                                            <ExerciseResultStat>
+                                              <ExerciseResultLabel>
+                                                {t("teacher.workspace.lastAttempt", {
+                                                  defaultValue: "Oxirgi urinish",
+                                                })}
+                                              </ExerciseResultLabel>
+                                              <ExerciseResultValue>
+                                                {completedAt
+                                                  ? formatDateTime(completedAt)
+                                                  : "—"}
+                                              </ExerciseResultValue>
+                                            </ExerciseResultStat>
+                                          </ExerciseResultGrid>
+                                        </>
+                                      ) : (
+                                        <HomeworkSubmissionBody>
+                                          {t("teacher.workspace.exerciseNotWorked", {
+                                            defaultValue:
+                                              "Bu mashq bo'yicha natija hali yo'q.",
+                                          })}
+                                        </HomeworkSubmissionBody>
+                                      )}
+                                    </ExerciseResultCard>
+                                  );
+                                })}
+                              </ExerciseResultList>
+                            </LessonControlSection>
+                          ) : null}
+
+                          {!collapsed ? (
+                            <MasterySaveRow>
+                              <InlinePrimaryButton
+                                type="button"
+                                disabled={saving}
+                                onClick={() =>
+                                  handleMasterySave(animatedMasteryRow, lesson)
+                                }
+                              >
+                                {saving
+                                  ? t("common.saving")
+                                  : t("common.save", {
+                                      defaultValue: "Saqlash",
+                                    })}
+                              </InlinePrimaryButton>
+                            </MasterySaveRow>
+                          ) : null}
                         </DetailLessonCard>
                       );
                     })}
@@ -7388,6 +8508,224 @@ export default function TeacherPage() {
           </StudentModalPanel>
         </StudentModalOverlay>
       ) : null}
+
+      {selectedHomeworkReview ? (() => {
+        const { row, lessonId, assignment, assignmentIndex, submission } =
+          selectedHomeworkReview;
+        const userId = row?.memberId || "";
+
+        return (
+          <StudentModalOverlay
+            $visible
+            onClick={() => setSelectedHomeworkReview(null)}
+          >
+            <HomeworkModalPanel $visible onClick={(event) => event.stopPropagation()}>
+              <StudentModalHeader>
+                <StudentModalTop>
+                  <StudentModalMeta>
+                    <StudentModalMetaRow>
+                      <StudentModalStatusBadge>
+                        {submission
+                          ? t(
+                              `coursePlayer.homework.status.${submission.status}`,
+                              {
+                                defaultValue:
+                                  submission.status === "reviewed"
+                                    ? "Tekshirilgan"
+                                    : submission.status === "needs_revision"
+                                      ? "Qayta ishlash kerak"
+                                      : "Yuborilgan",
+                              },
+                            )
+                          : t("coursePlayer.homework.notSubmitted", {
+                              defaultValue: "Yuborilmagan",
+                            })}
+                      </StudentModalStatusBadge>
+                      {submission?.submittedAt ? (
+                        <span>{formatDateTime(submission.submittedAt)}</span>
+                      ) : null}
+                    </StudentModalMetaRow>
+                    <DetailLessonTitle>
+                      {assignment?.title ||
+                        t("coursePlayer.homework.assignmentLabel", {
+                          index: assignmentIndex + 1,
+                          defaultValue: `Vazifa ${assignmentIndex + 1}`,
+                        })}
+                    </DetailLessonTitle>
+                    <StudentModalSubline>
+                      {assignment?.description ||
+                        t("teacher.workspace.noTeacherNote", {
+                          defaultValue: "Izoh kiritilmagan",
+                        })}
+                    </StudentModalSubline>
+                  </StudentModalMeta>
+                  <StudentModalClose
+                    type="button"
+                    onClick={() => setSelectedHomeworkReview(null)}
+                  >
+                    <X size={18} />
+                  </StudentModalClose>
+                </StudentModalTop>
+              </StudentModalHeader>
+
+              <StudentModalBody>
+                {submission ? (
+                  <HomeworkReviewCard>
+                    <DetailMetricRow>
+                      {submission.fileName || submission.fileUrl ? (
+                        <DetailMetricPill
+                          as="a"
+                          href={submission.fileUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          <Link2 size={13} />
+                          {submission.fileName ||
+                            t("coursePlayer.homework.fileUploaded", {
+                              defaultValue: "Fayl yuklangan",
+                            })}
+                          {submission.fileSize
+                            ? ` · ${formatHomeworkFileSize(submission.fileSize)}`
+                            : ""}
+                        </DetailMetricPill>
+                      ) : null}
+                      {submission.link && !submission.fileUrl ? (
+                        <DetailMetricPill
+                          as="a"
+                          href={submission.link}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          <Link2 size={13} />
+                          {submission.link}
+                        </DetailMetricPill>
+                      ) : null}
+                    </DetailMetricRow>
+
+                    {submission.text ? (
+                      <HomeworkSubmissionBody>{submission.text}</HomeworkSubmissionBody>
+                    ) : null}
+
+                    {renderHomeworkSubmissionPreview(
+                      submission,
+                      assignment,
+                      lessonId,
+                      userId,
+                    )}
+                  </HomeworkReviewCard>
+                ) : (
+                  <EmptyDetailState>
+                    {t("coursePlayer.homework.emptySubmissions", {
+                      defaultValue: "Hali javob yuborilmagan",
+                    })}
+                  </EmptyDetailState>
+                )}
+              </StudentModalBody>
+            </HomeworkModalPanel>
+          </StudentModalOverlay>
+        );
+      })() : null}
+
+      {selectedExerciseAnswer ? (() => {
+        const detailKey = selectedExerciseAnswer.detailKey;
+        const detail = exerciseAnswerDetails[detailKey];
+        const loadingDetail = exerciseAnswerLoading[detailKey];
+
+        return (
+          <StudentModalOverlay
+            $visible
+            onClick={() => setSelectedExerciseAnswer(null)}
+          >
+            <HomeworkModalPanel $visible onClick={(event) => event.stopPropagation()}>
+              <StudentModalHeader>
+                <StudentModalTop>
+                  <StudentModalMeta>
+                    <StudentModalMetaRow>
+                      <StudentModalStatusBadge>
+                        {t("teacher.workspace.correctAnswers", {
+                          defaultValue: "To'g'ri",
+                        })}
+                      </StudentModalStatusBadge>
+                    </StudentModalMetaRow>
+                    <DetailLessonTitle>{selectedExerciseAnswer.title}</DetailLessonTitle>
+                    <StudentModalSubline>
+                      {t("teacher.workspace.answerKeys", {
+                        defaultValue:
+                          "Savollar, o'quvchi tanlagan javob va to'g'ri javoblar.",
+                      })}
+                    </StudentModalSubline>
+                  </StudentModalMeta>
+                  <StudentModalClose
+                    type="button"
+                    onClick={() => setSelectedExerciseAnswer(null)}
+                  >
+                    <X size={18} />
+                  </StudentModalClose>
+                </StudentModalTop>
+              </StudentModalHeader>
+              <StudentModalBody>
+                {loadingDetail ? (
+                  <EmptyDetailState>
+                    {t("common.loading", { defaultValue: "Yuklanmoqda..." })}
+                  </EmptyDetailState>
+                ) : detail?.questions?.length ? (
+                  <ExerciseAnswerList>
+                    {detail.questions.map((question) => {
+                      const correctIdx = Number(question.correctOptionIndex);
+                      const userIdx = question.userAnswerIndex;
+                      return (
+                        <ExerciseAnswerCard
+                          key={question.questionIndex}
+                          $correct={question.correct}
+                        >
+                          <ExerciseQuestionTitle>
+                            {question.questionIndex + 1}. {question.questionText}
+                          </ExerciseQuestionTitle>
+                          {(question.options || []).map((option, optionIndex) => {
+                            const isCorrect = optionIndex === correctIdx;
+                            const isSelected = optionIndex === userIdx;
+                            return (
+                              <ExerciseOptionRow
+                                key={optionIndex}
+                                $correct={isCorrect}
+                                $selected={isSelected}
+                              >
+                                {isSelected ? (
+                                  <strong>→</strong>
+                                ) : (
+                                  <span style={{ width: 10 }} />
+                                )}
+                                <span style={{ flex: 1 }}>{option}</span>
+                                {isCorrect ? <CheckCircle2 size={14} /> : null}
+                                {isSelected && !isCorrect ? (
+                                  <XCircle size={14} />
+                                ) : null}
+                              </ExerciseOptionRow>
+                            );
+                          })}
+                          {userIdx === null || userIdx === undefined ? (
+                            <HomeworkReviewMeta>
+                              {t("teacher.workspace.notAnswered", {
+                                defaultValue: "Javob bermagan",
+                              })}
+                            </HomeworkReviewMeta>
+                          ) : null}
+                        </ExerciseAnswerCard>
+                      );
+                    })}
+                  </ExerciseAnswerList>
+                ) : (
+                  <EmptyDetailState>
+                    {t("teacher.workspace.noAnswerDetails", {
+                      defaultValue: "Savol-javob ma'lumotlari saqlanmagan.",
+                    })}
+                  </EmptyDetailState>
+                )}
+              </StudentModalBody>
+            </HomeworkModalPanel>
+          </StudentModalOverlay>
+        );
+      })() : null}
 
       {animatedStudentRow ? (
         <StudentModalOverlay
@@ -7423,7 +8761,21 @@ export default function TeacherPage() {
                           : t("teacher.students.approved")}
                       </StudentModalStatusBadge>
                     </StudentModalMetaRow>
-                    <StudentModalName>{animatedStudentRow.name}</StudentModalName>
+                    <StudentModalNameRow>
+                      <StudentModalName>{animatedStudentRow.name}</StudentModalName>
+                      <StudentModalPrimaryAction
+                        type="button"
+                        onClick={handleStudentChatOpen}
+                        disabled={isStartingChat}
+                      >
+                        <MessageCircle size={15} />
+                        {isStartingChat
+                          ? t("common.loading")
+                          : t("teacher.workspace.writeToStudent", {
+                              defaultValue: "O'quvchiga yozish",
+                            })}
+                      </StudentModalPrimaryAction>
+                    </StudentModalNameRow>
                     <StudentModalSubline>
                       {animatedStudentRow.joinedAt
                         ? t("teacher.workspace.joinedDate", {
@@ -7444,37 +8796,6 @@ export default function TeacherPage() {
                   <X size={18} />
                 </StudentModalClose>
               </StudentModalTop>
-
-              <StudentModalActions>
-                <StudentModalPrimaryAction
-                  type="button"
-                  onClick={handleStudentChatOpen}
-                  disabled={isStartingChat}
-                >
-                  <MessageCircle size={18} />
-                  {isStartingChat
-                    ? t("common.loading")
-                    : t("teacher.workspace.writeToStudent", {
-                        defaultValue: "Yozish",
-                      })}
-                </StudentModalPrimaryAction>
-
-                <StudentModalSecondaryAction
-                  type="button"
-                  disabled={!studentModalCourse}
-                  onClick={() => {
-                    setSelectedStudentRow(null);
-                    openCourseWorkspace(getCourseId(studentModalCourse), {
-                      openAdmin: true,
-                    });
-                  }}
-                >
-                  <Shield size={18} />
-                  {t("teacher.workspace.studentActions", {
-                    defaultValue: "Harakatlar",
-                  })}
-                </StudentModalSecondaryAction>
-              </StudentModalActions>
             </StudentModalHeader>
 
             <StudentModalBody>
@@ -7503,53 +8824,6 @@ export default function TeacherPage() {
 
               {studentModalTab === "overview" ? (
                 <>
-                  <StudentModalSection>
-                    <StudentModalSectionTitle>
-                      {t("teacher.workspace.info", {
-                        defaultValue: "Ma'lumot",
-                      })}
-                    </StudentModalSectionTitle>
-
-                    <StudentInfoGrid>
-                      <StudentInfoCard>
-                        <StudentInfoLabel>
-                          {t("teacher.table.course", {
-                            defaultValue: "Mahsulot nomi",
-                          })}
-                        </StudentInfoLabel>
-                        <StudentInfoValue>{studentModalCourseLabel}</StudentInfoValue>
-                      </StudentInfoCard>
-                      <StudentInfoCard>
-                        <StudentInfoLabel>
-                          {t("teacher.workspace.joinedAt", {
-                            defaultValue: "Kirish muddati",
-                          })}
-                        </StudentInfoLabel>
-                        <StudentInfoValue>
-                          {formatShortDate(studentModalRow?.joinedAt)}
-                        </StudentInfoValue>
-                      </StudentInfoCard>
-                      <StudentInfoCard>
-                        <StudentInfoLabel>
-                          {t("coursePlayer.adminPane.currentLesson", {
-                            defaultValue: "Ishga tushirish",
-                          })}
-                        </StudentInfoLabel>
-                        <StudentInfoValue>
-                          {studentModalRow?.currentLessonTitle || "—"}
-                        </StudentInfoValue>
-                      </StudentInfoCard>
-                      <StudentInfoCard>
-                        <StudentInfoLabel>
-                          {t("createCourse.accessType", {
-                            defaultValue: "Tarif",
-                          })}
-                        </StudentInfoLabel>
-                        <StudentInfoValue>{studentModalRow?.tariffLabel || "—"}</StudentInfoValue>
-                      </StudentInfoCard>
-                    </StudentInfoGrid>
-                  </StudentModalSection>
-
                   <StudentModalSection>
                     <StudentTimelineHeader>
                       <span>{t("teacher.workspace.allEducation", { defaultValue: "Barcha ta'lim" })}</span>
@@ -7608,35 +8882,78 @@ export default function TeacherPage() {
                             <StudentLessonAside>
                               <StudentLessonFacts>
                                 {lesson.watchCount > 0 ? (
-                                  <StudentLessonFact>
-                                    {lesson.watchCount}x
+                                  <StudentLessonFact
+                                    title={t("teacher.workspace.watchCount", {
+                                      defaultValue: "Ko‘rishlar soni",
+                                    })}
+                                  >
+                                    <StudentLessonFactLabel>
+                                      {t("teacher.workspace.watchCountShort", {
+                                        defaultValue: "Ko‘rishlar",
+                                      })}
+                                    </StudentLessonFactLabel>
+                                    <StudentLessonFactValue>
+                                      {lesson.watchCount}x
+                                    </StudentLessonFactValue>
                                   </StudentLessonFact>
                                 ) : null}
                                 {lesson.lastPositionSeconds > 0 ? (
-                                  <StudentLessonFact>
-                                    {t("teacher.workspace.lastPoint", {
+                                  <StudentLessonFact
+                                    title={t("teacher.workspace.lastPoint", {
                                       defaultValue: "Oxirgi nuqta",
-                                    })}{" "}
-                                    {formatPlaybackTime(lesson.lastPositionSeconds)}
+                                    })}
+                                  >
+                                    <StudentLessonFactLabel>
+                                      {t("teacher.workspace.lastPoint", {
+                                        defaultValue: "Oxirgi nuqta",
+                                      })}
+                                    </StudentLessonFactLabel>
+                                    <StudentLessonFactValue>
+                                      {formatPlaybackTime(lesson.lastPositionSeconds)}
+                                    </StudentLessonFactValue>
                                   </StudentLessonFact>
                                 ) : null}
                                 {lesson.maxPositionSeconds > 0 ? (
-                                  <StudentLessonFact>
-                                    {t("teacher.workspace.furthestPoint", {
-                                      defaultValue: "Eng uzoq",
-                                    })}{" "}
-                                    {formatPlaybackTime(lesson.maxPositionSeconds)}
+                                  <StudentLessonFact
+                                    title={t("teacher.workspace.furthestPoint", {
+                                      defaultValue: "Eng uzoq ko‘rilgan nuqta",
+                                    })}
+                                  >
+                                    <StudentLessonFactLabel>
+                                      {t("teacher.workspace.furthestPoint", {
+                                        defaultValue: "Eng uzoq",
+                                      })}
+                                    </StudentLessonFactLabel>
+                                    <StudentLessonFactValue>
+                                      {formatPlaybackTime(lesson.maxPositionSeconds)}
+                                    </StudentLessonFactValue>
                                   </StudentLessonFact>
                                 ) : null}
                                 {lesson.lessonDurationSeconds > 0 ? (
-                                  <StudentLessonFact>
-                                    {formatPlaybackTime(lesson.lessonDurationSeconds)}
+                                  <StudentLessonFact
+                                    title={t("teacher.workspace.lessonDuration", {
+                                      defaultValue: "Dars davomiyligi",
+                                    })}
+                                  >
+                                    <StudentLessonFactLabel>
+                                      {t("teacher.workspace.duration", {
+                                        defaultValue: "Davomiyligi",
+                                      })}
+                                    </StudentLessonFactLabel>
+                                    <StudentLessonFactValue>
+                                      {formatPlaybackTime(lesson.lessonDurationSeconds)}
+                                    </StudentLessonFactValue>
                                   </StudentLessonFact>
                                 ) : null}
                               </StudentLessonFacts>
 
                               {lesson.status === "current" ? (
                                 <StudentLessonBadge $status="current">
+                                  <StudentLessonBadgeLabel>
+                                    {t("teacher.workspace.status", {
+                                      defaultValue: "Holat",
+                                    })}
+                                  </StudentLessonBadgeLabel>
                                   {lesson.hasPlaybackActivity &&
                                   lesson.lastPositionSeconds > 0
                                     ? t("teacher.workspace.partialWatchBadge", {
@@ -7649,6 +8966,11 @@ export default function TeacherPage() {
                               ) : null}
                               {lesson.status === "completed" ? (
                                 <StudentLessonBadge $status="completed">
+                                  <StudentLessonBadgeLabel>
+                                    {t("teacher.workspace.result", {
+                                      defaultValue: "Natija",
+                                    })}
+                                  </StudentLessonBadgeLabel>
                                   {lesson.progressPercent}%
                                 </StudentLessonBadge>
                               ) : null}
@@ -7672,50 +8994,6 @@ export default function TeacherPage() {
 
               {studentModalTab === "mastery" ? (
                 <StudentModalSection>
-                  <StudentInfoGrid>
-                    <StudentInfoCard>
-                      <StudentInfoLabel>
-                        {t("teacher.workspace.attendanceRate", {
-                          defaultValue: "Davomat",
-                        })}
-                      </StudentInfoLabel>
-                      <StudentInfoValue>
-                        {selectedStudentAttendanceSummary.attendancePercent}%
-                      </StudentInfoValue>
-                    </StudentInfoCard>
-                    <StudentInfoCard>
-                      <StudentInfoLabel>
-                        {t("teacher.workspace.attendedLessons", {
-                          defaultValue: "Qatnashgan darslar",
-                        })}
-                      </StudentInfoLabel>
-                      <StudentInfoValue>
-                        {selectedStudentAttendanceSummary.activeLessons}/
-                        {selectedStudentAttendanceSummary.totalLessons}
-                      </StudentInfoValue>
-                    </StudentInfoCard>
-                    <StudentInfoCard>
-                      <StudentInfoLabel>
-                        {t("teacher.workspace.masteryRate", {
-                          defaultValue: "O'zlashtirish",
-                        })}
-                      </StudentInfoLabel>
-                      <StudentInfoValue>
-                        {selectedStudentMasterySummary.masteryPercent}%
-                      </StudentInfoValue>
-                    </StudentInfoCard>
-                    <StudentInfoCard>
-                      <StudentInfoLabel>
-                        {t("teacher.workspace.averageProgress", {
-                          defaultValue: "O'rtacha progress",
-                        })}
-                      </StudentInfoLabel>
-                      <StudentInfoValue>
-                        {selectedStudentMasterySummary.averageProgress}%
-                      </StudentInfoValue>
-                    </StudentInfoCard>
-                  </StudentInfoGrid>
-
                   <StudentTimelineHeader>
                     <span>
                       {t("teacher.workspace.lessonGrades", {
@@ -7732,6 +9010,36 @@ export default function TeacherPage() {
                       {selectedStudentMasteryLessonRows.map((lesson) => {
                         const saveKey = `${studentModalRow?.memberId || "unknown"}-${lesson.id}`;
                         const saving = savingMasteryKey === saveKey;
+                        const collapsed = collapsedStudentMasteryLessons[lesson.id];
+                        const scoreDisplay =
+                          lesson.oralScore === "" ? "—" : `${lesson.oralScore}/100`;
+                        const attendanceOptions = [
+                          {
+                            id: "present",
+                            label: t("teacher.workspace.present", {
+                              defaultValue: "Kirdi",
+                            }),
+                          },
+                          {
+                            id: "late",
+                            label: t("teacher.workspace.late", {
+                              defaultValue: "Kechikdi",
+                            }),
+                          },
+                          {
+                            id: "absent",
+                            label: t("teacher.workspace.absent", {
+                              defaultValue: "Kirmadi",
+                            }),
+                          },
+                        ];
+                        const attendanceDisplay =
+                          attendanceOptions.find(
+                            (option) => option.id === lesson.attendanceStatus,
+                          )?.label ||
+                          t("teacher.workspace.notMarked", {
+                            defaultValue: "Belgilanmagan",
+                          });
 
                         return (
                           <DetailLessonCard key={lesson.id}>
@@ -7777,10 +9085,30 @@ export default function TeacherPage() {
                                         defaultValue: "Hali baholanmagan",
                                       })}
                                 </DetailMetricPill>
+                                {collapsed ? (
+                                  <ExerciseAnswerToggle
+                                    type="button"
+                                    $active={false}
+                                    onClick={() =>
+                                      setCollapsedStudentMasteryLessons((prev) => ({
+                                        ...prev,
+                                        [lesson.id]: false,
+                                      }))
+                                    }
+                                    aria-label={t("common.edit", {
+                                      defaultValue: "Tahrirlash",
+                                    })}
+                                    title={t("common.edit", {
+                                      defaultValue: "Tahrirlash",
+                                    })}
+                                  >
+                                    <Pencil size={15} />
+                                  </ExerciseAnswerToggle>
+                                ) : null}
                               </DetailMetricRow>
                             </DetailLessonHeader>
 
-                            <MasteryMetricsGrid>
+                            <MasteryGrid>
                               <MasteryMetricCard>
                                 <MasteryMetricLabel>
                                   {t("coursePlayer.homework.title", {
@@ -7788,6 +9116,18 @@ export default function TeacherPage() {
                                   })}
                                 </MasteryMetricLabel>
                                 <MasteryMetricValue>{lesson.homework.scoreLabel}</MasteryMetricValue>
+                                <MasteryMetricHint>
+                                  {lesson.homework.enabled
+                                    ? t("teacher.workspace.homeworkSummary", {
+                                        defaultValue:
+                                          "Yuborilgan: {{submitted}} | Tekshirilgan: {{reviewed}}",
+                                        submitted: lesson.homework.submittedCount,
+                                        reviewed: lesson.homework.reviewedCount,
+                                      })
+                                    : t("teacher.workspace.noHomeworkAssigned", {
+                                        defaultValue: "Uyga vazifa biriktirilmagan",
+                                      })}
+                                </MasteryMetricHint>
                               </MasteryMetricCard>
 
                               <MasteryMetricCard>
@@ -7797,6 +9137,18 @@ export default function TeacherPage() {
                                   })}
                                 </MasteryMetricLabel>
                                 <MasteryMetricValue>{lesson.exercise.scoreLabel}</MasteryMetricValue>
+                                <MasteryMetricHint>
+                                  {lesson.exercise.enabled
+                                    ? t("teacher.workspace.exerciseSummary", {
+                                        defaultValue:
+                                          "Bajarilgan: {{done}} / {{total}} test",
+                                        done: lesson.exercise.completedCount,
+                                        total: lesson.exercise.totalCount,
+                                      })
+                                    : t("teacher.workspace.noExercisesAssigned", {
+                                        defaultValue: "Mashq biriktirilmagan",
+                                      })}
+                                </MasteryMetricHint>
                               </MasteryMetricCard>
 
                               <MasteryMetricCard>
@@ -7806,114 +9158,507 @@ export default function TeacherPage() {
                                   })}
                                 </MasteryMetricLabel>
                                 <MasteryMetricValue>
-                                  {lesson.oralScoreDisplay}
+                                  {scoreDisplay}
                                 </MasteryMetricValue>
+                                <MasteryMetricHint>
+                                  {lesson.oralNote ||
+                                    t("teacher.workspace.noTeacherNote", {
+                                      defaultValue: "Izoh kiritilmagan",
+                                    })}
+                                </MasteryMetricHint>
                               </MasteryMetricCard>
-                            </MasteryMetricsGrid>
+                            </MasteryGrid>
 
-                            <AttendanceStatusGroup>
-                              {[
-                                {
-                                  id: "present",
-                                  label: t("teacher.workspace.present", {
-                                    defaultValue: "Kirdi",
-                                  }),
-                                },
-                                {
-                                  id: "late",
-                                  label: t("teacher.workspace.late", {
-                                    defaultValue: "Kechikdi",
-                                  }),
-                                },
-                                {
-                                  id: "absent",
-                                  label: t("teacher.workspace.absent", {
-                                    defaultValue: "Kirmadi",
-                                  }),
-                                },
-                              ].map((option) => (
-                                <AttendanceStatusButton
-                                  key={option.id}
+                            <LessonControlSection>
+                              <LessonControlTitle>
+                                {t("teacher.workspace.lessonAttendance", {
+                                  defaultValue: "Davomat",
+                                })}
+                              </LessonControlTitle>
+                              {collapsed ? (
+                                <HomeworkReviewSummaryGrid>
+                                  <HomeworkReviewSummaryBox>
+                                    <HomeworkReviewSummaryLabel>
+                                      {t("teacher.workspace.lessonAttendance", {
+                                        defaultValue: "Davomat",
+                                      })}
+                                    </HomeworkReviewSummaryLabel>
+                                    <HomeworkReviewSummaryValue>
+                                      {attendanceDisplay}
+                                    </HomeworkReviewSummaryValue>
+                                  </HomeworkReviewSummaryBox>
+                                </HomeworkReviewSummaryGrid>
+                              ) : (
+                                <AttendanceStatusGroup>
+                                  {attendanceOptions.map((option) => (
+                                    <AttendanceStatusButton
+                                      key={option.id}
+                                      type="button"
+                                      $active={lesson.attendanceStatus === option.id}
+                                      disabled={saving}
+                                      onClick={() =>
+                                        handleStudentMasteryDraftChange(
+                                          lesson.id,
+                                          "attendanceStatus",
+                                          option.id,
+                                        )
+                                      }
+                                    >
+                                      {option.label}
+                                    </AttendanceStatusButton>
+                                  ))}
+                                </AttendanceStatusGroup>
+                              )}
+                            </LessonControlSection>
+
+                            <LessonControlSection>
+                              <LessonControlTitle>
+                                {t("teacher.workspace.teacherScore", {
+                                  defaultValue: "Mening bahom",
+                                })}
+                              </LessonControlTitle>
+                              {collapsed ? (
+                                <HomeworkReviewSummaryGrid>
+                                  <HomeworkReviewSummaryBox>
+                                    <HomeworkReviewSummaryLabel>
+                                      {t("teacher.workspace.teacherScore", {
+                                        defaultValue: "Mening bahom",
+                                      })}
+                                    </HomeworkReviewSummaryLabel>
+                                    <HomeworkReviewSummaryValue>
+                                      {scoreDisplay}
+                                    </HomeworkReviewSummaryValue>
+                                  </HomeworkReviewSummaryBox>
+                                  <HomeworkReviewSummaryBox>
+                                    <HomeworkReviewSummaryLabel>
+                                      {t("teacher.workspace.note", {
+                                        defaultValue: "Izoh",
+                                      })}
+                                    </HomeworkReviewSummaryLabel>
+                                    <HomeworkReviewSummaryValue>
+                                      {lesson.oralNote ||
+                                        t("teacher.workspace.noTeacherNote", {
+                                          defaultValue: "Izoh kiritilmagan",
+                                        })}
+                                    </HomeworkReviewSummaryValue>
+                                  </HomeworkReviewSummaryBox>
+                                </HomeworkReviewSummaryGrid>
+                              ) : (
+                                <MasteryEditorGrid>
+                                  <FieldGroup>
+                                    <FieldLabel>
+                                      {t("teacher.workspace.teacherScore", {
+                                        defaultValue: "Mening bahom",
+                                      })}
+                                    </FieldLabel>
+                                    <FieldInput
+                                      type="number"
+                                      min="0"
+                                      max="100"
+                                      value={lesson.oralScore}
+                                      onChange={(event) =>
+                                        handleStudentMasteryDraftChange(
+                                          lesson.id,
+                                          "score",
+                                          event.target.value,
+                                        )
+                                      }
+                                      placeholder="0-100"
+                                    />
+                                  </FieldGroup>
+
+                                  <FieldGroup>
+                                    <FieldLabel>
+                                      {t("teacher.workspace.note", {
+                                        defaultValue: "Izoh",
+                                      })}
+                                    </FieldLabel>
+                                    <FieldTextarea
+                                      rows={2}
+                                      value={lesson.oralNote}
+                                      onChange={(event) =>
+                                        handleStudentMasteryDraftChange(
+                                          lesson.id,
+                                          "note",
+                                          event.target.value,
+                                        )
+                                      }
+                                      placeholder={t(
+                                        "teacher.workspace.scoreNotePlaceholder",
+                                        {
+                                          defaultValue: "Qisqa fikr yoki tavsiya yozing",
+                                        },
+                                      )}
+                                    />
+                                  </FieldGroup>
+                                </MasteryEditorGrid>
+                              )}
+                            </LessonControlSection>
+
+                            {lesson.homeworkAssignments?.length ? (
+                              <LessonControlSection>
+                                <LessonControlTitle>
+                                  {t("coursePlayer.homework.title", {
+                                    defaultValue: "Uyga vazifa",
+                                  })}
+                                </LessonControlTitle>
+                                <HomeworkCompactList>
+                                  {lesson.homeworkAssignments.map((assignment, assignmentIndex) => {
+                                    const submission = getHomeworkSubmissionForUser(
+                                      assignment,
+                                      studentModalRow?.memberId,
+                                    );
+                                    const draftKey = `${lesson.id}:${assignment.assignmentId}:${studentModalRow?.memberId}`;
+                                    const draft = homeworkReviewDrafts[draftKey] || {};
+                                    const nextScore =
+                                      draft.score !== undefined
+                                        ? draft.score
+                                        : submission?.score ?? "";
+                                    const nextFeedback =
+                                      draft.feedback !== undefined
+                                        ? draft.feedback
+                                        : submission?.feedback || "";
+
+                                    return (
+                                      <HomeworkCompactCard
+                                        key={assignment.assignmentId || assignmentIndex}
+                                      >
+                                        <HomeworkCompactHeader>
+                                          <div>
+                                            <HomeworkReviewTitle>
+                                              {assignment.title ||
+                                                t("coursePlayer.homework.assignmentLabel", {
+                                                  index: assignmentIndex + 1,
+                                                  defaultValue: `Vazifa ${assignmentIndex + 1}`,
+                                                })}
+                                            </HomeworkReviewTitle>
+                                            <HomeworkReviewMeta>
+                                              {assignment.description ||
+                                                t("teacher.workspace.noTeacherNote", {
+                                                  defaultValue: "Izoh kiritilmagan",
+                                                })}
+                                            </HomeworkReviewMeta>
+                                          </div>
+                                          <DetailMetricRow>
+                                            <DetailMetricPill>
+                                              {submission
+                                                ? t(
+                                                    `coursePlayer.homework.status.${submission.status}`,
+                                                    {
+                                                      defaultValue:
+                                                        submission.status === "reviewed"
+                                                          ? "Tekshirilgan"
+                                                          : submission.status ===
+                                                              "needs_revision"
+                                                            ? "Qayta ishlash kerak"
+                                                            : "Yuborilgan",
+                                                    },
+                                                  )
+                                                : t("coursePlayer.homework.notSubmitted", {
+                                                    defaultValue: "Yuborilmagan",
+                                                  })}
+                                            </DetailMetricPill>
+                                            <ExerciseAnswerToggle
+                                              type="button"
+                                              $active={false}
+                                              onClick={() =>
+                                                setSelectedHomeworkReview({
+                                                  row: studentModalRow,
+                                                  lessonId: lesson.id,
+                                                  assignment,
+                                                  assignmentIndex,
+                                                  submission,
+                                                })
+                                              }
+                                              aria-label="Uyga vazifani ko'rish"
+                                              title="Uyga vazifani ko'rish"
+                                            >
+                                              <Eye size={15} />
+                                            </ExerciseAnswerToggle>
+                                          </DetailMetricRow>
+                                        </HomeworkCompactHeader>
+
+                                        {submission && !collapsed ? (
+                                          <HomeworkInlineReviewGrid>
+                                            <HomeworkReviewField>
+                                              <HomeworkReviewLabel>
+                                                {t("coursePlayer.homework.fields.score", {
+                                                  defaultValue: "Ball",
+                                                })}
+                                              </HomeworkReviewLabel>
+                                              <HomeworkReviewInput
+                                                type="number"
+                                                min="0"
+                                                max={assignment.maxScore || 100}
+                                                value={nextScore}
+                                                onChange={(event) =>
+                                                  handleHomeworkReviewDraftChange(
+                                                    draftKey,
+                                                    "score",
+                                                    event.target.value,
+                                                  )
+                                                }
+                                                placeholder={`0-${assignment.maxScore || 100}`}
+                                              />
+                                            </HomeworkReviewField>
+                                            <HomeworkReviewField>
+                                              <HomeworkReviewLabel>
+                                                {t("coursePlayer.homework.fields.feedback", {
+                                                  defaultValue: "Izoh / Feedback",
+                                                })}
+                                              </HomeworkReviewLabel>
+                                              <HomeworkReviewTextarea
+                                                rows={2}
+                                                value={nextFeedback}
+                                                onChange={(event) =>
+                                                  handleHomeworkReviewDraftChange(
+                                                    draftKey,
+                                                    "feedback",
+                                                    event.target.value,
+                                                  )
+                                                }
+                                                placeholder={t(
+                                                  "coursePlayer.homework.fields.feedback",
+                                                  {
+                                                    defaultValue: "Qisqa izoh yozing",
+                                                  },
+                                                )}
+                                              />
+                                            </HomeworkReviewField>
+                                          </HomeworkInlineReviewGrid>
+                                        ) : null}
+
+                                        {submission && collapsed ? (
+                                          <HomeworkReviewSummaryGrid>
+                                            <HomeworkReviewSummaryBox>
+                                              <HomeworkReviewSummaryLabel>
+                                                {t("coursePlayer.homework.fields.score", {
+                                                  defaultValue: "Ball",
+                                                })}
+                                              </HomeworkReviewSummaryLabel>
+                                              <HomeworkReviewSummaryValue>
+                                                {submission.score === null ||
+                                                submission.score === undefined
+                                                  ? "—"
+                                                  : `${submission.score}/${assignment.maxScore || 100}`}
+                                              </HomeworkReviewSummaryValue>
+                                            </HomeworkReviewSummaryBox>
+                                            <HomeworkReviewSummaryBox>
+                                              <HomeworkReviewSummaryLabel>
+                                                {t("coursePlayer.homework.fields.feedback", {
+                                                  defaultValue: "Izoh / Feedback",
+                                                })}
+                                              </HomeworkReviewSummaryLabel>
+                                              <HomeworkReviewSummaryValue>
+                                                {submission.feedback ||
+                                                  t("teacher.workspace.noTeacherNote", {
+                                                    defaultValue: "Izoh kiritilmagan",
+                                                  })}
+                                              </HomeworkReviewSummaryValue>
+                                            </HomeworkReviewSummaryBox>
+                                          </HomeworkReviewSummaryGrid>
+                                        ) : null}
+                                      </HomeworkCompactCard>
+                                    );
+                                  })}
+                                </HomeworkCompactList>
+                              </LessonControlSection>
+                            ) : lesson.homeworkLoading ? (
+                              <EmptyDetailState>
+                                {t("common.loading", {
+                                  defaultValue: "Yuklanmoqda...",
+                                })}
+                              </EmptyDetailState>
+                            ) : null}
+
+                            {lesson.exerciseTests?.length ? (
+                              <LessonControlSection>
+                                <LessonControlTitle>
+                                  {t("teacher.workspace.exercise", {
+                                    defaultValue: "Mashqlar",
+                                  })}
+                                </LessonControlTitle>
+                                <ExerciseResultList>
+                                  {lesson.exerciseTests.map((test, testIndex) => {
+                                    const progress = getExerciseProgressForUser(
+                                      test,
+                                      studentModalRow?.memberId,
+                                    );
+                                    const percent =
+                                      progress?.bestPercent ??
+                                      progress?.percent ??
+                                      progress?.score ??
+                                      null;
+                                    const correct =
+                                      progress?.correctCount ??
+                                      progress?.correct ??
+                                      progress?.score ??
+                                      null;
+                                    const total =
+                                      progress?.totalQuestions ??
+                                      progress?.total ??
+                                      progress?.questionsCount ??
+                                      null;
+                                    const attempts =
+                                      progress?.attemptsCount ??
+                                      progress?.attempts ??
+                                      progress?.attemptCount ??
+                                      null;
+                                    const completedAt =
+                                      progress?.completedAt ||
+                                      progress?.lastAttemptAt ||
+                                      progress?.submittedAt ||
+                                      progress?.updatedAt ||
+                                      null;
+                                    const testId =
+                                      test.testId ||
+                                      test.resourceId ||
+                                      test._id ||
+                                      test.id ||
+                                      "";
+                                    const detailKey = `${testId}:${studentModalRow?.memberId}`;
+                                    const answersLoading = Boolean(
+                                      exerciseAnswerLoading[detailKey],
+                                    );
+
+                                    return (
+                                      <ExerciseResultCard
+                                        key={
+                                          test.testId ||
+                                          test.resourceId ||
+                                          test._id ||
+                                          test.id ||
+                                          testIndex
+                                        }
+                                      >
+                                        <ExerciseResultHeader>
+                                          <ExerciseResultTitle>
+                                            {test.title ||
+                                              test.name ||
+                                              t("teacher.workspace.exercise", {
+                                                defaultValue: "Mashq",
+                                              })}
+                                          </ExerciseResultTitle>
+                                          <DetailMetricPill>
+                                            {progress
+                                              ? t("teacher.workspace.completed", {
+                                                  defaultValue: "Ishlangan",
+                                                })
+                                              : t("teacher.workspace.notCompleted", {
+                                                  defaultValue: "Ishlamagan",
+                                                })}
+                                          </DetailMetricPill>
+                                        </ExerciseResultHeader>
+
+                                        {progress ? (
+                                          <ExerciseResultGrid>
+                                            <ExerciseResultStat>
+                                              <ExerciseResultLabel>
+                                                {t("teacher.workspace.result", {
+                                                  defaultValue: "Natija",
+                                                })}
+                                              </ExerciseResultLabel>
+                                              <ExerciseResultValue>
+                                                {percent === null ||
+                                                percent === undefined
+                                                  ? "—"
+                                                  : `${Math.round(Number(percent) || 0)}%`}
+                                              </ExerciseResultValue>
+                                            </ExerciseResultStat>
+                                            <ExerciseResultStat>
+                                              <ExerciseResultStatTop>
+                                                <ExerciseResultLabel>
+                                                  {t("teacher.workspace.correctAnswers", {
+                                                    defaultValue: "To'g'ri",
+                                                  })}
+                                                </ExerciseResultLabel>
+                                                {testId ? (
+                                                  <ExerciseAnswerToggle
+                                                    type="button"
+                                                    $active={
+                                                      selectedExerciseAnswer?.detailKey ===
+                                                      detailKey
+                                                    }
+                                                    disabled={answersLoading}
+                                                    onClick={() =>
+                                                      handleExerciseAnswerOpen({
+                                                        test,
+                                                        testId,
+                                                        userId: studentModalRow?.memberId,
+                                                      })
+                                                    }
+                                                    aria-label="Javob kalitlarini ko'rish"
+                                                    title="Javob kalitlarini ko'rish"
+                                                  >
+                                                    <Eye size={15} />
+                                                  </ExerciseAnswerToggle>
+                                                ) : null}
+                                              </ExerciseResultStatTop>
+                                              <ExerciseResultValue>
+                                                {correct === null || correct === undefined
+                                                  ? "—"
+                                                  : total === null || total === undefined
+                                                    ? correct
+                                                    : `${correct}/${total}`}
+                                              </ExerciseResultValue>
+                                            </ExerciseResultStat>
+                                            <ExerciseResultStat>
+                                              <ExerciseResultLabel>
+                                                {t("teacher.workspace.attempts", {
+                                                  defaultValue: "Urinishlar",
+                                                })}
+                                              </ExerciseResultLabel>
+                                              <ExerciseResultValue>
+                                                {attempts === null || attempts === undefined
+                                                  ? "—"
+                                                  : attempts}
+                                              </ExerciseResultValue>
+                                            </ExerciseResultStat>
+                                            <ExerciseResultStat>
+                                              <ExerciseResultLabel>
+                                                {t("teacher.workspace.lastAttempt", {
+                                                  defaultValue: "Oxirgi urinish",
+                                                })}
+                                              </ExerciseResultLabel>
+                                              <ExerciseResultValue>
+                                                {completedAt
+                                                  ? formatDateTime(completedAt)
+                                                  : "—"}
+                                              </ExerciseResultValue>
+                                            </ExerciseResultStat>
+                                          </ExerciseResultGrid>
+                                        ) : (
+                                          <HomeworkSubmissionBody>
+                                            {t("teacher.workspace.exerciseNotWorked", {
+                                              defaultValue:
+                                                "Bu mashq bo'yicha natija hali yo'q.",
+                                            })}
+                                          </HomeworkSubmissionBody>
+                                        )}
+                                      </ExerciseResultCard>
+                                    );
+                                  })}
+                                </ExerciseResultList>
+                              </LessonControlSection>
+                            ) : null}
+
+                            {!collapsed ? (
+                              <MasterySaveRow>
+                                <InlinePrimaryButton
                                   type="button"
-                                  $active={lesson.attendanceStatus === option.id}
                                   disabled={saving}
                                   onClick={() =>
-                                    handleStudentMasteryDraftChange(
-                                      lesson.id,
-                                      "attendanceStatus",
-                                      option.id,
-                                    )
+                                    handleStudentMasterySave(studentModalRow, lesson)
                                   }
                                 >
-                                  {saving && lesson.attendanceStatus !== option.id
+                                  {saving
                                     ? t("common.saving")
-                                    : option.label}
-                                </AttendanceStatusButton>
-                              ))}
-                            </AttendanceStatusGroup>
-
-                            <MasteryEditorGrid>
-                              <FieldGroup>
-                                <FieldLabel>
-                                  {t("teacher.workspace.teacherScoreLabel", {
-                                    defaultValue: "O'qituvchi bahosi",
-                                  })}
-                                </FieldLabel>
-                                <FieldInput
-                                  type="number"
-                                  min="0"
-                                  max="100"
-                                  value={lesson.oralScore}
-                                  onChange={(event) =>
-                                    handleStudentMasteryDraftChange(
-                                      lesson.id,
-                                      "score",
-                                      event.target.value,
-                                    )
-                                  }
-                                  placeholder="0-100"
-                                />
-                              </FieldGroup>
-
-                              <FieldGroup>
-                                <FieldLabel>
-                                  {t("teacher.workspace.note", {
-                                    defaultValue: "Izoh",
-                                  })}
-                                </FieldLabel>
-                                <FieldTextarea
-                                  rows={2}
-                                  value={lesson.oralNote}
-                                  onChange={(event) =>
-                                    handleStudentMasteryDraftChange(
-                                      lesson.id,
-                                      "note",
-                                      event.target.value,
-                                    )
-                                  }
-                                  placeholder={t(
-                                    "teacher.workspace.scoreNotePlaceholder",
-                                    {
-                                      defaultValue: "Qisqa fikr yoki tavsiya yozing",
-                                    },
-                                  )}
-                                />
-                              </FieldGroup>
-
-                              <InlinePrimaryButton
-                                type="button"
-                                disabled={saving}
-                                onClick={() =>
-                                  handleStudentMasterySave(studentModalRow, lesson.id)
-                                }
-                              >
-                                {saving
-                                  ? t("common.saving")
-                                  : t("common.save", {
-                                      defaultValue: "Saqlash",
-                                    })}
-                              </InlinePrimaryButton>
-                            </MasteryEditorGrid>
+                                    : t("common.save", {
+                                        defaultValue: "Saqlash",
+                                      })}
+                                </InlinePrimaryButton>
+                              </MasterySaveRow>
+                            ) : null}
                           </DetailLessonCard>
                         );
                       })}

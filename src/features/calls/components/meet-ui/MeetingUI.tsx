@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import type { CSSProperties } from "react";
 import { useConnectionState, useParticipants } from "@livekit/components-react";
 import { RoomEvent } from "livekit-client";
 import type { Participant, Room, TrackPublication } from "livekit-client";
@@ -62,6 +63,15 @@ type ActiveReaction = {
   label: string;
   senderIdentity: string;
   senderName: string;
+  motion: ReactionMotion;
+};
+
+type ReactionDraft = Omit<ActiveReaction, "motion">;
+
+type ReactionMotion = {
+  leftPercent: number;
+  startBottom: number;
+  scale: number;
 };
 
 type RaisedHandState = {
@@ -72,35 +82,20 @@ type RaisedHandState = {
 
 function FloatingReactionToast({
   reaction,
-  index,
   bottomOffset,
 }: {
   reaction: ActiveReaction;
-  index: number;
   bottomOffset: string;
 }) {
-  const motion = useMemo(() => {
-    const seed = Array.from(reaction.id).reduce((sum, char) => sum + char.charCodeAt(0), 0);
-    const leftPercent = 4 + ((seed + index * 11) % 16);
-    const startBottom = 12 + ((seed + index * 17) % 84);
-    const scale = 0.96 + (seed % 4) * 0.03;
-
-    return {
-      leftPercent,
-      startBottom,
-      scale,
-    };
-  }, [index, reaction.id]);
-
   return (
     <div
       className="absolute flex flex-col items-center text-center"
       style={{
-        left: `clamp(18px, ${motion.leftPercent}%, calc(100% - 92px))`,
-        bottom: `calc(${bottomOffset} + ${motion.startBottom}px)`,
+        left: `clamp(18px, ${reaction.motion.leftPercent}%, calc(100% - 92px))`,
+        bottom: `calc(${bottomOffset} + ${reaction.motion.startBottom}px)`,
         opacity: 1,
-        transform: `translateY(0) scale(${motion.scale})`,
-        ["--reaction-scale" as string]: motion.scale,
+        transform: `translateY(0) scale(${reaction.motion.scale})`,
+        ["--reaction-scale" as string]: reaction.motion.scale,
         animation: "meeting-reaction-rise 5000ms linear forwards",
       } as CSSProperties}
     >
@@ -122,6 +117,16 @@ function FloatingReactionToast({
 
 function getParticipantName(participant: Participant) {
   return participant.name || participant.identity || "Guest";
+}
+
+function getReactionMotion(id: string, sequence: number): ReactionMotion {
+  const seed = Array.from(id).reduce((sum, char) => sum + char.charCodeAt(0), 0);
+
+  return {
+    leftPercent: 4 + ((seed + sequence * 11) % 16),
+    startBottom: 12 + ((seed + sequence * 17) % 84),
+    scale: 0.96 + (seed % 4) * 0.03,
+  };
 }
 
 function getPublication(
@@ -227,12 +232,20 @@ export default function MeetingUI({
   const [hasEstablishedConnection, setHasEstablishedConnection] = useState(false);
   const [activeReactions, setActiveReactions] = useState<ActiveReaction[]>([]);
   const [raisedHands, setRaisedHands] = useState<Record<string, RaisedHandState>>({});
+  const reactionSequenceRef = useRef(0);
   const reactionTimeoutsRef = useRef<number[]>([]);
   const autoFullscreenWhiteboardKeyRef = useRef<string | null>(null);
   const whiteboardBrowserFullscreenRef = useRef(false);
 
-  const enqueueReaction = (reaction: ActiveReaction) => {
-    setActiveReactions((current) => [...current.slice(-5), reaction]);
+  const enqueueReaction = (reaction: ReactionDraft) => {
+    const sequence = reactionSequenceRef.current;
+    reactionSequenceRef.current += 1;
+    const nextReaction: ActiveReaction = {
+      ...reaction,
+      motion: getReactionMotion(reaction.id, sequence),
+    };
+
+    setActiveReactions((current) => [...current.slice(-5), nextReaction]);
     const timeoutId = window.setTimeout(() => {
       setActiveReactions((current) => current.filter((item) => item.id !== reaction.id));
       reactionTimeoutsRef.current = reactionTimeoutsRef.current.filter((id) => id !== timeoutId);
@@ -608,6 +621,24 @@ export default function MeetingUI({
 
   return (
     <div className="relative h-full min-h-0 w-full overflow-hidden bg-[var(--meet-shell-bg)] text-[var(--meet-text-color)] [padding-bottom:env(safe-area-inset-bottom)]">
+      <style>
+        {`
+          @keyframes meeting-reaction-rise {
+            0% {
+              opacity: 1;
+              transform: translateY(0) scale(var(--reaction-scale, 1));
+            }
+            80% {
+              opacity: 1;
+              transform: translateY(-64vh) scale(var(--reaction-scale, 1));
+            }
+            100% {
+              opacity: 0;
+              transform: translateY(-80vh) scale(var(--reaction-scale, 1));
+            }
+          }
+        `}
+      </style>
       {!whiteboardFullscreen || !isMobile ? (
         <Header
           meetingName={meetingName}
@@ -671,11 +702,10 @@ export default function MeetingUI({
         </div>
         {activeReactions.length ? (
           <div className="pointer-events-none absolute inset-0 z-20 overflow-hidden">
-            {activeReactions.map((reaction, index) => (
+            {activeReactions.map((reaction) => (
               <FloatingReactionToast
                 key={reaction.id}
                 reaction={reaction}
-                index={index}
                 bottomOffset={reactionsBottomOffset}
               />
             ))}

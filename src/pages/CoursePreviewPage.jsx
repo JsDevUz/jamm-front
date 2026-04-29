@@ -13,6 +13,7 @@ import {
   FileText,
   Globe,
   Infinity,
+  MessageCircle,
   Play,
   Share2,
   Smartphone,
@@ -21,6 +22,7 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { useCourses } from "../contexts/CoursesContext";
+import { useChats } from "../contexts/ChatsContext";
 import { getLessonPlaybackToken } from "../api/coursesApi";
 import { getCourseMemberStatus } from "../features/courses/utils/courseNavigation";
 import MarkdownRenderer from "../features/articles/components/MarkdownRenderer";
@@ -520,16 +522,29 @@ const OfferText = styled.div`
   font-weight: 800;
 `;
 
+const PurchaseActions = styled.div`
+  display: grid;
+  gap: 10px;
+`;
+
 const PurchaseButton = styled.button`
   width: 100%;
   min-height: 54px;
   border: 0;
   border-radius: 14px;
-  background: var(--primary-color);
-  color: var(--background-color);
+  background: ${(props) =>
+    props.$variant === "secondary" ? "var(--background-color)" : "var(--primary-color)"};
+  color: ${(props) =>
+    props.$variant === "secondary" ? "var(--text-color)" : "var(--background-color)"};
+  border: ${(props) =>
+    props.$variant === "secondary" ? "1px solid var(--border-color)" : "0"};
   font-size: clamp(18px, 1.4vw, 22px);
   font-weight: 900;
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
 
   &:disabled {
     opacity: 0.7;
@@ -606,11 +621,9 @@ function formatPrice(price, accessType, t) {
     return t("coursePreview.free");
   }
 
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
+  return `${new Intl.NumberFormat("uz-UZ", {
     maximumFractionDigits: normalized % 1 === 0 ? 0 : 2,
-  }).format(normalized);
+  }).format(normalized)} so'm`;
 }
 
 function getLessonDurationSeconds(lesson) {
@@ -881,6 +894,11 @@ function getCreatedByLabel(createdBy, t) {
   );
 }
 
+function getCreatedById(createdBy) {
+  if (!createdBy || typeof createdBy === "string") return "";
+  return createdBy._id || createdBy.id || createdBy.userId || "";
+}
+
 function getCreatedAtLabel(course, t) {
   const value = course?.updatedAt || course?.createdAt;
   if (!value) return t("coursePreview.recentlyUpdated");
@@ -956,6 +974,7 @@ export default function CoursePreviewPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { resourceId } = useParams();
+  const { createChat } = useChats();
   const {
     courses,
     ensureCourseLoaded,
@@ -1059,6 +1078,9 @@ export default function CoursePreviewPage() {
   const ratingCount = Number(course?.ratingCount || studentCount || 0);
   const isFreeCourse =
     course?.accessType === "free_open" || Number(course?.price || 0) <= 0;
+  const ownerId = getCreatedById(course?.createdBy);
+  const currentUserId = currentUser?._id || currentUser?.id;
+  const canContactTeacher = Boolean(ownerId && ownerId !== currentUserId);
 
   useEffect(() => {
     if (loading || !course || !canOpenCourse) return;
@@ -1111,6 +1133,26 @@ export default function CoursePreviewPage() {
     }
   }, [canOpenCourse, course?.accessType, enrollInCourse, isSubmitting, myCoursePath, navigate, resourceId, t]);
 
+  const handleContactTeacher = useCallback(async () => {
+    if (!ownerId) return;
+
+    try {
+      const chatRes = await createChat({
+        isGroup: false,
+        memberIds: [ownerId],
+      });
+      if (chatRes?.jammId) {
+        navigate(`/users/${chatRes.jammId}`);
+      } else if (chatRes?.privateurl) {
+        navigate(`/users/${chatRes.privateurl}`);
+      }
+    } catch (error) {
+      toast.error(
+        error?.response?.data?.message || t("coursePreview.toasts.chatCreate"),
+      );
+    }
+  }, [createChat, navigate, ownerId, t]);
+
   if (loading) {
     return (
       <PageShell>
@@ -1145,11 +1187,7 @@ export default function CoursePreviewPage() {
 
   const oldPrice =
     !isFreeCourse && Number(course.price || 0) > 0
-      ? new Intl.NumberFormat("en-US", {
-          style: "currency",
-          currency: "USD",
-          maximumFractionDigits: 2,
-        }).format(Number(course.price || 0) * 2)
+      ? formatPrice(Number(course.price || 0) * 2, course.accessType, t)
       : "";
 
   const purchaseBlock = (
@@ -1166,19 +1204,31 @@ export default function CoursePreviewPage() {
         </OfferText>
       ) : null}
 
-      <PurchaseButton
-        type="button"
-        disabled={isSubmitting || enrollStatus === "pending"}
-        onClick={() => {
-          if (canOpenCourse) {
-            navigate(myCoursePath);
-            return;
-          }
-          handleEnroll();
-        }}
-      >
-        {isSubmitting ? t("common.loading") : ctaLabel}
-      </PurchaseButton>
+      <PurchaseActions>
+        <PurchaseButton
+          type="button"
+          disabled={isSubmitting || enrollStatus === "pending"}
+          onClick={() => {
+            if (canOpenCourse) {
+              navigate(myCoursePath);
+              return;
+            }
+            handleEnroll();
+          }}
+        >
+          {isSubmitting ? t("common.loading") : ctaLabel}
+        </PurchaseButton>
+        {!isFreeCourse && canContactTeacher ? (
+          <PurchaseButton
+            type="button"
+            $variant="secondary"
+            onClick={handleContactTeacher}
+          >
+            <MessageCircle size={20} />
+            {t("coursePreview.cta.contactTeacher")}
+          </PurchaseButton>
+        ) : null}
+      </PurchaseActions>
     </>
   );
 

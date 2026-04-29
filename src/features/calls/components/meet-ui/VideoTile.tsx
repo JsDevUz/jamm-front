@@ -1,6 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Hand, Maximize2, MicOff, Minimize2, MonitorUp } from "lucide-react";
-import { TrackEvent, type TrackPublication } from "livekit-client";
+import {
+  RemoteTrackPublication,
+  TrackEvent,
+  VideoQuality,
+  type TrackPublication,
+} from "livekit-client";
 import { cn } from "../../../../lib/utils";
 
 export type TileParticipant = {
@@ -106,10 +111,32 @@ export default function VideoTile({
     if (!mediaTrack || !element || !showVideo) return undefined;
 
     mediaTrack.attach(element);
+
+    // Screenshare is the lesson surface — always subscribe to the highest
+    // simulcast layer and keep playback as smooth as possible. Cameras can
+    // continue using LiveKit's adaptive defaults.
+    const pub = participant.publication;
+    if (
+      participant.source === "screen" &&
+      pub &&
+      pub instanceof RemoteTrackPublication
+    ) {
+      try {
+        pub.setVideoQuality(VideoQuality.HIGH);
+        pub.setEnabled(true);
+      } catch {}
+    }
+
     return () => {
       mediaTrack.detach(element);
     };
-  }, [mediaTrack, participant.identity, participant.source, showVideo]);
+  }, [
+    mediaTrack,
+    participant.identity,
+    participant.publication,
+    participant.source,
+    showVideo,
+  ]);
 
   const avatarTone = useMemo(
     () => getAvatarTone(participant.identity),

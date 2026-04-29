@@ -233,6 +233,11 @@ const getSafeWhiteboardCanvasPixelRatio = (width, height) => {
 
 const buildPdfDocumentInit = (source) => {
   const mobileSafeMode = isMobilePdfBrowser();
+  // For URL-based loads on mobile we want the OPPOSITE of "safe mode": we want
+  // streaming + range requests so PDF.js only fetches/parses pages the user
+  // actually scrolls to. Disabling them was forcing a full-document parse of
+  // 191-page PDFs and immediately OOM'd Safari.
+  const isUrlLoad = "url" in (source || {});
   return {
     ...source,
     cMapUrl: `${PDFJS_ASSET_BASE_URL}cmaps/`,
@@ -242,9 +247,11 @@ const buildPdfDocumentInit = (source) => {
     iccUrl: `${PDFJS_ASSET_BASE_URL}iccs/`,
     ...(mobileSafeMode
       ? {
-          disableRange: true,
-          disableStream: true,
-          disableAutoFetch: true,
+          // Range/stream stay ON for URL loads to keep parsing lazy.
+          // Buffer-based loads can't use range anyway (data: source).
+          ...(isUrlLoad
+            ? {}
+            : { disableRange: true, disableStream: true, disableAutoFetch: true }),
           isOffscreenCanvasSupported: false,
           isImageDecoderSupported: false,
           useWorkerFetch: false,
@@ -1397,7 +1404,13 @@ const loadPdfDocument = async (fileUrl, options = {}) => {
   }
 
   const loadTaskPromise = (async () => {
-    if (preferBuffer || isPublicCdnPdfUrl(targetUrl) || isMobilePdfBrowser()) {
+    // Mobile: prefer URL+range loading over the full-buffer path. Buffer mode
+    // copies the entire PDF (3+ MB) twice in memory and disables streaming —
+    // PDF.js then has to parse all 191 pages up-front, which on iPhone alone
+    // costs 60–80 MB. With URL mode, range requests fetch only the bytes for
+    // the visible pages.
+    const isMobileClient = isMobilePdfBrowser();
+    if (preferBuffer || (isPublicCdnPdfUrl(targetUrl) && !isMobileClient)) {
       logPdfDebug("load:prefer-buffer", { targetUrl });
       const pdfDocument = await fetchPdfDocumentBuffer(targetUrl);
       touchPdfDocumentCacheEntry(targetUrl, pdfDocument);

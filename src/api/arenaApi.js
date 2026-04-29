@@ -40,6 +40,13 @@ export const fetchTestResults = async (testId, params = {}) => {
   return data;
 };
 
+export const fetchStudentTestAttempt = async (testId, userId) => {
+  const { data } = await axiosInstance.get(
+    `/arena/tests/${testId}/student-attempt/${userId}`,
+  );
+  return data;
+};
+
 export const fetchSharedTestByCode = async (shortCode) => {
   const { data } = await axiosInstance.get(`/arena/tests/shared/${shortCode}`);
   return data;

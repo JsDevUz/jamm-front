@@ -1169,11 +1169,9 @@ function formatPrice(price, accessType, t) {
     return t("coursesHome.freePrice");
   }
 
-  return new Intl.NumberFormat(undefined, {
-    style: "currency",
-    currency: "USD",
+  return `${new Intl.NumberFormat("uz-UZ", {
     maximumFractionDigits: normalizedPrice % 1 === 0 ? 0 : 2,
-  }).format(normalizedPrice);
+  }).format(normalizedPrice)} so'm`;
 }
 
 function getEntityId(value) {

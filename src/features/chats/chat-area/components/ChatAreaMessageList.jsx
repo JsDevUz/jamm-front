@@ -108,10 +108,10 @@ const DateSeparator = styled.div`
   margin: 16px 0;
 
   span {
-    color: var(--text-secondary-color);
+    color: #fff;
     font-size: 12px;
     font-weight: 600;
-    background-color: var(--background-color);
+    background-color: var(--active-color);
     padding: 0 16px;
     text-transform: uppercase;
     border-radius: 10px;

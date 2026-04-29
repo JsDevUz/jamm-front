@@ -3,9 +3,7 @@ import styled from "styled-components";
 import { useTranslation } from "react-i18next";
 import {
   BookOpen,
-  ClipboardCheck,
   FileText,
-  GraduationCap,
   LayoutDashboard,
   Type,
   Users,
@@ -60,8 +58,6 @@ const teacherNavItems = [
   { id: "dashboard", icon: LayoutDashboard, labelKey: "teacher.nav.dashboard", label: "Dashboard" },
   { id: "courses", icon: BookOpen, labelKey: "teacher.nav.courses", label: "Kurslar" },
   { id: "students", icon: Users, labelKey: "teacher.nav.students", label: "O'quvchilar" },
-  { id: "attendance", icon: ClipboardCheck, labelKey: "teacher.nav.attendance", label: "Davomat" },
-  { id: "mastery", icon: GraduationCap, labelKey: "teacher.nav.mastery", label: "O'zlashtirish" },
   { id: "tests", icon: FileText, labelKey: "teacher.nav.tests", label: "Testlar" },
   { id: "sentenceBuilder", icon: Type, labelKey: "teacher.nav.sentenceBuilder", label: "Gap tuzish" },
 ];

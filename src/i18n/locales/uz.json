@@ -583,7 +583,7 @@
       "ownerCourse": "Sizning kursingiz",
       "leave": "Kursdan chiqish",
       "leftCourse": "Kursdan chiqdingiz",
-      "buy": "Sotib olish: {{price}} so'm",
+      "buy": "Sotib olish: {{price}}",
       "enroll": "Obuna bo'lish",
       "approve": "Tasdiqlash",
       "reject": "Rad etish",
@@ -665,7 +665,7 @@
       "freeOpen": "Ruxsatsiz ochiq (Tekin)",
       "paid": "Pullik"
     },
-    "price": "Narxi (UZS)",
+    "price": "Narxi (so'm)",
     "pricePlaceholder": "Masalan: 500000",
     "description": "Tavsif",
     "descriptionPlaceholder": "Kurs haqida markdown bilan yozing: **qalin**, _kursiv_, ro'yxat, link...",
@@ -1360,12 +1360,14 @@
       "requestSent": "So'rov yuborilgan",
       "openCourse": "Kursni ochish",
       "enrollNow": "Hozir yozilish",
-      "buyNow": "Sotib olish"
+      "buyNow": "Sotib olish",
+      "contactTeacher": "Ustoz bilan bog'lanish"
     },
     "toasts": {
       "shareCopied": "Kurs havolasi nusxalandi",
       "shareError": "Kurs havolasini ulashib bo'lmadi",
       "requestSent": "So'rovingiz yuborildi",
+      "chatCreate": "Ustoz bilan chat ochib bo'lmadi",
       "enrollError": "Kursga yozilishda xatolik yuz berdi"
     },
     "duration": {
@@ -1536,10 +1538,13 @@
       "selectCourseText": "Chap ro'yxatdan kurs tanlang. Tanlangan kurs shu sahifa ichida admin panel bilan ochiladi.",
       "courseDescriptionFallback": "Bu kurs uchun tavsif kiritilmagan.",
       "openAdmin": "Admin panelni ochish",
-      "coursesSubtitle": "Kurslar ro'yxati va tanlangan kurs uchun inline boshqaruv workspace shu bo'limda.",
+      "coursesSubtitle": "Kurslar ro'yxatini ko'ring, kerakli kursni tanlang va darslarini boshqaring.",
+      "lessonsPageSubtitle": "Tanlangan kurs darslarini shu yerda ko'ring, tahrirlang va yangi dars qo'shing.",
+      "lessonSearchPlaceholder": "Dars qidirish...",
       "courseCategory": "Kategoriya",
       "attendanceRate": "Davomat",
       "attendedLessons": "Qatnashgan darslar",
+      "totalScore": "Umumiy ball",
       "lastActivity": "Oxirgi faollik",
       "masteryRate": "O'zlashtirish",
       "completedLessons": "Tugallangan darslar",

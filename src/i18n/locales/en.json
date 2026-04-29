@@ -583,7 +583,7 @@
       "ownerCourse": "Your course",
       "leave": "Leave course",
       "leftCourse": "You left the course",
-      "buy": "Buy: {{price}} UZS",
+      "buy": "Buy: {{price}}",
       "enroll": "Enroll",
       "approve": "Approve",
       "reject": "Reject",
@@ -665,7 +665,7 @@
       "freeOpen": "Open access (free)",
       "paid": "Paid"
     },
-    "price": "Price (UZS)",
+    "price": "Price (so'm)",
     "pricePlaceholder": "Example: 500000",
     "description": "Description",
     "descriptionPlaceholder": "Write the course description with markdown: **bold**, _italic_, lists, links...",
@@ -1360,12 +1360,14 @@
       "requestSent": "Request sent",
       "openCourse": "Open course",
       "enrollNow": "Enroll now",
-      "buyNow": "Buy now"
+      "buyNow": "Buy now",
+      "contactTeacher": "Contact teacher"
     },
     "toasts": {
       "shareCopied": "Course link copied",
       "shareError": "Could not share the course link",
       "requestSent": "Your request has been sent",
+      "chatCreate": "Could not open chat with the teacher",
       "enrollError": "Could not enroll in the course"
     },
     "duration": {

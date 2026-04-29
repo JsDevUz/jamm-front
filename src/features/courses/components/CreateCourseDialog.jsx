@@ -294,6 +294,7 @@ const resetState = {
   previewRequirements: "",
   deliveryType: "recorded",
   accessType: "free_request",
+  visibility: "public",
   price: 0,
   imageMode: "upload",
   descriptionMode: "write",
@@ -321,6 +322,7 @@ const CreateCourseDialog = ({
   const [deliveryType, setDeliveryType] = useState(resetState.deliveryType);
   const [price, setPrice] = useState(resetState.price);
   const [accessType, setAccessType] = useState(resetState.accessType);
+  const [visibility, setVisibility] = useState(resetState.visibility);
   const [imageMode, setImageMode] = useState(resetState.imageMode);
   const [descriptionMode, setDescriptionMode] = useState(resetState.descriptionMode);
   const [error, setError] = useState("");
@@ -367,6 +369,7 @@ const CreateCourseDialog = ({
       setDeliveryType(course.deliveryType || resetState.deliveryType);
       setPrice(Number(course.price || 0));
       setAccessType(course.accessType || resetState.accessType);
+      setVisibility(course.visibility || resetState.visibility);
       setImageMode(course.image ? "link" : resetState.imageMode);
       setDescriptionMode(resetState.descriptionMode);
       setError("");
@@ -383,6 +386,7 @@ const CreateCourseDialog = ({
     setDeliveryType(resetState.deliveryType);
     setPrice(resetState.price);
     setAccessType(resetState.accessType);
+    setVisibility(resetState.visibility);
     setImageMode(resetState.imageMode);
     setDescriptionMode(resetState.descriptionMode);
     setError("");
@@ -399,6 +403,7 @@ const CreateCourseDialog = ({
     setDeliveryType(resetState.deliveryType);
     setPrice(resetState.price);
     setAccessType(resetState.accessType);
+    setVisibility(resetState.visibility);
     setImageMode(resetState.imageMode);
     setDescriptionMode(resetState.descriptionMode);
     setError("");
@@ -483,6 +488,7 @@ const CreateCourseDialog = ({
       deliveryType,
       price: accessType === "paid" ? Number(price || 0) : 0,
       accessType,
+      visibility,
     };
 
     try {
@@ -707,6 +713,40 @@ const CreateCourseDialog = ({
                   </option>
                   <option value="paid">{t("createCourse.access.paid")}</option>
                 </SelectField>
+              </InputGroup>
+
+              <InputGroup>
+                <Label>
+                  {t("createCourse.visibility", {
+                    defaultValue: "Ko'rinish",
+                  })}
+                </Label>
+                <SelectField
+                  value={visibility}
+                  onChange={(e) => setVisibility(e.target.value)}
+                >
+                  <option value="public">
+                    {t("createCourse.visibilityPublic", {
+                      defaultValue: "Public",
+                    })}
+                  </option>
+                  <option value="unlisted">
+                    {t("createCourse.visibilityUnlisted", {
+                      defaultValue: "Unlisted",
+                    })}
+                  </option>
+                </SelectField>
+                <HelperText>
+                  {visibility === "unlisted"
+                    ? t("createCourse.visibilityUnlistedHelp", {
+                        defaultValue:
+                          "Qidiruv va landing sahifada ko'rinmaydi. Faqat link orqali ochiladi.",
+                      })
+                    : t("createCourse.visibilityPublicHelp", {
+                        defaultValue:
+                          "Qidiruv va landing sahifadagi kurslar ro'yxatida ko'rinadi.",
+                      })}
+                </HelperText>
               </InputGroup>
 
               <InputGroup>

@@ -1,9 +1,9 @@
 import React, { useEffect, useMemo, useState } from "react";
 import styled from "styled-components";
 import {
-  ClipboardList,
   GraduationCap,
   X,
+  RefreshCw,
   ChevronLeft,
   CheckCircle2,
   XCircle,
@@ -34,7 +34,7 @@ const Panel = styled.div`
   top: 92px;
   right: 16px;
   z-index: 60;
-  width: min(420px, calc(100vw - 32px));
+  width: min(620px, calc(100vw - 32px));
   max-height: calc(100vh - 200px);
   display: flex;
   flex-direction: column;
@@ -61,6 +61,59 @@ const HeaderTitle = styled.div`
   gap: 8px;
   font-size: 14px;
   font-weight: 600;
+`;
+
+const HeaderActions = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 6px;
+`;
+
+const RefreshBtn = styled.button`
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  border: 1px solid var(--lesson-border);
+  background: color-mix(in srgb, var(--lesson-text) 4%, transparent);
+  color: var(--lesson-muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.16s ease, color 0.16s ease, transform 0.16s ease;
+
+  svg {
+    transition: transform 0.2s ease;
+  }
+
+  &:hover {
+    background: color-mix(in srgb, var(--lesson-primary) 14%, transparent);
+    color: var(--lesson-text);
+  }
+
+  &:active {
+    transform: scale(0.96);
+  }
+
+  &:disabled {
+    cursor: wait;
+    opacity: 0.65;
+  }
+
+  ${({ $loading }) =>
+    $loading
+      ? `
+        svg {
+          animation: lessonRefreshSpin 0.75s linear infinite;
+        }
+      `
+      : ""}
+
+  @keyframes lessonRefreshSpin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
 `;
 
 const LessonTabs = styled.div`
@@ -103,28 +156,6 @@ const LessonTab = styled.button`
   }
 `;
 
-const Tabs = styled.div`
-  display: flex;
-  gap: 4px;
-  padding: 8px;
-  border-bottom: 1px solid var(--lesson-border);
-`;
-
-const TabButton = styled.button`
-  flex: 1;
-  padding: 8px 10px;
-  border-radius: 8px;
-  border: none;
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  background: ${(p) => (p.$active ? "var(--lesson-active)" : "transparent")};
-  color: ${(p) => (p.$active ? "var(--lesson-text)" : "var(--lesson-muted)")};
-  &:hover {
-    background: var(--lesson-hover);
-  }
-`;
-
 const Body = styled.div`
   flex: 1;
   overflow-y: auto;
@@ -133,19 +164,16 @@ const Body = styled.div`
 
 const StatsGrid = styled.div`
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 6px;
-  padding: 4px 2px 10px;
-
-  @media (max-width: 520px) {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
+  padding: 4px 2px 8px;
+  min-width: 0;
 `;
 
 const StatCard = styled.div`
   min-width: 0;
-  padding: 8px 9px;
-  border-radius: 10px;
+  padding: 7px 8px;
+  border-radius: 9px;
   border: 1px solid
     ${(p) =>
       p.$tone === "success"
@@ -167,16 +195,16 @@ const StatCard = styled.div`
 
 const StatValue = styled.div`
   color: var(--lesson-text);
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 800;
   line-height: 1.1;
   font-variant-numeric: tabular-nums;
 `;
 
 const StatLabel = styled.div`
-  margin-top: 3px;
+  margin-top: 2px;
   color: var(--lesson-muted);
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 700;
   line-height: 1.2;
   white-space: nowrap;
@@ -188,6 +216,7 @@ const Row = styled.div`
   position: relative;
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 10px;
   padding: 8px 10px;
   border-radius: 10px;
@@ -253,6 +282,18 @@ const StatusButtons = styled.div`
   gap: 4px;
 `;
 
+const RowActions = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+
+  @media (max-width: 520px) {
+    width: 100%;
+    justify-content: flex-end;
+  }
+`;
+
 const DetailBtn = styled.button`
   height: 28px;
   padding: 0 8px;
@@ -310,8 +351,8 @@ const StatusBtn = styled.button`
 `;
 
 const ScoreInput = styled.input`
-  width: 56px;
-  padding: 4px 6px;
+  width: 74px;
+  padding: 4px 8px;
   border-radius: 6px;
   border: 1px solid var(--lesson-border);
   background: var(--lesson-input);
@@ -319,6 +360,12 @@ const ScoreInput = styled.input`
   font-size: 13px;
   text-align: center;
   outline: none;
+
+  &::placeholder {
+    color: var(--lesson-muted);
+    opacity: 1;
+  }
+
   &:focus {
     border-color: var(--lesson-primary);
   }
@@ -539,6 +586,14 @@ function getRowScore(row) {
   if (raw === "" || raw === null || raw === undefined) return null;
   const value = Number(raw);
   return Number.isFinite(value) ? value : null;
+}
+
+function getRowUserId(row) {
+  return String(row?.userId || row?._id || "");
+}
+
+function getRowUserName(row) {
+  return row?.userName || row?.name || "—";
 }
 
 // ─── Detail modal ────────────────────────────────────────────────────────────
@@ -1095,13 +1150,14 @@ export default function MeetAttendancePanel({
   onSetAttendance,
   onSetGrade,
   onSelectLesson,
+  onRefresh,
   onFetchTestDetail,
   onReviewHomework,
   onOpenChange,
   onClose,
 }) {
-  const [tab, setTab] = useState("attendance");
   const [detailUserId, setDetailUserId] = useState(null);
+  const [refreshing, setRefreshing] = useState(false);
 
   const selectedLessonId =
     lessonMeet?.selectedLessonId || lessonMeet?.lessonId || "";
@@ -1115,29 +1171,59 @@ export default function MeetAttendancePanel({
     () => extractGradingList(lessonMeet?.grading),
     [lessonMeet?.grading],
   );
+  const controlRows = useMemo(() => {
+    const rowsByUser = new Map();
+
+    attendanceList.forEach((row) => {
+      const userId = getRowUserId(row);
+      if (!userId) return;
+      rowsByUser.set(userId, {
+        userId,
+        userName: getRowUserName(row),
+        attendanceRow: row,
+        gradingRow: null,
+      });
+    });
+
+    gradingList.forEach((row) => {
+      const userId = getRowUserId(row);
+      if (!userId) return;
+      const current = rowsByUser.get(userId);
+      rowsByUser.set(userId, {
+        userId,
+        userName: current?.userName || getRowUserName(row),
+        attendanceRow: current?.attendanceRow || null,
+        gradingRow: row,
+      });
+    });
+
+    return Array.from(rowsByUser.values());
+  }, [attendanceList, gradingList]);
   const attendanceStats = useMemo(() => {
-    const total = attendanceList.length;
-    const present = attendanceList.filter((row) => row.status === "present").length;
-    const late = attendanceList.filter((row) => row.status === "late").length;
-    const absent = Math.max(0, total - present - late);
+    const total = controlRows.length;
+    const present = controlRows.filter(
+      (row) => row.attendanceRow?.status === "present",
+    ).length;
+    const absent = Math.max(0, total - present);
     const presentRate = total ? Math.round((present / total) * 100) : 0;
-    return { total, present, late, absent, presentRate };
-  }, [attendanceList]);
-  const gradingStats = useMemo(() => {
-    const total = gradingList.length;
-    const scores = gradingList
-      .map((row) => getRowScore(row))
-      .filter((score) => score !== null);
-    const graded = scores.length;
-    const remaining = Math.max(0, total - graded);
-    const average = graded
-      ? Math.round(scores.reduce((sum, score) => sum + score, 0) / graded)
-      : 0;
-    return { total, graded, remaining, average };
-  }, [gradingList]);
+    return { total, present, absent, presentRate };
+  }, [controlRows]);
   const handleClose = () => {
     onOpenChange?.(false);
     onClose?.();
+  };
+
+  const handleRefresh = async () => {
+    if (!onRefresh || refreshing) return;
+
+    setRefreshing(true);
+    try {
+      await onRefresh(selectedLessonId);
+    } finally {
+      window.setTimeout(() => {
+        setRefreshing(false);
+      }, 650);
+    }
   };
 
   // Reset detail when switching lessons
@@ -1147,14 +1233,18 @@ export default function MeetAttendancePanel({
 
   const detailStudent = useMemo(() => {
     if (!detailUserId) return null;
-    return (
-      gradingList.find((row) => String(row.userId) === String(detailUserId)) ||
-      attendanceList.find((row) => String(row.userId) === String(detailUserId))
-    );
-  }, [detailUserId, gradingList, attendanceList]);
+    const row = controlRows.find((item) => String(item.userId) === String(detailUserId));
+    if (!row) return null;
+    return {
+      ...(row.gradingRow || {}),
+      ...(row.attendanceRow || {}),
+      userId: row.userId,
+      userName: row.userName,
+    };
+  }, [controlRows, detailUserId]);
 
-  const renderAttendanceStats = () => (
-    <StatsGrid aria-label="Davomat statistikasi">
+  const renderControlStats = () => (
+    <StatsGrid aria-label="Dars boshqaruvi statistikasi">
       <StatCard>
         <StatValue>{attendanceStats.total}</StatValue>
         <StatLabel>Jami</StatLabel>
@@ -1163,10 +1253,6 @@ export default function MeetAttendancePanel({
         <StatValue>{attendanceStats.present}</StatValue>
         <StatLabel>Bor · {attendanceStats.presentRate}%</StatLabel>
       </StatCard>
-      <StatCard $tone="warning">
-        <StatValue>{attendanceStats.late}</StatValue>
-        <StatLabel>Kech</StatLabel>
-      </StatCard>
       <StatCard $tone="danger">
         <StatValue>{attendanceStats.absent}</StatValue>
         <StatLabel>Yo'q</StatLabel>
@@ -1174,91 +1260,13 @@ export default function MeetAttendancePanel({
     </StatsGrid>
   );
 
-  const renderGradingStats = () => (
-    <StatsGrid aria-label="Baholash statistikasi">
-      <StatCard>
-        <StatValue>{gradingStats.total}</StatValue>
-        <StatLabel>Jami</StatLabel>
-      </StatCard>
-      <StatCard $tone="success">
-        <StatValue>{gradingStats.graded}</StatValue>
-        <StatLabel>Baholangan</StatLabel>
-      </StatCard>
-      <StatCard>
-        <StatValue>{gradingStats.average}</StatValue>
-        <StatLabel>O'rtacha</StatLabel>
-      </StatCard>
-      <StatCard $tone={gradingStats.remaining ? "warning" : "success"}>
-        <StatValue>{gradingStats.remaining}</StatValue>
-        <StatLabel>Qolgan</StatLabel>
-      </StatCard>
-    </StatsGrid>
-  );
-
-  const renderAttendanceRow = (row) => {
-    const status = row.status || "absent";
-    const userId = String(row.userId || row._id || "");
-    const name = row.userName || row.name || "—";
+  const renderControlRow = (row) => {
+    const status = row.attendanceRow?.status || "absent";
+    const userId = String(row.userId || "");
+    const name = row.userName || "—";
     const selected = String(detailUserId || "") === userId;
-    return (
-      <Row
-        key={userId}
-        $clickable
-        $selected={selected}
-        onClick={(e) => {
-          if (e.target.closest?.("button,input,a")) return;
-          setDetailUserId(userId);
-        }}
-      >
-        <Avatar>{getInitials(name)}</Avatar>
-        <RowInfo>
-          <RowName>{name}</RowName>
-          <RowMeta>
-            {row.source === "manual" ? "qo'lda" : "auto"} ·{" "}
-            {STATUS_LABEL[status] || status}
-          </RowMeta>
-        </RowInfo>
-        <DetailBtn
-          type="button"
-          $active={selected}
-          onClick={(e) => {
-            e.stopPropagation();
-            setDetailUserId(userId);
-          }}
-          aria-label={`${name} tafsilotlarini ochish`}
-          title="Tafsilot oynasini ochish"
-        >
-          <ExternalLink size={12} />
-          Tafsilot
-        </DetailBtn>
-        <StatusButtons>
-          {["present", "late", "absent"].map((variant) => (
-            <StatusBtn
-              key={variant}
-              $variant={variant}
-              $active={status === variant}
-              onClick={() =>
-                onSetAttendance?.(userId, variant, selectedLessonId)
-              }
-              type="button"
-            >
-              {STATUS_LABEL[variant]}
-            </StatusBtn>
-          ))}
-        </StatusButtons>
-      </Row>
-    );
-  };
-
-  const renderGradingRow = (row) => {
-    const userId = String(row.userId || row._id || "");
-    const name = row.userName || row.name || "—";
-    const selected = String(detailUserId || "") === userId;
-    const score = row.oralScore ?? row.score ?? "";
-    const homeworkSummary = summarizeHomeworkForUser(
-      lessonMeet?.homework,
-      userId,
-    );
+    const score = row.gradingRow?.oralScore ?? row.gradingRow?.score ?? "";
+    const homeworkSummary = summarizeHomeworkForUser(lessonMeet?.homework, userId);
     const testSummary = summarizeTestsForUser(lessonMeet?.tests, userId);
     return (
       <Row
@@ -1274,6 +1282,24 @@ export default function MeetAttendancePanel({
         <RowInfo>
           <RowName>{name}</RowName>
           <RowMeta>
+            <Pill
+              $bg={
+                status === "present"
+                  ? "color-mix(in srgb, var(--lesson-success) 18%, transparent)"
+                  : status === "late"
+                    ? "color-mix(in srgb, var(--lesson-warning) 18%, transparent)"
+                    : "color-mix(in srgb, var(--lesson-danger) 16%, transparent)"
+              }
+              $color={
+                status === "present"
+                  ? "var(--lesson-success)"
+                  : status === "late"
+                    ? "var(--lesson-warning)"
+                    : "var(--lesson-danger)"
+              }
+            >
+              {STATUS_LABEL[status] || status}
+            </Pill>
             {homeworkSummary ? (
               <Pill
                 $bg={
@@ -1321,23 +1347,38 @@ export default function MeetAttendancePanel({
           <ExternalLink size={12} />
           Tafsilot
         </DetailBtn>
-        <ScoreInput
-          type="number"
-          min="0"
-          max="100"
-          defaultValue={score === null || score === undefined ? "" : score}
-          onClick={(e) => e.stopPropagation()}
-          onBlur={(e) => {
-            const raw = e.target.value.trim();
-            const next =
-              raw === "" ? null : Math.max(0, Math.min(100, Number(raw)));
-            const prev = score === "" || score === null ? null : Number(score);
-            if (next !== prev) {
-              onSetGrade?.(userId, { score: next, lessonId: selectedLessonId });
-            }
-          }}
-          placeholder="—"
-        />
+        <RowActions>
+          <StatusButtons>
+            {["present", "late", "absent"].map((variant) => (
+              <StatusBtn
+                key={variant}
+                $variant={variant}
+                $active={status === variant}
+                onClick={() => onSetAttendance?.(userId, variant, selectedLessonId)}
+                type="button"
+              >
+                {STATUS_LABEL[variant]}
+              </StatusBtn>
+            ))}
+          </StatusButtons>
+          <ScoreInput
+            type="number"
+            min="0"
+            max="100"
+            defaultValue={score === null || score === undefined ? "" : score}
+            onClick={(e) => e.stopPropagation()}
+            onBlur={(e) => {
+              const raw = e.target.value.trim();
+              const next =
+                raw === "" ? null : Math.max(0, Math.min(100, Number(raw)));
+              const prev = score === "" || score === null ? null : Number(score);
+              if (next !== prev) {
+                onSetGrade?.(userId, { score: next, lessonId: selectedLessonId });
+              }
+            }}
+            placeholder="Baho"
+          />
+        </RowActions>
       </Row>
     );
   };
@@ -1351,18 +1392,28 @@ export default function MeetAttendancePanel({
       <Panel>
         <Header>
           <HeaderTitle>
-            {tab === "attendance" ? (
-              <ClipboardList size={16} />
-            ) : (
-              <GraduationCap size={16} />
-            )}
+            <GraduationCap size={16} />
             <span>Dars boshqaruvi</span>
+            {onRefresh ? (
+              <RefreshBtn
+                type="button"
+                onClick={handleRefresh}
+                disabled={refreshing}
+                $loading={refreshing}
+                aria-label="Dars boshqaruvini yangilash"
+                title="Oxirgi ma'lumotlarni olish"
+              >
+                <RefreshCw size={14} />
+              </RefreshBtn>
+            ) : null}
           </HeaderTitle>
-          {onOpenChange || onClose ? (
-            <CloseBtn type="button" onClick={handleClose} aria-label="Yopish">
-              <X size={16} />
-            </CloseBtn>
-          ) : null}
+          <HeaderActions>
+            {onOpenChange || onClose ? (
+              <CloseBtn type="button" onClick={handleClose} aria-label="Yopish">
+                <X size={16} />
+              </CloseBtn>
+            ) : null}
+          </HeaderActions>
         </Header>
         {courseLessons.length > 1 ? (
           <LessonTabs>
@@ -1379,41 +1430,12 @@ export default function MeetAttendancePanel({
             ))}
           </LessonTabs>
         ) : null}
-        <Tabs>
-          <TabButton
-            type="button"
-            $active={tab === "attendance"}
-            onClick={() => setTab("attendance")}
-          >
-            Davomat
-          </TabButton>
-          <TabButton
-            type="button"
-            $active={tab === "grading"}
-            onClick={() => setTab("grading")}
-          >
-            Baholash
-          </TabButton>
-        </Tabs>
         <Body>
-          {tab === "attendance" ? (
-            <>
-              {renderAttendanceStats()}
-              {attendanceList.length ? (
-                attendanceList.map(renderAttendanceRow)
-              ) : (
-                <Empty>Hozircha qatnashchi yo'q</Empty>
-              )}
-            </>
+          {renderControlStats()}
+          {controlRows.length ? (
+            controlRows.map(renderControlRow)
           ) : (
-            <>
-              {renderGradingStats()}
-              {gradingList.length ? (
-                gradingList.map(renderGradingRow)
-              ) : (
-                <Empty>Hozircha baholanadigan a'zo yo'q</Empty>
-              )}
-            </>
+            <Empty>Hozircha qatnashchi yo'q</Empty>
           )}
         </Body>
       </Panel>

@@ -189,6 +189,13 @@ function hasLessonActivity(lesson) {
   return hasAttendanceProgress || hasHomeworkSubmission || hasLinkedTestProgress;
 }
 
+function formatSomPrice(price) {
+  const normalized = Number(price || 0);
+  return `${new Intl.NumberFormat("uz-UZ", {
+    maximumFractionDigits: normalized % 1 === 0 ? 0 : 2,
+  }).format(normalized)} so'm`;
+}
+
 const TIMED_NOTE_PATTERN =
   /^\s*(?:\[(\d{1,2}:\d{2}(?::\d{2})?)\]|(\d{1,2}:\d{2}(?::\d{2})?))\s*(?:[-:|]\s*)?(.*)$/;
 
@@ -3419,7 +3426,7 @@ const CoursePlayer = ({
           >
             <UserPlus size={16} />
             {t("coursePlayer.actions.buy", {
-              price: course?.price?.toLocaleString() || 0,
+              price: formatSomPrice(course?.price),
             })}
           </RoundedEnrollButton>
         ) : enrollStatus === "none" ? (
@@ -3429,7 +3436,7 @@ const CoursePlayer = ({
           >
             <UserPlus size={16} />
             {t("coursePlayer.actions.enroll")}{" "}
-            {course?.price > 0 && `(${course.price})`}
+            {course?.price > 0 && `(${formatSomPrice(course.price)})`}
           </RoundedEnrollButton>
         ) : null}
       </EnrollmentActions>
