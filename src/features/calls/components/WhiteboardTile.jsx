@@ -197,7 +197,10 @@ const isMobileSafariBrowser = () => {
   }
 
   const userAgent = navigator.userAgent || "";
-  const isIOSDevice = /iPad|iPhone|iPod/.test(userAgent);
+  const platform = navigator.platform || "";
+  const isIOSDevice =
+    /iPad|iPhone|iPod/.test(userAgent) ||
+    (platform === "MacIntel" && Number(navigator.maxTouchPoints) > 1);
   const isSafariEngine = /Safari/.test(userAgent) && !/CriOS|FxiOS|EdgiOS/.test(userAgent);
   return isIOSDevice && isSafariEngine;
 };
@@ -7472,6 +7475,22 @@ const WhiteboardTile = ({
     interactive && isMobileSafariBrowser() && activeTab?.type !== "pdf";
   const shouldCapMobileGuestBoardCanvas =
     !interactive && effectiveIsMobile && activeTab?.type !== "pdf";
+  const boardRenderMaxEdge = shouldCapInteractiveMobileSafariBoardCanvas
+    ? WHITEBOARD_MOBILE_SAFARI_CANVAS_MAX_EDGE
+    : shouldCapMobileGuestBoardRender
+      ? WHITEBOARD_MOBILE_GUEST_BOARD_CANVAS_MAX_EDGE
+      : undefined;
+  const boardRenderFootprintScale =
+    Number.isFinite(Number(boardRenderMaxEdge)) &&
+    activeBoardBaseWidth > 0 &&
+    activeBoardBaseHeight > 0
+      ? Math.max(
+          0.05,
+          Number(boardRenderMaxEdge) /
+            (Math.max(activeBoardBaseWidth, activeBoardBaseHeight) *
+              WHITEBOARD_BOARD_POINT_SPAN),
+        )
+      : Number.POSITIVE_INFINITY;
   const boardCanvasMaxEdge = shouldCapInteractiveMobileSafariBoardCanvas
     ? WHITEBOARD_MOBILE_SAFARI_CANVAS_MAX_EDGE
     : shouldCapMobileGuestBoardCanvas
@@ -7486,8 +7505,15 @@ const WhiteboardTile = ({
     shouldCapInteractiveMobileSafariBoardCanvas || shouldCapMobileGuestBoardCanvas
       ? 1
       : undefined;
-  const activeBoardRenderScale = shouldCapMobileGuestBoardRender
-    ? Math.min(rawActiveBoardRenderScale, WHITEBOARD_MOBILE_GUEST_BOARD_MAX_RENDER_ZOOM)
+  const activeBoardRenderScale =
+    shouldCapMobileGuestBoardRender || shouldCapInteractiveMobileSafariBoardCanvas
+      ? Math.min(
+          rawActiveBoardRenderScale,
+          shouldCapMobileGuestBoardRender
+            ? WHITEBOARD_MOBILE_GUEST_BOARD_MAX_RENDER_ZOOM
+            : Number.POSITIVE_INFINITY,
+          boardRenderFootprintScale,
+        )
     : rawActiveBoardRenderScale;
   const activeBoardRenderScaleRef = useRef(activeBoardRenderScale);
   activeBoardRenderScaleRef.current = activeBoardRenderScale;
