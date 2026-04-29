@@ -852,11 +852,20 @@ const CoursePlayer = ({
 
   const isIgnorablePlaybackError = useCallback((error) => {
     if (!error) return false;
+    const name = String(error?.name || "");
     const message = String(error?.message || "").toLowerCase();
     return (
-      error.name === "AbortError" ||
+      name === "AbortError" ||
+      // Autoplay policy — user gesture required, not a real error
+      name === "NotAllowedError" ||
+      // Transient src swap / HLS reattach during a seek — Brave/Chromium
+      // throws this when the media element's source is being replaced
+      // while we call play(). The next onCanPlay handler retries playback.
+      name === "NotSupportedError" ||
       message.includes("interrupted by a call to pause") ||
-      message.includes("play() request was interrupted")
+      message.includes("interrupted by a new load request") ||
+      message.includes("play() request was interrupted") ||
+      message.includes("the element has no supported sources")
     );
   }, []);
 
@@ -2001,6 +2010,25 @@ const CoursePlayer = ({
       shouldAutoplayNextMediaRef.current = false;
       videoRef.current.pause();
     } else {
+      // If the media element is in an error state (e.g. previous seek
+      // tripped MEDIA_ERR_SRC_NOT_SUPPORTED), play() will reject instantly
+      // forever until we re-attach the source. Try hls.js recovery first;
+      // if that's not possible, fall back to a full reload of the source.
+      const mediaError = videoRef.current.error;
+      if (mediaError) {
+        try {
+          if (hlsRef.current?.recoverMediaError) {
+            hlsRef.current.recoverMediaError();
+          } else {
+            const src = videoRef.current.src;
+            videoRef.current.removeAttribute("src");
+            videoRef.current.load();
+            if (src) videoRef.current.src = src;
+          }
+        } catch {}
+        shouldAutoplayAfterLoadRef.current = true;
+        return;
+      }
       const playPromise = videoRef.current.play();
       if (playPromise !== undefined) {
         playPromise.catch((error) => {
@@ -2327,6 +2355,22 @@ const CoursePlayer = ({
         setCurrentTime(0);
         setPlaybackRequested(true);
         return;
+      }
+
+      // If the previous play attempt left the element in an error state,
+      // recover it before issuing a new currentTime/play() — otherwise the
+      // browser will keep rejecting play() with MEDIA_ERR_SRC_NOT_SUPPORTED.
+      if (videoRef.current && videoRef.current.error) {
+        try {
+          if (hlsRef.current?.recoverMediaError) {
+            hlsRef.current.recoverMediaError();
+          } else {
+            const src = videoRef.current.src;
+            videoRef.current.removeAttribute("src");
+            videoRef.current.load();
+            if (src) videoRef.current.src = src;
+          }
+        } catch {}
       }
 
       if (!playbackUrl || !videoRef.current) {
