@@ -23,12 +23,14 @@ type MeetingUIProps = {
   onLeave: () => void;
   onCopyLink?: () => void;
   onToggleWhiteboard?: () => void;
+  onToggleExcalidrawWhiteboard?: () => void;
   onToggleLessonControls?: () => void;
   onMinimize?: () => void;
   focusContent?: React.ReactNode;
   focusKey?: string;
   isRecording?: boolean;
   whiteboardActive?: boolean;
+  excalidrawWhiteboardActive?: boolean;
   isMicrophoneEnabled: boolean;
   isCameraEnabled: boolean;
   isScreenShareEnabled: boolean;
@@ -180,12 +182,14 @@ export default function MeetingUI({
   onLeave,
   onCopyLink,
   onToggleWhiteboard,
+  onToggleExcalidrawWhiteboard,
   onToggleLessonControls,
   onMinimize,
   focusContent,
   focusKey,
   isRecording = false,
   whiteboardActive = false,
+  excalidrawWhiteboardActive = false,
   isMicrophoneEnabled,
   isCameraEnabled,
   isScreenShareEnabled,
@@ -261,7 +265,9 @@ export default function MeetingUI({
   }, []);
 
   useEffect(() => {
-    if (!whiteboardActive) {
+    const focusTileActive = Boolean(focusContent && focusKey);
+
+    if (!focusTileActive) {
       autoFullscreenWhiteboardKeyRef.current = null;
       if (fullscreenTileKey === focusKey) {
         setFullscreenTileKey(null);
@@ -270,14 +276,12 @@ export default function MeetingUI({
     }
 
     if (
-      focusContent &&
-      focusKey &&
       autoFullscreenWhiteboardKeyRef.current !== focusKey
     ) {
       autoFullscreenWhiteboardKeyRef.current = focusKey;
       setFullscreenTileKey(focusKey);
     }
-  }, [focusContent, focusKey, fullscreenTileKey, whiteboardActive]);
+  }, [focusContent, focusKey, fullscreenTileKey]);
 
   const allParticipants = useMemo(() => {
     const everyone = [
@@ -327,7 +331,7 @@ export default function MeetingUI({
     return ordered;
   }, [allParticipants, pinnedIdentity]);
 
-  const whiteboardFullscreen = Boolean(whiteboardActive && focusContent && fullscreenTileKey === focusKey);
+  const whiteboardFullscreen = Boolean(focusContent && fullscreenTileKey === focusKey);
   const bottomMenuVisible = whiteboardFullscreen && !isMobile ? true : controlsVisible;
   const stagePaddingClass = whiteboardFullscreen
     ? "p-0"
@@ -377,7 +381,7 @@ export default function MeetingUI({
   };
 
   const handleHeaderWhiteboardToggle = () => {
-    if (!whiteboardActive) {
+    if (!focusContent) {
       requestWhiteboardBrowserFullscreen();
     }
     onToggleWhiteboard?.();
@@ -652,9 +656,11 @@ export default function MeetingUI({
           compactOverlay={whiteboardFullscreen && !isMobile}
           isRecording={isRecording}
           whiteboardActive={whiteboardActive}
+          excalidrawWhiteboardActive={excalidrawWhiteboardActive}
           speakerMode={mobileSpeakerMode}
           onCopyLink={onCopyLink}
           onToggleWhiteboard={onToggleWhiteboard ? handleHeaderWhiteboardToggle : undefined}
+          onToggleExcalidrawWhiteboard={onToggleExcalidrawWhiteboard}
           onToggleParticipants={() => setParticipantsOpen(true)}
           onToggleChat={() => setChatOpen(true)}
           onToggleLessonControls={onToggleLessonControls}

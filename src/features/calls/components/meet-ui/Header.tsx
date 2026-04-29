@@ -6,6 +6,7 @@ import {
   MessageSquare,
   Minimize2,
   MonitorUp,
+  PencilRuler,
   Users,
   Volume1,
   Volume2,
@@ -23,10 +24,12 @@ type HeaderProps = {
   isMobileLandscape?: boolean;
   compactOverlay?: boolean;
   whiteboardActive?: boolean;
+  excalidrawWhiteboardActive?: boolean;
   isRecording?: boolean;
   speakerMode?: "speaker" | "receiver";
   onCopyLink?: () => void;
   onToggleWhiteboard?: () => void;
+  onToggleExcalidrawWhiteboard?: () => void;
   onToggleParticipants?: () => void;
   onToggleChat?: () => void;
   onToggleLessonControls?: () => void;
@@ -45,10 +48,12 @@ export default function Header({
   isMobileLandscape = false,
   compactOverlay = false,
   whiteboardActive = false,
+  excalidrawWhiteboardActive = false,
   isRecording = false,
   speakerMode = "speaker",
   onCopyLink,
   onToggleWhiteboard,
+  onToggleExcalidrawWhiteboard,
   onToggleParticipants,
   onToggleChat,
   onToggleLessonControls,
@@ -194,6 +199,23 @@ export default function Header({
             >
               <MonitorUp className={cn("h-4 w-4 lg:h-3.5 lg:w-3.5", compactOverlay ? compactIconClass : "")} />
               <span className={cn("hidden text-sm lg:inline lg:text-xs", compactOverlay ? "lg:hidden" : "")}>Board</span>
+            </button>
+          ) : null}
+          {onToggleExcalidrawWhiteboard && !isMobile ? (
+            <button
+              type="button"
+              onClick={onToggleExcalidrawWhiteboard}
+              className={cn(
+                "inline-flex h-9 w-9 items-center justify-center rounded-full text-[var(--meet-text-color)] transition sm:h-11 sm:w-auto sm:gap-2 sm:px-4 lg:h-9 lg:gap-1.5 lg:px-3",
+                compactOverlay ? "!w-auto gap-2 " + compactButtonClass : "",
+                excalidrawWhiteboardActive
+                  ? "bg-[var(--meet-control-active-bg)] ring-1 ring-[#8ab4f8]"
+                  : "border border-[var(--meet-border-color)] bg-[var(--meet-control-bg)] hover:bg-[var(--meet-control-hover-bg)]",
+              )}
+              title="Excalidraw whiteboard"
+            >
+              <PencilRuler className={cn("h-4 w-4 lg:h-3.5 lg:w-3.5", compactOverlay ? compactIconClass : "")} />
+              <span className={cn("hidden text-sm lg:inline lg:text-xs", compactOverlay ? "lg:hidden" : "")}>Draw</span>
             </button>
           ) : null}
           {isMobile && onToggleSpeakerMode ? (

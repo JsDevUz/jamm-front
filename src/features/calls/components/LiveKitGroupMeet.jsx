@@ -41,7 +41,7 @@ import {
   useTracks,
   UnfocusToggleIcon,
 } from "@livekit/components-react";
-import { Track, VideoPresets, ScreenSharePresets } from "livekit-client";
+import { RoomEvent, Track, VideoPresets, ScreenSharePresets } from "livekit-client";
 import { createLivekitToken } from "../../../api/livekitApi";
 import useAuthStore from "../../../store/authStore";
 import { RESOLVED_APP_BASE_URL } from "../../../config/env";
@@ -49,6 +49,7 @@ import { RESOLVED_APP_BASE_URL } from "../../../config/env";
 // mobile Safari on /join. Only load it when the host actually opens the
 // whiteboard (`hasWhiteboard === true`).
 const WhiteboardTile = lazy(() => import("./WhiteboardTile"));
+const ExcalidrawWhiteboardTile = lazy(() => import("./ExcalidrawWhiteboardTile"));
 import MeetingUI from "./meet-ui/MeetingUI";
 import MeetAttendancePanel from "./MeetAttendancePanel";
 import { useLiveKitMeetSignaling } from "../hooks/useLiveKitMeetSignaling";
@@ -68,6 +69,7 @@ const WHITEBOARD_DEFAULT_TEXT_FONT_FAMILY = "sans";
 const WHITEBOARD_DEFAULT_TEXT_SIZE = "m";
 const WHITEBOARD_DEFAULT_TEXT_ALIGN = "left";
 const CONNECTION_STATE_TOAST_ID = "meet-connection-state";
+const EXCALIDRAW_WHITEBOARD_CONTROL_KIND = "excalidraw-whiteboard-control";
 const MINIMIZED_ROOM_CONTAINER_STYLE = {
   position: "fixed",
   inset: "0 auto auto 0",
@@ -1851,6 +1853,7 @@ function MeetContent({
   const [whiteboardTextAlign, setWhiteboardTextAlign] = useState(
     WHITEBOARD_DEFAULT_TEXT_ALIGN,
   );
+  const [excalidrawWhiteboardActive, setExcalidrawWhiteboardActive] = useState(false);
   const [recordSurfaceNode, setRecordSurfaceNode] = useState(null);
   const [recordSurfaceType, setRecordSurfaceType] = useState(null);
   const [cameraDevices, setCameraDevices] = useState([]);
@@ -2026,12 +2029,98 @@ function MeetContent({
     onClose?.();
   }, [closePiPWindow, onClose, recorder, room, signaling]);
 
+  const publishExcalidrawWhiteboardControl = useCallback(
+    async (active) => {
+      await room.localParticipant.publishData(
+        new TextEncoder().encode(
+          JSON.stringify({
+            kind: EXCALIDRAW_WHITEBOARD_CONTROL_KIND,
+            active: Boolean(active),
+            senderIdentity: room.localParticipant.identity,
+            sentAt: Date.now(),
+          }),
+        ),
+        { reliable: true },
+      );
+    },
+    [room.localParticipant],
+  );
+
   const handleWhiteboardToggle = useCallback(() => {
     const ok = signaling.toggleWhiteboard();
     if (!ok && !isCreator) {
       toast("Whiteboardni faqat host boshqaradi");
+      return;
     }
-  }, [isCreator, signaling]);
+
+    if (ok && excalidrawWhiteboardActive) {
+      setExcalidrawWhiteboardActive(false);
+      void publishExcalidrawWhiteboardControl(false).catch(() => {});
+    }
+  }, [
+    excalidrawWhiteboardActive,
+    isCreator,
+    publishExcalidrawWhiteboardControl,
+    signaling,
+  ]);
+
+  const handleExcalidrawWhiteboardToggle = useCallback(() => {
+    if (!isCreator) {
+      toast("Whiteboardni faqat host boshqaradi");
+      return;
+    }
+
+    const nextActive = !excalidrawWhiteboardActive;
+    setExcalidrawWhiteboardActive(nextActive);
+
+    if (nextActive && signaling.whiteboardState.isActive) {
+      signaling.toggleWhiteboard();
+    }
+
+    void publishExcalidrawWhiteboardControl(nextActive).catch(() => {
+      toast.error("Excalidraw whiteboard holati yuborilmadi");
+    });
+  }, [
+    excalidrawWhiteboardActive,
+    isCreator,
+    publishExcalidrawWhiteboardControl,
+    signaling,
+  ]);
+
+  useEffect(() => {
+    const decoder = new TextDecoder();
+    const handleDataReceived = (payload) => {
+      try {
+        const data = JSON.parse(decoder.decode(payload));
+        if (data?.kind !== EXCALIDRAW_WHITEBOARD_CONTROL_KIND) {
+          return;
+        }
+        setExcalidrawWhiteboardActive(Boolean(data.active));
+      } catch {
+        // ignore unrelated data packets
+      }
+    };
+
+    room.on(RoomEvent.DataReceived, handleDataReceived);
+    return () => {
+      room.off(RoomEvent.DataReceived, handleDataReceived);
+    };
+  }, [room]);
+
+  useEffect(() => {
+    if (!isCreator || !excalidrawWhiteboardActive) {
+      return undefined;
+    }
+
+    const handleParticipantConnected = () => {
+      void publishExcalidrawWhiteboardControl(true).catch(() => {});
+    };
+
+    room.on(RoomEvent.ParticipantConnected, handleParticipantConnected);
+    return () => {
+      room.off(RoomEvent.ParticipantConnected, handleParticipantConnected);
+    };
+  }, [excalidrawWhiteboardActive, isCreator, publishExcalidrawWhiteboardControl, room]);
 
   const handleRoomPrivacyChange = useCallback(
     async (nextIsPrivate) => {
@@ -2441,6 +2530,21 @@ function MeetContent({
     />
     </Suspense>
   ) : null;
+  const excalidrawWhiteboardTile = excalidrawWhiteboardActive ? (
+    <Suspense fallback={<div style={{ width: "100%", height: "100%", background: "#fff" }} />}>
+      <ExcalidrawWhiteboardTile
+        room={room}
+        interactive={Boolean(isCreator)}
+        participantCount={participants.length}
+      />
+    </Suspense>
+  ) : null;
+  const activeFocusTile = excalidrawWhiteboardTile || whiteboardTile;
+  const activeFocusKey = excalidrawWhiteboardTile
+    ? `${WHITEBOARD_TILE_KEY}-excalidraw`
+    : hasWhiteboard
+      ? WHITEBOARD_TILE_KEY
+      : undefined;
 
   useEffect(() => {
     if (!connectionState || connectionToastStateRef.current === connectionState) {
@@ -2621,14 +2725,18 @@ function MeetContent({
           onLeave={handleLeave}
           onCopyLink={handleCopy}
           onToggleWhiteboard={isCreator ? handleWhiteboardToggle : undefined}
+          onToggleExcalidrawWhiteboard={
+            isCreator ? handleExcalidrawWhiteboardToggle : undefined
+          }
           onToggleLessonControls={
             canShowLessonControls ? () => setLessonControlsOpen(true) : undefined
           }
           onMinimize={onMinimize ? handleMinimize : undefined}
-          focusContent={hasWhiteboard ? whiteboardTile : null}
-          focusKey={hasWhiteboard ? WHITEBOARD_TILE_KEY : undefined}
+          focusContent={activeFocusTile}
+          focusKey={activeFocusKey}
           isRecording={liveKitServerIsRecording || recorder.isRecording}
           whiteboardActive={hasWhiteboard}
+          excalidrawWhiteboardActive={excalidrawWhiteboardActive}
           isMicrophoneEnabled={Boolean(room.localParticipant?.isMicrophoneEnabled)}
           isCameraEnabled={Boolean(room.localParticipant?.isCameraEnabled)}
           isScreenShareEnabled={Boolean(room.localParticipant?.isScreenShareEnabled)}
