@@ -6,7 +6,6 @@ import {
   MessageSquare,
   Minimize2,
   MonitorUp,
-  Radio,
   Users,
   Volume1,
   Volume2,
@@ -24,12 +23,10 @@ type HeaderProps = {
   isMobileLandscape?: boolean;
   compactOverlay?: boolean;
   whiteboardActive?: boolean;
-  whiteboardStreamActive?: boolean;
   isRecording?: boolean;
   speakerMode?: "speaker" | "receiver";
   onCopyLink?: () => void;
   onToggleWhiteboard?: () => void;
-  onToggleWhiteboardStream?: () => void;
   onToggleParticipants?: () => void;
   onToggleChat?: () => void;
   onToggleLessonControls?: () => void;
@@ -48,12 +45,10 @@ export default function Header({
   isMobileLandscape = false,
   compactOverlay = false,
   whiteboardActive = false,
-  whiteboardStreamActive = false,
   isRecording = false,
   speakerMode = "speaker",
   onCopyLink,
   onToggleWhiteboard,
-  onToggleWhiteboardStream,
   onToggleParticipants,
   onToggleChat,
   onToggleLessonControls,
@@ -199,23 +194,6 @@ export default function Header({
             >
               <MonitorUp className={cn("h-4 w-4 lg:h-3.5 lg:w-3.5", compactOverlay ? compactIconClass : "")} />
               <span className={cn("hidden text-sm lg:inline lg:text-xs", compactOverlay ? "lg:hidden" : "")}>Board</span>
-            </button>
-          ) : null}
-          {onToggleWhiteboardStream && !isMobile ? (
-            <button
-              type="button"
-              onClick={onToggleWhiteboardStream}
-              className={cn(
-                "inline-flex h-9 w-9 items-center justify-center rounded-full text-[var(--meet-text-color)] transition sm:h-11 sm:w-auto sm:gap-2 sm:px-4 lg:h-9 lg:gap-1.5 lg:px-3",
-                compactOverlay ? "!w-auto gap-2 " + compactButtonClass : "",
-                whiteboardStreamActive
-                  ? "bg-[var(--meet-control-active-bg)] ring-1 ring-[#8ab4f8]"
-                  : "border border-[var(--meet-border-color)] bg-[var(--meet-control-bg)] hover:bg-[var(--meet-control-hover-bg)]",
-              )}
-              title="Whiteboard live stream"
-            >
-              <Radio className={cn("h-4 w-4 lg:h-3.5 lg:w-3.5", compactOverlay ? compactIconClass : "")} />
-              <span className={cn("hidden text-sm lg:inline lg:text-xs", compactOverlay ? "lg:hidden" : "")}>Live</span>
             </button>
           ) : null}
           {isMobile && onToggleSpeakerMode ? (
