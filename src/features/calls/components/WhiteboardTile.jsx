@@ -262,6 +262,123 @@ const buildPdfDocumentInit = (source) => {
 };
 
 const PDF_DEBUG_ENABLED = true;
+
+// ─── Mobile crash diagnostics ────────────────────────────────────────────────
+// Lightweight logger that surfaces in Safari Web Inspector. Each log line is
+// time-stamped (ms since the WhiteboardTile module loaded) so we can match
+// Safari "WebContent killed" timestamps against what the component was doing.
+const wbMobStart = typeof performance !== "undefined" ? performance.now() : 0;
+const wbMobLog = (event, payload) => {
+  if (typeof console === "undefined") return;
+  const elapsed =
+    typeof performance !== "undefined"
+      ? Math.round(performance.now() - wbMobStart)
+      : 0;
+  const memMb =
+    typeof performance !== "undefined" && performance.memory
+      ? Math.round(performance.memory.usedJSHeapSize / 1024 / 1024)
+      : null;
+  let canvasInfo = null;
+  if (typeof document !== "undefined") {
+    try {
+      const cvs = document.querySelectorAll("canvas");
+      let pixels = 0;
+      cvs.forEach((c) => {
+        pixels += (c.width || 0) * (c.height || 0);
+      });
+      canvasInfo = {
+        n: cvs.length,
+        mb: Math.round((pixels * 4) / 1024 / 1024),
+      };
+    } catch {}
+  }
+  // eslint-disable-next-line no-console
+  console.info(
+    `[wb-mob ${elapsed}ms]`,
+    event,
+    {
+      ...(payload || {}),
+      ...(canvasInfo ? { _canvas: canvasInfo } : {}),
+      ...(memMb !== null ? { _heapMB: memMb } : {}),
+    },
+  );
+};
+
+// Catch any uncaught error / promise rejection and tag it with a wb-mob log,
+// so when the tab dies we at least know what threw last.
+if (typeof window !== "undefined" && !window.__wbMobErrInstalled) {
+  window.__wbMobErrInstalled = true;
+  window.addEventListener("error", (event) => {
+    wbMobLog("window-error", {
+      message: String(event.message || "").slice(0, 200),
+      file: event.filename,
+      line: event.lineno,
+      col: event.colno,
+    });
+  });
+  window.addEventListener("unhandledrejection", (event) => {
+    const reason = event.reason;
+    wbMobLog("unhandled-rejection", {
+      reason: String(
+        reason?.message || reason || "",
+      ).slice(0, 200),
+    });
+  });
+}
+
+// Expose a snapshot helper on window so we can probe live from the Inspector.
+if (typeof window !== "undefined") {
+  window.__wbSnapshot = () => {
+    const cvs = document.querySelectorAll("canvas");
+    const pages = [];
+    cvs.forEach((c) => {
+      pages.push({
+        id: c.id || "",
+        w: c.width,
+        h: c.height,
+        mb: Math.round((c.width * c.height * 4) / 1024 / 1024),
+      });
+    });
+    const vds = document.querySelectorAll("video");
+    const vdInfo = [];
+    vds.forEach((v) => {
+      vdInfo.push({
+        vw: v.videoWidth,
+        vh: v.videoHeight,
+        muted: v.muted,
+        paused: v.paused,
+      });
+    });
+    return {
+      canvas: pages,
+      canvasTotalMb: pages.reduce((sum, p) => sum + p.mb, 0),
+      videos: vdInfo,
+      heapMb: performance.memory
+        ? Math.round(performance.memory.usedJSHeapSize / 1024 / 1024)
+        : null,
+    };
+  };
+}
+
+// Periodic memory ticker — installs once, regardless of how many WhiteboardTile
+// instances mount. Prints every 3 s while a tile is alive on the page.
+let wbMobTickerHandle = 0;
+let wbMobTileCount = 0;
+const wbMobTickerStart = () => {
+  wbMobTileCount += 1;
+  if (wbMobTickerHandle) return;
+  wbMobTickerHandle = window.setInterval(() => {
+    wbMobLog("tick", {});
+  }, 3000);
+};
+const wbMobTickerStop = () => {
+  wbMobTileCount = Math.max(0, wbMobTileCount - 1);
+  if (wbMobTileCount === 0 && wbMobTickerHandle) {
+    window.clearInterval(wbMobTickerHandle);
+    wbMobTickerHandle = 0;
+  }
+};
+
 const pdfBufferCache = new Map();
 const pdfBufferPromiseCache = new Map();
 const pdfDocumentCache = new Map();
@@ -1362,6 +1479,10 @@ const fetchPdfDocumentBuffer = async (targetUrl) => {
       numPages: pdfDocument?.numPages,
       fromCache: false,
     });
+    wbMobLog("pdf:doc-loaded", {
+      path: "buffer-fetch",
+      pages: pdfDocument?.numPages,
+    });
     return pdfDocument;
   } catch (error) {
     logPdfDebug("buffer-fetch:pdf-error", {
@@ -1436,6 +1557,10 @@ const loadPdfDocument = async (fileUrl, options = {}) => {
       logPdfDebug("load:url-anon:ready", {
         targetUrl,
         numPages: pdfDocument?.numPages,
+      });
+      wbMobLog("pdf:doc-loaded", {
+        path: "url-anon",
+        pages: pdfDocument?.numPages,
       });
       touchPdfDocumentCacheEntry(targetUrl, pdfDocument);
       return pdfDocument;
@@ -4925,6 +5050,20 @@ const StrokeCanvas = ({
 
       canvasSizeRef.current = { width, height };
       setSurfaceSize({ width, height });
+      const persistedMb = Math.round(
+        (canvas.width * canvas.height * 4) / 1024 / 1024,
+      );
+      const activeMb = activeCanvas
+        ? Math.round((activeCanvas.width * activeCanvas.height * 4) / 1024 / 1024)
+        : 0;
+      wbMobLog("resize", {
+        css: `${width}x${height}`,
+        ratio,
+        persisted: `${canvas.width}x${canvas.height}=${persistedMb}MB`,
+        active: activeCanvas
+          ? `${activeCanvas.width}x${activeCanvas.height}=${activeMb}MB`
+          : "none",
+      });
       redrawCanvasImmediate();
     };
 
@@ -6772,6 +6911,37 @@ const WhiteboardTile = ({
   const syncedBoardScrollTopRatio = clampViewportRatio(boardTab?.scrollTopRatio);
 
   useEffect(() => {
+    wbMobLog("visible-pdf-pages", {
+      pages: visiblePdfPages,
+      count: visiblePdfPages.length,
+    });
+  }, [visiblePdfPages]);
+
+  useEffect(() => {
+    wbMobLog("mount", {
+      interactive,
+      isMobile,
+      compact,
+      isFullscreen,
+      ua:
+        typeof navigator !== "undefined"
+          ? navigator.userAgent.slice(0, 80)
+          : "",
+      dpr: typeof window !== "undefined" ? window.devicePixelRatio : null,
+      vw: typeof window !== "undefined" ? window.innerWidth : null,
+      vh: typeof window !== "undefined" ? window.innerHeight : null,
+      isMobilePdf: isMobilePdfBrowser(),
+      isMobileSafari: isMobileSafariBrowser(),
+    });
+    wbMobTickerStart();
+    return () => {
+      wbMobLog("unmount", {});
+      wbMobTickerStop();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
     if (activeTab?.type === "pdf") {
       setSurfaceModePreference("pdf");
       return;
@@ -8162,8 +8332,15 @@ const WhiteboardTile = ({
               Math.abs(right.pageNumber - priorityPageNumber),
           );
 
+        wbMobLog("pdf:render-batch:start", {
+          pages: pagesToRender.map((p) => p.pageNumber),
+          renderWidth: Math.round(activePdfRenderWidth),
+          cacheSize: pdfPageBitmapCacheRef.current.size,
+        });
+
         for (const pageMeta of pagesToRender) {
           if (disposed) {
+            wbMobLog("pdf:render-batch:disposed", {});
             break;
           }
 
@@ -8406,6 +8583,14 @@ const WhiteboardTile = ({
             viewportWidth: viewport.width,
             viewportHeight: viewport.height,
           });
+          const cacheCanvasMb = Math.round(
+            (cacheCanvas.width * cacheCanvas.height * 4) / 1024 / 1024,
+          );
+          wbMobLog("pdf:render-page:done", {
+            page: pageMeta.pageNumber,
+            canvas: `${cacheCanvas.width}x${cacheCanvas.height}=${cacheCanvasMb}MB`,
+            cacheSize: pdfPageBitmapCacheRef.current.size,
+          });
           const bitmapCacheLimit = isMobilePdfBrowser()
             ? WHITEBOARD_PDF_BITMAP_CACHE_MAX_ITEMS_MOBILE
             : WHITEBOARD_PDF_BITMAP_CACHE_MAX_ITEMS_DESKTOP;
@@ -8424,6 +8609,10 @@ const WhiteboardTile = ({
               } catch {}
             }
             pdfPageBitmapCacheRef.current.delete(oldestKey);
+            wbMobLog("pdf:cache-evict", {
+              cacheSize: pdfPageBitmapCacheRef.current.size,
+              limit: bitmapCacheLimit,
+            });
           }
           canvas.dataset.renderKey = renderSignature;
           delete canvas.dataset.pendingRenderKey;
@@ -10124,6 +10313,12 @@ const WhiteboardTile = ({
   const handleStrokeStartWithToolbarClose = useCallback(
     (...args) => {
       closeInkPanels();
+      const arg = args[0] || {};
+      wbMobLog("stroke-commit", {
+        tool: arg.tool,
+        points: Array.isArray(arg.points) ? arg.points.length : 0,
+        page: arg.pageNumber,
+      });
       onStrokeStart?.(...args);
     },
     [closeInkPanels, onStrokeStart],

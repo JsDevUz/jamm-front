@@ -1918,14 +1918,7 @@ function MeetContent({
     [participants],
   );
   const stageTracks = tracks.length > 0 ? tracks : fallbackParticipantTracks;
-  // TEMP: Whiteboard is gated to a single test user while we shake out mobile
-  // Safari memory issues. Everyone else gets a screenshare-only meet, which
-  // is the primary lesson surface. Remove this gate once whiteboard is stable.
-  const meetCurrentUser = useAuthStore((state) => state.user);
-  const isWhiteboardTester =
-    String(meetCurrentUser?.username || "").toLowerCase() === "ceo";
-  const hasWhiteboard =
-    isWhiteboardTester && signaling.whiteboardState.isActive;
+  const hasWhiteboard = signaling.whiteboardState.isActive;
   const canShowLessonControls = Boolean(isCreator && signaling.lessonMeet);
   const primaryTitle = title || roomInfo.name || "Jamm Meet";
   const previewTracks = useMemo(
@@ -2601,9 +2594,7 @@ function MeetContent({
           isCreator={isCreator}
           onLeave={handleLeave}
           onCopyLink={handleCopy}
-          onToggleWhiteboard={
-            isCreator && isWhiteboardTester ? handleWhiteboardToggle : undefined
-          }
+          onToggleWhiteboard={isCreator ? handleWhiteboardToggle : undefined}
           onToggleLessonControls={
             canShowLessonControls ? () => setLessonControlsOpen(true) : undefined
           }
