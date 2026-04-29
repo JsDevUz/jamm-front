@@ -2215,10 +2215,10 @@ const CoursePlayer = ({
 
       const currentVideoTime = Math.max(0, Number(video.currentTime || 0));
       const closeEnough =
-        Math.abs(currentVideoTime - pendingSeek.targetTime) <= 1.0 ||
+        Math.abs(currentVideoTime - pendingSeek.targetTime) <= 1.5 ||
         currentVideoTime >= pendingSeek.targetTime;
       const ready = Number(video.readyState || 0) >= 2;
-      const timedOut = Date.now() - pendingSeek.startedAt > 4000;
+      const timedOut = Date.now() - pendingSeek.startedAt > 6000;
 
       if (force || timedOut || (ready && !video.seeking && closeEnough)) {
         stopPendingSeekWatchdog();
@@ -2339,16 +2339,11 @@ const CoursePlayer = ({
         return;
       }
 
-      // Abort any in-flight fragment fetch and tell hls.js to start loading
-      // from the new position. Without this, an unrelated fragment that was
-      // already in-flight (from the old playhead) blocks the seek target —
-      // user feels an "infinite loading" stall on big jumps.
-      if (hlsRef.current) {
-        try {
-          hlsRef.current.stopLoad();
-          hlsRef.current.startLoad(clampedMediaTime);
-        } catch {}
-      }
+      // hls.js automatically handles the seek by reacting to the
+      // `seeking` event on the media element — manually invoking
+      // stopLoad()/startLoad() is unnecessary and races with manifest
+      // parsing, producing MEDIA_ERR_SRC_NOT_SUPPORTED on desktop browsers
+      // (Brave/Chromium) where playback has only just started.
       videoRef.current.currentTime = clampedMediaTime;
       setCurrentTime(clampedMediaTime);
       window.requestAnimationFrame(() => {
@@ -3027,27 +3022,19 @@ const CoursePlayer = ({
       const hls = new Hls({
         enableWorker: true,
         lowLatencyMode: false,
-        // YouTube-style snappy seeking: keep buffers small enough that a seek
-        // doesn't have to wait for a long pre-existing buffer, but big enough
-        // to hide network jitter once playback resumes.
+        // Smaller buffer so a seek doesn't wait for a huge pre-existing
+        // buffer to drain. backBufferLength keeps recently-played segments
+        // hot for short rewinds.
         maxBufferLength: 30,
         maxMaxBufferLength: 60,
         backBufferLength: 30,
-        maxBufferHole: 0.5,
-        // Aggressively switch fragments on seek instead of finishing the
-        // currently-loading one.
-        maxFragLookUpTolerance: 0.25,
-        nudgeMaxRetry: 5,
-        // Retry config — be patient with Backblaze B2 latency spikes, but
-        // shorter delays so a seek into a "cold" segment doesn't stall for
-        // many seconds before retrying.
-        manifestLoadingMaxRetry: 3,
-        manifestLoadingRetryDelay: 500,
-        levelLoadingMaxRetry: 3,
-        levelLoadingRetryDelay: 500,
-        fragLoadingMaxRetry: 4,
-        fragLoadingRetryDelay: 500,
-        fragLoadingTimeOut: 12000,
+        // Retry config — be patient with Backblaze B2 latency spikes
+        manifestLoadingMaxRetry: 4,
+        manifestLoadingRetryDelay: 1000,
+        levelLoadingMaxRetry: 4,
+        levelLoadingRetryDelay: 1000,
+        fragLoadingMaxRetry: 6,
+        fragLoadingRetryDelay: 1000,
         loader: SegmentCacheFriendlyLoader,
         xhrSetup: (xhr, url) => {
           const requestUrl = String(url || "");
