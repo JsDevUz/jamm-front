@@ -29,12 +29,14 @@ type MeetingUIProps = {
   focusKey?: string;
   isRecording?: boolean;
   whiteboardActive?: boolean;
+  whiteboardStreamActive?: boolean;
   isMicrophoneEnabled: boolean;
   isCameraEnabled: boolean;
   isScreenShareEnabled: boolean;
   onToggleMicrophone: () => void;
   onToggleCamera: () => void;
   onToggleScreenShare: () => void;
+  onToggleWhiteboardStream?: () => void;
   cameraDevices?: DeviceOption[];
   micDevices?: DeviceOption[];
   speakerDevices?: DeviceOption[];
@@ -186,12 +188,14 @@ export default function MeetingUI({
   focusKey,
   isRecording = false,
   whiteboardActive = false,
+  whiteboardStreamActive = false,
   isMicrophoneEnabled,
   isCameraEnabled,
   isScreenShareEnabled,
   onToggleMicrophone,
   onToggleCamera,
   onToggleScreenShare,
+  onToggleWhiteboardStream,
   cameraDevices = [],
   micDevices = [],
   speakerDevices = [],
@@ -652,9 +656,11 @@ export default function MeetingUI({
           compactOverlay={whiteboardFullscreen && !isMobile}
           isRecording={isRecording}
           whiteboardActive={whiteboardActive}
+          whiteboardStreamActive={whiteboardStreamActive}
           speakerMode={mobileSpeakerMode}
           onCopyLink={onCopyLink}
           onToggleWhiteboard={onToggleWhiteboard ? handleHeaderWhiteboardToggle : undefined}
+          onToggleWhiteboardStream={onToggleWhiteboardStream}
           onToggleParticipants={() => setParticipantsOpen(true)}
           onToggleChat={() => setChatOpen(true)}
           onToggleLessonControls={onToggleLessonControls}

@@ -68,6 +68,9 @@ const WHITEBOARD_DEFAULT_TEXT_FONT_FAMILY = "sans";
 const WHITEBOARD_DEFAULT_TEXT_SIZE = "m";
 const WHITEBOARD_DEFAULT_TEXT_ALIGN = "left";
 const CONNECTION_STATE_TOAST_ID = "meet-connection-state";
+const WHITEBOARD_STREAM_FRAME_RATE = 15;
+const WHITEBOARD_STREAM_MAX_WIDTH = 1280;
+const WHITEBOARD_STREAM_MAX_HEIGHT = 720;
 const MINIMIZED_ROOM_CONTAINER_STYLE = {
   position: "fixed",
   inset: "0 auto auto 0",
@@ -85,6 +88,12 @@ const detectMeetMobileViewport = () => {
     window.matchMedia("(pointer: coarse)").matches ||
     /iPhone|iPad|iPod|Android/i.test(userAgent)
   );
+};
+
+const findCanvasesInside = (root) => {
+  if (!root) return [];
+  if (root.tagName === "CANVAS") return [root];
+  return Array.from(root.querySelectorAll("canvas"));
 };
 
 const entrance = keyframes`
@@ -1831,6 +1840,16 @@ function MeetContent({
   const lastSpeakingParticipantKeyRef = useRef(null);
   const pipCloseIntentRef = useRef(false);
   const pipWindowRef = useRef(null);
+  const whiteboardStreamRef = useRef({
+    canvas: null,
+    rafId: 0,
+    mediaStream: null,
+    mediaTrack: null,
+    publication: null,
+    sourceNode: null,
+    cachedCanvases: [],
+    lastCacheAt: 0,
+  });
   const [whiteboardTool, setWhiteboardTool] = useState(WHITEBOARD_DEFAULT_TOOL);
   const [whiteboardColor, setWhiteboardColor] = useState(WHITEBOARD_DEFAULT_COLOR);
   const [whiteboardFillColor, setWhiteboardFillColor] = useState(
@@ -1853,6 +1872,7 @@ function MeetContent({
   );
   const [recordSurfaceNode, setRecordSurfaceNode] = useState(null);
   const [recordSurfaceType, setRecordSurfaceType] = useState(null);
+  const [whiteboardStreamActive, setWhiteboardStreamActive] = useState(false);
   const [cameraDevices, setCameraDevices] = useState([]);
   const [microphoneDevices, setMicrophoneDevices] = useState([]);
   const [speakerDevices, setSpeakerDevices] = useState([]);
@@ -1927,6 +1947,208 @@ function MeetContent({
       toast.error(result.error);
     }
   }, [recorder]);
+
+  const stopWhiteboardStream = useCallback(async () => {
+    const state = whiteboardStreamRef.current;
+    if (state.rafId) {
+      window.cancelAnimationFrame(state.rafId);
+      state.rafId = 0;
+    }
+
+    try {
+      if (state.mediaTrack) {
+        await room.localParticipant.unpublishTrack(state.mediaTrack);
+      }
+    } catch {
+      /* already unpublished */
+    }
+
+    try {
+      state.mediaTrack?.stop?.();
+    } catch {
+      /* noop */
+    }
+
+    state.mediaStream?.getTracks?.().forEach((track) => {
+      try {
+        track.stop();
+      } catch {
+        /* noop */
+      }
+    });
+
+    whiteboardStreamRef.current = {
+      canvas: null,
+      rafId: 0,
+      mediaStream: null,
+      mediaTrack: null,
+      publication: null,
+      sourceNode: null,
+      cachedCanvases: [],
+      lastCacheAt: 0,
+    };
+    setWhiteboardStreamActive(false);
+  }, [room.localParticipant]);
+
+  const startWhiteboardStream = useCallback(async () => {
+    if (!isCreator) {
+      toast("Whiteboard live faqat host uchun");
+      return;
+    }
+
+    const sourceNode = recordSurfaceNode;
+    if (!sourceNode) {
+      toast.error("Whiteboard hali tayyor emas");
+      return;
+    }
+
+    await stopWhiteboardStream();
+
+    const sourceRect = sourceNode.getBoundingClientRect();
+    if (sourceRect.width <= 0 || sourceRect.height <= 0) {
+      toast.error("Whiteboard o'lchami topilmadi");
+      return;
+    }
+
+    if (room.localParticipant.isScreenShareEnabled) {
+      await room.localParticipant.setScreenShareEnabled(false).catch(() => {});
+    }
+
+    const scale = Math.min(
+      1,
+      WHITEBOARD_STREAM_MAX_WIDTH / Math.max(1, sourceRect.width),
+      WHITEBOARD_STREAM_MAX_HEIGHT / Math.max(1, sourceRect.height),
+    );
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(2, Math.round(sourceRect.width * scale));
+    canvas.height = Math.max(2, Math.round(sourceRect.height * scale));
+    const ctx = canvas.getContext("2d", { alpha: false });
+    if (!ctx || typeof canvas.captureStream !== "function") {
+      toast.error("Bu browser whiteboard live'ni qo'llamaydi");
+      return;
+    }
+
+    const state = whiteboardStreamRef.current;
+    state.canvas = canvas;
+    state.sourceNode = sourceNode;
+    state.cachedCanvases = findCanvasesInside(sourceNode);
+    state.lastCacheAt = performance.now();
+
+    const drawFrame = () => {
+      const latestState = whiteboardStreamRef.current;
+      if (latestState.canvas !== canvas || latestState.sourceNode !== sourceNode) {
+        return;
+      }
+
+      const nextSourceRect = sourceNode.getBoundingClientRect();
+      const nextScale = Math.min(
+        1,
+        WHITEBOARD_STREAM_MAX_WIDTH / Math.max(1, nextSourceRect.width),
+        WHITEBOARD_STREAM_MAX_HEIGHT / Math.max(1, nextSourceRect.height),
+      );
+      const nextWidth = Math.max(2, Math.round(nextSourceRect.width * nextScale));
+      const nextHeight = Math.max(2, Math.round(nextSourceRect.height * nextScale));
+      if (Math.abs(canvas.width - nextWidth) > 2 || Math.abs(canvas.height - nextHeight) > 2) {
+        canvas.width = nextWidth;
+        canvas.height = nextHeight;
+      }
+
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.setTransform(nextScale, 0, 0, nextScale, 0, 0);
+      ctx.fillStyle = "#f8fafc";
+      ctx.fillRect(0, 0, nextSourceRect.width, nextSourceRect.height);
+
+      const now = performance.now();
+      if (now - latestState.lastCacheAt > 500) {
+        latestState.cachedCanvases = findCanvasesInside(sourceNode);
+        latestState.lastCacheAt = now;
+      }
+
+      for (let index = 0; index < latestState.cachedCanvases.length; index += 1) {
+        const childCanvas = latestState.cachedCanvases[index];
+        if (!childCanvas.isConnected) {
+          latestState.cachedCanvases = findCanvasesInside(sourceNode);
+          latestState.lastCacheAt = now;
+          break;
+        }
+        if (!childCanvas.width || !childCanvas.height) continue;
+        try {
+          const childRect = childCanvas.getBoundingClientRect();
+          ctx.drawImage(
+            childCanvas,
+            0,
+            0,
+            childCanvas.width,
+            childCanvas.height,
+            childRect.left - nextSourceRect.left,
+            childRect.top - nextSourceRect.top,
+            childRect.width,
+            childRect.height,
+          );
+        } catch {
+          /* skip tainted/invalid frame */
+        }
+      }
+
+      latestState.rafId = window.requestAnimationFrame(drawFrame);
+    };
+
+    drawFrame();
+
+    const mediaStream = canvas.captureStream(WHITEBOARD_STREAM_FRAME_RATE);
+    const [mediaTrack] = mediaStream.getVideoTracks();
+    if (!mediaTrack) {
+      toast.error("Whiteboard live track yaratilmadi");
+      await stopWhiteboardStream();
+      return;
+    }
+    if ("contentHint" in mediaTrack) {
+      try {
+        mediaTrack.contentHint = "detail";
+      } catch {}
+    }
+    mediaTrack.onended = () => {
+      void stopWhiteboardStream();
+    };
+
+    const publication = await room.localParticipant.publishTrack(mediaTrack, {
+      name: "whiteboard-live",
+      source: Track.Source.ScreenShare,
+      videoCodec: "h264",
+      videoEncoding: VideoPresets.h720.encoding,
+      simulcast: false,
+      degradationPreference: "maintain-resolution",
+    });
+
+    whiteboardStreamRef.current.mediaStream = mediaStream;
+    whiteboardStreamRef.current.mediaTrack = mediaTrack;
+    whiteboardStreamRef.current.publication = publication;
+    setWhiteboardStreamActive(true);
+    toast.success("Whiteboard live yoqildi");
+  }, [isCreator, recordSurfaceNode, room.localParticipant, stopWhiteboardStream]);
+
+  const handleToggleWhiteboardStream = useCallback(async () => {
+    try {
+      if (whiteboardStreamActive) {
+        await stopWhiteboardStream();
+        toast("Whiteboard live o'chirildi");
+        return;
+      }
+      await startWhiteboardStream();
+    } catch (error) {
+      await stopWhiteboardStream();
+      toast.error(error?.message || "Whiteboard live yoqilmadi");
+    }
+  }, [startWhiteboardStream, stopWhiteboardStream, whiteboardStreamActive]);
+
+  useEffect(
+    () => () => {
+      void stopWhiteboardStream();
+    },
+    [stopWhiteboardStream],
+  );
   const tracks = useTracks(
     [
       { source: Track.Source.Camera, withPlaceholder: true },
@@ -2489,6 +2711,12 @@ function MeetContent({
   }, [canShowLessonControls]);
 
   useEffect(() => {
+    if (!hasWhiteboard && whiteboardStreamActive) {
+      void stopWhiteboardStream();
+    }
+  }, [hasWhiteboard, stopWhiteboardStream, whiteboardStreamActive]);
+
+  useEffect(() => {
     if (!pipWindow) {
       return undefined;
     }
@@ -2629,12 +2857,14 @@ function MeetContent({
           focusKey={hasWhiteboard ? WHITEBOARD_TILE_KEY : undefined}
           isRecording={liveKitServerIsRecording || recorder.isRecording}
           whiteboardActive={hasWhiteboard}
+          whiteboardStreamActive={whiteboardStreamActive}
           isMicrophoneEnabled={Boolean(room.localParticipant?.isMicrophoneEnabled)}
           isCameraEnabled={Boolean(room.localParticipant?.isCameraEnabled)}
           isScreenShareEnabled={Boolean(room.localParticipant?.isScreenShareEnabled)}
           onToggleMicrophone={handleToggleMicrophone}
           onToggleCamera={handleToggleCamera}
           onToggleScreenShare={handleToggleScreenShare}
+          onToggleWhiteboardStream={isCreator && hasWhiteboard ? handleToggleWhiteboardStream : undefined}
           cameraDevices={cameraDevices}
           micDevices={microphoneDevices}
           speakerDevices={speakerDevices}
