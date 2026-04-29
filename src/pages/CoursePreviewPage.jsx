@@ -507,21 +507,6 @@ const PriceValue = styled.div`
   color: var(--text-color);
 `;
 
-const OldPrice = styled.div`
-  font-size: 18px;
-  color: var(--text-muted-color);
-  text-decoration: line-through;
-`;
-
-const OfferText = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--danger-color);
-  font-size: 14px;
-  font-weight: 800;
-`;
-
 const PurchaseActions = styled.div`
   display: grid;
   gap: 10px;
@@ -1185,24 +1170,11 @@ export default function CoursePreviewPage() {
           ? t("coursePreview.cta.enrollNow")
           : t("coursePreview.cta.buyNow");
 
-  const oldPrice =
-    !isFreeCourse && Number(course.price || 0) > 0
-      ? formatPrice(Number(course.price || 0) * 2, course.accessType, t)
-      : "";
-
   const purchaseBlock = (
     <>
       <div>
         <PriceValue>{formatPrice(course.price, course.accessType, t)}</PriceValue>
-        {oldPrice ? <OldPrice>{oldPrice}</OldPrice> : null}
       </div>
-
-      {oldPrice ? (
-        <OfferText>
-          <Clock3 size={22} />
-          {t("coursePreview.offer")}
-        </OfferText>
-      ) : null}
 
       <PurchaseActions>
         <PurchaseButton

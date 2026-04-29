@@ -95,8 +95,8 @@ const WHITEBOARD_MOBILE_CANVAS_MAX_EDGE = 4096;
 const WHITEBOARD_MOBILE_CANVAS_MAX_PIXELS = 8000000;
 const WHITEBOARD_MOBILE_SAFARI_CANVAS_MAX_EDGE = 2048;
 const WHITEBOARD_MOBILE_SAFARI_CANVAS_MAX_PIXELS = 2200000;
-const WHITEBOARD_MOBILE_GUEST_BOARD_CANVAS_MAX_EDGE = 3072;
-const WHITEBOARD_MOBILE_GUEST_BOARD_CANVAS_MAX_PIXELS = 4000000;
+const WHITEBOARD_MOBILE_GUEST_BOARD_CANVAS_MAX_EDGE = 2048;
+const WHITEBOARD_MOBILE_GUEST_BOARD_CANVAS_MAX_PIXELS = 1800000;
 const WHITEBOARD_MOBILE_GUEST_PAGE_CANVAS_MAX_PIXELS = 2200000;
 const WHITEBOARD_MOBILE_GUEST_BOARD_MAX_RENDER_ZOOM = 1.25;
 const WHITEBOARD_MIN_BOARD_BASE_WIDTH = 120;
@@ -7138,6 +7138,7 @@ const WhiteboardTile = ({
   const [visiblePdfPages, setVisiblePdfPages] = useState([]);
   const [pdfPageMetrics, setPdfPageMetrics] = useState({});
   const [pdfPageImages, setPdfPageImages] = useState({});
+  const [pdfRenderRetryNonce, setPdfRenderRetryNonce] = useState(0);
   const [boardZoom, setBoardZoom] = useState(1);
   const [isColorPickerOpen, setIsColorPickerOpen] = useState(false);
   const [inkPanelOpen, setInkPanelOpen] = useState(false);
@@ -8664,6 +8665,9 @@ const WhiteboardTile = ({
     const visiblePageSet = new Set(
       [
         ...(visiblePdfPages.length > 0 ? visiblePdfPages : initialVisiblePdfPages),
+        ...pdfMeta.pages
+          .filter((pageMeta) => getPdfTabPageStrokes(activeTab, pageMeta.pageNumber).length > 0)
+          .map((pageMeta) => pageMeta.pageNumber),
         priorityPageNumber,
         priorityPageNumber - 1,
         priorityPageNumber + 1,
@@ -8686,6 +8690,7 @@ const WhiteboardTile = ({
     pdfRenderBatchSignatureRef.current = renderBatchSignature;
 
     const renderPages = async () => {
+      let missingCanvas = false;
       try {
         const pdfDocument = pdfDocumentRef.current;
         const pagesToRender = pdfMeta.pages
@@ -8712,6 +8717,7 @@ const WhiteboardTile = ({
             `pdf-page-${activeTab.id}-${pageMeta.pageNumber}`,
           );
           if (!(canvas instanceof HTMLCanvasElement)) {
+            missingCanvas = true;
             continue;
           }
 
@@ -9009,6 +9015,15 @@ const WhiteboardTile = ({
           visiblePages: Array.from(visiblePageSet),
           error: serializePdfError(error),
         });
+      } finally {
+        if (missingCanvas && !disposed) {
+          pdfRenderBatchSignatureRef.current = "";
+          window.requestAnimationFrame(() => {
+            if (!disposed) {
+              setPdfRenderRetryNonce((value) => value + 1);
+            }
+          });
+        }
       }
     };
 
@@ -9025,6 +9040,7 @@ const WhiteboardTile = ({
     currentPdfPage,
     pdfMeta,
     pdfRenderWidth,
+    pdfRenderRetryNonce,
     activePdfRenderWidth,
     initialVisiblePdfPages,
     effectiveIsMobile,
@@ -11650,16 +11666,24 @@ const WhiteboardTile = ({
                         // visible page (and its immediate neighbours) get a
                         // canvas; the rest become lightweight placeholders.
                         const isMobileClient = isMobilePdfBrowser();
+                        const viewportPageNumber = Number(activeTab.viewportPageNumber) || 0;
+                        const pageStrokes = getPdfTabPageStrokes(activeTab, pageMeta.pageNumber);
+                        const isPriorityPdfPage =
+                          pageMeta.pageNumber === currentPdfPage ||
+                          pageMeta.pageNumber === viewportPageNumber ||
+                          pageMeta.pageNumber === viewportPageNumber - 1 ||
+                          pageMeta.pageNumber === viewportPageNumber + 1 ||
+                          pageMeta.pageNumber === currentPdfPage - 1 ||
+                          pageMeta.pageNumber === currentPdfPage + 1;
                         const shouldRenderPage = isMobileClient
                           ? visiblePdfPages.includes(pageMeta.pageNumber) ||
-                            pageMeta.pageNumber === currentPdfPage ||
-                            pageMeta.pageNumber === Number(activeTab.viewportPageNumber)
+                            isPriorityPdfPage ||
+                            pageStrokes.length > 0
                           : !interactive ||
                             visiblePdfPages.includes(pageMeta.pageNumber) ||
                             initialVisiblePdfPages.includes(pageMeta.pageNumber) ||
-                            pageMeta.pageNumber === currentPdfPage ||
-                            pageMeta.pageNumber === Number(activeTab.viewportPageNumber);
-                        const pageStrokes = getPdfTabPageStrokes(activeTab, pageMeta.pageNumber);
+                            isPriorityPdfPage ||
+                            pageStrokes.length > 0;
                         const pdfImage =
                           !interactive && pdfPageImages[pageMeta.pageNumber]
                             ? pdfPageImages[pageMeta.pageNumber]
@@ -11786,16 +11810,24 @@ const WhiteboardTile = ({
                     // branch above. Keeping every selected page in DOM blows
                     // past Safari's 250 MB tab budget.
                     const isMobileClient = isMobilePdfBrowser();
+                    const viewportPageNumber = Number(activeTab.viewportPageNumber) || 0;
+                    const pageStrokes = getPdfTabPageStrokes(activeTab, pageMeta.pageNumber);
+                    const isPriorityPdfPage =
+                      pageMeta.pageNumber === currentPdfPage ||
+                      pageMeta.pageNumber === viewportPageNumber ||
+                      pageMeta.pageNumber === viewportPageNumber - 1 ||
+                      pageMeta.pageNumber === viewportPageNumber + 1 ||
+                      pageMeta.pageNumber === currentPdfPage - 1 ||
+                      pageMeta.pageNumber === currentPdfPage + 1;
                     const shouldRenderPage = isMobileClient
                       ? visiblePdfPages.includes(pageMeta.pageNumber) ||
-                        pageMeta.pageNumber === currentPdfPage ||
-                        pageMeta.pageNumber === Number(activeTab.viewportPageNumber)
+                        isPriorityPdfPage ||
+                        pageStrokes.length > 0
                       : !interactive ||
                         visiblePdfPages.includes(pageMeta.pageNumber) ||
                         initialVisiblePdfPages.includes(pageMeta.pageNumber) ||
-                        pageMeta.pageNumber === currentPdfPage ||
-                        pageMeta.pageNumber === Number(activeTab.viewportPageNumber);
-                    const pageStrokes = getPdfTabPageStrokes(activeTab, pageMeta.pageNumber);
+                        isPriorityPdfPage ||
+                        pageStrokes.length > 0;
                     const pdfImage =
                       !interactive && pdfPageImages[pageMeta.pageNumber]
                         ? pdfPageImages[pageMeta.pageNumber]
@@ -11952,7 +11984,7 @@ const WhiteboardTile = ({
                               ? WHITEBOARD_MOBILE_GUEST_BOARD_CANVAS_MAX_PIXELS
                               : undefined
                           }
-                          canvasPreferredRatio={!interactive && effectiveIsMobile ? 1.25 : undefined}
+                          canvasPreferredRatio={!interactive && effectiveIsMobile ? 1 : undefined}
                           surfaceMode="board"
                           textPlaceholder={t("groupCall.whiteboard.textPlaceholder")}
                         />
@@ -12017,7 +12049,7 @@ const WhiteboardTile = ({
                           ? WHITEBOARD_MOBILE_GUEST_BOARD_CANVAS_MAX_PIXELS
                           : undefined
                       }
-                      canvasPreferredRatio={!interactive && effectiveIsMobile ? 1.25 : undefined}
+                      canvasPreferredRatio={!interactive && effectiveIsMobile ? 1 : undefined}
                       surfaceMode="board"
                       textPlaceholder={t("groupCall.whiteboard.textPlaceholder")}
                     />
