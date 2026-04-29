@@ -96,6 +96,12 @@ const findCanvasesInside = (root) => {
   return Array.from(root.querySelectorAll("canvas"));
 };
 
+const findImagesInside = (root) => {
+  if (!root) return [];
+  if (root.tagName === "IMG") return [root];
+  return Array.from(root.querySelectorAll("img"));
+};
+
 const entrance = keyframes`
   from { opacity: 0; transform: translateY(16px) scale(0.985); }
   to { opacity: 1; transform: translateY(0) scale(1); }
@@ -1848,8 +1854,10 @@ function MeetContent({
     publication: null,
     sourceNode: null,
     cachedCanvases: [],
+    cachedImages: [],
     lastCacheAt: 0,
   });
+  const recordSurfaceNodeRef = useRef(null);
   const [whiteboardTool, setWhiteboardTool] = useState(WHITEBOARD_DEFAULT_TOOL);
   const [whiteboardColor, setWhiteboardColor] = useState(WHITEBOARD_DEFAULT_COLOR);
   const [whiteboardFillColor, setWhiteboardFillColor] = useState(
@@ -1936,6 +1944,7 @@ function MeetContent({
   });
 
   const handleRecordSurfaceChange = useCallback((node, type) => {
+    recordSurfaceNodeRef.current = node || null;
     setRecordSurfaceNode(node || null);
     setRecordSurfaceType(type || null);
   }, []);
@@ -1985,6 +1994,7 @@ function MeetContent({
       publication: null,
       sourceNode: null,
       cachedCanvases: [],
+      cachedImages: [],
       lastCacheAt: 0,
     };
     setWhiteboardStreamActive(false);
@@ -1996,7 +2006,7 @@ function MeetContent({
       return;
     }
 
-    const sourceNode = recordSurfaceNode;
+    const sourceNode = recordSurfaceNodeRef.current || recordSurfaceNode;
     if (!sourceNode) {
       toast.error("Whiteboard hali tayyor emas");
       return;
@@ -2032,15 +2042,23 @@ function MeetContent({
     state.canvas = canvas;
     state.sourceNode = sourceNode;
     state.cachedCanvases = findCanvasesInside(sourceNode);
+    state.cachedImages = findImagesInside(sourceNode);
     state.lastCacheAt = performance.now();
 
     const drawFrame = () => {
       const latestState = whiteboardStreamRef.current;
-      if (latestState.canvas !== canvas || latestState.sourceNode !== sourceNode) {
+      const currentSourceNode = recordSurfaceNodeRef.current || latestState.sourceNode;
+      if (latestState.canvas !== canvas || !currentSourceNode) {
         return;
       }
+      if (latestState.sourceNode !== currentSourceNode) {
+        latestState.sourceNode = currentSourceNode;
+        latestState.cachedCanvases = findCanvasesInside(currentSourceNode);
+        latestState.cachedImages = findImagesInside(currentSourceNode);
+        latestState.lastCacheAt = performance.now();
+      }
 
-      const nextSourceRect = sourceNode.getBoundingClientRect();
+      const nextSourceRect = currentSourceNode.getBoundingClientRect();
       const nextScale = Math.min(
         1,
         WHITEBOARD_STREAM_MAX_WIDTH / Math.max(1, nextSourceRect.width),
@@ -2062,14 +2080,37 @@ function MeetContent({
 
       const now = performance.now();
       if (now - latestState.lastCacheAt > 500) {
-        latestState.cachedCanvases = findCanvasesInside(sourceNode);
+        latestState.cachedCanvases = findCanvasesInside(currentSourceNode);
+        latestState.cachedImages = findImagesInside(currentSourceNode);
         latestState.lastCacheAt = now;
+      }
+
+      for (let index = 0; index < latestState.cachedImages.length; index += 1) {
+        const childImage = latestState.cachedImages[index];
+        if (!childImage.isConnected) {
+          latestState.cachedImages = findImagesInside(currentSourceNode);
+          latestState.lastCacheAt = now;
+          break;
+        }
+        if (!childImage.complete || !childImage.naturalWidth || !childImage.naturalHeight) continue;
+        try {
+          const childRect = childImage.getBoundingClientRect();
+          ctx.drawImage(
+            childImage,
+            childRect.left - nextSourceRect.left,
+            childRect.top - nextSourceRect.top,
+            childRect.width,
+            childRect.height,
+          );
+        } catch {
+          /* skip tainted/invalid image */
+        }
       }
 
       for (let index = 0; index < latestState.cachedCanvases.length; index += 1) {
         const childCanvas = latestState.cachedCanvases[index];
         if (!childCanvas.isConnected) {
-          latestState.cachedCanvases = findCanvasesInside(sourceNode);
+          latestState.cachedCanvases = findCanvasesInside(currentSourceNode);
           latestState.lastCacheAt = now;
           break;
         }
