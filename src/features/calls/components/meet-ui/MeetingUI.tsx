@@ -23,14 +23,12 @@ type MeetingUIProps = {
   onLeave: () => void;
   onCopyLink?: () => void;
   onToggleWhiteboard?: () => void;
-  onToggleExcalidrawWhiteboard?: () => void;
   onToggleLessonControls?: () => void;
   onMinimize?: () => void;
   focusContent?: React.ReactNode;
   focusKey?: string;
   isRecording?: boolean;
   whiteboardActive?: boolean;
-  excalidrawWhiteboardActive?: boolean;
   isMicrophoneEnabled: boolean;
   isCameraEnabled: boolean;
   isScreenShareEnabled: boolean;
@@ -121,6 +119,90 @@ function getParticipantName(participant: Participant) {
   return participant.name || participant.identity || "Guest";
 }
 
+function getParticipantStableKey(participant: Participant | null | undefined) {
+  const metadata = String(participant?.metadata || "").trim();
+  if (metadata) {
+    try {
+      const parsed = JSON.parse(metadata) as Record<string, unknown>;
+      const user =
+        typeof parsed.user === "object" && parsed.user !== null
+          ? (parsed.user as Record<string, unknown>)
+          : null;
+      const metadataKey =
+        parsed.userId ||
+        parsed.user_id ||
+        user?.id ||
+        user?.userId;
+
+      if (typeof metadataKey === "string" && metadataKey.trim()) {
+        return `metadata:${metadataKey.trim()}`;
+      }
+    } catch {
+      // Metadata is optional and can be arbitrary text from LiveKit.
+    }
+  }
+
+  const identity = String(participant?.identity || "").trim();
+  if (!identity) return "";
+  return identity.replace(/-[a-z0-9]{4,16}$/i, "") || identity;
+}
+
+function getParticipantMediaScore(participant: Participant | null | undefined) {
+  if (!participant?.trackPublications?.values) return 0;
+
+  let score = 0;
+  for (const publication of participant.trackPublications.values()) {
+    if (publication.track) score += 4;
+    if (publication.isSubscribed) score += 2;
+    if (!publication.isMuted) score += 1;
+  }
+  return score;
+}
+
+function shouldUseParticipantCandidate(
+  candidate: Participant,
+  current: Participant | undefined,
+  localIdentity: string,
+) {
+  if (!current) return true;
+  if (candidate.identity === localIdentity) return true;
+  if (current.identity === localIdentity) return false;
+
+  const candidateScore = getParticipantMediaScore(candidate);
+  const currentScore = getParticipantMediaScore(current);
+  if (candidateScore !== currentScore) return candidateScore > currentScore;
+
+  return true;
+}
+
+function dedupeParticipantsByStableKey(
+  participants: Participant[],
+  localParticipant: Participant,
+) {
+  const orderedParticipants = [
+    localParticipant,
+    ...participants.filter(
+      (participant) =>
+        participant.sid !== localParticipant.sid &&
+        participant.identity !== localParticipant.identity,
+    ),
+  ];
+  const byStableKey = new Map<string, Participant>();
+
+  for (const participant of orderedParticipants) {
+    const stableKey =
+      getParticipantStableKey(participant) || participant.sid || participant.identity;
+    if (!stableKey) continue;
+
+    const current = byStableKey.get(stableKey);
+    if (shouldUseParticipantCandidate(participant, current, localParticipant.identity)) {
+      byStableKey.set(stableKey, participant);
+    }
+  }
+
+  return Array.from(byStableKey.values());
+}
+
 function getReactionMotion(id: string, sequence: number): ReactionMotion {
   const seed = Array.from(id).reduce((sum, char) => sum + char.charCodeAt(0), 0);
 
@@ -182,14 +264,12 @@ export default function MeetingUI({
   onLeave,
   onCopyLink,
   onToggleWhiteboard,
-  onToggleExcalidrawWhiteboard,
   onToggleLessonControls,
   onMinimize,
   focusContent,
   focusKey,
   isRecording = false,
   whiteboardActive = false,
-  excalidrawWhiteboardActive = false,
   isMicrophoneEnabled,
   isCameraEnabled,
   isScreenShareEnabled,
@@ -284,12 +364,7 @@ export default function MeetingUI({
   }, [focusContent, focusKey, fullscreenTileKey]);
 
   const allParticipants = useMemo(() => {
-    const everyone = [
-      room.localParticipant,
-      ...participants.filter(
-        (participant) => participant.identity !== room.localParticipant.identity,
-      ),
-    ];
+    const everyone = dedupeParticipantsByStableKey(participants, room.localParticipant);
     return everyone.flatMap(toTileParticipant).map((participant) => ({
       ...participant,
       isHandRaised: Boolean(raisedHands[participant.identity]?.raised),
@@ -656,11 +731,9 @@ export default function MeetingUI({
           compactOverlay={whiteboardFullscreen && !isMobile}
           isRecording={isRecording}
           whiteboardActive={whiteboardActive}
-          excalidrawWhiteboardActive={excalidrawWhiteboardActive}
           speakerMode={mobileSpeakerMode}
           onCopyLink={onCopyLink}
           onToggleWhiteboard={onToggleWhiteboard ? handleHeaderWhiteboardToggle : undefined}
-          onToggleExcalidrawWhiteboard={onToggleExcalidrawWhiteboard}
           onToggleParticipants={() => setParticipantsOpen(true)}
           onToggleChat={() => setChatOpen(true)}
           onToggleLessonControls={onToggleLessonControls}

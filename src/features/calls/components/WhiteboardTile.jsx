@@ -5523,12 +5523,12 @@ const StrokeCanvas = ({
       return;
     }
 
-    // 16ms ≈ one animation frame — guests see strokes within a single frame
-    // of the creator drawing them instead of the previous ~40ms lag.
+    // Batch live drawing updates so guests see motion quickly without sending
+    // one socket event per pointer event.
     flushTimeoutRef.current = window.setTimeout(() => {
       flushTimeoutRef.current = null;
       flushPendingPoints();
-    }, 16);
+    }, 32);
   }, [flushPendingPoints]);
 
   useEffect(
@@ -5966,10 +5966,11 @@ const StrokeCanvas = ({
         // The strokes effect will clear it once it sees the matching id, preventing flicker.
         // (No redraw + no immediate null assignment.)
       } else {
+        flushPendingPoints();
         const draftPoints = Array.isArray(activePointer?.draftPoints)
           ? activePointer.draftPoints
           : [];
-        if (activePointer?.strokeId && draftPoints.length > 0) {
+        if (activePointer?.strokeId && draftPoints.length > 0 && !activePointer.strokeStarted) {
           onStrokeStart?.({
             tabId,
             pageNumber,
@@ -6000,6 +6001,7 @@ const StrokeCanvas = ({
       brushSize,
       color,
       fillColor,
+      flushPendingPoints,
       shapeEdge,
       onStrokeStart,
       onToolChange,
@@ -6165,6 +6167,7 @@ const StrokeCanvas = ({
         strokeId,
         removedStrokeIds: null,
         draftPoints: [point],
+        strokeStarted: true,
       };
       pendingPointsRef.current = [];
       draftStrokeRef.current = {
@@ -6174,6 +6177,16 @@ const StrokeCanvas = ({
         size: brushSize,
         points: [point],
       };
+      onStrokeStart?.({
+        tabId,
+        pageNumber,
+        strokeId,
+        tool,
+        color,
+        size: brushSize,
+        point,
+        points: [point],
+      });
 
       activeCanvasRef.current?.setPointerCapture?.(event.pointerId);
       scheduleActiveLayerRender();
@@ -6190,6 +6203,7 @@ const StrokeCanvas = ({
       findTouchedTextStroke,
       interactive,
       onToolChange,
+      onStrokeStart,
       pageNumber,
       redrawCanvas,
       resolvePoint,
@@ -6264,7 +6278,11 @@ const StrokeCanvas = ({
         : [];
       let hasNewPoint = false;
       resolvedPoints.forEach((point) => {
-        hasNewPoint = appendDistinctPoint(nextDraftPoints, point) || hasNewPoint;
+        const appended = appendDistinctPoint(nextDraftPoints, point);
+        if (appended) {
+          pendingPointsRef.current.push(point);
+          hasNewPoint = true;
+        }
       });
 
       if (!hasNewPoint) {
@@ -6282,6 +6300,7 @@ const StrokeCanvas = ({
         : draftStrokeRef.current;
       scheduleActiveLayerRender();
       redrawCanvas();
+      scheduleFlush();
 
     },
     [
@@ -6292,6 +6311,7 @@ const StrokeCanvas = ({
       redrawCanvas,
       resolvePoint,
       scheduleActiveLayerRender,
+      scheduleFlush,
       stopDrawing,
       tool,
       brushSize,
@@ -7506,12 +7526,9 @@ const WhiteboardTile = ({
       ? 1
       : undefined;
   const activeBoardRenderScale =
-    shouldCapMobileGuestBoardRender || shouldCapInteractiveMobileSafariBoardCanvas
+    shouldCapInteractiveMobileSafariBoardCanvas
       ? Math.min(
           rawActiveBoardRenderScale,
-          shouldCapMobileGuestBoardRender
-            ? WHITEBOARD_MOBILE_GUEST_BOARD_MAX_RENDER_ZOOM
-            : Number.POSITIVE_INFINITY,
           boardRenderFootprintScale,
         )
     : rawActiveBoardRenderScale;
@@ -8728,13 +8745,27 @@ const WhiteboardTile = ({
       shouldUseContainedMobilePdfViewport ? "contained" : "normal",
       Array.from(visiblePageSet).sort((a, b) => a - b).join(","),
     ].join(":");
+    const getPageRenderSignature = (pageNumber) =>
+      `${WHITEBOARD_PDF_RENDER_VERSION}:${activeTab.fileUrl}:${pageNumber}:${Math.round(
+        activePdfRenderWidth,
+      )}`;
     if (pdfRenderBatchSignatureRef.current === renderBatchSignature) {
-      return undefined;
+      const hasUnrenderedMountedCanvas = Array.from(visiblePageSet).some((pageNumber) => {
+        const canvas = document.getElementById(`pdf-page-${activeTab.id}-${pageNumber}`);
+        return (
+          canvas instanceof HTMLCanvasElement &&
+          canvas.dataset.renderKey !== getPageRenderSignature(pageNumber)
+        );
+      });
+      if (!hasUnrenderedMountedCanvas) {
+        return undefined;
+      }
     }
     pdfRenderBatchSignatureRef.current = renderBatchSignature;
 
     const renderPages = async () => {
       let missingCanvas = false;
+      let renderFailed = false;
       try {
         const pdfDocument = pdfDocumentRef.current;
         const pagesToRender = pdfMeta.pages
@@ -8765,9 +8796,7 @@ const WhiteboardTile = ({
             continue;
           }
 
-          const renderSignature = `${WHITEBOARD_PDF_RENDER_VERSION}:${activeTab.fileUrl}:${pageMeta.pageNumber}:${Math.round(
-            activePdfRenderWidth,
-          )}`;
+          const renderSignature = getPageRenderSignature(pageMeta.pageNumber);
           const cachedBitmap = pdfPageBitmapCacheRef.current.get(renderSignature);
           if (cachedBitmap) {
             // Re-insert for LRU ordering
@@ -9052,6 +9081,7 @@ const WhiteboardTile = ({
           });
         }
       } catch (error) {
+        renderFailed = true;
         logPdfDebug("viewer-render:error", {
           tabId: activeTab.id,
           fileUrl: activeTab.fileUrl,
@@ -9060,7 +9090,7 @@ const WhiteboardTile = ({
           error: serializePdfError(error),
         });
       } finally {
-        if (missingCanvas && !disposed) {
+        if ((missingCanvas || renderFailed) && !disposed) {
           pdfRenderBatchSignatureRef.current = "";
           window.requestAnimationFrame(() => {
             if (!disposed) {
@@ -11322,9 +11352,6 @@ const WhiteboardTile = ({
                 <RemoteCursorGlyph>
                   <MousePointer2 size={18} strokeWidth={2.25} />
                 </RemoteCursorGlyph>
-                <RemoteCursorLabel>
-                  {smoothCursor.displayName || t("groupCall.guest")}
-                </RemoteCursorLabel>
 	              </RemoteCursorWrap>
 	            </RemoteCursorLayer>
 	          ) : null}

@@ -41,7 +41,7 @@ import {
   useTracks,
   UnfocusToggleIcon,
 } from "@livekit/components-react";
-import { RoomEvent, Track, VideoPresets, ScreenSharePresets } from "livekit-client";
+import { Track, VideoPresets, ScreenSharePresets } from "livekit-client";
 import { createLivekitToken } from "../../../api/livekitApi";
 import useAuthStore from "../../../store/authStore";
 import { RESOLVED_APP_BASE_URL } from "../../../config/env";
@@ -49,7 +49,6 @@ import { RESOLVED_APP_BASE_URL } from "../../../config/env";
 // mobile Safari on /join. Only load it when the host actually opens the
 // whiteboard (`hasWhiteboard === true`).
 const WhiteboardTile = lazy(() => import("./WhiteboardTile"));
-const ExcalidrawWhiteboardTile = lazy(() => import("./ExcalidrawWhiteboardTile"));
 import MeetingUI from "./meet-ui/MeetingUI";
 import MeetAttendancePanel from "./MeetAttendancePanel";
 import { useLiveKitMeetSignaling } from "../hooks/useLiveKitMeetSignaling";
@@ -69,7 +68,6 @@ const WHITEBOARD_DEFAULT_TEXT_FONT_FAMILY = "sans";
 const WHITEBOARD_DEFAULT_TEXT_SIZE = "m";
 const WHITEBOARD_DEFAULT_TEXT_ALIGN = "left";
 const CONNECTION_STATE_TOAST_ID = "meet-connection-state";
-const EXCALIDRAW_WHITEBOARD_CONTROL_KIND = "excalidraw-whiteboard-control";
 const MINIMIZED_ROOM_CONTAINER_STYLE = {
   position: "fixed",
   inset: "0 auto auto 0",
@@ -1365,6 +1363,79 @@ function ErrorState({ title, description, onClose }) {
 const getMiniParticipantName = (participant, fallback = "Guest") =>
   participant?.name || participant?.identity || fallback;
 
+const getParticipantStableKey = (participant) => {
+  const metadata = String(participant?.metadata || "").trim();
+  if (metadata) {
+    try {
+      const parsed = JSON.parse(metadata);
+      const metadataKey =
+        parsed?.userId ||
+        parsed?.user_id ||
+        parsed?.user?.id ||
+        parsed?.user?.userId;
+
+      if (typeof metadataKey === "string" && metadataKey.trim()) {
+        return `metadata:${metadataKey.trim()}`;
+      }
+    } catch {
+      // LiveKit metadata is optional and can be arbitrary text.
+    }
+  }
+
+  const identity = String(participant?.identity || "").trim();
+  if (!identity) return "";
+  return identity.replace(/-[a-z0-9]{4,16}$/i, "") || identity;
+};
+
+const getParticipantMediaScore = (participant) => {
+  if (!participant?.trackPublications?.values) return 0;
+
+  let score = 0;
+  for (const publication of participant.trackPublications.values()) {
+    if (publication?.track) score += 4;
+    if (publication?.isSubscribed) score += 2;
+    if (!publication?.isMuted) score += 1;
+  }
+  return score;
+};
+
+const shouldUseParticipantCandidate = (candidate, current, localIdentity) => {
+  if (!current) return true;
+  if (candidate?.identity === localIdentity) return true;
+  if (current?.identity === localIdentity) return false;
+
+  const candidateScore = getParticipantMediaScore(candidate);
+  const currentScore = getParticipantMediaScore(current);
+  if (candidateScore !== currentScore) return candidateScore > currentScore;
+
+  return true;
+};
+
+const dedupeParticipantsByStableKey = (participants, localParticipant) => {
+  const orderedParticipants = [
+    localParticipant,
+    ...participants.filter(
+      (participant) =>
+        participant?.sid !== localParticipant?.sid &&
+        participant?.identity !== localParticipant?.identity,
+    ),
+  ];
+  const byStableKey = new Map();
+
+  for (const participant of orderedParticipants) {
+    const stableKey =
+      getParticipantStableKey(participant) || participant?.sid || participant?.identity;
+    if (!stableKey) continue;
+
+    const current = byStableKey.get(stableKey);
+    if (shouldUseParticipantCandidate(participant, current, localParticipant?.identity)) {
+      byStableKey.set(stableKey, participant);
+    }
+  }
+
+  return Array.from(byStableKey.values());
+};
+
 const getMiniParticipantAvatar = (participant) => {
   const metadata = String(participant?.metadata || "").trim();
   if (!metadata) return "";
@@ -1853,7 +1924,6 @@ function MeetContent({
   const [whiteboardTextAlign, setWhiteboardTextAlign] = useState(
     WHITEBOARD_DEFAULT_TEXT_ALIGN,
   );
-  const [excalidrawWhiteboardActive, setExcalidrawWhiteboardActive] = useState(false);
   const [recordSurfaceNode, setRecordSurfaceNode] = useState(null);
   const [recordSurfaceType, setRecordSurfaceType] = useState(null);
   const [cameraDevices, setCameraDevices] = useState([]);
@@ -1870,7 +1940,11 @@ function MeetContent({
   const connectionState = useConnectionState(room);
   const supportsDocumentPiP =
     typeof window !== "undefined" && Boolean(window.documentPictureInPicture?.requestWindow);
-  const participants = useParticipants({ room });
+  const rawParticipants = useParticipants({ room });
+  const participants = useMemo(
+    () => dedupeParticipantsByStableKey(rawParticipants, room.localParticipant),
+    [rawParticipants, room.localParticipant],
+  );
   const speakingParticipants = useSpeakingParticipants();
   const liveKitServerIsRecording = useIsRecording(room);
 
@@ -1937,7 +2011,20 @@ function MeetContent({
     ],
     { onlySubscribed: false },
   );
-  const cameraTracks = tracks.filter((trackRef) => trackRef.source === Track.Source.Camera);
+  const participantSids = useMemo(
+    () => new Set(participants.map((participant) => participant?.sid).filter(Boolean)),
+    [participants],
+  );
+  const visibleTracks = useMemo(
+    () =>
+      tracks.filter((trackRef) => {
+        const participant = trackRef?.participant;
+        if (!participant?.sid) return true;
+        return participantSids.has(participant.sid);
+      }),
+    [participantSids, tracks],
+  );
+  const cameraTracks = visibleTracks.filter((trackRef) => trackRef.source === Track.Source.Camera);
   const fallbackParticipantTracks = useMemo(
     () =>
       participants.map((participant) => ({
@@ -1946,7 +2033,7 @@ function MeetContent({
       })),
     [participants],
   );
-  const stageTracks = tracks.length > 0 ? tracks : fallbackParticipantTracks;
+  const stageTracks = visibleTracks.length > 0 ? visibleTracks : fallbackParticipantTracks;
   const hasWhiteboard = signaling.whiteboardState.isActive;
   const canShowLessonControls = Boolean(isCreator && signaling.lessonMeet);
   const primaryTitle = title || roomInfo.name || "Jamm Meet";
@@ -2029,98 +2116,12 @@ function MeetContent({
     onClose?.();
   }, [closePiPWindow, onClose, recorder, room, signaling]);
 
-  const publishExcalidrawWhiteboardControl = useCallback(
-    async (active) => {
-      await room.localParticipant.publishData(
-        new TextEncoder().encode(
-          JSON.stringify({
-            kind: EXCALIDRAW_WHITEBOARD_CONTROL_KIND,
-            active: Boolean(active),
-            senderIdentity: room.localParticipant.identity,
-            sentAt: Date.now(),
-          }),
-        ),
-        { reliable: true },
-      );
-    },
-    [room.localParticipant],
-  );
-
   const handleWhiteboardToggle = useCallback(() => {
     const ok = signaling.toggleWhiteboard();
     if (!ok && !isCreator) {
       toast("Whiteboardni faqat host boshqaradi");
-      return;
     }
-
-    if (ok && excalidrawWhiteboardActive) {
-      setExcalidrawWhiteboardActive(false);
-      void publishExcalidrawWhiteboardControl(false).catch(() => {});
-    }
-  }, [
-    excalidrawWhiteboardActive,
-    isCreator,
-    publishExcalidrawWhiteboardControl,
-    signaling,
-  ]);
-
-  const handleExcalidrawWhiteboardToggle = useCallback(() => {
-    if (!isCreator) {
-      toast("Whiteboardni faqat host boshqaradi");
-      return;
-    }
-
-    const nextActive = !excalidrawWhiteboardActive;
-    setExcalidrawWhiteboardActive(nextActive);
-
-    if (nextActive && signaling.whiteboardState.isActive) {
-      signaling.toggleWhiteboard();
-    }
-
-    void publishExcalidrawWhiteboardControl(nextActive).catch(() => {
-      toast.error("Excalidraw whiteboard holati yuborilmadi");
-    });
-  }, [
-    excalidrawWhiteboardActive,
-    isCreator,
-    publishExcalidrawWhiteboardControl,
-    signaling,
-  ]);
-
-  useEffect(() => {
-    const decoder = new TextDecoder();
-    const handleDataReceived = (payload) => {
-      try {
-        const data = JSON.parse(decoder.decode(payload));
-        if (data?.kind !== EXCALIDRAW_WHITEBOARD_CONTROL_KIND) {
-          return;
-        }
-        setExcalidrawWhiteboardActive(Boolean(data.active));
-      } catch {
-        // ignore unrelated data packets
-      }
-    };
-
-    room.on(RoomEvent.DataReceived, handleDataReceived);
-    return () => {
-      room.off(RoomEvent.DataReceived, handleDataReceived);
-    };
-  }, [room]);
-
-  useEffect(() => {
-    if (!isCreator || !excalidrawWhiteboardActive) {
-      return undefined;
-    }
-
-    const handleParticipantConnected = () => {
-      void publishExcalidrawWhiteboardControl(true).catch(() => {});
-    };
-
-    room.on(RoomEvent.ParticipantConnected, handleParticipantConnected);
-    return () => {
-      room.off(RoomEvent.ParticipantConnected, handleParticipantConnected);
-    };
-  }, [excalidrawWhiteboardActive, isCreator, publishExcalidrawWhiteboardControl, room]);
+  }, [isCreator, signaling]);
 
   const handleRoomPrivacyChange = useCallback(
     async (nextIsPrivate) => {
@@ -2530,22 +2531,8 @@ function MeetContent({
     />
     </Suspense>
   ) : null;
-  const excalidrawWhiteboardTile = excalidrawWhiteboardActive ? (
-    <Suspense fallback={<div style={{ width: "100%", height: "100%", background: "#fff" }} />}>
-      <ExcalidrawWhiteboardTile
-        room={room}
-        interactive={Boolean(isCreator)}
-        participantCount={participants.length}
-        onPdfUpload={handlePdfUpload}
-      />
-    </Suspense>
-  ) : null;
-  const activeFocusTile = excalidrawWhiteboardTile || whiteboardTile;
-  const activeFocusKey = excalidrawWhiteboardTile
-    ? `${WHITEBOARD_TILE_KEY}-excalidraw`
-    : hasWhiteboard
-      ? WHITEBOARD_TILE_KEY
-      : undefined;
+  const activeFocusTile = whiteboardTile;
+  const activeFocusKey = hasWhiteboard ? WHITEBOARD_TILE_KEY : undefined;
 
   useEffect(() => {
     if (!connectionState || connectionToastStateRef.current === connectionState) {
@@ -2726,9 +2713,6 @@ function MeetContent({
           onLeave={handleLeave}
           onCopyLink={handleCopy}
           onToggleWhiteboard={isCreator ? handleWhiteboardToggle : undefined}
-          onToggleExcalidrawWhiteboard={
-            isCreator ? handleExcalidrawWhiteboardToggle : undefined
-          }
           onToggleLessonControls={
             canShowLessonControls ? () => setLessonControlsOpen(true) : undefined
           }
@@ -2737,7 +2721,6 @@ function MeetContent({
           focusKey={activeFocusKey}
           isRecording={liveKitServerIsRecording || recorder.isRecording}
           whiteboardActive={hasWhiteboard}
-          excalidrawWhiteboardActive={excalidrawWhiteboardActive}
           isMicrophoneEnabled={Boolean(room.localParticipant?.isMicrophoneEnabled)}
           isCameraEnabled={Boolean(room.localParticipant?.isCameraEnabled)}
           isScreenShareEnabled={Boolean(room.localParticipant?.isScreenShareEnabled)}
