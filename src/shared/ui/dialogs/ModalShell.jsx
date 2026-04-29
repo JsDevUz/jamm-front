@@ -37,6 +37,7 @@ export const ModalOverlay = styled.div`
       props.$paddingMobile ||
       "max(12px, env(safe-area-inset-top, 0px)) max(12px, env(safe-area-inset-right, 0px)) max(12px, env(safe-area-inset-bottom, 0px)) max(12px, env(safe-area-inset-left, 0px))"};
     align-items: center;
+    min-height: var(--visual-viewport-height, var(--app-height, 100dvh));
   }
 `;
 
@@ -59,8 +60,8 @@ export const ModalPanel = styled.div`
     max-width: 100%;
     max-height: ${(props) =>
       props.$mobileFull
-        ? "calc(100dvh - max(24px, env(safe-area-inset-top, 0px) + env(safe-area-inset-bottom, 0px)))"
-        : "min(calc(100dvh - max(24px, env(safe-area-inset-top, 0px) + env(safe-area-inset-bottom, 0px))), 90vh)"};
+        ? "calc(var(--visual-viewport-height, var(--app-height, 100dvh)) - max(24px, env(safe-area-inset-top, 0px) + env(safe-area-inset-bottom, 0px)))"
+        : "min(calc(var(--visual-viewport-height, var(--app-height, 100dvh)) - max(24px, env(safe-area-inset-top, 0px) + env(safe-area-inset-bottom, 0px))), 90vh)"};
     height: auto;
     min-height: 0;
     border-radius: ${(props) => props.$radius || "18px"};

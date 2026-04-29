@@ -48,6 +48,10 @@ import {
 import Spinner from "../../../shared/ui/feedback/Spinner";
 
 const WHITEBOARD_APPEND_BATCH_LIMIT = 32;
+const WHITEBOARD_DEFAULT_COLOR = "#0f172a";
+const WHITEBOARD_DEFAULT_BRUSH_SIZE = 4;
+const WHITEBOARD_INK_QUICK_SLOTS_STORAGE_KEY = "jamm:whiteboard:inkQuickSlots:v1";
+const WHITEBOARD_ACTIVE_INK_SLOT_STORAGE_KEY = "jamm:whiteboard:activeInkSlot:v1";
 const WHITEBOARD_SWATCHES = [
   "#0f172a",
   "#dc2626",
@@ -1715,6 +1719,64 @@ const getTextPointFromBox = ({ left, top, width, align }) => ({
 });
 
 const clampValue = (value, min, max) => Math.min(Math.max(value, min), max);
+const normalizeStoredInkSlot = (slot, fallback) => {
+  const fallbackSlot = fallback || {
+    color: WHITEBOARD_DEFAULT_COLOR,
+    width: WHITEBOARD_DEFAULT_BRUSH_SIZE,
+  };
+  const colorValue = typeof slot?.color === "string" ? slot.color.trim().toLowerCase() : "";
+  const normalizedColor = /^#[0-9a-f]{3}([0-9a-f]{3})?$/i.test(colorValue)
+    ? colorValue
+    : fallbackSlot.color;
+  const normalizedWidth = clampValue(
+    Number(slot?.width) || fallbackSlot.width || WHITEBOARD_DEFAULT_BRUSH_SIZE,
+    2,
+    24,
+  );
+
+  return {
+    color: normalizedColor,
+    width: normalizedWidth,
+  };
+};
+
+const getDefaultInkQuickSlots = (color = WHITEBOARD_DEFAULT_COLOR, width = WHITEBOARD_DEFAULT_BRUSH_SIZE) => {
+  const initialWidth = clampValue(Number(width) || WHITEBOARD_DEFAULT_BRUSH_SIZE, 2, 24);
+  return [
+    { color: String(color || WHITEBOARD_DEFAULT_COLOR).toLowerCase(), width: initialWidth },
+    { color: "#dc2626", width: initialWidth },
+    { color: "#22c55e", width: initialWidth },
+  ];
+};
+
+const readStoredInkQuickSlots = (color, width) => {
+  const defaults = getDefaultInkQuickSlots(color, width);
+  if (typeof window === "undefined") {
+    return defaults;
+  }
+
+  try {
+    const parsed = JSON.parse(
+      window.localStorage.getItem(WHITEBOARD_INK_QUICK_SLOTS_STORAGE_KEY) || "null",
+    );
+    if (!Array.isArray(parsed)) {
+      return defaults;
+    }
+
+    return defaults.map((fallback, index) => normalizeStoredInkSlot(parsed[index], fallback));
+  } catch {
+    return defaults;
+  }
+};
+
+const readStoredActiveInkSlotIndex = () => {
+  if (typeof window === "undefined") {
+    return 0;
+  }
+
+  const parsed = Number(window.localStorage.getItem(WHITEBOARD_ACTIVE_INK_SLOT_STORAGE_KEY));
+  return Number.isInteger(parsed) && parsed >= 0 && parsed < 3 ? parsed : 0;
+};
 const roundScenePixel = (value) => Math.round((Number(value) || 0) * 2) / 2;
 const amplifyZoomRatio = (ratio, exponent = WHITEBOARD_PINCH_ZOOM_EXPONENT) => {
   const safeRatio = Math.max(0.01, Number(ratio) || 1);
@@ -5100,6 +5162,7 @@ const StrokeCanvas = ({
   onStrokeUpdate,
   onToolChange,
   onTextEditorStateChange,
+  onPointerActivity,
   canvasMaxEdge,
   canvasMaxPixels,
   canvasPreferredRatio,
@@ -5113,6 +5176,8 @@ const StrokeCanvas = ({
   const pointerStateRef = useRef(null);
   const pendingPointsRef = useRef([]);
   const flushTimeoutRef = useRef(null);
+  const liveStrokeUpdateTimeoutRef = useRef(null);
+  const liveStrokeUpdatePayloadRef = useRef(null);
   const textInputRef = useRef(null);
   const textEditorRef = useRef(null);
   const dragStateRef = useRef(null);
@@ -5531,10 +5596,51 @@ const StrokeCanvas = ({
     }, 32);
   }, [flushPendingPoints]);
 
+  const flushLiveStrokeUpdate = useCallback(() => {
+    if (liveStrokeUpdateTimeoutRef.current) {
+      window.clearTimeout(liveStrokeUpdateTimeoutRef.current);
+      liveStrokeUpdateTimeoutRef.current = null;
+    }
+
+    const payload = liveStrokeUpdatePayloadRef.current;
+    liveStrokeUpdatePayloadRef.current = null;
+    if (!payload) {
+      return;
+    }
+
+    onStrokeUpdate?.({
+      tabId,
+      pageNumber,
+      ...payload,
+    });
+  }, [onStrokeUpdate, pageNumber, tabId]);
+
+  const scheduleLiveStrokeUpdate = useCallback(
+    (payload) => {
+      if (!payload?.strokeId) {
+        return;
+      }
+
+      liveStrokeUpdatePayloadRef.current = payload;
+      if (liveStrokeUpdateTimeoutRef.current) {
+        return;
+      }
+
+      liveStrokeUpdateTimeoutRef.current = window.setTimeout(() => {
+        liveStrokeUpdateTimeoutRef.current = null;
+        flushLiveStrokeUpdate();
+      }, 80);
+    },
+    [flushLiveStrokeUpdate],
+  );
+
   useEffect(
     () => () => {
       if (flushTimeoutRef.current) {
         window.clearTimeout(flushTimeoutRef.current);
+      }
+      if (liveStrokeUpdateTimeoutRef.current) {
+        window.clearTimeout(liveStrokeUpdateTimeoutRef.current);
       }
     },
     [],
@@ -6018,6 +6124,7 @@ const StrokeCanvas = ({
         return;
       }
 
+      onPointerActivity?.(event);
       event.preventDefault();
       event.stopPropagation();
 
@@ -6202,6 +6309,7 @@ const StrokeCanvas = ({
       findTouchedSelectableStroke,
       findTouchedTextStroke,
       interactive,
+      onPointerActivity,
       onToolChange,
       onStrokeStart,
       pageNumber,
@@ -6232,6 +6340,7 @@ const StrokeCanvas = ({
 
       event.preventDefault();
       event.stopPropagation();
+      onPointerActivity?.(event);
 
       const rawEvents =
         typeof event.getCoalescedEvents === "function" ? event.getCoalescedEvents() : [];
@@ -6308,6 +6417,7 @@ const StrokeCanvas = ({
       fillColor,
       shapeEdge,
       interactive,
+      onPointerActivity,
       redrawCanvas,
       resolvePoint,
       scheduleActiveLayerRender,
@@ -6350,6 +6460,7 @@ const StrokeCanvas = ({
         return;
       }
 
+      onPointerActivity?.(event);
       const startScreenPoint = projectStoredPoint(
         dragState.startPoint,
         dragState.surfaceRect.width,
@@ -6370,6 +6481,21 @@ const StrokeCanvas = ({
 
       dragState.lastPoint = nextPoint;
       setTextEditor((prev) => (prev ? { ...prev, point: nextPoint } : prev));
+      const activeEditor = textEditorRef.current;
+      if (activeEditor?.strokeId) {
+        scheduleLiveStrokeUpdate({
+          strokeId: activeEditor.strokeId,
+          point: nextPoint,
+          text: getTextValue(activeEditor.value),
+          color: activeEditor.color,
+          size: activeEditor.size,
+          fontFamily: activeEditor.fontFamily,
+          textSize: activeEditor.textSize,
+          textAlign: activeEditor.textAlign,
+          fontPixelSize: activeEditor.fontPixelSize,
+          rotation: activeEditor.rotation,
+        });
+      }
     };
 
     const handleDragEnd = (event) => {
@@ -6379,6 +6505,7 @@ const StrokeCanvas = ({
       }
 
       dragStateRef.current = null;
+      flushLiveStrokeUpdate();
       const activeEditor = textEditorRef.current;
       if (
         activeEditor?.strokeId &&
@@ -6411,7 +6538,16 @@ const StrokeCanvas = ({
       window.removeEventListener("pointerup", handleDragEnd);
       window.removeEventListener("pointercancel", handleDragEnd);
     };
-  }, [onStrokeUpdate, pageNumber, surfaceMode, tabId, zoomScale]);
+  }, [
+    flushLiveStrokeUpdate,
+    onPointerActivity,
+    onStrokeUpdate,
+    pageNumber,
+    scheduleLiveStrokeUpdate,
+    surfaceMode,
+    tabId,
+    zoomScale,
+  ]);
 
   const selectedStrokeBounds = useMemo(() => {
     return getStrokeSelectionBounds(
@@ -6497,6 +6633,7 @@ const StrokeCanvas = ({
       }
 
       event.preventDefault();
+      onPointerActivity?.(event);
       const pointerScene = getScenePointFromEvent(event, transformState);
       if (!pointerScene) {
         return;
@@ -6614,6 +6751,18 @@ const StrokeCanvas = ({
       setShapeTransformGuides(
         buildTransformGuideState(nextTransform, transformState.mode, extraGuideLines),
       );
+      scheduleLiveStrokeUpdate({
+        strokeId: nextStroke.id,
+        points: nextStroke.points,
+        text: nextStroke.tool === "text" ? nextStroke.text : undefined,
+        color: nextStroke.tool === "text" ? nextStroke.color : undefined,
+        size: nextStroke.tool === "text" ? nextStroke.size : undefined,
+        fontFamily: nextStroke.tool === "text" ? nextStroke.fontFamily : undefined,
+        textSize: nextStroke.tool === "text" ? nextStroke.textSize : undefined,
+        textAlign: nextStroke.tool === "text" ? nextStroke.textAlign : undefined,
+        fontPixelSize: nextStroke.tool === "text" ? nextStroke.fontPixelSize : undefined,
+        rotation: nextStroke.rotation,
+      });
     };
 
     const handleShapeTransformEnd = (event) => {
@@ -6623,6 +6772,7 @@ const StrokeCanvas = ({
       }
 
       shapeTransformStateRef.current = null;
+      flushLiveStrokeUpdate();
       const nextStroke = transformState.lastStroke;
       setShapePreviewStroke(null);
       setShapeTransformGuides(null);
@@ -6655,7 +6805,15 @@ const StrokeCanvas = ({
       window.removeEventListener("pointerup", handleShapeTransformEnd);
       window.removeEventListener("pointercancel", handleShapeTransformEnd);
     };
-  }, [onStrokeUpdate, pageNumber, snapCandidates, tabId]);
+  }, [
+    flushLiveStrokeUpdate,
+    onPointerActivity,
+    onStrokeUpdate,
+    pageNumber,
+    scheduleLiveStrokeUpdate,
+    snapCandidates,
+    tabId,
+  ]);
 
   const beginShapeTransform = useCallback(
     (event, mode, corner = null) => {
@@ -7165,19 +7323,10 @@ const WhiteboardTile = ({
   const [boardZoom, setBoardZoom] = useState(1);
   const [isColorPickerOpen, setIsColorPickerOpen] = useState(false);
   const [inkPanelOpen, setInkPanelOpen] = useState(false);
-  const [activeInkSlotIndex, setActiveInkSlotIndex] = useState(0);
-  const [inkQuickSlots, setInkQuickSlots] = useState(() => {
-    const initialWidth = clampValue(
-      Number(brushSize) || WHITEBOARD_DEFAULT_BRUSH_SIZE,
-      2,
-      24,
-    );
-    return [
-      { color: String(color || WHITEBOARD_DEFAULT_COLOR).toLowerCase(), width: initialWidth },
-      { color: "#dc2626", width: initialWidth },
-      { color: "#22c55e", width: initialWidth },
-    ];
-  });
+  const [activeInkSlotIndex, setActiveInkSlotIndex] = useState(readStoredActiveInkSlotIndex);
+  const [inkQuickSlots, setInkQuickSlots] = useState(() =>
+    readStoredInkQuickSlots(color, brushSize),
+  );
   const [isShapePickerOpen, setIsShapePickerOpen] = useState(false);
   const [isFillPickerOpen, setIsFillPickerOpen] = useState(false);
   const [isEdgePickerOpen, setIsEdgePickerOpen] = useState(false);
@@ -7193,6 +7342,7 @@ const WhiteboardTile = ({
     selectedPages: [],
     error: "",
   });
+  const didRestoreInkSlotRef = useRef(false);
   const cursorBroadcastRafRef = useRef(0);
   const cursorBroadcastPointRef = useRef(null);
   const cursorBroadcastLastTimeRef = useRef(0);
@@ -8128,24 +8278,11 @@ const WhiteboardTile = ({
     }
 
     pdfRenderBatchSignatureRef.current = "";
-    releasePdfBitmapCache();
-    setPdfPageImages({});
-    setPdfPageMetrics({});
-    setVisiblePdfPages([]);
-
-    if (typeof document !== "undefined") {
-      document
-        .querySelectorAll('canvas[id^="pdf-page-"]')
-        .forEach((canvas) => {
-          if (canvas instanceof HTMLCanvasElement) {
-            try {
-              canvas.width = 0;
-              canvas.height = 0;
-            } catch {}
-          }
-        });
+    if (pdfObserverRef.current) {
+      pdfObserverRef.current.disconnect();
+      pdfObserverRef.current = null;
     }
-  }, [activeTab?.type, releasePdfBitmapCache]);
+  }, [activeTab?.type]);
 
   useEffect(() => {
     if (activeTab?.type !== "pdf") {
@@ -9204,6 +9341,11 @@ const WhiteboardTile = ({
     });
 
     return () => {
+      if (flushTimer) {
+        window.clearTimeout(flushTimer);
+        flushTimer = 0;
+      }
+      pendingPages = new Set();
       observer.disconnect();
     };
   }, [activeTab?.id, activeTab?.type, compact, pdfMeta.pages, pdfMeta.status]);
@@ -10771,6 +10913,49 @@ const WhiteboardTile = ({
     color: String(color || WHITEBOARD_DEFAULT_COLOR).toLowerCase(),
     width: clampValue(Number(brushSize) || WHITEBOARD_DEFAULT_BRUSH_SIZE, 2, 24),
   };
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    try {
+      window.localStorage.setItem(
+        WHITEBOARD_INK_QUICK_SLOTS_STORAGE_KEY,
+        JSON.stringify(inkQuickSlots.slice(0, 3).map((slot, index) =>
+          normalizeStoredInkSlot(
+            slot,
+            getDefaultInkQuickSlots(color, brushSize)[index],
+          ),
+        )),
+      );
+    } catch {}
+  }, [brushSize, color, inkQuickSlots]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    try {
+      window.localStorage.setItem(
+        WHITEBOARD_ACTIVE_INK_SLOT_STORAGE_KEY,
+        String(clampValue(Number(activeInkSlotIndex) || 0, 0, 2)),
+      );
+    } catch {}
+  }, [activeInkSlotIndex]);
+
+  useEffect(() => {
+    if (didRestoreInkSlotRef.current || !interactive || !activeInkSlot) {
+      return;
+    }
+
+    didRestoreInkSlotRef.current = true;
+    onColorChange?.(activeInkSlot.color);
+    onBrushSizeChange?.(
+      clampValue(Number(activeInkSlot.width) || WHITEBOARD_DEFAULT_BRUSH_SIZE, 2, 24),
+    );
+  }, [activeInkSlot, interactive, onBrushSizeChange, onColorChange]);
+
   const strokeSliderValue = clampValue(
     Number(activeInkSlot.width) || Number(brushSize) || WHITEBOARD_DEFAULT_BRUSH_SIZE,
     2,
@@ -11819,6 +12004,7 @@ const WhiteboardTile = ({
                                   onStrokeUpdate={onStrokeUpdate}
                                   onToolChange={onToolChange}
                                   onTextEditorStateChange={setActiveTextEditorState}
+                                  onPointerActivity={handleWorkspacePointerMove}
                                   canvasMaxPixels={
                                     !interactive && isMobileClient
                                       ? WHITEBOARD_MOBILE_GUEST_PAGE_CANVAS_MAX_PIXELS
@@ -11963,6 +12149,7 @@ const WhiteboardTile = ({
                               onStrokeUpdate={onStrokeUpdate}
                               onToolChange={onToolChange}
                               onTextEditorStateChange={setActiveTextEditorState}
+                              onPointerActivity={handleWorkspacePointerMove}
                               canvasMaxPixels={
                                 !interactive && isMobileClient
                                   ? WHITEBOARD_MOBILE_GUEST_PAGE_CANVAS_MAX_PIXELS
@@ -12045,6 +12232,7 @@ const WhiteboardTile = ({
                           onStrokeUpdate={onStrokeUpdate}
                           onToolChange={onToolChange}
                           onTextEditorStateChange={setActiveTextEditorState}
+                          onPointerActivity={handleWorkspacePointerMove}
                           canvasMaxEdge={boardCanvasMaxEdge}
                           canvasMaxPixels={boardCanvasMaxPixels}
                           canvasPreferredRatio={boardCanvasPreferredRatio}
@@ -12102,6 +12290,7 @@ const WhiteboardTile = ({
                       onStrokeUpdate={onStrokeUpdate}
                       onToolChange={onToolChange}
                       onTextEditorStateChange={setActiveTextEditorState}
+                      onPointerActivity={handleWorkspacePointerMove}
                       canvasMaxEdge={boardCanvasMaxEdge}
                       canvasMaxPixels={boardCanvasMaxPixels}
                       canvasPreferredRatio={boardCanvasPreferredRatio}

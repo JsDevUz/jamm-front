@@ -818,7 +818,33 @@ const CoursePlayer = ({
   const [hoverTime, setHoverTime] = useState(null);
   const [hoverX, setHoverX] = useState(0);
   const [hoverSegmentLabel, setHoverSegmentLabel] = useState("");
-  const [isBuffering, setIsBuffering] = useState(false);
+  const [isBuffering, setIsBufferingRaw] = useState(false);
+  // Debounce the buffering indicator so quick seeks (data already cached,
+  // segment switch under ~300ms) don't flash a spinner. Mirrors YouTube's
+  // behavior: only show the loader if the stall actually outlasts a frame
+  // or two of UI.
+  const bufferingDeferTimerRef = useRef(0);
+  const setIsBuffering = useCallback((next) => {
+    if (next) {
+      if (bufferingDeferTimerRef.current) return;
+      bufferingDeferTimerRef.current = window.setTimeout(() => {
+        bufferingDeferTimerRef.current = 0;
+        setIsBufferingRaw(true);
+      }, 350);
+    } else {
+      if (bufferingDeferTimerRef.current) {
+        window.clearTimeout(bufferingDeferTimerRef.current);
+        bufferingDeferTimerRef.current = 0;
+      }
+      setIsBufferingRaw(false);
+    }
+  }, []);
+  useEffect(() => () => {
+    if (bufferingDeferTimerRef.current) {
+      window.clearTimeout(bufferingDeferTimerRef.current);
+      bufferingDeferTimerRef.current = 0;
+    }
+  }, []);
   const [isScrubbing, setIsScrubbing] = useState(false);
   const [scrubTime, setScrubTime] = useState(null);
   const scrubWasPlayingRef = useRef(false);
@@ -2189,10 +2215,10 @@ const CoursePlayer = ({
 
       const currentVideoTime = Math.max(0, Number(video.currentTime || 0));
       const closeEnough =
-        Math.abs(currentVideoTime - pendingSeek.targetTime) <= 2.0 ||
+        Math.abs(currentVideoTime - pendingSeek.targetTime) <= 1.0 ||
         currentVideoTime >= pendingSeek.targetTime;
       const ready = Number(video.readyState || 0) >= 2;
-      const timedOut = Date.now() - pendingSeek.startedAt > 8000;
+      const timedOut = Date.now() - pendingSeek.startedAt > 4000;
 
       if (force || timedOut || (ready && !video.seeking && closeEnough)) {
         stopPendingSeekWatchdog();
@@ -2313,6 +2339,16 @@ const CoursePlayer = ({
         return;
       }
 
+      // Abort any in-flight fragment fetch and tell hls.js to start loading
+      // from the new position. Without this, an unrelated fragment that was
+      // already in-flight (from the old playhead) blocks the seek target —
+      // user feels an "infinite loading" stall on big jumps.
+      if (hlsRef.current) {
+        try {
+          hlsRef.current.stopLoad();
+          hlsRef.current.startLoad(clampedMediaTime);
+        } catch {}
+      }
       videoRef.current.currentTime = clampedMediaTime;
       setCurrentTime(clampedMediaTime);
       window.requestAnimationFrame(() => {
@@ -2411,7 +2447,6 @@ const CoursePlayer = ({
       const rect = e.currentTarget.getBoundingClientRect();
       const percent = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
       const targetTotalTime = percent * (totalLessonDuration || duration || 0);
-      setIsBuffering(true);
       seekLessonToTime(targetTotalTime, { autoplay: isPlaying });
     },
     [
@@ -2992,13 +3027,27 @@ const CoursePlayer = ({
       const hls = new Hls({
         enableWorker: true,
         lowLatencyMode: false,
-        // Retry config — be patient with Backblaze B2 latency spikes
-        manifestLoadingMaxRetry: 4,
-        manifestLoadingRetryDelay: 1000,
-        levelLoadingMaxRetry: 4,
-        levelLoadingRetryDelay: 1000,
-        fragLoadingMaxRetry: 6,
-        fragLoadingRetryDelay: 1000,
+        // YouTube-style snappy seeking: keep buffers small enough that a seek
+        // doesn't have to wait for a long pre-existing buffer, but big enough
+        // to hide network jitter once playback resumes.
+        maxBufferLength: 30,
+        maxMaxBufferLength: 60,
+        backBufferLength: 30,
+        maxBufferHole: 0.5,
+        // Aggressively switch fragments on seek instead of finishing the
+        // currently-loading one.
+        maxFragLookUpTolerance: 0.25,
+        nudgeMaxRetry: 5,
+        // Retry config — be patient with Backblaze B2 latency spikes, but
+        // shorter delays so a seek into a "cold" segment doesn't stall for
+        // many seconds before retrying.
+        manifestLoadingMaxRetry: 3,
+        manifestLoadingRetryDelay: 500,
+        levelLoadingMaxRetry: 3,
+        levelLoadingRetryDelay: 500,
+        fragLoadingMaxRetry: 4,
+        fragLoadingRetryDelay: 500,
+        fragLoadingTimeOut: 12000,
         loader: SegmentCacheFriendlyLoader,
         xhrSetup: (xhr, url) => {
           const requestUrl = String(url || "");
@@ -3544,12 +3593,18 @@ const CoursePlayer = ({
                       setIsBuffering(false);
                     }}
                     onPause={() => setIsPlaying(false)}
-                    onSeeking={() => setIsBuffering(true)}
+                    onSeeking={() => {
+                      if (isScrubbing) return;
+                      setIsBuffering(true);
+                    }}
                     onSeeked={() => {
                       flushPendingSeekBuffering({ force: true });
                       setIsBuffering(false);
                     }}
-                    onWaiting={() => setIsBuffering(true)}
+                    onWaiting={() => {
+                      if (isScrubbing) return;
+                      setIsBuffering(true);
+                    }}
                     onCanPlay={() => {
                       flushPendingSeekBuffering({ force: true });
                       setIsBuffering(false);

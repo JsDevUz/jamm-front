@@ -64,7 +64,8 @@ const DialogBox = styled(ModalPanel).attrs({
   animation: ${dialogIn} 0.22s ease-out;
 
   @media (max-width: 768px) {
-    max-height: calc(100vh - 24px);
+    height: auto;
+    max-height: calc(var(--visual-viewport-height, var(--app-height, 100dvh)) - max(24px, env(safe-area-inset-top, 0px) + env(safe-area-inset-bottom, 0px)));
     border-radius: 18px;
   }
 `;

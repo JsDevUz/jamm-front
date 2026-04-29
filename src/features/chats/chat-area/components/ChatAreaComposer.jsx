@@ -16,14 +16,18 @@ const MessageInputContainer = styled.div`
     props.$keyboardOpen ? "0 -8px 22px rgba(0, 0, 0, 0.12)" : "0 0 0 rgba(0, 0, 0, 0)"};
 
   @media (max-width: 768px) {
-    /* No transition on padding — the keyboard itself animates nearly
-       instantly on iOS, and a CSS transition desyncs from the system keyboard
-       and produces a visible bounce. Match iMessage/Telegram: snap. */
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: var(--keyboard-height, 0px);
+    z-index: 1200;
     padding: ${(props) => (props.$keyboardOpen ? "6px" : "8px")} 12px
       ${(props) =>
         props.$keyboardOpen
           ? "6px"
           : "calc(8px + env(safe-area-inset-bottom, 0px))"};
+    transform: translateZ(0);
+    transition: bottom 0.18s ease-out;
   }
 `;
 

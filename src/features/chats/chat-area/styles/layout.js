@@ -14,22 +14,17 @@ export const ChatContainer = styled.div`
 
   @media (max-width: 768px) {
     width: 100%;
-    /* Pin to the visual viewport on mobile. Using visualViewport (not layout
-       viewport) means when iOS Safari shows/hides its chrome the container
-       tracks the real visible area — no empty strip under the composer and
-       no header jumping when the keyboard opens. */
-    height: var(--visual-viewport-height, var(--app-height, 100dvh));
-    min-height: var(--visual-viewport-height, var(--app-height, 100dvh));
-    max-height: var(--visual-viewport-height, var(--app-height, 100dvh));
+    height: var(--app-height, 100dvh);
+    min-height: var(--app-height, 100dvh);
+    max-height: var(--app-height, 100dvh);
     position: fixed;
-    top: var(--visual-viewport-offset-top, 0px);
+    top: 0;
     left: 0;
     right: 0;
     z-index: 1000;
     transform: translateZ(0);
     overscroll-behavior: contain;
     touch-action: manipulation;
-    will-change: height, top;
   }
 
   @keyframes slideInRight {
@@ -56,9 +51,9 @@ export const OuterChatWrapper = styled.div`
   position: relative;
 
   @media (max-width: 768px) {
-    height: var(--visual-viewport-height, var(--app-height, 100dvh));
-    min-height: var(--visual-viewport-height, var(--app-height, 100dvh));
-    max-height: var(--visual-viewport-height, var(--app-height, 100dvh));
+    height: var(--app-height, 100dvh);
+    min-height: var(--app-height, 100dvh);
+    max-height: var(--app-height, 100dvh);
   }
 `;
 
@@ -90,5 +85,6 @@ export const ChatMainColumn = styled.div`
   @media (max-width: 768px) {
     position: relative;
     isolation: isolate;
+    padding-bottom: 72px;
   }
 `;

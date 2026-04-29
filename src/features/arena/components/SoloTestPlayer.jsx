@@ -30,11 +30,12 @@ const Container = styled.div`
     right: 0;
     bottom: 0;
     max-width: 100%;
-    min-height: 100dvh;
+    min-height: var(--app-height, 100dvh);
+    height: var(--app-height, 100dvh);
     border-radius: 0;
     border: none;
-    padding: calc(22px + env(safe-area-inset-top, 0px)) 16px 16px;
-    z-index: 100;
+    padding: calc(22px + env(safe-area-inset-top, 0px)) 16px calc(16px + env(safe-area-inset-bottom, 0px));
+    z-index: 9999;
     overflow-y: auto;
   }
 `;

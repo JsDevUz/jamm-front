@@ -40,7 +40,12 @@ const Overlay = styled.div`
   animation: ${fadeIn} 0.18s ease-out;
 
   @media (max-width: 768px) {
-    padding: 12px;
+    min-height: var(--visual-viewport-height, var(--app-height, 100dvh));
+    padding:
+      max(12px, env(safe-area-inset-top, 0px))
+      max(12px, env(safe-area-inset-right, 0px))
+      max(12px, env(safe-area-inset-bottom, 0px))
+      max(12px, env(safe-area-inset-left, 0px));
   }
 `;
 
@@ -57,7 +62,7 @@ const DialogBox = styled.div`
 
   @media (max-width: 768px) {
     width: 100%;
-    max-height: calc(100vh - 24px);
+    max-height: calc(var(--visual-viewport-height, var(--app-height, 100dvh)) - max(24px, env(safe-area-inset-top, 0px) + env(safe-area-inset-bottom, 0px)));
     border-radius: 18px;
   }
 `;
@@ -70,9 +75,21 @@ const Header = styled.div`
   border-bottom: 1px solid var(--border-color);
 
   h2 {
+    min-width: 0;
     margin: 0;
     font-size: 20px;
+    line-height: 1.2;
     color: var(--text-color);
+  }
+
+  @media (max-width: 768px) {
+    padding: 14px 16px;
+    align-items: flex-start;
+
+    h2 {
+      font-size: clamp(17px, 5vw, 20px);
+      overflow-wrap: anywhere;
+    }
   }
 `;
 
@@ -91,6 +108,7 @@ export const CloseBtnWrapper = styled.button`
 
 const Body = styled.div`
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   padding: 16px 18px;
 
@@ -226,13 +244,16 @@ const AddBtn = styled.button`
 const Footer = styled.div`
   display: flex;
   justify-content: space-between;
+  align-items: center;
   gap: 12px;
   padding: 14px 18px 18px;
   border-top: 1px solid var(--border-color);
+  flex-shrink: 0;
 
   @media (max-width: 768px) {
     flex-direction: column;
-    padding: 12px 16px 16px;
+    align-items: stretch;
+    padding: 12px 16px calc(14px + env(safe-area-inset-bottom, 0px));
   }
 `;
 
