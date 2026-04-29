@@ -7312,9 +7312,18 @@ const WhiteboardTile = ({
         : activeTab?.type === "pdf" && pdfRenderWidth > 0
           ? pdfRenderWidth
           : pdfRenderWidth || WHITEBOARD_MIN_PDF_RENDER_WIDTH;
+  // On mobile, never render PDF wider than the device's actual visible tile
+  // width. When guests view a "contained" remote viewport, the PdfViewport CSS
+  // width is set to the teacher's desktop width (e.g. 1380px) — so pdfRenderWidth
+  // picks up 1380 even on a 390px iPhone screen. The CSS scale-layer makes it
+  // *look* right, but the actual canvas rasters at 1380px → 22 MB per page → OOM.
+  // Cap at the real tile width so each page canvas is ~300px wide (~0.6 MB).
+  const MOBILE_PDF_RENDER_WIDTH_CAP = isMobilePdfBrowser() && workspaceViewportSize.width > 0
+    ? workspaceViewportSize.width - 8
+    : Number.POSITIVE_INFINITY;
   const activePdfRenderWidth = Math.max(
     WHITEBOARD_MIN_PDF_RENDER_WIDTH,
-    Math.round(pdfRenderWidthBaseUnclamped),
+    Math.min(MOBILE_PDF_RENDER_WIDTH_CAP, Math.round(pdfRenderWidthBaseUnclamped)),
   );
   // Visual (rendered) width for the PdfPageFrame — this is what determines the
   // scrollable area and includes the zoom factor (always, not only mobile).
