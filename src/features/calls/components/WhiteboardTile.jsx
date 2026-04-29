@@ -93,8 +93,8 @@ const WHITEBOARD_CANVAS_MAX_EDGE = 8192;
 const WHITEBOARD_CANVAS_MAX_PIXELS = 24000000;
 const WHITEBOARD_MOBILE_CANVAS_MAX_EDGE = 4096;
 const WHITEBOARD_MOBILE_CANVAS_MAX_PIXELS = 8000000;
-const WHITEBOARD_MOBILE_SAFARI_CANVAS_MAX_EDGE = 3072;
-const WHITEBOARD_MOBILE_SAFARI_CANVAS_MAX_PIXELS = 4500000;
+const WHITEBOARD_MOBILE_SAFARI_CANVAS_MAX_EDGE = 2048;
+const WHITEBOARD_MOBILE_SAFARI_CANVAS_MAX_PIXELS = 2200000;
 const WHITEBOARD_MIN_BOARD_BASE_WIDTH = 120;
 const WHITEBOARD_MIN_BOARD_BASE_HEIGHT = 120;
 const WHITEBOARD_MIN_VIEWPORT_BASE_HEIGHT = 120;
@@ -205,6 +205,17 @@ const isMobilePdfBrowser = () => {
 
   const userAgent = navigator.userAgent || "";
   return /iPhone|iPad|iPod|Android/i.test(userAgent);
+};
+
+const getMobileViewportWidthCap = (fallbackWidth) => {
+  if (typeof window === "undefined") {
+    return Number(fallbackWidth) || Number.POSITIVE_INFINITY;
+  }
+
+  const viewportWidth = Number(window.visualViewport?.width) || Number(window.innerWidth) || 0;
+  const fallback = Number(fallbackWidth) || Number.POSITIVE_INFINITY;
+  const cap = viewportWidth > 0 ? Math.min(fallback, viewportWidth) : fallback;
+  return Math.max(WHITEBOARD_MIN_PDF_RENDER_WIDTH, Math.floor(cap - 8));
 };
 
 const getSafeWhiteboardCanvasPixelRatio = (width, height) => {
@@ -6773,6 +6784,8 @@ const WhiteboardTile = ({
   const pdfPinchScrollRef = useRef({ left: 0, top: 0 });
   const pdfZoomAnchorRef = useRef(null);
   const pdfUserGestureRef = useRef(false);
+  const lastSyncedPdfViewportSignatureRef = useRef("");
+  const lastSyncedBoardViewportSignatureRef = useRef("");
   const livePdfZoomRef = useRef(1);
   const liveBoardZoomRef = useRef(1);
   const boardZoomAnimationRafRef = useRef(0);
@@ -7319,23 +7332,28 @@ const WhiteboardTile = ({
   // width is set to the teacher's desktop width (e.g. 1380px) — so pdfRenderWidth
   // picks up 1380 even on a 390px iPhone screen. The CSS scale-layer makes it
   // *look* right, but the actual canvas rasters at 1380px → 22 MB per page → OOM.
-  // Cap at the real tile width so each page canvas is ~300px wide (~0.6 MB).
+  // Cap at the real visual viewport so each page canvas is ~300px wide (~0.6 MB).
   const MOBILE_PDF_RENDER_WIDTH_CAP = isMobilePdfBrowser() && workspaceViewportSize.width > 0
-    ? workspaceViewportSize.width - 8
+    ? getMobileViewportWidthCap(workspaceViewportSize.width)
     : Number.POSITIVE_INFINITY;
   const activePdfRenderWidth = Math.max(
     WHITEBOARD_MIN_PDF_RENDER_WIDTH,
     Math.min(MOBILE_PDF_RENDER_WIDTH_CAP, Math.round(pdfRenderWidthBaseUnclamped)),
   );
+  const activePdfVisualBaseWidth = Math.max(
+    WHITEBOARD_MIN_PDF_RENDER_WIDTH,
+    Math.round(pdfRenderWidthBaseUnclamped),
+  );
   // Visual (rendered) width for the PdfPageFrame — this is what determines the
   // scrollable area and includes the zoom factor (always, not only mobile).
   const activePdfWidth = Math.max(
     WHITEBOARD_MIN_PDF_RENDER_WIDTH,
-    Math.round(activePdfRenderWidth * activePdfZoom),
+    Math.round(activePdfVisualBaseWidth * activePdfZoom),
   );
+  const activePdfLayerScale = activePdfWidth / Math.max(1, activePdfRenderWidth);
   const activePdfRenderScale =
     activeTab?.type === "pdf"
-      ? activePdfRenderWidth / activePdfViewportBaseWidth
+      ? activePdfRenderWidth / activePdfVisualBaseWidth
       : 1;
   const shouldShowGuestPdfSyncButton =
     !interactive &&
@@ -9866,6 +9884,80 @@ const WhiteboardTile = ({
     setGuestBoardZoom(syncedBoardZoom);
   }, [syncedBoardZoom]);
 
+  useEffect(() => {
+    if (interactive || activeTab?.type !== "pdf") {
+      lastSyncedPdfViewportSignatureRef.current = "";
+      return;
+    }
+
+    const signature = [
+      activeTab.id,
+      activeTab.zoom,
+      activeTab.scrollRatio,
+      activeTab.viewportLeftRatio,
+      activeTab.viewportPageNumber,
+      activeTab.viewportPageOffsetRatio,
+      activeTab.viewportVisibleWidthRatio,
+      activeTab.viewportVisibleHeightRatio,
+      activeTab.viewportBaseWidth,
+      activeTab.viewportBaseHeight,
+    ].join("|");
+    const previousSignature = lastSyncedPdfViewportSignatureRef.current;
+    lastSyncedPdfViewportSignatureRef.current = signature;
+
+    if (previousSignature && previousSignature !== signature) {
+      setGuestPdfOverride(false);
+      setGuestPdfZoom(syncedPdfZoom);
+    }
+  }, [
+    activeTab?.id,
+    activeTab?.scrollRatio,
+    activeTab?.type,
+    activeTab?.viewportBaseHeight,
+    activeTab?.viewportBaseWidth,
+    activeTab?.viewportLeftRatio,
+    activeTab?.viewportPageNumber,
+    activeTab?.viewportPageOffsetRatio,
+    activeTab?.viewportVisibleHeightRatio,
+    activeTab?.viewportVisibleWidthRatio,
+    activeTab?.zoom,
+    interactive,
+    syncedPdfZoom,
+  ]);
+
+  useEffect(() => {
+    if (interactive || activeTab?.type === "pdf") {
+      lastSyncedBoardViewportSignatureRef.current = "";
+      return;
+    }
+
+    const signature = [
+      boardTab?.id || WHITEBOARD_BOARD_TAB_ID,
+      boardTab?.zoom,
+      boardTab?.scrollLeftRatio,
+      boardTab?.scrollTopRatio,
+      boardTab?.viewportBaseWidth,
+      boardTab?.viewportBaseHeight,
+    ].join("|");
+    const previousSignature = lastSyncedBoardViewportSignatureRef.current;
+    lastSyncedBoardViewportSignatureRef.current = signature;
+
+    if (previousSignature && previousSignature !== signature) {
+      setGuestBoardOverride(false);
+      setGuestBoardZoom(syncedBoardZoom);
+    }
+  }, [
+    activeTab?.type,
+    boardTab?.id,
+    boardTab?.scrollLeftRatio,
+    boardTab?.scrollTopRatio,
+    boardTab?.viewportBaseHeight,
+    boardTab?.viewportBaseWidth,
+    boardTab?.zoom,
+    interactive,
+    syncedBoardZoom,
+  ]);
+
   const handleTabSelect = useCallback(
     (event, tabId) => {
       event?.stopPropagation?.();
@@ -11219,7 +11311,7 @@ const WhiteboardTile = ({
                                   pageMeta.baseWidth,
                               )
                             : 720);
-                        const displayedPageHeight = Math.max(1, Math.round(pageHeight * activePdfZoom));
+                        const displayedPageHeight = Math.max(1, Math.round(pageHeight * activePdfLayerScale));
                         // Mobile devices can't afford to keep every selected
                         // page rasterised in DOM (one A4 page on retina is
                         // ~16 MB of canvas memory, 5 pages = 81 MB → OOM).
@@ -11250,6 +11342,7 @@ const WhiteboardTile = ({
                             style={{
                               width: `${activePdfWidth}px`,
                               minWidth: `${activePdfWidth}px`,
+                              maxWidth: "none",
                               height: `${displayedPageHeight}px`,
                             }}
                           >
@@ -11262,7 +11355,7 @@ const WhiteboardTile = ({
                               style={{
                                 width: `${activePdfRenderWidth}px`,
                                 height: `${pageHeight}px`,
-                                transform: `translateX(-50%) scale(${activePdfZoom})`,
+                                transform: `translateX(-50%) scale(${activePdfLayerScale})`,
                               }}
                             >
                               {shouldRenderPage ? (
@@ -11350,7 +11443,7 @@ const WhiteboardTile = ({
                               pageMeta.baseWidth,
                           )
                         : 720);
-                    const displayedPageHeight = Math.max(1, Math.round(pageHeight * activePdfZoom));
+                    const displayedPageHeight = Math.max(1, Math.round(pageHeight * activePdfLayerScale));
                     // Mobile virtual scrolling — see note on the other render
                     // branch above. Keeping every selected page in DOM blows
                     // past Safari's 250 MB tab budget.
@@ -11378,6 +11471,7 @@ const WhiteboardTile = ({
                         style={{
                           width: `${activePdfWidth}px`,
                           minWidth: `${activePdfWidth}px`,
+                          maxWidth: "none",
                           height: `${displayedPageHeight}px`,
                         }}
                       >
@@ -11390,7 +11484,7 @@ const WhiteboardTile = ({
                           style={{
                             width: `${activePdfRenderWidth}px`,
                             height: `${pageHeight}px`,
-                            transform: `translateX(-50%) scale(${activePdfZoom})`,
+                            transform: `translateX(-50%) scale(${activePdfLayerScale})`,
                           }}
                         >
                           {shouldRenderPage ? (
