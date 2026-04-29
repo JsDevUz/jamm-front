@@ -95,9 +95,10 @@ const WHITEBOARD_MOBILE_CANVAS_MAX_EDGE = 4096;
 const WHITEBOARD_MOBILE_CANVAS_MAX_PIXELS = 8000000;
 const WHITEBOARD_MOBILE_SAFARI_CANVAS_MAX_EDGE = 2048;
 const WHITEBOARD_MOBILE_SAFARI_CANVAS_MAX_PIXELS = 2200000;
-const WHITEBOARD_MOBILE_GUEST_BOARD_CANVAS_MAX_EDGE = 1600;
-const WHITEBOARD_MOBILE_GUEST_BOARD_CANVAS_MAX_PIXELS = 900000;
+const WHITEBOARD_MOBILE_GUEST_BOARD_CANVAS_MAX_EDGE = 3072;
+const WHITEBOARD_MOBILE_GUEST_BOARD_CANVAS_MAX_PIXELS = 4000000;
 const WHITEBOARD_MOBILE_GUEST_PAGE_CANVAS_MAX_PIXELS = 2200000;
+const WHITEBOARD_MOBILE_GUEST_BOARD_MAX_RENDER_ZOOM = 1.25;
 const WHITEBOARD_MIN_BOARD_BASE_WIDTH = 120;
 const WHITEBOARD_MIN_BOARD_BASE_HEIGHT = 120;
 const WHITEBOARD_MIN_VIEWPORT_BASE_HEIGHT = 120;
@@ -2635,6 +2636,12 @@ const WorkspaceShell = styled.div`
   background:
     radial-gradient(circle at top left, rgba(255,255,255,0.06), transparent 36%),
     linear-gradient(180deg, #fbfbfd, #f3f5f8);
+
+  [data-theme="dark"] & {
+    background:
+      radial-gradient(circle at top left, rgba(99, 102, 241, 0.12), transparent 34%),
+      linear-gradient(180deg, #111827, #0b1120);
+  }
 `;
 
 const WorkspaceChrome = styled.div`
@@ -2673,6 +2680,16 @@ const TabsBar = styled.div`
   box-shadow:
     inset 0 1px 0 rgba(255,255,255,0.78),
     0 14px 28px rgba(15, 23, 42, 0.08);
+
+  [data-theme="dark"] & {
+    background:
+      linear-gradient(180deg, rgba(31, 41, 55, 0.96), rgba(17, 24, 39, 0.94)),
+      radial-gradient(circle at top left, rgba(99, 102, 241, 0.18), transparent 38%);
+    border-color: rgba(148, 163, 184, 0.16);
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,0.08),
+      0 16px 30px rgba(0, 0, 0, 0.28);
+  }
 `;
 
 const TabsScroller = styled.div`
@@ -2744,6 +2761,27 @@ const WorkspaceTabButton = styled.button`
     background: ${(p) =>
       p.$active ? "linear-gradient(90deg, #6366f1, #8b5cf6)" : "transparent"};
   }
+
+  [data-theme="dark"] & {
+    border-color: ${(p) =>
+      p.$active ? "rgba(129, 140, 248, 0.34)" : "rgba(148, 163, 184, 0.16)"};
+    border-bottom-color: ${(p) => (p.$active ? "rgba(17, 24, 39, 0.98)" : "rgba(148, 163, 184, 0.12)")};
+    background: ${(p) =>
+      p.$active
+        ? "linear-gradient(180deg, rgba(31,41,55,1), rgba(17,24,39,0.98))"
+        : "linear-gradient(180deg, rgba(30,41,59,0.94), rgba(15,23,42,0.92))"};
+    color: ${(p) => (p.$active ? "rgba(248, 250, 252, 0.96)" : "rgba(203, 213, 225, 0.72)")};
+    box-shadow: ${(p) =>
+      p.$active
+        ? "0 14px 24px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255,255,255,0.08)"
+        : "inset 0 1px 0 rgba(255,255,255,0.04)"};
+
+    &:hover {
+      color: rgba(248, 250, 252, 0.94);
+      border-color: ${(p) =>
+        p.$active ? "rgba(129, 140, 248, 0.42)" : "rgba(148, 163, 184, 0.22)"};
+    }
+  }
 `;
 
 const TabTitle = styled.span`
@@ -2775,6 +2813,16 @@ const TabCloseButton = styled.button`
     color: rgba(15, 23, 42, 0.9);
     transform: scale(1.04);
   }
+
+  [data-theme="dark"] & {
+    background: rgba(148, 163, 184, 0.1);
+    color: rgba(203, 213, 225, 0.68);
+
+    &:hover {
+      background: rgba(148, 163, 184, 0.18);
+      color: rgba(248, 250, 252, 0.94);
+    }
+  }
 `;
 
 const AddTabButton = styled.button`
@@ -2801,6 +2849,22 @@ const AddTabButton = styled.button`
     box-shadow:
       inset 0 1px 0 rgba(255,255,255,0.9),
       0 14px 24px rgba(15, 23, 42, 0.1);
+  }
+
+  [data-theme="dark"] & {
+    border-color: rgba(148, 163, 184, 0.16);
+    background: linear-gradient(180deg, rgba(31,41,55,0.96), rgba(17,24,39,0.92));
+    color: rgba(203, 213, 225, 0.78);
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,0.08),
+      0 12px 22px rgba(0, 0, 0, 0.26);
+
+    &:hover {
+      color: rgba(248, 250, 252, 0.96);
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,0.1),
+        0 16px 26px rgba(0, 0, 0, 0.3);
+    }
   }
 `;
 
@@ -2831,6 +2895,14 @@ const Toolbar = styled.div`
     max-height: calc(100vh - 28px);
     padding: 6px;
     border-radius: 14px;
+  }
+
+  [data-theme="dark"] & {
+    border-color: rgba(148, 163, 184, 0.16);
+    background: rgba(17, 24, 39, 0.92);
+    box-shadow:
+      0 18px 42px rgba(0, 0, 0, 0.34),
+      inset 0 1px 0 rgba(255, 255, 255, 0.08);
   }
 `;
 
@@ -2931,6 +3003,14 @@ const SurfaceDock = styled.div`
     top: 10px;
     left: 10px;
   }
+
+  [data-theme="dark"] & {
+    border-color: rgba(148, 163, 184, 0.16);
+    background: rgba(17, 24, 39, 0.92);
+    box-shadow:
+      0 18px 42px rgba(0, 0, 0, 0.34),
+      inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  }
 `;
 
 const ToolbarOptions = styled.div`
@@ -2954,6 +3034,14 @@ const ToolbarOptions = styled.div`
   @media (max-width: 768px) {
     padding: 6px;
     border-radius: 14px;
+  }
+
+  [data-theme="dark"] & {
+    border-color: rgba(148, 163, 184, 0.16);
+    background: rgba(17, 24, 39, 0.92);
+    box-shadow:
+      0 18px 42px rgba(0, 0, 0, 0.34),
+      inset 0 1px 0 rgba(255, 255, 255, 0.08);
   }
 `;
 
@@ -2986,6 +3074,12 @@ const InkColorButton = styled.button`
     background: ${(p) => p.$swatch};
     border: ${(p) => (p.$swatch === "#ffffff" ? "1px solid rgba(15,23,42,0.22)" : "none")};
   }
+
+  [data-theme="dark"] & {
+    background: rgba(15, 23, 42, 0.92);
+    border-color: ${(p) =>
+      p.$active ? "var(--call-primary)" : "rgba(148, 163, 184, 0.42)"};
+  }
 `;
 
 const StrokeSliderWrap = styled.div`
@@ -3007,6 +3101,10 @@ const StrokeSliderMeta = styled.div`
   color: rgba(15, 23, 42, 0.62);
   font-size: 11px;
   font-weight: 800;
+
+  [data-theme="dark"] & {
+    color: rgba(203, 213, 225, 0.68);
+  }
 `;
 
 const StrokePreviewLine = styled.span`
@@ -3014,6 +3112,10 @@ const StrokePreviewLine = styled.span`
   height: ${(p) => `${Math.max(2, Math.min(12, Number(p.$size) || 2))}px`};
   border-radius: 999px;
   background: rgba(15, 23, 42, 0.88);
+
+  [data-theme="dark"] & {
+    background: rgba(226, 232, 240, 0.86);
+  }
 `;
 
 const StrokeSlider = styled.input`
@@ -3031,6 +3133,14 @@ const ColorPalettePanel = styled.div`
     0 24px 48px rgba(15, 23, 42, 0.14),
     inset 0 1px 0 rgba(255, 255, 255, 0.92);
   pointer-events: auto;
+
+  [data-theme="dark"] & {
+    border-color: rgba(148, 163, 184, 0.16);
+    background: rgba(17, 24, 39, 0.98);
+    box-shadow:
+      0 24px 48px rgba(0, 0, 0, 0.38),
+      inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  }
 `;
 
 const ColorPaletteSlider = styled(StrokeSlider)`
@@ -3044,6 +3154,10 @@ const ColorPanelTitle = styled.div`
   color: #667085;
   font-size: 18px;
   font-weight: 500;
+
+  [data-theme="dark"] & {
+    color: rgba(203, 213, 225, 0.76);
+  }
 `;
 
 const ColorPanelAction = styled.button`
@@ -3102,6 +3216,10 @@ const ColorPaletteAdd = styled.button`
   font-size: 34px;
   line-height: 1;
   cursor: pointer;
+
+  [data-theme="dark"] & {
+    color: rgba(203, 213, 225, 0.72);
+  }
 `;
 
 const ToolbarGroup = styled.div`
@@ -3119,6 +3237,10 @@ const ToolbarDivider = styled.div`
   align-self: center;
   background: rgba(15, 23, 42, 0.12);
   margin: 2px 0;
+
+  [data-theme="dark"] & {
+    background: rgba(148, 163, 184, 0.18);
+  }
 `;
 
 const ToolButton = styled.button`
@@ -3139,6 +3261,18 @@ const ToolButton = styled.button`
   align-items: center;
   justify-content: center;
   cursor: pointer;
+
+  [data-theme="dark"] & {
+    border-color: ${(p) =>
+      p.$active
+        ? "color-mix(in srgb, var(--call-primary) 58%, transparent)"
+        : "rgba(148, 163, 184, 0.14)"};
+    background: ${(p) =>
+      p.$active
+        ? "color-mix(in srgb, var(--call-primary) 20%, rgba(15, 23, 42, 0.96) 80%)"
+        : "rgba(15, 23, 42, 0.88)"};
+    color: ${(p) => (p.$danger ? "var(--call-danger)" : "rgba(248, 250, 252, 0.92)")};
+  }
 `;
 
 const ToolOptionButton = styled.button`
@@ -3181,6 +3315,21 @@ const ToolOptionButton = styled.button`
         ? "rgba(54, 85, 255, 0.14)"
         : "rgba(15, 23, 42, 0.04)"};
     transform: translateY(-1px);
+  }
+
+  [data-theme="dark"] & {
+    background: ${(p) =>
+      p.$active
+        ? "color-mix(in srgb, var(--call-primary) 20%, rgba(15, 23, 42, 0.96) 80%)"
+        : "transparent"};
+    color: ${(p) => (p.$active ? "var(--call-primary)" : "rgba(248, 250, 252, 0.9)")};
+
+    &:hover {
+      background: ${(p) =>
+        p.$active
+          ? "color-mix(in srgb, var(--call-primary) 24%, rgba(15, 23, 42, 0.96) 76%)"
+          : "rgba(148, 163, 184, 0.12)"};
+    }
   }
 `;
 
@@ -3234,6 +3383,25 @@ const SurfaceSwitchButton = styled.button`
     width: 22px;
     height: 22px;
     stroke-width: 2.35;
+  }
+
+  [data-theme="dark"] & {
+    border-color: ${(p) =>
+      p.$active
+        ? "color-mix(in srgb, var(--call-primary) 56%, transparent)"
+        : "transparent"};
+    background: ${(p) =>
+      p.$active
+        ? "color-mix(in srgb, var(--call-primary) 20%, rgba(15, 23, 42, 0.96) 80%)"
+        : "transparent"};
+    color: ${(p) => (p.$active ? "var(--call-primary)" : "rgba(203, 213, 225, 0.72)")};
+
+    &:hover {
+      background: ${(p) =>
+        p.$active
+          ? "color-mix(in srgb, var(--call-primary) 24%, rgba(15, 23, 42, 0.96) 76%)"
+          : "rgba(148, 163, 184, 0.12)"};
+    }
   }
 `;
 
@@ -3339,6 +3507,10 @@ const BrushPresetWrap = styled.div`
   color: rgba(15, 23, 42, 0.74);
   font-size: 12px;
   font-weight: 700;
+
+  [data-theme="dark"] & {
+    color: rgba(203, 213, 225, 0.76);
+  }
 `;
 
 const BrushPresetGroup = styled.div`
@@ -3364,6 +3536,17 @@ const BrushPresetButton = styled.button`
   align-items: center;
   justify-content: center;
   cursor: pointer;
+
+  [data-theme="dark"] & {
+    border-color: ${(p) =>
+      p.$active
+        ? "color-mix(in srgb, var(--call-primary) 58%, transparent)"
+        : "rgba(148, 163, 184, 0.14)"};
+    background: ${(p) =>
+      p.$active
+        ? "color-mix(in srgb, var(--call-primary) 20%, rgba(15, 23, 42, 0.96) 80%)"
+        : "rgba(15, 23, 42, 0.88)"};
+  }
 `;
 
 const BrushPresetStroke = styled.span`
@@ -3372,6 +3555,10 @@ const BrushPresetStroke = styled.span`
   height: ${(p) => `${p.$size}px`};
   border-radius: 999px;
   background: rgba(15, 23, 42, 0.88);
+
+  [data-theme="dark"] & {
+    background: rgba(226, 232, 240, 0.86);
+  }
 `;
 
 const EdgePreviewShape = styled.span`
@@ -3419,6 +3606,18 @@ const CurrentValueButton = styled.button`
     height: 22px;
     stroke-width: 2.35;
   }
+
+  [data-theme="dark"] & {
+    border-color: ${(p) =>
+      p.$active
+        ? "color-mix(in srgb, var(--call-primary) 56%, transparent)"
+        : "rgba(148, 163, 184, 0.14)"};
+    background: ${(p) =>
+      p.$active
+        ? "color-mix(in srgb, var(--call-primary) 20%, rgba(15, 23, 42, 0.96) 80%)"
+        : "rgba(15, 23, 42, 0.88)"};
+    color: rgba(248, 250, 252, 0.92);
+  }
 `;
 
 const CurrentColorDot = styled.span`
@@ -3456,6 +3655,14 @@ const PickerPopoverPanel = styled.div`
   backdrop-filter: blur(12px);
   @media (max-width: 900px) {
     backdrop-filter: none;
+  }
+
+  [data-theme="dark"] & {
+    border-color: rgba(148, 163, 184, 0.16);
+    background: rgba(17, 24, 39, 0.96);
+    box-shadow:
+      0 18px 38px rgba(0, 0, 0, 0.36),
+      inset 0 1px 0 rgba(255, 255, 255, 0.08);
   }
 `;
 
@@ -3559,6 +3766,11 @@ const TextControlGroup = styled.div`
   border-radius: 14px;
   border: 1px solid rgba(15, 23, 42, 0.08);
   background: rgba(255, 255, 255, 0.9);
+
+  [data-theme="dark"] & {
+    border-color: rgba(148, 163, 184, 0.16);
+    background: rgba(15, 23, 42, 0.88);
+  }
 `;
 
 const TextPillButton = styled.button`
@@ -3583,6 +3795,14 @@ const TextPillButton = styled.button`
   align-items: center;
   justify-content: center;
   cursor: pointer;
+
+  [data-theme="dark"] & {
+    background: ${(p) =>
+      p.$active
+        ? "color-mix(in srgb, var(--call-primary) 20%, rgba(15, 23, 42, 0.96) 80%)"
+        : "transparent"};
+    color: rgba(248, 250, 252, 0.92);
+  }
 `;
 
 const ZoomReadout = styled.div`
@@ -3591,6 +3811,10 @@ const ZoomReadout = styled.div`
   font-size: 12px;
   font-weight: 800;
   color: rgba(15, 23, 42, 0.72);
+
+  [data-theme="dark"] & {
+    color: rgba(203, 213, 225, 0.76);
+  }
 `;
 
 const FloatingControls = styled.div`
@@ -3630,6 +3854,11 @@ const FloatingZoomValue = styled.div`
   line-height: 1;
   font-weight: 500;
   color: rgba(15, 23, 42, 0.92);
+
+  [data-theme="dark"] & {
+    color: rgba(248, 250, 252, 0.92);
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.24);
+  }
 `;
 
 const GuestSyncButton = styled.button`
@@ -3651,6 +3880,13 @@ const GuestSyncButton = styled.button`
   backdrop-filter: blur(12px);
   @media (max-width: 900px) {
     backdrop-filter: none;
+  }
+
+  [data-theme="dark"] & {
+    border-color: color-mix(in srgb, var(--call-primary) 42%, transparent);
+    background: rgba(17, 24, 39, 0.94);
+    color: var(--call-primary);
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.34);
   }
   pointer-events: auto;
 
@@ -5120,6 +5356,16 @@ const StrokeCanvas = ({
       if (activeLayerRafRef.current) {
         window.cancelAnimationFrame(activeLayerRafRef.current);
         activeLayerRafRef.current = 0;
+      }
+      try {
+        canvas.width = 0;
+        canvas.height = 0;
+      } catch {}
+      if (activeCanvas) {
+        try {
+          activeCanvas.width = 0;
+          activeCanvas.height = 0;
+        } catch {}
       }
     };
   }, [
@@ -6807,6 +7053,7 @@ const WhiteboardTile = ({
   const pdfObserverRef = useRef(null);
   const pdfPageCountCacheRef = useRef({});
   const pdfPageBitmapCacheRef = useRef(new Map());
+  const pdfRenderBatchSignatureRef = useRef("");
   const pdfPinchScrollRef = useRef({ left: 0, top: 0 });
   const pdfZoomAnchorRef = useRef(null);
   const pdfUserGestureRef = useRef(false);
@@ -6818,6 +7065,18 @@ const WhiteboardTile = ({
   const boardZoomAnimationTargetRef = useRef(null);
   const boardZoomAnimationAnchorRef = useRef(null);
   const boardZoomCommitTimeoutRef = useRef(0);
+
+  const releasePdfBitmapCache = useCallback(() => {
+    pdfPageBitmapCacheRef.current.forEach((entry) => {
+      if (entry?.canvas) {
+        try {
+          entry.canvas.width = 0;
+          entry.canvas.height = 0;
+        } catch {}
+      }
+    });
+    pdfPageBitmapCacheRef.current.clear();
+  }, []);
   const boardWheelAnchorRef = useRef(null);
   const boardWheelZoomTargetRef = useRef(null);
   const pendingInteractivePdfZoomRef = useRef(null);
@@ -7205,7 +7464,12 @@ const WhiteboardTile = ({
     (logicalZoom) => Math.max(0.05, Number(logicalZoom) || 1),
     [],
   );
-  const activeBoardRenderScale = getBoardRenderScale(activeBoardZoom);
+  const rawActiveBoardRenderScale = getBoardRenderScale(activeBoardZoom);
+  const shouldCapMobileGuestBoardRender =
+    !interactive && effectiveIsMobile && activeTab?.type !== "pdf";
+  const activeBoardRenderScale = shouldCapMobileGuestBoardRender
+    ? Math.min(rawActiveBoardRenderScale, WHITEBOARD_MOBILE_GUEST_BOARD_MAX_RENDER_ZOOM)
+    : rawActiveBoardRenderScale;
   const activeBoardRenderScaleRef = useRef(activeBoardRenderScale);
   activeBoardRenderScaleRef.current = activeBoardRenderScale;
   const activeBoardWorldScale = activeBoardRenderScale * WHITEBOARD_BOARD_POINT_SPAN;
@@ -7790,13 +8054,42 @@ const WhiteboardTile = ({
 
   useEffect(() => {
     return () => {
-      pdfPageBitmapCacheRef.current.clear();
+      releasePdfBitmapCache();
       pdfPickerDocumentRef.current = null;
       pdfPickerDocumentKeyRef.current = "";
     };
-  }, []);
+  }, [releasePdfBitmapCache]);
 
   useEffect(() => {
+    if (activeTab?.type === "pdf") {
+      return;
+    }
+
+    pdfRenderBatchSignatureRef.current = "";
+    releasePdfBitmapCache();
+    setPdfPageImages({});
+    setPdfPageMetrics({});
+    setVisiblePdfPages([]);
+
+    if (typeof document !== "undefined") {
+      document
+        .querySelectorAll('canvas[id^="pdf-page-"]')
+        .forEach((canvas) => {
+          if (canvas instanceof HTMLCanvasElement) {
+            try {
+              canvas.width = 0;
+              canvas.height = 0;
+            } catch {}
+          }
+        });
+    }
+  }, [activeTab?.type, releasePdfBitmapCache]);
+
+  useEffect(() => {
+    if (activeTab?.type !== "pdf") {
+      return;
+    }
+
     const nextVisiblePages =
       initialVisiblePdfPages.length > 0 ? initialVisiblePdfPages : [1, 2];
     setCurrentPdfPage(nextVisiblePages[0] || 1);
@@ -7812,7 +8105,7 @@ const WhiteboardTile = ({
     });
     setPdfPageMetrics({});
     setPdfPageImages({});
-  }, [activeTab?.id, activeTabSelectedPagesKey, initialVisiblePdfPages]);
+  }, [activeTab?.id, activeTab?.type, activeTabSelectedPagesKey, initialVisiblePdfPages]);
 
   const handleTileClick = useCallback(() => {
     onSelect?.();
@@ -8379,6 +8672,18 @@ const WhiteboardTile = ({
     if (visiblePageSet.size === 0) {
       return undefined;
     }
+
+    const renderBatchSignature = [
+      activeTab.id,
+      Math.round(activePdfRenderWidth),
+      priorityPageNumber,
+      shouldUseContainedMobilePdfViewport ? "contained" : "normal",
+      Array.from(visiblePageSet).sort((a, b) => a - b).join(","),
+    ].join(":");
+    if (pdfRenderBatchSignatureRef.current === renderBatchSignature) {
+      return undefined;
+    }
+    pdfRenderBatchSignatureRef.current = renderBatchSignature;
 
     const renderPages = async () => {
       try {
@@ -11122,7 +11427,7 @@ const WhiteboardTile = ({
 	                          setIsEdgePickerOpen(false);
 	                          setIsSizePickerOpen(false);
 	                        }} aria-label="Font family" title="Font family">
-	                          <span style={{ fontFamily: getTextFontFamily(resolvedTextFontFamily), fontSize: 12, fontWeight: 700, color: "#111111" }}>
+	                          <span style={{ fontFamily: getTextFontFamily(resolvedTextFontFamily), fontSize: 12, fontWeight: 700, color: "currentColor" }}>
 	                            {WHITEBOARD_TEXT_FONT_OPTIONS.find((option) => option.id === resolvedTextFontFamily)?.label?.slice(0, 1) || "S"}
 	                          </span>
 	                        </CurrentValueButton>
@@ -11151,7 +11456,7 @@ const WhiteboardTile = ({
 	                          setIsEdgePickerOpen(false);
 	                          setIsSizePickerOpen(false);
 	                        }} aria-label="Text size" title="Text size">
-	                          <span style={{ fontSize: 12, fontWeight: 700, color: "#111111" }}>
+	                          <span style={{ fontSize: 12, fontWeight: 700, color: "currentColor" }}>
 	                            {WHITEBOARD_TEXT_SIZE_OPTIONS.find((option) => option.id === resolvedTextSize)?.label || "M"}
 	                          </span>
 	                        </CurrentValueButton>
@@ -11399,6 +11704,7 @@ const WhiteboardTile = ({
                               )}
                               {(!isMobileClient || interactive || shouldRenderPage || pageStrokes.length > 0) ? (
                                 <StrokeCanvas
+                                  key={`pdf-strokes-${activeTab.id}-${pageMeta.pageNumber}`}
                                   strokes={pageStrokes}
                                   interactive={interactive}
                                   tool={tool}
@@ -11534,6 +11840,7 @@ const WhiteboardTile = ({
                           )}
                           {(!isMobileClient || interactive || shouldRenderPage || pageStrokes.length > 0) ? (
                             <StrokeCanvas
+                              key={`pdf-strokes-${activeTab.id}-${pageMeta.pageNumber}`}
                               strokes={pageStrokes}
                               interactive={interactive}
                               tool={tool}
@@ -11616,6 +11923,7 @@ const WhiteboardTile = ({
                           $offsetTop={activeBoardSceneOffsetTop}
                         />
                         <StrokeCanvas
+                          key={`board-strokes-${activeTab?.id || WHITEBOARD_BOARD_TAB_ID}`}
                           strokes={boardTab?.strokes || []}
                           interactive={interactive}
                           tool={tool}
@@ -11644,6 +11952,7 @@ const WhiteboardTile = ({
                               ? WHITEBOARD_MOBILE_GUEST_BOARD_CANVAS_MAX_PIXELS
                               : undefined
                           }
+                          canvasPreferredRatio={!interactive && effectiveIsMobile ? 1.25 : undefined}
                           surfaceMode="board"
                           textPlaceholder={t("groupCall.whiteboard.textPlaceholder")}
                         />
@@ -11679,6 +11988,7 @@ const WhiteboardTile = ({
                       $offsetTop={activeBoardSceneOffsetTop}
                     />
                     <StrokeCanvas
+                      key={`board-strokes-${activeTab?.id || WHITEBOARD_BOARD_TAB_ID}`}
                       strokes={boardTab?.strokes || []}
                       interactive={interactive}
                       tool={tool}
@@ -11707,6 +12017,7 @@ const WhiteboardTile = ({
                           ? WHITEBOARD_MOBILE_GUEST_BOARD_CANVAS_MAX_PIXELS
                           : undefined
                       }
+                      canvasPreferredRatio={!interactive && effectiveIsMobile ? 1.25 : undefined}
                       surfaceMode="board"
                       textPlaceholder={t("groupCall.whiteboard.textPlaceholder")}
                     />
