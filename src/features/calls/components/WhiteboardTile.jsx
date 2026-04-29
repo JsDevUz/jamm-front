@@ -7468,6 +7468,24 @@ const WhiteboardTile = ({
   const rawActiveBoardRenderScale = getBoardRenderScale(activeBoardZoom);
   const shouldCapMobileGuestBoardRender =
     !interactive && effectiveIsMobile && activeTab?.type !== "pdf";
+  const shouldCapInteractiveMobileSafariBoardCanvas =
+    interactive && isMobileSafariBrowser() && activeTab?.type !== "pdf";
+  const shouldCapMobileGuestBoardCanvas =
+    !interactive && effectiveIsMobile && activeTab?.type !== "pdf";
+  const boardCanvasMaxEdge = shouldCapInteractiveMobileSafariBoardCanvas
+    ? WHITEBOARD_MOBILE_SAFARI_CANVAS_MAX_EDGE
+    : shouldCapMobileGuestBoardCanvas
+      ? WHITEBOARD_MOBILE_GUEST_BOARD_CANVAS_MAX_EDGE
+      : undefined;
+  const boardCanvasMaxPixels = shouldCapInteractiveMobileSafariBoardCanvas
+    ? WHITEBOARD_MOBILE_SAFARI_CANVAS_MAX_PIXELS
+    : shouldCapMobileGuestBoardCanvas
+      ? WHITEBOARD_MOBILE_GUEST_BOARD_CANVAS_MAX_PIXELS
+      : undefined;
+  const boardCanvasPreferredRatio =
+    shouldCapInteractiveMobileSafariBoardCanvas || shouldCapMobileGuestBoardCanvas
+      ? 1
+      : undefined;
   const activeBoardRenderScale = shouldCapMobileGuestBoardRender
     ? Math.min(rawActiveBoardRenderScale, WHITEBOARD_MOBILE_GUEST_BOARD_MAX_RENDER_ZOOM)
     : rawActiveBoardRenderScale;
@@ -11974,17 +11992,9 @@ const WhiteboardTile = ({
                           onStrokeUpdate={onStrokeUpdate}
                           onToolChange={onToolChange}
                           onTextEditorStateChange={setActiveTextEditorState}
-                          canvasMaxEdge={
-                            !interactive && effectiveIsMobile
-                              ? WHITEBOARD_MOBILE_GUEST_BOARD_CANVAS_MAX_EDGE
-                              : undefined
-                          }
-                          canvasMaxPixels={
-                            !interactive && effectiveIsMobile
-                              ? WHITEBOARD_MOBILE_GUEST_BOARD_CANVAS_MAX_PIXELS
-                              : undefined
-                          }
-                          canvasPreferredRatio={!interactive && effectiveIsMobile ? 1 : undefined}
+                          canvasMaxEdge={boardCanvasMaxEdge}
+                          canvasMaxPixels={boardCanvasMaxPixels}
+                          canvasPreferredRatio={boardCanvasPreferredRatio}
                           surfaceMode="board"
                           textPlaceholder={t("groupCall.whiteboard.textPlaceholder")}
                         />
@@ -12039,17 +12049,9 @@ const WhiteboardTile = ({
                       onStrokeUpdate={onStrokeUpdate}
                       onToolChange={onToolChange}
                       onTextEditorStateChange={setActiveTextEditorState}
-                      canvasMaxEdge={
-                        !interactive && effectiveIsMobile
-                          ? WHITEBOARD_MOBILE_GUEST_BOARD_CANVAS_MAX_EDGE
-                          : undefined
-                      }
-                      canvasMaxPixels={
-                        !interactive && effectiveIsMobile
-                          ? WHITEBOARD_MOBILE_GUEST_BOARD_CANVAS_MAX_PIXELS
-                          : undefined
-                      }
-                      canvasPreferredRatio={!interactive && effectiveIsMobile ? 1 : undefined}
+                      canvasMaxEdge={boardCanvasMaxEdge}
+                      canvasMaxPixels={boardCanvasMaxPixels}
+                      canvasPreferredRatio={boardCanvasPreferredRatio}
                       surfaceMode="board"
                       textPlaceholder={t("groupCall.whiteboard.textPlaceholder")}
                     />
