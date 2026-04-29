@@ -281,14 +281,18 @@ const wbMobLog = (event, payload) => {
   let canvasInfo = null;
   if (typeof document !== "undefined") {
     try {
-      const cvs = document.querySelectorAll("canvas");
-      let pixels = 0;
-      cvs.forEach((c) => {
-        pixels += (c.width || 0) * (c.height || 0);
-      });
+      const allCvs = document.querySelectorAll("canvas");
+      let allPixels = 0;
+      allCvs.forEach((c) => { allPixels += (c.width || 0) * (c.height || 0); });
+      const wbRoot = document.querySelector("[data-wb-root]");
+      const wbCvs = wbRoot ? wbRoot.querySelectorAll("canvas") : allCvs;
+      let wbPixels = 0;
+      wbCvs.forEach((c) => { wbPixels += (c.width || 0) * (c.height || 0); });
       canvasInfo = {
-        n: cvs.length,
-        mb: Math.round((pixels * 4) / 1024 / 1024),
+        n: allCvs.length,
+        mb: Math.round((allPixels * 4) / 1024 / 1024),
+        wb_n: wbCvs.length,
+        wb_mb: Math.round((wbPixels * 4) / 1024 / 1024),
       };
     } catch {}
   }
@@ -10725,6 +10729,7 @@ const WhiteboardTile = ({
       $active={isActive}
       $clickable={Boolean(onSelect)}
       onClick={handleTileClick}
+      data-wb-root
     >
       {canFullscreen ? (
         <FullscreenBtn
@@ -11262,29 +11267,31 @@ const WhiteboardTile = ({
                               ) : (
                                 <PdfPagePlaceholder />
                               )}
-                              <StrokeCanvas
-                                strokes={pageStrokes}
-                                interactive={interactive}
-                                tool={tool}
-                                color={color}
-                                fillColor={fillColor}
-                                shapeEdge={shapeEdge}
-                                brushSize={brushSize}
-                                zoomScale={activePdfRenderScale}
-                                textFontFamily={textFontFamily}
-                                textSize={textSize}
-                                textAlign={textAlign}
-                                tabId={activeTab.id}
-                                pageNumber={pageMeta.pageNumber}
-                                onStrokeStart={handleStrokeStartWithToolbarClose}
-                                onStrokeAppend={onStrokeAppend}
-                                onStrokeRemove={onStrokeRemove}
-                                onStrokeUpdate={onStrokeUpdate}
-                                onToolChange={onToolChange}
-                                onTextEditorStateChange={setActiveTextEditorState}
-                                surfaceMode="page"
-                                textPlaceholder={t("groupCall.whiteboard.textPlaceholder")}
-                              />
+                              {(!isMobileClient || interactive || shouldRenderPage || pageStrokes.length > 0) ? (
+                                <StrokeCanvas
+                                  strokes={pageStrokes}
+                                  interactive={interactive}
+                                  tool={tool}
+                                  color={color}
+                                  fillColor={fillColor}
+                                  shapeEdge={shapeEdge}
+                                  brushSize={brushSize}
+                                  zoomScale={activePdfRenderScale}
+                                  textFontFamily={textFontFamily}
+                                  textSize={textSize}
+                                  textAlign={textAlign}
+                                  tabId={activeTab.id}
+                                  pageNumber={pageMeta.pageNumber}
+                                  onStrokeStart={handleStrokeStartWithToolbarClose}
+                                  onStrokeAppend={onStrokeAppend}
+                                  onStrokeRemove={onStrokeRemove}
+                                  onStrokeUpdate={onStrokeUpdate}
+                                  onToolChange={onToolChange}
+                                  onTextEditorStateChange={setActiveTextEditorState}
+                                  surfaceMode="page"
+                                  textPlaceholder={t("groupCall.whiteboard.textPlaceholder")}
+                                />
+                              ) : null}
                             </PdfPageScaleLayer>
                           </PdfPageFrame>
                         );
@@ -11388,29 +11395,31 @@ const WhiteboardTile = ({
                           ) : (
                             <PdfPagePlaceholder />
                           )}
-                          <StrokeCanvas
-                            strokes={pageStrokes}
-                            interactive={interactive}
-                            tool={tool}
-                            color={color}
-                            fillColor={fillColor}
-                            shapeEdge={shapeEdge}
-                            brushSize={brushSize}
-                            zoomScale={activePdfRenderScale}
-                            textFontFamily={textFontFamily}
-                            textSize={textSize}
-                            textAlign={textAlign}
-                            tabId={activeTab.id}
-                            pageNumber={pageMeta.pageNumber}
-                            onStrokeStart={handleStrokeStartWithToolbarClose}
-                            onStrokeAppend={onStrokeAppend}
-                            onStrokeRemove={onStrokeRemove}
-                            onStrokeUpdate={onStrokeUpdate}
-                            onToolChange={onToolChange}
-                            onTextEditorStateChange={setActiveTextEditorState}
-                            surfaceMode="page"
-                            textPlaceholder={t("groupCall.whiteboard.textPlaceholder")}
-                          />
+                          {(!isMobileClient || interactive || shouldRenderPage || pageStrokes.length > 0) ? (
+                            <StrokeCanvas
+                              strokes={pageStrokes}
+                              interactive={interactive}
+                              tool={tool}
+                              color={color}
+                              fillColor={fillColor}
+                              shapeEdge={shapeEdge}
+                              brushSize={brushSize}
+                              zoomScale={activePdfRenderScale}
+                              textFontFamily={textFontFamily}
+                              textSize={textSize}
+                              textAlign={textAlign}
+                              tabId={activeTab.id}
+                              pageNumber={pageMeta.pageNumber}
+                              onStrokeStart={handleStrokeStartWithToolbarClose}
+                              onStrokeAppend={onStrokeAppend}
+                              onStrokeRemove={onStrokeRemove}
+                              onStrokeUpdate={onStrokeUpdate}
+                              onToolChange={onToolChange}
+                              onTextEditorStateChange={setActiveTextEditorState}
+                              surfaceMode="page"
+                              textPlaceholder={t("groupCall.whiteboard.textPlaceholder")}
+                            />
+                          ) : null}
                         </PdfPageScaleLayer>
                       </PdfPageFrame>
                     );
