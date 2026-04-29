@@ -237,9 +237,12 @@ const FolderChip = styled.button`
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  font-size: 13px;
+  font-size: 13px !important;
   font-weight: 700;
   cursor: pointer;
+  span {
+    font-size: 13px !important;
+  }
 `;
 
 const FolderAddButton = styled.button`
