@@ -6894,6 +6894,7 @@ const WhiteboardTile = ({
   const activePdfTab =
     activeTab?.type === "pdf" ? activeTab : pdfTabs[0] || null;
   const activeSurfaceMode = activeTab?.type === "pdf" ? "pdf" : "board";
+  const effectiveIsMobile = isMobile || isMobilePdfBrowser();
   const isPdfPlaceholderActive =
     interactive && activeSurfaceMode === "pdf" && !activePdfTab;
   const hasBoardStrokes = Array.isArray(boardTab?.strokes) && boardTab.strokes.length > 0;
@@ -6925,6 +6926,7 @@ const WhiteboardTile = ({
     wbMobLog("mount", {
       interactive,
       isMobile,
+      effectiveIsMobile,
       compact,
       isFullscreen,
       ua:
@@ -7193,7 +7195,7 @@ const WhiteboardTile = ({
     (activeBoardFrameHeight - activeBoardSceneHeight) / 2,
   ));
   const shouldUseContainedMobilePdfViewport =
-    interactive && isMobile && activeTab?.type === "pdf";
+    interactive && effectiveIsMobile && activeTab?.type === "pdf";
   const shouldMirrorRemotePdfViewportInsets =
     !interactive && activeTab?.type === "pdf";
   const activePdfViewportTopInset = shouldUseContainedMobilePdfViewport
@@ -8676,7 +8678,7 @@ const WhiteboardTile = ({
     pdfRenderWidth,
     activePdfRenderWidth,
     initialVisiblePdfPages,
-    isMobile,
+    effectiveIsMobile,
     shouldUseContainedMobilePdfViewport,
     visiblePdfPages,
   ]);

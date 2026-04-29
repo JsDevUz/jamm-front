@@ -76,6 +76,17 @@ const MINIMIZED_ROOM_CONTAINER_STYLE = {
   overflow: "visible",
 };
 
+const detectMeetMobileViewport = () => {
+  if (typeof window === "undefined") return false;
+
+  const userAgent = window.navigator?.userAgent || "";
+  return (
+    window.matchMedia("(max-width: 768px)").matches ||
+    window.matchMedia("(pointer: coarse)").matches ||
+    /iPhone|iPad|iPod|Android/i.test(userAgent)
+  );
+};
+
 const entrance = keyframes`
   from { opacity: 0; transform: translateY(16px) scale(0.985); }
   to { opacity: 1; transform: translateY(0) scale(1); }
@@ -1849,6 +1860,7 @@ function MeetContent({
   const [selectedMicrophoneId, setSelectedMicrophoneId] = useState("");
   const [selectedSpeakerId, setSelectedSpeakerId] = useState("");
   const [lessonControlsOpen, setLessonControlsOpen] = useState(false);
+  const [isMobileViewport, setIsMobileViewport] = useState(detectMeetMobileViewport);
 
   const room = useRoomContext();
   const roomInfo = useRoomInfo();
@@ -1858,6 +1870,20 @@ function MeetContent({
   const participants = useParticipants({ room });
   const speakingParticipants = useSpeakingParticipants();
   const liveKitServerIsRecording = useIsRecording(room);
+
+  useEffect(() => {
+    const handleViewportChange = () => {
+      setIsMobileViewport(detectMeetMobileViewport());
+    };
+
+    handleViewportChange();
+    window.addEventListener("resize", handleViewportChange);
+    window.addEventListener("orientationchange", handleViewportChange);
+    return () => {
+      window.removeEventListener("resize", handleViewportChange);
+      window.removeEventListener("orientationchange", handleViewportChange);
+    };
+  }, []);
 
   const recorder = useMeetRecorder({
     roomId,
@@ -2369,7 +2395,7 @@ function MeetContent({
       remoteCursor={signaling.whiteboardCursor}
       compact={false}
       isActive
-      isMobile={false}
+      isMobile={isMobileViewport}
       canFullscreen={false}
       isFullscreen={false}
       interactive={Boolean(isCreator)}
