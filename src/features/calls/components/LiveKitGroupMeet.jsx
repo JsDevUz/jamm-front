@@ -2536,6 +2536,7 @@ function MeetContent({
         room={room}
         interactive={Boolean(isCreator)}
         participantCount={participants.length}
+        onPdfUpload={handlePdfUpload}
       />
     </Suspense>
   ) : null;
