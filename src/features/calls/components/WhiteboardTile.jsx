@@ -2598,6 +2598,42 @@ const getStrokeSelectionBounds = (
   };
 };
 
+const getStrokeRedrawSignature = (stroke) => {
+  if (!stroke) {
+    return "";
+  }
+
+  const pointsSignature = Array.isArray(stroke.points)
+    ? stroke.points
+        .map((point) => {
+          if (!point) {
+            return "_,_";
+          }
+
+          const x = Number.isFinite(Number(point.x)) ? Number(point.x).toFixed(5) : "_";
+          const y = Number.isFinite(Number(point.y)) ? Number(point.y).toFixed(5) : "_";
+          return `${x},${y}`;
+        })
+        .join(";")
+    : "";
+
+  return [
+    stroke.id || "",
+    stroke.tool || "",
+    stroke.color || "",
+    stroke.fillColor || "",
+    stroke.edgeStyle || "",
+    stroke.size || "",
+    stroke.text || "",
+    stroke.fontFamily || "",
+    stroke.textSize || "",
+    stroke.textAlign || "",
+    stroke.fontPixelSize || "",
+    stroke.rotation || "",
+    pointsSignature,
+  ].join("|");
+};
+
 const hitTestVectorStroke = (
   ctx,
   stroke,
@@ -5451,7 +5487,7 @@ const StrokeCanvas = ({
   const lastRedrawSignatureRef = useRef("");
   useEffect(() => {
     const list = Array.isArray(strokes) ? strokes : [];
-    const signature = `${zoomScale}|${surfaceMode}|${shapePreviewStroke?.id || ""}:${shapePreviewStroke?.points?.length || 0}|${list.length}|${list.map((s) => `${s.id}:${(s.points && s.points.length) || 0}`).join(",")}`;
+    const signature = `${zoomScale}|${surfaceMode}|${getStrokeRedrawSignature(shapePreviewStroke)}|${list.length}|${list.map(getStrokeRedrawSignature).join(",")}`;
     if (signature === lastRedrawSignatureRef.current) return;
     lastRedrawSignatureRef.current = signature;
     redrawCanvas();
@@ -11901,7 +11937,7 @@ const WhiteboardTile = ({
                     ) : null}
 
                     <PdfStack>
-                      {interactive || shouldUseContainedMobilePdfViewport || isFullscreen ? (
+                      {activePdfViewportTopInset > 0 ? (
                         <PdfViewportSpacer $size={activePdfViewportTopInset} />
                       ) : null}
                       {pdfMeta.pages.map((pageMeta) => {
@@ -12019,7 +12055,7 @@ const WhiteboardTile = ({
                           </PdfPageFrame>
                         );
                       })}
-                      {interactive || shouldUseContainedMobilePdfViewport || isFullscreen ? (
+                      {activePdfViewportBottomInset > 0 ? (
                         <PdfViewportSpacer $size={activePdfViewportBottomInset} />
                       ) : null}
                     </PdfStack>
@@ -12049,7 +12085,7 @@ const WhiteboardTile = ({
                 ) : null}
 
                 <PdfStack>
-                  {interactive || shouldUseContainedMobilePdfViewport || isFullscreen ? (
+                  {activePdfViewportTopInset > 0 ? (
                     <PdfViewportSpacer $size={activePdfViewportTopInset} />
                   ) : null}
                   {pdfMeta.pages.map((pageMeta) => {
@@ -12164,7 +12200,7 @@ const WhiteboardTile = ({
                       </PdfPageFrame>
                     );
                   })}
-                  {interactive || shouldUseContainedMobilePdfViewport || isFullscreen ? (
+                  {activePdfViewportBottomInset > 0 ? (
                     <PdfViewportSpacer $size={activePdfViewportBottomInset} />
                   ) : null}
                 </PdfStack>
