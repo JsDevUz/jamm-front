@@ -147,17 +147,24 @@ function ReactionFloatingMenu({
 
       const rect = anchor.getBoundingClientRect();
       const viewportPadding = 10;
-      const menuWidth = surfaceRef.current?.offsetWidth || 520;
+      const visualViewport = window.visualViewport;
+      const viewportLeft = visualViewport?.offsetLeft || 0;
+      const viewportTop = visualViewport?.offsetTop || 0;
+      const viewportWidth = visualViewport?.width || window.innerWidth;
+      const availableWidth = Math.max(180, viewportWidth - viewportPadding * 2);
+      const measuredWidth = surfaceRef.current?.offsetWidth || 520;
+      const menuWidth = Math.min(measuredWidth, availableWidth);
+      const minLeft = viewportLeft + viewportPadding;
+      const maxLeft = viewportLeft + viewportWidth - menuWidth - viewportPadding;
       const centeredLeft = rect.left + rect.width / 2 - menuWidth / 2;
-      const left = Math.min(
-        Math.max(viewportPadding, centeredLeft),
-        window.innerWidth - menuWidth - viewportPadding,
-      );
+      const left = Math.min(Math.max(minLeft, centeredLeft), Math.max(minLeft, maxLeft));
 
       setStyle({
         position: "fixed",
         left,
-        top: Math.max(viewportPadding, rect.top - 14),
+        top: Math.max(viewportTop + viewportPadding, rect.top - 14),
+        width: menuWidth,
+        maxWidth: availableWidth,
         zIndex: 10060,
         transform: "translateY(-100%)",
       });
@@ -166,10 +173,14 @@ function ReactionFloatingMenu({
     updatePosition();
     const frameId = window.requestAnimationFrame(updatePosition);
     window.addEventListener("resize", updatePosition);
+    window.visualViewport?.addEventListener("resize", updatePosition);
+    window.visualViewport?.addEventListener("scroll", updatePosition);
     window.addEventListener("scroll", updatePosition, true);
     return () => {
       window.cancelAnimationFrame(frameId);
       window.removeEventListener("resize", updatePosition);
+      window.visualViewport?.removeEventListener("resize", updatePosition);
+      window.visualViewport?.removeEventListener("scroll", updatePosition);
       window.removeEventListener("scroll", updatePosition, true);
     };
   }, [anchorRef, open, surfaceRef]);
