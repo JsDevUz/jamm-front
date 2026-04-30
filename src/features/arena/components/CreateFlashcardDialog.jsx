@@ -144,6 +144,7 @@ const FolderChip = styled.button`
   justify-content: center;
   font-weight: 700;
   cursor: pointer;
+  font-size: 13px;
 `;
 
 const Tabs = styled.div`
